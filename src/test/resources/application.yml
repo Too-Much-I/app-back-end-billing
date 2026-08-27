@@ -1,0 +1,19 @@
+spring:
+  profiles:
+    active: test
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/tosunsaeng_billing_test
+      auto-index-creation: false
+
+billing:
+  internal-ingress:
+    mode: disabled
+  mongodb:
+    initialize-indexes: false
+    require-transactions: false
+
+management:
+  endpoint:
+    health:
+      show-details: never

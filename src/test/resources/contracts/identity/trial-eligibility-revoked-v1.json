@@ -1,0 +1,11 @@
+{
+  "eventId": "13702e7d-aa52-44dc-848b-59af50a296c5",
+  "eventType": "PhoneEligibilityBindingRevoked",
+  "schemaVersion": 1,
+  "producer": "identity",
+  "occurredAt": "2026-08-14T06:00:00.000Z",
+  "consumerScopeId": "opaque-scope-v1",
+  "userId": "e8b37a41-bae6-47f1-a770-052e6c5786d4",
+  "revokedAt": "2026-08-14T06:00:00.000Z",
+  "bindingRevision": 2
+}

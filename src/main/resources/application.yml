@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: app-back-end-billing
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/tosunsaeng_billing}
+      auto-index-creation: false
+
+billing:
+  internal-ingress:
+    mode: ${BILLING_INTERNAL_INGRESS_MODE:disabled}
+    lattice-only: ${BILLING_INTERNAL_LATTICE_ONLY:false}
+    environment: ${BILLING_ENVIRONMENT:}
+  trial-eligibility:
+    expected-consumer-scope-id: ${BILLING_TRIAL_EXPECTED_CONSUMER_SCOPE_ID:}
+  mongodb:
+    initialize-indexes: ${BILLING_MONGODB_INITIALIZE_INDEXES:false}
+    require-transactions: ${BILLING_MONGODB_REQUIRE_TRANSACTIONS:false}
+    schema-version: 1
+
+server:
+  port: ${SERVER_PORT:8082}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%thread] %logger{36} - %msg%n"
