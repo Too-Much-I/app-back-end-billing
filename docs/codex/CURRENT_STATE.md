@@ -1,8 +1,67 @@
 # Billing Service 현재 상태
 
-- 최종 갱신일: 2026-08-27
+- 최종 갱신일: 2026-08-28
 - 현재 브랜치: `develop`
-- Jira: `TMI-110` — `[Billing] Trial eligibility event consumer 구현` (`해야 할 일`, 담당자 미지정)
+- Jira: `TMI-112` — `[Billing] Free exam initial reserve 구현` (`해야 할 일`, 담당자 미지정)
+
+## 2026-08-28 TMI-112 PLAN-002 initial reserve 구현 완료
+
+- `POST /internal/v1/reservations`에 16 KiB strict JSON, 필수 lowercase UUID v4 `Idempotency-Key`, canonical SHA-256 payload hash와 직접 200 response DTO를 구현했다.
+- 첫 reserve의 단일 Mongo Transaction에서 current VERIFIED eligibility, expired alias fencing, candidate/key rotation dedupe, 필요한 TrialClaim·subject link·전체 aliases·`FREE_EXAM_ONCE` grant와 `GRANTED`, INITIAL allocation hold·`RESERVED`, 5분 Reservation·PROPOSED Session과 command response snapshot을 함께 반영한다.
+- 같은 operation/payload는 동일 Reservation을 replay하고 다른 payload는 409다. 다른 owner는 402로 차단하고, 같은 candidate·같은 user 동시 요청은 unique/partial unique index와 retry 후 Claim·active command·Reservation·Session 하나로 수렴한다.
+- OPEN·RETAKE_AVAILABLE group은 REPLACEMENT로 기존 consumption·mockExamId를 재사용하며 새 allocation과 entitlement ledger가 없다. GRADING은 processing, mockExamId 불일치는 state conflict다.
+- Mongo initializer를 schema v2로 확장해 reserve 관련 10개 collection과 ADR-001의 23개 index를 생성·option 검증한다. runtime drop/recreate와 Reservation·Claim audit TTL 삭제는 추가하지 않았다.
+- test security에서 Learning Core role은 reserve route만, Identity role은 eligibility route만 허용하고 default disabled는 계속 deny한다. 실제 Lattice auth policy·SG 배포는 범위 밖이다.
+- `./gradlew clean test`에서 총 58개 테스트가 통과했고 실패·skip은 0개다. replica-set Testcontainers가 initial atomicity·rollback·동시성·key rotation·expired alias·REPLACEMENT·retry·unknown commit을 실제 실행했다.
+- Jira `TMI-112` 상태는 사용자 승인 없이 변경하지 않아 `해야 할 일`로 유지한다. confirm/cancel/status·expiry lifecycle과 Learning Core saga·실제 staging E2E 전에는 production reserve caller를 활성화하지 않는다.
+
+## 2026-08-28 PLAN-002 Jira 작업 생성
+
+- TMI 프로젝트에 `TMI-112` — `[Billing] Free exam initial reserve 구현`을 `작업` 유형으로 생성했다. 상태는 `해야 할 일`, 담당자는 미지정이다.
+- PLAN-002의 reserve endpoint, INITIAL·REPLACEMENT 판정, Claim·무료 grant/ledger·allocation·Reservation 단일 Transaction, 멱등성·index·동시성·보안·개인정보 완료 조건을 Jira 본문에 반영했다.
+- confirm/cancel/status·expiry, AttemptGroup event·reconciliation, 타 서비스 adapter, 실제 AWS 배포와 결제는 제외 범위로 명시했다.
+- Billing lifecycle과 Learning Core saga·실제 Lattice staging 검증 전에는 production reserve caller를 활성화하지 않는 제한을 유지한다.
+
+## 2026-08-28 reserve response 식별자·상태 의미 설명
+
+- `operationId`는 앱이 만든 한 번의 시험 생성 명령 ID이며 Learning Core와 Billing이 같은 `Idempotency-Key`로 사용한다. transport retry에는 유지하고 의도적인 restart에는 새 값을 사용한다.
+- `reservationId`는 Billing이 만든 한 번의 entitlement hold 기록 ID다. 후속 confirm/cancel이 이 Reservation을 대상으로 하며 audit 상태 전이를 보존한다.
+- `reservationKind`는 새 소비를 준비하는 `INITIAL`인지 기존 consumption을 재사용하는 `REPLACEMENT`인지 Billing이 판정한 값이다.
+- `reservationStatus=RESERVED`는 unit을 잠갔지만 아직 최종 소비하지 않은 상태다. Session durable commit 뒤 confirm되면 `CONFIRMED`, commit 실패·만료 시 `CANCELED` 또는 `EXPIRED`로 전이한다.
+- `attemptGroupId`는 최초 응시와 허용된 restart를 하나의 consumption으로 묶는 Billing ID다. INITIAL reserve에서 미리 발급하지만 group `OPEN`은 confirm에서 확정한다.
+
+## 2026-08-28 reserve의 sessionId·mockExamId 역할 설명
+
+- `sessionId`는 Learning Core가 만들 예정인 한 번의 ExamSession 식별자다. reserve 시 proposed 값으로 먼저 고정해 응답 유실 retry가 같은 Session으로 수렴하고, 후속 confirm이 실제 durable commit된 바로 그 Session에 대한 것인지 확인한다.
+- `mockExamId`는 AttemptGroup에서 사용할 문제지 식별자다. 최초 reserve에서 group에 고정하고 restart·REPLACEMENT가 같은 문제지를 유지하는지 확인해 다른 시험으로 entitlement를 재사용하는 것을 막는다.
+- Billing은 시험 내용이나 Session을 생성하지 않으며 두 값은 1~128자 opaque token으로만 저장·비교한다. `sessionId`는 한 Session마다 바뀌고 `mockExamId`는 같은 AttemptGroup 동안 유지된다.
+
+## 2026-08-28 PLAN-002 initial reserve 계획서 작성
+
+- `docs/plans/PLAN-002-free-exam-initial-reserve.md` 초안을 작성했다. 신규 Jira는 아직 생성하지 않았다.
+- 범위는 `POST /internal/v1/reservations`의 전체 reserve 판정으로 고정했다. 첫 INITIAL reserve의 단일 Mongo Transaction에서 command 멱등성, current VERIFIED binding, 만료 alias fencing과 dedupe, 필요한 TrialClaim·subject link·무료 grant/ledger, allocation hold, Reservation과 proposed Session projection을 함께 처리한다.
+- 기존 `OPEN`·`RETAKE_AVAILABLE` group은 REPLACEMENT로 기존 consumption을 재사용하고 `GRADING`은 processing conflict, 다른 `mockExamId`는 state conflict로 처리한다.
+- confirm/cancel/status, expiry worker, AttemptGroup event·reconciliation, Learning Core·Identity adapter와 실제 Lattice 배포는 제외했다. 해당 lifecycle이 완성되기 전 production caller activation은 금지한다.
+- 계획 승인 뒤 별도 Jira를 생성하고 `AGENTS.md`의 현재 구현 단위를 PLAN-002로 전환한 다음 구현하는 순서를 권장한다.
+
+## 2026-08-28 다음 구현 단위 확인
+
+- PLAN-001 다음 권장 작업은 current `trial_eligibility`를 사용하는 `FREE_EXAM_ONCE` INITIAL reserve vertical slice다.
+- eligibility event 수신과 TrialClaim 지급을 계속 분리한다. 첫 reserve의 단일 Mongo Transaction 안에서 idempotency command, current VERIFIED binding, candidate alias dedupe, 필요한 TrialClaim·subject link·grant·`GRANTED` ledger, allocation hold·`RESERVED` ledger와 Reservation을 함께 만든다.
+- TrialClaim이나 grant만 미리 생성하는 별도 작업은 승인 계약을 위반하므로 진행하지 않는다.
+- 다음 구현 전 `PLAN-002`와 별도 Jira로 reserve 범위·index·동시성 완료 조건을 고정하고 `AGENTS.md`의 현재 구현 단위를 갱신해야 한다.
+- 그 이후 순서는 confirm/cancel/status·5분 expiry, AttemptGroup event·reconciliation, Learning Core saga와 Identity/Lattice staging 연동이다.
+
+## 2026-08-27 TMI-110 완료 처리
+
+- PLAN-001 구현과 33개 전체 테스트 통과를 근거로 Jira `TMI-110`을 `해야 할 일`에서 `완료`로 전환했다.
+- Jira 설명·담당자·애플리케이션 코드·Git 브랜치는 변경하지 않았다.
+
+## 2026-08-27 로컬 main·develop 브랜치 생성
+
+- 현재 feature 브랜치의 커밋 `e0694f9`를 기준으로 로컬 `main`과 `develop` 브랜치를 생성했다.
+- 현재 checkout은 `feat/TMI-110-trial-eligibility-event-consumer`에 그대로 유지했다.
+- 이후 원격에도 `main`과 `develop`이 생성된 것을 확인했고 GitHub 기본 브랜치를 feature 브랜치에서 `main`으로 변경했다.
 
 ## 2026-08-27 PLAN-001 Trial eligibility consumer 구현 완료
 

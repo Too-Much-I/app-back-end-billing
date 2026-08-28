@@ -14,6 +14,7 @@ import org.springframework.security.web.SecurityFilterChain;
 @EnableConfigurationProperties({
         InternalIngressProperties.class,
         TrialEligibilityProperties.class,
+        ReservationProperties.class,
         BillingMongoProperties.class
 })
 public class SecurityConfig {
@@ -43,11 +44,19 @@ public class SecurityConfig {
                                 HttpMethod.POST,
                                 "/internal/v1/eligibility/trial/events"
                         ).hasRole("IDENTITY_WORKLOAD");
+                        authorize.requestMatchers(
+                                HttpMethod.POST,
+                                "/internal/v1/reservations"
+                        ).hasRole("LEARNING_CORE_WORKLOAD");
                     } else if (ingressProperties.getMode()
                             == InternalIngressProperties.Mode.LATTICE_AWS_IAM) {
                         authorize.requestMatchers(
                                 HttpMethod.POST,
                                 "/internal/v1/eligibility/trial/events"
+                        ).permitAll();
+                        authorize.requestMatchers(
+                                HttpMethod.POST,
+                                "/internal/v1/reservations"
                         ).permitAll();
                     }
                     authorize.anyRequest().denyAll();

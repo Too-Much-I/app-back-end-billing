@@ -15,6 +15,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import web.tosunsaeng.billing.trialeligibility.api.TrialEligibilityEventDecoder;
 import web.tosunsaeng.billing.trialeligibility.application.TrialEligibilityEventService;
+import web.tosunsaeng.billing.reservation.api.IdempotencyKeyParser;
+import web.tosunsaeng.billing.reservation.api.ReserveRequestDecoder;
+import web.tosunsaeng.billing.reservation.application.ReservePayloadHasher;
+import web.tosunsaeng.billing.reservation.application.ReserveService;
 
 @WebMvcTest
 @Import(SecurityConfig.class)
@@ -29,6 +33,18 @@ class SecurityConfigTest {
     @MockitoBean
     private TrialEligibilityEventService service;
 
+    @MockitoBean
+    private ReserveRequestDecoder reserveRequestDecoder;
+
+    @MockitoBean
+    private IdempotencyKeyParser idempotencyKeyParser;
+
+    @MockitoBean
+    private ReservePayloadHasher reservePayloadHasher;
+
+    @MockitoBean
+    private ReserveService reserveService;
+
     @Test
     void unconfiguredEndpointIsDenied() throws Exception {
         mockMvc.perform(get("/"))
@@ -38,6 +54,14 @@ class SecurityConfigTest {
     @Test
     void internalEligibilityEndpointIsDeniedByDefault() throws Exception {
         mockMvc.perform(post("/internal/v1/eligibility/trial/events")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void internalReservationEndpointIsDeniedByDefault() throws Exception {
+        mockMvc.perform(post("/internal/v1/reservations")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isForbidden());

@@ -13,10 +13,12 @@ billing:
     environment: ${BILLING_ENVIRONMENT:}
   trial-eligibility:
     expected-consumer-scope-id: ${BILLING_TRIAL_EXPECTED_CONSUMER_SCOPE_ID:}
+  reservation:
+    hold-duration: ${BILLING_RESERVATION_HOLD_DURATION:5m}
   mongodb:
     initialize-indexes: ${BILLING_MONGODB_INITIALIZE_INDEXES:false}
     require-transactions: ${BILLING_MONGODB_REQUIRE_TRANSACTIONS:false}
-    schema-version: 1
+    schema-version: 2
 
 server:
   port: ${SERVER_PORT:8082}

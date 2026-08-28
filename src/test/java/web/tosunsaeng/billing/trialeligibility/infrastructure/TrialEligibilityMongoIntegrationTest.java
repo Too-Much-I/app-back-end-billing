@@ -66,7 +66,7 @@ class TrialEligibilityMongoIntegrationTest {
         registry.add("spring.data.mongodb.uri", MONGO::getReplicaSetUrl);
         registry.add("billing.mongodb.initialize-indexes", () -> "true");
         registry.add("billing.mongodb.require-transactions", () -> "true");
-        registry.add("billing.mongodb.schema-version", () -> "1");
+        registry.add("billing.mongodb.schema-version", () -> "2");
         registry.add("billing.trial-eligibility.expected-consumer-scope-id",
                 () -> "opaque-scope-v1");
     }
@@ -139,7 +139,7 @@ class TrialEligibilityMongoIntegrationTest {
             );
             BillingMongoProperties properties = new BillingMongoProperties();
             properties.setInitializeIndexes(true);
-            properties.setSchemaVersion(1);
+            properties.setSchemaVersion(2);
             BillingMongoIndexInitializer initializer = new BillingMongoIndexInitializer(
                     isolated, properties
             );
