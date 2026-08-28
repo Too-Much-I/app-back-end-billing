@@ -2,7 +2,156 @@
 
 - 최종 갱신일: 2026-08-28
 - 현재 브랜치: `develop`
-- Jira: `TMI-113` — `[Billing] Reservation lifecycle 구현` (`해야 할 일`, 담당자 미지정)
+- Jira: `TMI-115` — `[Billing] BenefitDefinition foundation 구현` (`해야 할 일`, 담당자 미지정)
+
+## 2026-08-28 TMI-115 PLAN-004 BenefitDefinition foundation 구현 완료
+
+- `benefit_definitions` collection과 FREE_EXAM_ONCE의 UNIT·EXAM_ATTEMPT·1-unit·policy-v1 seed를 구현했다. seed 재실행은 no-op이고 누락 시 생성하며, 기존 policy drift는 자동 수정하지 않고 startup을 실패시킨다.
+- TrialClaim·TrialCandidateAlias·EntitlementGrant의 저장 field와 repository query를 `benefitCode`로 통일했다. 최초 INITIAL reserve는 BenefitCatalog를 확인해 definition의 unit 수로 Claim·Grant를 lazy 생성하고, 기존 Claim도 Claim–Grant–Definition code와 수량이 일치해야 사용한다.
+- Mongo schema를 v3로 올리고 alias unique index와 grant source unique index key를 `benefitCode`로 변경했다. v2 `benefitType`·`grantType` document 또는 이름이 같은 legacy index가 있으면 자동 변경하지 않고 fail-fast한다.
+- definition 누락·inactive·Grant reference 불일치는 같은 reserve Transaction을 rollback하고 `503 BILLING_TEMPORARILY_UNAVAILABLE`로 수렴한다. eligibility event만으로 Claim/Grant를 만들지 않으며 기존 confirm·cancel·expiry·replacement wire 동작은 유지했다.
+- ADR-001과 AGENTS의 현재 구현 기준을 PLAN-004/TMI-115 및 schema v3 계약으로 갱신했다. PREMIUM_SUBSCRIPTION·SubscriptionEntitlement·Store·public API·AttemptGroup event·owner rebind·타 서비스/AWS는 추가하지 않았다.
+- `./gradlew clean test` 전체 96개 테스트가 성공했고 `git diff --check`도 통과했다. Jira는 별도 상태 변경 승인 전까지 `해야 할 일`로 유지한다.
+
+## 2026-08-28 PLAN-004 Jira 작업 생성
+
+- TMI 프로젝트에 `TMI-115` — `[Billing] BenefitDefinition foundation 구현`을 `작업` 유형으로 생성했다. 상태는 `해야 할 일`, 담당자는 미지정이다.
+- Jira 본문에 `benefit_definitions`와 FREE_EXAM_ONCE seed, exact drift fail-fast, Claim·alias·Grant의 `benefitCode` 전환, Mongo v3/index 보정, BenefitCatalog 기반 lazy 발급과 Testcontainers 회귀 완료 조건을 반영했다.
+- PREMIUM_SUBSCRIPTION·SubscriptionEntitlement·Store lifecycle·구독 Reservation 분기, eager TrialClaim, public API, AttemptGroup event·owner rebind와 타 서비스/AWS 변경은 제외 범위로 명시했다.
+- PLAN-004 상태를 사용자 승인·Jira 생성·구현 전으로 갱신했다. 애플리케이션 코드와 Mongo schema 구현은 아직 시작하지 않았다.
+- production caller는 PLAN-004만으로 활성화하지 않고 후속 AttemptGroup/Learning Core saga와 Lattice staging E2E gate를 유지한다.
+
+## 2026-08-28 PLAN-005 초안 철회 — Learning Core 작업으로 범위 정정
+
+- 사용자가 구현 대상은 Billing이 아니라 Learning Core라고 정정했다. 잘못 작성한 Billing `PLAN-005-attempt-group-status-event-consumer.md` 초안은 삭제했고 Billing consumer를 현재 작업으로 진행하지 않는다.
+- Billing 애플리케이션·계약·Jira는 변경하지 않았다. 기존 `TMI-115` PLAN-004 상태도 그대로 유지한다.
+- Learning Core에서는 AttemptGroup event publisher보다 먼저 필요한 `Idempotency-Key + reserve → Session commit → confirm` 생성 saga 계획을 별도 저장소 문서로 작성한다.
+- 아래 PLAN-005 작성 기록은 범위 오해가 있었던 이력이며 활성 계획이 아니다.
+
+## 2026-08-28 PLAN-005 AttemptGroup 상태 event consumer 계획서 작성
+
+- `docs/plans/PLAN-005-attempt-group-status-event-consumer.md` 초안을 작성했다. 상태는 사용자 승인 대기이며 Jira는 아직 생성하지 않았다.
+- endpoint는 `POST /internal/v1/attempt-group-events`, schema v1과 16 KiB strict decode, canonical digest, shared inbox 멱등성, active Session fencing, group/session CAS와 단일 Mongo Transaction을 구현 범위로 고정했다.
+- `AttemptGroup.subjectRefId`는 실제 `userId`가 아니므로 직접 비교하지 않는다. active·unexpired `BillingSubjectLink`로 owner를 resolve하고 group/session/link의 subject·claim 관계와 event userId를 검증한다. expired/anonymized link는 stale 처리하고 mapping을 복원하지 않는다.
+- 유효 terminal evidence는 `GRADING` event가 누락돼도 `OPEN`에서 직접 전진한다. `COMPLETED`와 `RETAKE_AVAILABLE` 확정 후 역행 event, abandoned/old Session event는 `STALE` inbox와 204로 수렴한다.
+- group/session missing은 `503 ATTEMPT_PROJECTION_NOT_READY`와 `Retry-After: 5`, group-session-owner 구조 충돌은 `409 EVENT_TARGET_CONFLICT` non-retryable로 분리했다. malformed/conflict/missing은 inbox에 저장하지 않는다.
+- RETAKE failureCode 초안 allowlist는 `REQUIRED_RESULTS_UNAVAILABLE`, `SUMMARY_UNAVAILABLE`, `GRADING_DEADLINE_EXCEEDED`, `RESULT_INTEGRITY_VIOLATION`이다. provider 원문과 자유 형식 사유는 받거나 저장하지 않는다.
+- PLAN-005는 `TMI-113` 완료를 선행 조건으로 하며 PLAN-004 BenefitDefinition과 독립적이다. 이번 사용자 우선순위에 따라 PLAN-005를 먼저 구현할 수 있지만 PLAN-004/TMI-115 상태 자체는 변경하지 않았다.
+- Learning Core publisher/outbox, owner rebind, Reservation saga·reconciliation, 실제 Lattice/AWS와 결제는 제외했다. 이번 턴에는 계획서만 작성했고 애플리케이션·ADR·Jira는 변경하지 않았다.
+
+## 2026-08-28 PLAN-004 BenefitDefinition foundation 계획서 작성
+
+- `docs/plans/PLAN-004-benefit-definition-foundation.md`를 작성하고 사용자 승인을 거쳐 Jira `TMI-115`로 구현 범위를 고정했다.
+- 범위는 versioned `benefit_definitions` catalog, stable FREE_EXAM_ONCE code와 exact seed/drift validation, Claim·alias·Grant의 benefitCode reference, schema v3/index 보정과 reserve/lifecycle 회귀 테스트다.
+- `benefitCode`를 Mongo `_id`로 사용해 built-in uniqueness를 사용하며 별도 중복 secondary unique index는 만들지 않는다. 기존 `benefitType`·`grantType` field는 미배포 v3에서 `benefitCode`로 통일한다.
+- 현재 TrialEligibility → 최초 reserve의 lazy TrialClaim·1-unit Grant → hold → Session commit 뒤 confirm 소비 흐름은 변경하지 않는다. definition 누락·inactive·drift는 부분 지급 없이 retryable 503으로 fail-closed한다.
+- PREMIUM_SUBSCRIPTION·SubscriptionEntitlement·Store/renewal·구독 Reservation 분기, TrialClaim eager creation, public 상품 API와 AttemptGroup event는 제외했다.
+- 다음 단계는 Jira 완료 조건을 기준으로 PLAN-004를 구현하는 것이다. 완료 후 AttemptGroup event consumer → owner rebind → Learning Core saga/Lattice staging E2E 순서로 돌아간다.
+
+## 2026-08-28 BenefitDefinition·무료 Grant·구독 구조 승인과 즉시 영향
+
+- 사용자가 `BenefitDefinition → TrialClaim/EntitlementGrant 또는 SubscriptionEntitlement → Reservation → AttemptGroup` 구조를 장기 Billing 계약으로 승인해 CONTRACT_DECISIONS 1C에 반영했다.
+- 현재 구현에 이미 있는 것은 TrialClaim, 무료 1-unit EntitlementGrant, Reservation, AttemptGroup과 ledger/allocation이다. SubscriptionEntitlement는 후속 구독 기능이라 지금 만들지 않는다.
+- 현재 즉시 빠진 요소는 BenefitDefinition이다. FREE_EXAM_ONCE가 Claim·alias·Grant와 repository에 문자열로 하드코딩돼 있으므로 실제 catalog 적용 시 definition collection/seed, stable benefitCode, unique index와 startup validation, Claim/Grant reference와 contract test가 필요하다.
+- Reservation의 INITIAL/REPLACEMENT는 attempt 관계이므로 유지한다. 구독 구현 때 별도 authorization source type/reference를 추가하고, 무료는 allocation hold·consume, 구독은 active 기간 확인·usage audit로 분기해야 한다. 지금 무료 DTO/collection을 미리 확장하지 않는다.
+- 권장 실행 순서는 작은 BenefitDefinition foundation vertical slice를 별도 PLAN/Jira로 구현한 뒤 AttemptGroup event consumer를 진행하거나, AttemptGroup consumer가 catalog와 독립적이므로 먼저 완료하고 구독 착수 직전에 foundation을 구현하는 두 방식이다. 현재 미배포이고 하드코딩 제거 효과가 있어 foundation을 먼저 하는 안을 권장한다.
+- 이 작업에서는 계약·상태 문서만 수정했고 애플리케이션 코드·Mongo schema·Jira는 변경하지 않았다. BenefitDefinition 구현에는 별도 계획과 Jira 승인이 필요하다.
+
+## 2026-08-28 TrialEligibility 역할 확인
+
+- TrialEligibility는 Identity의 verified/revoked phone eligibility event를 Billing이 로컬에 반영한 사용자별 현재 자격 projection이다. raw phone은 저장하지 않고 consumerScopeId, userId, bindingRevision, VERIFIED/REVOKED 상태, verified phone에서 파생된 opaque candidate와 event/digest high-water만 저장한다.
+- 이 record는 무료권·Claim·Grant나 소비 이력이 아니다. 최초 reserve가 현재 VERIFIED이고 candidate가 존재하는지 확인한 뒤에만 TrialClaim/Grant 생성 또는 기존 Claim 연결을 진행하도록 하는 fail-closed 판단 근거다.
+- revoke event가 오면 state를 REVOKED로 바꾸고 candidate를 제거하되 revision high-water tombstone을 유지해 과거 verified event가 상태를 되돌리지 못하게 한다. revoke만으로 기존 TrialClaim·confirmed consumption을 삭제하거나 복원하지 않는다.
+
+## 2026-08-28 BenefitDefinition·Grant·TrialClaim·Ledger 역할 정리
+
+- BenefitDefinition은 “무슨 응시권인가”를 정의하는 catalog/policy다. immutable benefitCode, 표시 이름, one-time/subscription 유형, 소비 방식과 policy version을 가진다.
+- EntitlementGrant는 “누가 어떤 경로로 실제 응시권을 받았는가”를 나타내는 발급 instance/batch다. 무료 MVP에서는 subject가 가진 FREE_EXAM_ONCE 1 unit과 available/held/consumed projection이다.
+- TrialClaim은 일반 사용 이력이 아니라 `(verified-phone candidate, FREE_EXAM_ONCE)`가 3년 안에 이미 발급됐는지 증명하는 anti-abuse/dedupe record다. 무료권 발급 source로 Grant와 연결된다.
+- 실제 시간순 이력은 append-only EntitlementLedger의 GRANTED·RESERVED·RELEASED·CONSUMED event가 담당한다. ReservationAllocation은 특정 시험 hold가 어느 Grant unit을 사용했는지 연결하고, Reservation·AttemptGroup은 시험 생성·재응시 lifecycle을 담당한다.
+- 따라서 요약 관계는 `BenefitDefinition(종류) → EntitlementGrant(보유 권리) ← TrialClaim(무료 발급 근거) → Ledger(변경 이력)`이며 현재 BenefitDefinition만 미구현·하드코딩 상태다.
+
+## 2026-08-28 현재 Benefit/Claim/Grant 구조와 구독제 방향 확인
+
+- 현재 구현에는 TrialClaim과 EntitlementGrant가 있지만 BenefitDefinition/catalog collection은 없다. `FREE_EXAM_ONCE`가 TrialClaim·candidate alias·Grant와 repository 조건에 하드코딩돼 있다.
+- verified event는 사전 `TrialEligibility` projection만 만들고, 최초 reserve가 기존 phone candidate Claim을 확인한 뒤 필요하면 TrialClaim·subject link·aliases와 `FREE_EXAM_ONCE` total 1-unit Grant·GRANTED ledger를 같은 Transaction에서 lazy 생성한다.
+- TrialClaim은 phone당 무료 1회와 claimedAt+3년 dedupe, EntitlementGrant는 사용자의 실제 one-time unit과 available/held/consumed 상태를 담당한다. BenefitDefinition을 도입한다면 두 record가 stable benefitCode로 참조하는 공통 정책 catalog가 된다.
+- 향후 유료 모델을 credit 대신 단순 구독제로 한다면 TrialClaim은 무료 1회 전용으로 유지하고 유료 권리는 기간형 SubscriptionEntitlement로 분리하는 것이 적절하다. 구독은 quantity 차감 대신 ACTIVE 상태와 startsAt/endsAt을 검증하며 시험마다 Reservation·Session idempotency와 usage audit는 계속 필요하다.
+- 무료 사용권은 기존 hold/confirm/consume을 사용하고, 활성 구독은 unit을 차감하지 않되 Reservation이 어떤 entitlement source로 승인됐는지 기록하는 resolver가 필요하다. 구독 plan·Store 검증·갱신·해지·만료·grace period는 결제 착수 시 별도 계약으로 확정한다.
+- 이번 확인에서는 credit 후속 방향을 구독 선호로 기록했지만 현재 무료 MVP 계약·코드와 동결된 결제 계약을 변경하지 않았다.
+
+## 2026-08-28 사전 정의 혜택과 사용자 Claim/Grant 역할 구분
+
+- 프로모션 공통 정보를 한 번만 사전 정의하고 사용자 보유 기록은 그 정의에 연결하자는 방향은 타당하다. 다만 공유되는 사전 정의와 phone/user별 상태를 가진 TrialClaim은 서로 다른 aggregate다.
+- 권장 모델은 `BenefitDefinition` 또는 catalog에 immutable `benefitCode`, 표시 이름, unit type, 소비 정책과 policyVersion을 사전 등록하고, 사용자별 `EntitlementGrant`가 benefitCode·source campaign·quantity·expiry를 참조하는 정규화 구조다. 프로모션 이름·정책을 모든 Claim에 복제하지 않아도 된다.
+- 사용자에게 무엇이 몇 개 귀속됐는지는 어떤 형태로든 저장해야 한다. “연결만 한다”의 연결 document가 바로 보유 기록이며, 현재는 EntitlementGrant의 subjectRefId·grantType·sourceType/sourceId와 unit projection이 그 역할을 한다. paid/promotion credits처럼 수량이 있는 권리는 amount나 개별 token 없이는 소유량을 판단할 수 없다.
+- TrialClaim은 공유 catalog가 아니라 `(phone candidate, FREE_EXAM_ONCE)` 중복 수급 방지와 3년 retention을 가진 사용자별 anti-abuse record다. 하나의 TrialClaim을 여러 사용자·campaign이 공유하거나 빈 Claim pool을 미리 만들면 subject·claimedAt·retention 의미와 unique candidate 불변식이 깨진다.
+- 따라서 사용자의 확장성 직관은 “TrialClaim을 미리 생성”보다 “BenefitDefinition을 미리 생성하고 Claim/Grant가 code로 연결”로 구현하는 것이 적절하다. 이 구조에서는 TrialClaim lazy/eager 생성 시점과 catalog 확장은 독립적으로 결정할 수 있다.
+- 무료·일회성 exam pass는 개별 entitlement token 방식도 가능하지만 paid 100 credits까지 token 100개로 만들면 document 수가 커진다. one-off benefit은 unit/token, fungible credit는 grant batch+quantity를 쓰고 ReservationAllocation·ledger를 공통 소비 계층으로 두는 hybrid가 권장된다.
+- 현재 코드는 benefit definition collection 없이 `FREE_EXAM_ONCE` 문자열이 Claim·alias·grant/repository에 하드코딩돼 있다. 후속 promotion/payment 단계에서 catalog와 resolver를 도입하면 되며, 이 논의만으로 현행 TrialClaim 생성 시점이나 계약을 변경하지 않았다.
+
+## 2026-08-28 TrialClaim 사전 생성 제안 비교
+
+- 현재는 verified event에서 `trial_eligibility` projection만 만들고, 최초 reserve Transaction에서 TrialClaim·candidate alias·subject link·1-unit grant·GRANTED ledger를 생성한 뒤 즉시 hold한다. 멘토 제안은 Claim 생성 시점을 verified event 처리로 앞당기는 계약 변경에 가깝다.
+- TrialClaim을 미리 만들면 최초 reserve의 쓰기와 지연은 줄고, phone candidate dedupe와 사용자 권리 귀속을 더 일찍 확정할 수 있다. 반면 무료 시험을 시작하지 않은 모든 verified 사용자에게 Claim·alias·link가 생기고, grant까지 선발급하면 미사용 grant와 revoke·탈퇴·재가입 정합성 부담도 늘어난다.
+- 가장 큰 제품 차이는 `claimedAt + 3년`의 시작점이다. 현재는 최초 reserve가 기산점이다. verified 시 TrialClaim을 ACTIVE로 만들면 인증 시점부터 3년이 시작되어 사용하지 않은 사용자도 보존·재수급 제한 대상이 된다. `claimedAt=null`의 ELIGIBLE Claim을 도입하면 별도 상태·CAS·purge 계약이 필요하며 현재 `trial_eligibility`와 역할이 중복된다.
+- TrialClaim만 미리 만들고 grant는 reserve에서 만들면 reserve 단순화 효과가 제한적이다. Claim·alias·link·grant까지 선발급하면 의미는 명확하지만 event consumer가 자격 projection과 entitlement issuance를 함께 책임해 결합도와 장애 영향이 커진다.
+- TrialClaim은 `FREE_EXAM_ONCE`의 phone dedupe aggregate이므로 이를 미리 생성하는 것만으로 coupon·출석·추천·유료 promotion 확장이 쉬워지지는 않는다. 프로모션 확장의 공통 지점은 catalog/offer definition과 generic EntitlementGrant·ledger·allocation resolver다.
+- 현재 제품 계약과 최소 구현에는 lazy TrialClaim을 유지하는 안을 권장한다. verified 직후 사용자에게 권리를 표시해야 하는 명확한 제품 요구가 생기면 사전 Claim과 grant 발급을 함께 재설계하고 claimedAt 기산점·revoke/rejoin·미사용 권리 정책을 ADR에서 다시 승인해야 한다. 이 비교만으로 계약이나 코드를 변경하지 않았다.
+
+## 2026-08-28 멘토 제안과 현재 무료 모의고사 모델 비교
+
+- 멘토의 “무료 모의고사라는 이름으로 미리 생성”은 전역 catalog/benefit definition 하나를 미리 정의하고, 사용자별 grant는 필요할 때 발급해 기존 reserve·hold·confirm·ledger 흐름을 재사용하는 의미로 해석하는 것이 적절하다. 사용자별 grant나 실제 시험 Session을 모두 미리 만드는 방식은 미사용 document와 revoke·expiry 정합성 비용이 커져 권장하지 않는다.
+- 현재 구현도 `grantType=FREE_EXAM_ONCE`, `sourceType=TRIAL_CLAIM`, `sourceId`, unit과 ledger/allocation을 사용하므로 공통 entitlement 모델의 기반은 있다. 다만 type·수량과 resolver가 코드에 고정돼 있고 catalog/campaign definition·policy version·expiry·priority는 아직 없다.
+- 현재 최종 소비는 feedback 생성 시점이 아니라 Learning Core Session durable commit 직후 confirm이다. feedback·score·summary 최종 성공은 AttemptGroup COMPLETED, 최종 실패는 RETAKE_AVAILABLE로 구분하고 후자는 같은 consumption의 REPLACEMENT Session을 허용한다.
+- catalog definition을 추가해도 실제 Learning Core ExamSession은 시험마다 필요하다. Billing의 AttemptSession은 문제·답안·채점 데이터를 저장하는 Session이 아니라 active/stale fencing과 재시도 정합성을 위한 최소 projection이라 제거하면 안 된다.
+- 프로모션 확장성은 display name만 추가해서 얻을 수 없다. immutable `benefitCode`/`offerCode`, campaignId, grant type·unit, source, 유효기간, phone/user 제한, stacking·우선순위, policyVersion과 ledger dedupe 규칙이 필요하다. 이름은 변경 가능한 표시값으로만 사용한다.
+- 권장 hybrid는 catalog/offer 정의만 사전 생성하고 사용자 Claim/grant는 최초 reserve 또는 승인된 지급 event에서 lazy issue하며, 무료·promotion·paid 모두 allocation과 reserve/confirm/cancel lifecycle을 재사용하는 방식이다. 이 방향은 후속 결제·프로모션 설계 권장안이며 아직 현재 무료 MVP 계약이나 구현을 변경하지 않았다.
+
+## 2026-08-28 현재 무료 모의고사 소비 로직 재확인
+
+- 현재 무료 모의고사는 paid credit 10개를 차감하지 않고 `FREE_EXAM_ONCE` grant의 1 unit을 `available → held → consumed`로 전이한다. paid credit의 시험당 10-credit 차감은 후속 결제 범위다.
+- Identity eligibility event 수신만으로 Claim·grant를 만들지 않는다. 최초 INITIAL reserve Transaction에서 current VERIFIED binding과 candidate alias를 확인하고 기존 Claim이 없을 때만 TrialClaim·subject link·candidate alias, total 1 unit grant와 `GRANTED` ledger를 만든다.
+- reserve는 grant를 `available 1→0`, `held 0→1`로 잠그고 HELD allocation, `RESERVED` ledger, 5분 `RESERVED` Reservation과 PROPOSED Session을 같은 Transaction에 만든다. 이는 최종 소비가 아니라 다른 동시 요청의 사용을 막는 hold다.
+- Learning Core Session durable commit 뒤 confirm에서 Reservation CAS가 승리하면 allocation을 CONSUMED, grant를 `held 1→0`, `consumed 0→1`로 전환하고 `CONSUMED` ledger, AttemptGroup OPEN과 Session ACTIVE를 같은 Transaction에 반영한다. Summary 완료를 기다리지 않는다.
+- confirm 전 cancel 또는 5분 expiry는 allocation을 RELEASED, grant를 `held 1→0`, `available 0→1`로 복원하고 `RELEASED` ledger와 Session FAILED를 기록한다. TrialClaim과 claimedAt은 삭제·갱신하지 않으므로 새 무료권을 만드는 것이 아니라 같은 1 unit을 다시 사용할 수 있게 한다.
+- confirm 뒤에는 일반 cancel·expiry로 소비를 복원하지 않는다. 최종 결과 실패 시에도 consumed unit은 유지하고 후속 AttemptGroup event가 RETAKE_AVAILABLE을 만든 뒤 같은 consumption·AttemptGroup·mockExamId의 REPLACEMENT Session만 허용한다. 이 event consumer는 다음 작업으로 아직 미구현이다.
+- 모든 지급·hold·소비·복원은 append-only ledger와 Mongo Transaction, unique index, version CAS, operation idempotency로 중복 지급·이중 소비를 방지한다.
+
+## 2026-08-28 다음 작업: AttemptGroup 상태 event consumer
+
+- 다음 권장 vertical slice는 Learning Core가 보내는 `POST /internal/v1/attempt-group-events`를 처리해 Billing의 AttemptGroup·AttemptSession projection을 수렴시키는 작업이다. PLAN 번호와 Jira는 아직 생성하지 않았다.
+- `GRADING`은 결과 생성 중이라 replacement reserve를 잠시 차단하고, `COMPLETED`는 필수 feedback·valid score·summary가 모두 조회 가능할 때 group을 terminal로 닫는다. `RETAKE_AVAILABLE`은 최종 실패 때 무료권을 환불하거나 새로 지급하지 않고 기존 consumption·AttemptGroup·mockExamId로 새 Session 재응시를 허용한다.
+- 구현 범위는 schema v1 strict decoder·canonical digest, shared `inbound_event_inbox` 멱등성, active Session fencing, AttemptGroup/Session version CAS, inbox와 projection의 단일 Mongo Transaction, Learning Core workload route와 replica-set 동시성·retry 검증이다.
+- `COMPLETED`에는 evidence boolean 세 개와 `evidenceVersion=1`을 exact validation하고, `RETAKE_AVAILABLE`에는 승인된 low-cardinality `failureCode`만 허용한다. 질문·답안·점수·feedback·summary·AI/provider 원문은 Billing에 저장하지 않는다.
+- 구현 계획에서 추가로 고정할 세부 계약은 sequence가 없는 event의 순서 역전 수렴 정책, 존재하지 않는 group/session·owner mismatch 응답과 재시도 정책, `failureCode` allowlist다. 권장 방향은 terminal evidence가 유효하면 OPEN에서 terminal로도 전진 수렴하고, COMPLETED는 절대 다시 열지 않으며, missing prerequisite는 retryable하게 처리하는 것이다.
+- 이 작업에는 Learning Core publisher/outbox, 탈퇴·재가입 owner rebind, repair/reconciliation route, 실제 Lattice/IAM/SG 배포와 결제를 포함하지 않는다. 다음 순서는 AttemptGroup consumer → owner rebind → Learning Core saga/outbox·Lattice staging E2E다.
+
+## 2026-08-28 Billing domain/global 패키지 구조 개편 완료
+
+- Billing Java root `web.tosunsaeng.billing` 아래를 `domain`과 `global` 중심으로 재편했다. `domain`은 `eligibility/trial`, `entitlement`, `entitlement/trial`, `reservation`, `attempt`로 분리했고 테스트 package도 같은 구조로 이동했다.
+- Reservation API·application·request/response DTO·domain entity·repository·config를 기능 내부로 정리했다. 기존 Reservation package에 섞여 있던 TrialClaim·candidate alias·subject link, grant·ledger, AttemptGroup·Session은 각각 entitlement/trial, entitlement, attempt로 이동했다.
+- 공통 Security·Mongo 설정, internal error handler·response, Mongo initializer·transaction helper는 `global`로 이동했다. Reservation과 Trial eligibility의 오류 생성은 feature exception으로 분리하되 공통 handler와 기존 HTTP status·code·response envelope는 유지했다.
+- `ReservationConverter`를 추가해 request→command 및 service result→response 변환을 Controller에서 분리했다. URL·JSON DTO 필드·canonical hash 입력과 순서·service 호출 동작은 변경하지 않았다.
+- 최종 `./gradlew clean test`에서 총 82개 테스트가 성공했고 실패·오류·skip은 0개다. 이전 package namespace 참조와 빈 legacy package directory도 제거했으며 `git diff --check`를 통과했다.
+- Mongo collection·index·document business field, Transaction·CAS·멱등성·Security 정책은 변경하지 않았다. 다만 Spring Data가 기록하는 `_class`가 Java package 이동에 따라 달라질 수 있다. Billing은 아직 미배포 상태이므로 최초 배포 기준으로 적용하되, 기존 환경에 보존할 데이터가 있다면 배포 전에 old `_class` 존재 여부와 migration 필요성을 확인해야 한다.
+- 이번 구조 개편에서는 큰 `ReserveService`와 `ReservationLifecycleService` orchestration을 분해하지 않았다. 다음 구조 개선은 실제 후속 기능 경계가 생길 때 transaction 경계를 보존하면서 별도 계획으로 진행한다.
+
+## 2026-08-28 Billing 패키지 구조 비교와 개편 초안
+
+- Identity는 `web.tosunsaeng.identity.domain/{auth,user}/...`와 `global/...`, Learning Core는 `web.tosunsaeng.domain/{exams,withdrawal}/...`와 `global/...`로 기능 우선 패키지를 사용한다. 기능 내부는 필요에 따라 `api`, `application`, `dto`, `converter`, `domain/entity`, `domain/enums`, `repository`, `exception`, `config`로 나뉜다.
+- Billing은 현재 최상단에 `config`, `global`, `reservation`, `trialeligibility`가 함께 있고, `reservation` 안에 Reservation뿐 아니라 TrialClaim·candidate alias·subject link·grant·ledger·AttemptGroup·AttemptSession까지 들어 있다. 구현 vertical slice 경계가 장기 domain 경계처럼 굳어진 상태다.
+- 권장 목표는 `web.tosunsaeng.billing` 루트를 유지하면서 바로 아래를 `domain`과 `global`로 구분하는 구조다. domain은 `eligibility/trial`, `entitlement`, `entitlement/trial`, `reservation`, `attempt`로 나누고 각 기능 내부에서 api/application/dto/converter/domain/repository/exception/config를 필요한 만큼만 둔다.
+- `ReservationProperties`와 `TrialEligibilityProperties`는 각 domain config로, Security·ingress와 공통 Mongo 설정은 global config/infrastructure로 이동한다. 현재 `global/api`의 공통 error envelope·handler는 global response/exception으로 명확히 이름을 바꾼다.
+- 우선 단계는 package·import·test package만 옮기고 HTTP DTO, Mongo collection/index, Spring bean, transaction과 동작을 바꾸지 않는 구조 이동이다. 다음 단계에서 feature exception과 converter를 분리하고, 마지막에 큰 orchestration service의 내부 협력 컴포넌트를 분해한다.
+- 이번 작업은 구조 분석과 초안 제시만 수행했다. 애플리케이션·테스트 패키지는 이동하지 않았고 Jira도 생성·변경하지 않았다.
+
+## 2026-08-28 TMI-113 완료 처리
+
+- 사용자의 명시적 승인에 따라 Jira `TMI-113`을 `해야 할 일`에서 `완료`로 전환했고 완료 category를 재확인했다.
+- 완료 근거는 PLAN-003 Reservation lifecycle 구현과 최종 `./gradlew clean test` 총 82개 성공, 실패·오류·skip 0 결과다.
+- Jira 설명·담당자, 애플리케이션 코드, Git 브랜치와 production 활성화 gate는 변경하지 않았다.
+- 다음 기능 순서는 AttemptGroup 상태 event consumer이며 별도 계획·Jira 승인 후 진행한다. Learning Core saga·Lattice staging E2E 전에는 production caller를 활성화하지 않는다.
 
 ## 2026-08-28 TMI-113 PLAN-003 Reservation lifecycle 구현 완료
 

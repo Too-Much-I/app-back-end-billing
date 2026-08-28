@@ -22,7 +22,7 @@ billing:
   mongodb:
     initialize-indexes: ${BILLING_MONGODB_INITIALIZE_INDEXES:false}
     require-transactions: ${BILLING_MONGODB_REQUIRE_TRANSACTIONS:false}
-    schema-version: 2
+    schema-version: 3
 
 server:
   port: ${SERVER_PORT:8082}
