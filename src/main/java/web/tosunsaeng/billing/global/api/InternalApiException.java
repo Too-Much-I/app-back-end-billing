@@ -52,6 +52,52 @@ public class InternalApiException extends RuntimeException {
         );
     }
 
+    public static InternalApiException invalidIdempotencyKey() {
+        return new InternalApiException(
+                HttpStatus.BAD_REQUEST,
+                "INVALID_IDEMPOTENCY_KEY",
+                "The idempotency key is invalid.",
+                false
+        );
+    }
+
+    public static InternalApiException entitlementInsufficient() {
+        return new InternalApiException(
+                HttpStatus.PAYMENT_REQUIRED,
+                "ENTITLEMENT_INSUFFICIENT",
+                "An eligible entitlement is not available.",
+                false
+        );
+    }
+
+    public static InternalApiException commandProcessing() {
+        return new InternalApiException(
+                HttpStatus.CONFLICT,
+                "COMMAND_PROCESSING",
+                "The operation is still processing.",
+                true,
+                1
+        );
+    }
+
+    public static InternalApiException idempotencyConflict() {
+        return new InternalApiException(
+                HttpStatus.CONFLICT,
+                "IDEMPOTENCY_KEY_CONFLICT",
+                "The idempotency key conflicts with an existing command.",
+                false
+        );
+    }
+
+    public static InternalApiException reservationStateConflict() {
+        return new InternalApiException(
+                HttpStatus.CONFLICT,
+                "RESERVATION_STATE_CONFLICT",
+                "The reservation state conflicts with the request.",
+                false
+        );
+    }
+
     public static InternalApiException unsupportedContract() {
         return new InternalApiException(
                 HttpStatus.UNPROCESSABLE_ENTITY,

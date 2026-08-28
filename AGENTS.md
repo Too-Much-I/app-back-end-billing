@@ -55,20 +55,21 @@ Identity 또는 Learning Core 코드를 이 저장소로 복사하지 않는다.
 
 ## 현재 구현 단위
 
-현재 즉시 구현할 단위는 `docs/plans/PLAN-001-trial-eligibility-event-consumer.md`의 Trial eligibility event consumer vertical slice다.
+현재 즉시 구현할 단위는 Jira `TMI-112`, `docs/plans/PLAN-002-free-exam-initial-reserve.md`의 Free exam initial reserve vertical slice다.
 
 포함 범위:
 
-- `POST /internal/v1/eligibility/trial/events`
-- schema v1 strict decode, validation과 canonical payload digest
-- `inbound_event_inbox` event 멱등성 기록
-- `trial_eligibility` current projection과 revision high-water
-- inbox와 projection의 단일 Mongo Transaction
-- APPLIED, DUPLICATE, STALE, CONFLICT 수렴
-- internal endpoint default deny, test/Lattice mode 분리
+- `POST /internal/v1/reservations`
+- 필수 lowercase UUID v4 `Idempotency-Key`와 canonical reserve payload hash
+- current VERIFIED `trial_eligibility`, expired alias fencing과 candidate dedupe
+- 필요한 TrialClaim, candidate alias, subject link와 `FREE_EXAM_ONCE` grant·`GRANTED` ledger
+- INITIAL allocation hold·`RESERVED` ledger, 5분 Reservation과 proposed Session projection
+- OPEN·RETAKE_AVAILABLE의 REPLACEMENT 무추가차감과 GRADING/mockExamId conflict
+- command·response snapshot 멱등성, unique index와 duplicate-key/unknown commit 수렴
+- internal endpoint default deny와 Identity/Learning Core route 분리
 - replica-set Testcontainers 기반 transaction·동시성 검증
 
-이 구현 단위에서는 `TrialClaim`, candidate alias, subject link, grant, ledger, Reservation과 AttemptGroup을 추가하지 않는다. 해당 기능은 PLAN-001 완료 후 별도 vertical slice로 구현한다.
+이 구현 단위에서는 confirm, cancel, status, expiry worker, AttemptGroup 상태 event, reconciliation, 타 서비스 client·SigV4 adapter와 실제 AWS 배포를 추가하지 않는다. INITIAL reserve에서는 AttemptGroup ID만 선할당하고 durable `OPEN` group은 후속 confirm에서 만든다. confirm/cancel/expiry lifecycle이 완성되기 전 production caller를 활성화하지 않는다.
 
 ## 핵심 불변식
 
@@ -91,7 +92,7 @@ Identity 또는 Learning Core 코드를 이 저장소로 복사하지 않는다.
 - Apple/Google 구매는 클라이언트 주장만 신뢰하지 않고 서버에서 검증한다.
 - Identity eligibility event를 수신하는 것만으로 TrialClaim, grant 또는 balance를 만들지 않는다. 최초 reserve Transaction에서 현재 binding과 기존 Claim을 확인해 지급과 Reservation을 원자적으로 처리한다.
 
-상세 상품·사용권 계약과 미확정 선택지는 이 저장소의 `docs/codex/CONTRACT_DECISIONS.md`를 단일 기준으로 사용한다. 서비스 간 전체 흐름은 `docs/contracts/BILLING_SERVICE_INTEGRATION_CONTRACT.md`, 내부 API와 Mongo 계약은 `docs/adr/ADR-001-free-trial-internal-api-and-mongo-contract.md`, Lattice·SigV4·환경 이관 계약은 `docs/adr/ADR-002-vpc-lattice-ecs-sigv4-and-environment-migration.md`, 구현 순서는 `docs/plans/PLAN-001-trial-eligibility-event-consumer.md`를 따른다. 통합 안내서와 세부 ADR이 충돌하면 ADR을 따르며, 확정된 계약을 임의로 재해석하지 말고 작업을 중단해 보고한다.
+상세 상품·사용권 계약과 미확정 선택지는 이 저장소의 `docs/codex/CONTRACT_DECISIONS.md`를 단일 기준으로 사용한다. 서비스 간 전체 흐름은 `docs/contracts/BILLING_SERVICE_INTEGRATION_CONTRACT.md`, 내부 API와 Mongo 계약은 `docs/adr/ADR-001-free-trial-internal-api-and-mongo-contract.md`, Lattice·SigV4·환경 이관 계약은 `docs/adr/ADR-002-vpc-lattice-ecs-sigv4-and-environment-migration.md`, 현재 구현 순서는 `docs/plans/PLAN-002-free-exam-initial-reserve.md`를 따른다. 통합 안내서와 세부 ADR이 충돌하면 ADR을 따르며, 확정된 계약을 임의로 재해석하지 말고 작업을 중단해 보고한다.
 
 과거 Learning Core 문서는 역사적 참고 자료일 뿐이며, 앞으로 Billing 관련 결정과 작업기록은 이 저장소의 `docs`에만 추가한다.
 
@@ -116,7 +117,7 @@ Identity 또는 Learning Core 코드를 이 저장소로 복사하지 않는다.
 
 ## Reservation 계약 규칙
 
-PLAN-001 이후 Reservation을 구현할 때 다음 계약을 유지한다.
+PLAN-002 Reservation을 구현할 때 다음 계약을 유지한다.
 
 - `reserve`, `confirm`, `cancel`의 `Idempotency-Key` header가 lowercase UUID v4 `operationId`의 유일한 wire source다. Request Body에 operationId를 중복해서 받지 않는다.
 - `sessionId`는 Learning Core의 기존 `examId`, `mockExamId`와 함께 UUID로 가정하지 않는 1~128자 opaque token이다.
@@ -233,4 +234,4 @@ Codex는 다음 작업을 직접 수행하지 않는다.
 12. 결제·coupon·환불 등 현재 범위 밖 기능이나 관련 없는 대규모 리팩터링이 포함됐는가
 13. internal API에 앱용 `BaseResponse`를 적용하거나 userId를 URL·로그에 노출했는가
 14. `inbound_event_inbox` 120일 TTL, TrialClaim 3년 보존과 Reservation audit 보존을 같은 정책으로 취급했는가
-15. PLAN-001 구현에 TrialClaim·grant·Reservation을 섞어 vertical slice 범위를 넓혔는가
+15. PLAN-002 구현에 confirm·cancel·expiry·reconciliation 또는 결제 기능을 섞어 vertical slice 범위를 넓혔는가

@@ -888,3 +888,148 @@
 - 결정사항: Docker Engine 29와 관리 중인 Testcontainers 1.20.4 호환을 위해 test worker API version을 1.44로 고정했다. 실제 Lattice principal/method/path 인증은 애플리케이션의 spoofable header가 아니라 ADR-002의 Lattice auth policy와 SG가 담당하며, 애플리케이션 lattice mode는 격리·transaction 필수 설정이 없으면 startup fail-closed한다.
 - 위험 요소: 실제 AWS Lattice/IAM/SG와 Identity SigV4 publisher는 아직 배포·구현되지 않았으므로 production/staging route를 활성화하면 안 된다. Docker API 고정은 Testcontainers 또는 CI Docker 기준 변경 시 재검토가 필요하다. 저장소 전체가 아직 Git 미추적 상태이며 Jira는 여전히 `해야 할 일`이다.
 - 다음 작업: 사용자가 코드와 문서를 검토해 기준선을 commit한 뒤, 별도 승인으로 Jira 상태를 갱신한다. 다음 제품 vertical slice는 current verified binding을 사용하는 TrialClaim·candidate alias·subject link·무료 grant/ledger·INITIAL Reservation Transaction이다.
+
+## 2026-08-27 — 로컬 main·develop 브랜치 생성
+
+<!-- codex-turn:local-main-develop-branches-created -->
+
+- 날짜: 2026-08-27
+- 브랜치: `feat/TMI-110-trial-eligibility-event-consumer`
+- Jira: `TMI-110`; Jira 변경 없음
+- 작업 목표: feature 브랜치만 존재하는 Billing Git 저장소에 `main`과 `develop` 기준 브랜치를 만든다.
+- 변경 파일: 로컬 Git refs `refs/heads/main`, `refs/heads/develop`, `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 구현 내용: 현재 feature 커밋 `e0694f9`를 가리키는 로컬 `main`과 `develop` 브랜치를 생성하고, 현재 checkout은 feature 브랜치로 유지했다.
+- 실행한 테스트와 결과: Git branch metadata와 작업 기록만 변경해 Gradle 테스트는 실행하지 않았다. `git branch --verbose --no-abbrev`로 세 로컬 브랜치가 같은 커밋을 가리키는 것을 확인했다.
+- 유지한 계약: 애플리케이션 코드, PLAN-001 API·Mongo·보안 계약과 Jira 내용은 변경하지 않았다.
+- 결정사항: 별도 기준 커밋이 없으므로 현재 유일한 구현 커밋을 `main`과 `develop`의 시작점으로 사용했다.
+- 위험 요소: Codex는 저장소 규칙상 push하지 않았으므로 원격에는 아직 feature 브랜치만 존재한다. 작업 기록 문서 변경은 현재 feature 브랜치 working tree에 미커밋 상태로 남는다.
+- 다음 작업: 사용자가 작업 기록 변경을 commit한 뒤 `git push -u origin main`과 `git push -u origin develop`을 직접 실행하고 GitHub 기본 브랜치·보호 규칙을 설정한다.
+
+## 2026-08-27 — GitHub 기본 브랜치를 main으로 변경
+
+<!-- codex-turn:github-default-branch-main -->
+
+- 날짜: 2026-08-27
+- 브랜치: `feat/TMI-110-trial-eligibility-event-consumer`
+- Jira: `TMI-110`; Jira 변경 없음
+- 작업 목표: Billing GitHub 저장소의 기본 브랜치를 feature 브랜치가 아닌 `main`으로 설정한다.
+- 변경 파일: GitHub 저장소 기본 브랜치 설정, `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 구현 내용: 원격 `main`과 `develop`이 모두 커밋 `e0694f9`를 가리키는 것을 확인한 뒤 GitHub 기본 브랜치를 `feat/TMI-110-trial-eligibility-event-consumer`에서 `main`으로 변경했다.
+- 실행한 테스트와 결과: 저장소 설정과 작업 기록만 변경해 Gradle 테스트는 실행하지 않았다. GitHub 조회 결과 `defaultBranchRef.name=main`을 확인했다.
+- 유지한 계약: 애플리케이션 코드, PLAN-001 API·Mongo·보안 계약과 Git branch 내용은 변경하지 않았다.
+- 결정사항: 장기 기준 브랜치는 `main`, 통합 브랜치는 `develop`, 기능 작업은 feature 브랜치에서 진행하는 구조를 사용한다.
+- 위험 요소: branch protection과 pull request base 정책은 아직 확인·설정하지 않았다. 작업 기록 문서 변경은 현재 feature 브랜치 working tree에 미커밋 상태다.
+- 다음 작업: 필요하면 별도 승인 후 `main`·`develop` branch protection과 PR 기본 흐름을 설정한다.
+
+## 2026-08-27 — TMI-110 Jira 완료 처리
+
+<!-- codex-turn:tmi-110-jira-completed -->
+
+- 날짜: 2026-08-27
+- 브랜치: `develop`
+- Jira: `TMI-110` — `완료`
+- 작업 목표: 구현·검증이 끝난 PLAN-001 Trial eligibility event consumer Jira 작업을 종료한다.
+- 변경 파일: Jira `TMI-110` 상태, `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 구현 내용: 사용자의 명시적 승인에 따라 Jira transition `41`을 적용해 `해야 할 일`에서 `완료`로 전환하고 완료 category를 재확인했다.
+- 실행한 테스트와 결과: Jira 상태와 작업 기록만 변경해 Gradle 테스트는 다시 실행하지 않았다. 직전 구현 작업의 `./gradlew clean test` 33개 성공 결과를 완료 근거로 사용했다.
+- 유지한 계약: Jira 설명, 담당자, 애플리케이션 코드, API·Mongo·보안 계약과 Git branch는 변경하지 않았다.
+- 결정사항: 실제 AWS Lattice/IAM/SG와 Identity SigV4 adapter는 이 이슈의 승인된 제외 범위이므로 TMI-110 완료를 막지 않으며 별도 후속 이슈로 관리한다.
+- 위험 요소: 작업 기록 문서 변경은 현재 feature 브랜치 working tree에 미커밋 상태다. 실제 staging/production 연동 완료를 의미하지 않는다.
+- 다음 작업: 작업 기록을 commit한 뒤 다음 vertical slice인 TrialClaim·candidate alias·subject link·무료 grant/ledger·INITIAL Reservation Transaction을 별도 Jira로 정의한다.
+
+## 2026-08-28 — 다음 구현 작업 분석
+
+<!-- codex-turn:next-work-initial-reserve-analysis -->
+
+- 날짜: 2026-08-28
+- 브랜치: `develop`
+- Jira: 완료된 `TMI-110` 참고; 신규 Jira 없음
+- 작업 목표: PLAN-001 완료 뒤 계약상 다음 구현 단위와 선후관계를 설명한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`. 애플리케이션 코드·ADR·계약은 변경하지 않았다.
+- 분석 내용: 다음 권장 단위는 current verified binding을 사용하는 `FREE_EXAM_ONCE` INITIAL reserve vertical slice다. 첫 reserve Transaction에서 idempotency command, candidate alias dedupe, 필요한 TrialClaim·subject link·무료 grant와 `GRANTED` ledger, allocation hold·`RESERVED` ledger, Reservation과 proposed attempt session을 함께 생성해야 한다.
+- 실행한 테스트와 결과: 설명과 작업 기록만 변경해 Gradle 테스트는 실행하지 않았다. PLAN-001 후속 작업, ADR-001 T2 reserve Transaction, CONTRACT_DECISIONS와 통합 계약을 대조했다.
+- 유지한 계약: eligibility event 수신만으로 TrialClaim/grant를 만들지 않고, `reserve → Learning Core Session commit → confirm`, 3년 Claim 보존, raw phone 비저장과 append-only ledger를 유지한다.
+- 결정사항: TrialClaim/grant만 선생성하는 slice는 만들지 않는다. 다음 구현 전에 `PLAN-002`와 Jira로 INITIAL reserve 범위와 완료 조건을 고정하고, 현재 구현 단위를 PLAN-001로 가리키는 `AGENTS.md`를 승인된 PLAN-002로 갱신하는 것이 필요하다.
+- 위험 요소: reserve만 production에 활성화하고 confirm/cancel/expiry를 배포하지 않으면 hold가 정상 종료되지 않는다. 구현은 검토 가능한 단계로 나눠도 전체 command lifecycle과 Learning Core 연동 전까지 production caller를 활성화하지 않아야 한다. 현재 작업 기록 문서에는 기존 미커밋 변경도 함께 남아 있다.
+- 다음 작업: 사용자 승인 시 `PLAN-002-free-exam-initial-reserve.md`를 작성하고 Jira를 생성한 뒤, Mongo document/index와 T2 reserve Transaction부터 구현한다.
+
+## 2026-08-28 — PLAN-002 free exam initial reserve 계획서 작성
+
+<!-- codex-turn:plan-002-free-exam-initial-reserve-drafted -->
+
+- 날짜: 2026-08-28
+- 브랜치: `develop`
+- Jira: 신규 Jira 없음; 완료된 `TMI-110`을 선행 작업으로 참고
+- 작업 목표: PLAN-001 다음 vertical slice인 무료 시험 reserve의 구현 범위, Transaction 경계, 저장 구조, 오류·보안·동시성 완료 조건을 구현 전에 고정한다.
+- 변경 파일: `docs/plans/PLAN-002-free-exam-initial-reserve.md`, `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`. 애플리케이션 코드·ADR·외부 계약·Jira는 변경하지 않았다.
+- 계획 내용: `POST /internal/v1/reservations`의 필수 lowercase UUID v4 key와 canonical payload hash, current VERIFIED binding과 expired alias fencing, 필요한 Claim·subject link·alias·grant·`GRANTED` ledger, INITIAL allocation hold·`RESERVED` ledger, Reservation·proposed Session과 response snapshot을 한 Mongo Transaction으로 처리하도록 설계했다. OPEN·RETAKE_AVAILABLE group은 REPLACEMENT로 기존 consumption을 재사용하고 GRADING·mockExamId 불일치·owner mismatch를 fail-closed한다.
+- 실행한 테스트와 결과: 문서만 변경해 Gradle 테스트는 실행하지 않았다. ADR-001 T2·collection/index, PLAN-001 후속, CONTRACT_DECISIONS와 서비스 통합 계약을 대조했고 종료 전 `git diff --check`와 marker 단일 포함을 검증한다.
+- 유지한 계약: eligibility event 수신과 무료권 지급 분리, verified-phone candidate 기준 3년 Claim dedupe, raw phone 비저장, append-only ledger, 5분 RESERVED hold, `reserve → Session commit → confirm`, REPLACEMENT 추가 차감 금지, VPC Lattice AWS_IAM·SigV4와 default deny를 유지한다.
+- 결정사항: PLAN-002는 reserve endpoint 전체의 INITIAL·REPLACEMENT 판정까지만 포함한다. confirm/cancel/status·expiry·AttemptGroup event·reconciliation·실제 AWS/타 서비스 변경·결제는 제외하며 lifecycle 완성 전 production caller activation을 금지한다. 계획은 초안이고 신규 Jira는 사용자 승인 후 별도 동의를 받아 생성한다.
+- 위험 요소: owner transfer wire 계약은 아직 없으므로 다른 user에 연결된 기존 Claim은 자동 이전하지 않고 insufficient로 차단한다. reserve 구현만 배포하면 hold를 정상 종료할 수 없으며 신규 index는 운영 data preflight와 별도 migration 검토가 필요하다. 기존 CURRENT_STATE·WORKLOG의 미커밋 변경은 보존했다.
+- 다음 작업: 사용자가 PLAN-002를 검토·승인하면 Jira 생성 승인을 받아 작업을 만들고, `AGENTS.md`의 현재 구현 단위를 PLAN-002로 갱신한 뒤 구현을 시작한다.
+
+## 2026-08-28 — reserve request의 sessionId·mockExamId 역할 설명
+
+<!-- codex-turn:reserve-session-mock-exam-id-explained -->
+
+- 날짜: 2026-08-28
+- 브랜치: `develop`
+- Jira: 신규 Jira 없음
+- 작업 목표: PLAN-002 reserve request가 `sessionId`와 `mockExamId`를 Session commit 전에 받는 이유와 두 값의 수명 차이를 설명한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`. 계획서·애플리케이션 코드·계약은 변경하지 않았다.
+- 분석 내용: `sessionId`는 한 번의 proposed ExamSession을 Reservation·operation·confirm과 연결해 transport retry와 commit 증명을 같은 Session으로 수렴시키는 값이다. `mockExamId`는 최초 AttemptGroup에 문제지를 고정해 REPLACEMENT가 다른 시험으로 바뀌면서 consumption을 재사용하지 못하게 하는 값이다.
+- 실행한 테스트와 결과: 설명·작업 기록만 변경해 Gradle 테스트는 실행하지 않았다. 종료 전 문서 whitespace와 `git diff --check`, marker 단일 포함을 검증한다.
+- 유지한 계약: Learning Core가 Session·문제지를 소유하고 Billing은 opaque identifier만 저장·비교한다. reserve 전에 두 값을 선할당하고 `reserve → Session durable commit → confirm` 순서, same-key retry와 REPLACEMENT의 동일 `mockExamId`를 유지한다.
+- 결정사항: 새 계약을 추가하지 않았다. `sessionId`는 Session마다 달라지고 `mockExamId`는 같은 AttemptGroup 동안 고정된다는 기존 계약을 재확인했다.
+- 위험 요소: 두 값을 reserve 후에 임의 변경하면 같은 operation의 payload conflict 또는 replacement state conflict가 발생한다. Billing에 시험 내용이나 Learning Core 도메인 데이터를 복제해서는 안 된다.
+- 다음 작업: PLAN-002 검토에서 두 식별자의 필요성이 승인되면 기존 request DTO를 유지하고 Jira 완료 조건에 포함한다.
+
+## 2026-08-28 — reserve response 식별자와 상태 의미 설명
+
+<!-- codex-turn:reserve-response-identifiers-explained -->
+
+- 날짜: 2026-08-28
+- 브랜치: `develop`
+- Jira: 신규 Jira 없음
+- 작업 목표: reserve 성공 response의 operation, Reservation, kind/status와 AttemptGroup 식별자가 각각 무엇을 나타내며 언제 바뀌는지 설명한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`. 계획서·코드·외부 계약은 변경하지 않았다.
+- 분석 내용: `operationId`는 앱부터 전달되는 한 번의 command 멱등성 ID, `reservationId`는 Billing hold aggregate ID, `reservationKind`는 INITIAL/REPLACEMENT 소비 방식, `reservationStatus`는 hold lifecycle 상태, `attemptGroupId`는 최초 응시와 restart가 공유하는 한 consumption 묶음 ID로 구분했다.
+- 실행한 테스트와 결과: 설명과 기록 문서만 변경해 Gradle 테스트는 실행하지 않았다. 종료 전 `git diff --check`, whitespace와 marker 단일 포함을 검증한다.
+- 유지한 계약: transport retry는 같은 operation·Reservation으로 수렴하고 의도적 restart는 새 operation·Reservation·Session을 쓰되 기존 AttemptGroup consumption과 mockExamId를 재사용한다. RESERVED는 최종 소비가 아니며 Session commit 후 confirm에서 확정한다.
+- 결정사항: 새 계약을 추가하지 않았다. INITIAL reserve에서 AttemptGroup ID는 선할당하지만 durable OPEN group 전이는 confirm에서 수행한다는 기존 계약을 재확인했다.
+- 위험 요소: operationId와 reservationId를 같은 개념으로 합치면 command replay와 hold lifecycle을 분리해 추적할 수 없고, restart마다 AttemptGroup을 새로 만들면 무료권이 중복 소비될 수 있다.
+- 다음 작업: PLAN-002 승인 시 이 response DTO와 lifecycle을 Jira 완료 조건과 contract test에 그대로 포함한다.
+
+## 2026-08-28 — PLAN-002 Jira 작업 생성
+
+<!-- codex-turn:jira-tmi-112-created -->
+
+- 날짜: 2026-08-28
+- 브랜치: `develop`
+- Jira: `TMI-112` — `[Billing] Free exam initial reserve 구현` (`해야 할 일`, 담당자 미지정)
+- 작업 목표: 승인된 PLAN-002 free exam initial reserve의 범위·제외 범위와 검증 가능한 완료 조건을 Jira 작업으로 등록한다.
+- 변경 파일: Jira `TMI-112`, `docs/plans/PLAN-002-free-exam-initial-reserve.md`, `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`. 애플리케이션 코드·ADR·외부 계약은 변경하지 않았다.
+- 구현 내용: TMI 프로젝트에서 initial reserve·TrialClaim·무료 시험 관련 중복 작업이 없음을 확인하고 `작업` 유형으로 이슈를 생성했다. endpoint, 필수 idempotency key, current eligibility와 alias dedupe, 필요한 Claim·subject link·무료 grant/ledger, INITIAL hold, REPLACEMENT 무추가차감, 단일 Transaction, index·동시성·security와 privacy 완료 조건을 기록했다.
+- 실행한 테스트와 결과: Jira와 문서만 변경해 Gradle 테스트는 실행하지 않았다. Jira 생성 응답과 후속 조회로 key·summary·상태·담당자를 확인하고 종료 전 `git diff --check`, whitespace와 marker 단일 포함을 검증한다.
+- 유지한 계약: event 수신과 지급 분리, candidate 기준 3년 Claim dedupe, raw phone 비저장, append-only ledger, 5분 RESERVED, `reserve → Session commit → confirm`, REPLACEMENT 추가 차감 금지와 VPC Lattice AWS_IAM·SigV4 default deny를 유지한다.
+- 결정사항: 이슈는 `TMI-112`, 상태 `해야 할 일`, 담당자 미지정으로 생성했다. confirm/cancel/status·expiry, AttemptGroup event·reconciliation, 타 서비스·AWS 배포와 결제는 제외했고 lifecycle 완성 전 production caller 활성화를 금지했다.
+- 위험 요소: PLAN-002는 reserve만 구현하므로 후속 lifecycle 없이 운영에서 활성화하면 hold를 정상 확정·해제할 수 없다. owner transfer 계약이 없어 다른 user에 연결된 Claim은 자동 이전하지 않는다. 기존 작업 기록의 미커밋 변경은 보존했다.
+- 다음 작업: 구현 시작 전에 `AGENTS.md`의 현재 구현 단위를 승인된 PLAN-002와 Jira `TMI-112`로 갱신하고, 이슈 완료 조건을 기준으로 document/index와 T2 reserve Transaction부터 구현한다.
+
+## 2026-08-28 — TMI-112 PLAN-002 free exam initial reserve 구현
+
+<!-- codex-turn:tmi-112-free-exam-initial-reserve-implemented -->
+
+- 날짜: 2026-08-28
+- 브랜치: `develop`
+- Jira: `TMI-112` — 구현 완료, Jira 상태 `해야 할 일`·담당자 미지정 유지
+- 작업 목표: current verified-phone eligibility를 기준으로 필요한 Claim·무료 grant와 INITIAL entitlement hold 또는 REPLACEMENT authorization을 한 Mongo Transaction으로 처리하는 PLAN-002 reserve vertical slice를 구현한다.
+- 변경 파일: `.env.example`, `AGENTS.md`, application config·error/security·Mongo index initializer, `reservation` api/application/domain/infrastructure 전체, reserve unit·MVC·replica-set integration test, PLAN-002와 `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`. Identity·Learning Core 저장소와 Jira 상태는 변경하지 않았다.
+- 구현 내용: 16 KiB strict request decoder, lowercase UUID v4 idempotency key, canonical payload hash와 direct internal response를 추가했다. T2 Transaction은 command claim, VERIFIED binding, expired alias fencing·key rotation dedupe, 필요한 TrialClaim·subject link·aliases·free grant·GRANTED ledger, INITIAL grant hold·allocation·RESERVED ledger, 5분 Reservation·PROPOSED Session과 response snapshot을 원자적으로 저장한다. REPLACEMENT는 기존 OPEN·RETAKE_AVAILABLE group consumption과 mockExamId를 재사용하고 이전 active Session을 fencing하며 추가 entitlement allocation/ledger를 만들지 않는다.
+- Mongo·보안: initializer schema를 v2로 올리고 reserve 관련 10개 collection과 ADR-001의 23개 index를 명시적으로 생성·option 비교한다. candidate, grant source, ledger dedupe/sequence, active command·Reservation·group·Session을 unique/partial unique index로 보장한다. test ingress는 Identity eligibility와 Learning Core reserve route를 분리하고 default disabled·Lattice deployment guard를 유지한다.
+- 실행한 테스트와 결과: `./gradlew clean test` 성공, 총 58개 테스트 통과, 실패·skip 0. `mongo:7.0.14` replica-set Testcontainers에서 initial multi-document atomicity, rollback, same-key replay/different payload conflict, 같은 candidate의 다른 user와 같은 user의 다른 operation race, key rotation alias 보강, expired alias fencing, REPLACEMENT 무추가차감, GRADING/mock mismatch, transient transaction retry와 unknown commit snapshot 수렴을 실행했다.
+- 유지한 계약: eligibility event 수신과 무료권 지급 분리, raw phone 비수신·비저장, candidate 기준 Claim 3년 dedupe, immutable claimedAt/retentionExpiresAt, append-only GRANTED·RESERVED ledger, 5분 RESERVED, `reserve → Session durable commit → confirm`, REPLACEMENT 동일 consumption/mockExamId, VPC Lattice AWS_IAM·SigV4와 fail-closed를 유지했다.
+- 결정사항: AGENTS의 현재 구현 단위를 PLAN-002/TMI-112로 전환했다. Mongo schema version은 reserve index 확장을 나타내는 v2로 올렸고 runtime index drop/recreate는 허용하지 않는다. 동시 active command race의 최종 retry 뒤 기존 active command를 재확인해 503이 아닌 `COMMAND_PROCESSING`으로 수렴시켰다.
+- 위험 요소: confirm/cancel/status와 expiry worker가 아직 없어 이 코드를 production caller에 활성화하면 hold를 정상 확정·해제할 수 없다. 실제 Lattice/IAM/SG, Learning Core saga, Identity SigV4와 staging E2E도 남아 있다. owner transfer wire 계약은 없으므로 다른 user의 기존 Claim은 자동 이전하지 않는다. schema v2 index는 배포 전 staging preflight와 운영 migration 검토가 필요하다.
+- 다음 작업: 사용자가 구현을 검토한 뒤 별도 승인으로 Jira `TMI-112` 상태를 갱신한다. 다음 제품 vertical slice는 confirm/cancel/status·5분 expiry lifecycle이며, 그 전까지 production reserve route를 열지 않는다.
