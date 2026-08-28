@@ -93,6 +93,44 @@ public class EntitlementLedgerEntry {
         );
     }
 
+    public static EntitlementLedgerEntry consumed(
+            String ledgerEventId,
+            String grantId,
+            long sequence,
+            String subjectRefId,
+            String trialClaimId,
+            String reservationId,
+            String allocationId,
+            Instant occurredAt
+    ) {
+        return new EntitlementLedgerEntry(
+                ledgerEventId, grantId, sequence, EventType.CONSUMED, subjectRefId,
+                trialClaimId, reservationId, allocationId,
+                "CONSUMED:" + reservationId, occurredAt
+        );
+    }
+
+    public static EntitlementLedgerEntry released(
+            String ledgerEventId,
+            String grantId,
+            long sequence,
+            String subjectRefId,
+            String trialClaimId,
+            String reservationId,
+            String allocationId,
+            Instant occurredAt
+    ) {
+        return new EntitlementLedgerEntry(
+                ledgerEventId, grantId, sequence, EventType.RELEASED, subjectRefId,
+                trialClaimId, reservationId, allocationId,
+                "RELEASED:" + reservationId, occurredAt
+        );
+    }
+
+    public String getLedgerEventId() {
+        return ledgerEventId;
+    }
+
     public EventType getEventType() {
         return eventType;
     }

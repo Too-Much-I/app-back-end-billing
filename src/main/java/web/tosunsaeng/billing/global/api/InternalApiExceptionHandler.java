@@ -87,6 +87,6 @@ public class InternalApiExceptionHandler {
     }
 
     private static boolean isReservationPath(HttpServletRequest request) {
-        return request.getRequestURI().equals("/internal/v1/reservations");
+        return request.getRequestURI().startsWith("/internal/v1/reservations");
     }
 }

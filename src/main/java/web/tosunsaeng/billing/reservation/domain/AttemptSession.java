@@ -74,7 +74,19 @@ public class AttemptSession {
         return operationId;
     }
 
+    public String getSubjectRefId() {
+        return subjectRefId;
+    }
+
     public State getState() {
         return state;
+    }
+
+    public Instant getConfirmedAt() {
+        return confirmedAt;
+    }
+
+    public long getVersion() {
+        return version;
     }
 }

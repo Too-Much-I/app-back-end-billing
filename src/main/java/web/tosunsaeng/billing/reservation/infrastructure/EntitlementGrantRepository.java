@@ -32,6 +32,10 @@ public class EntitlementGrantRepository {
         return mongoTemplate.insert(grant);
     }
 
+    public Optional<EntitlementGrant> findById(String grantId) {
+        return Optional.ofNullable(mongoTemplate.findById(grantId, EntitlementGrant.class));
+    }
+
     public Optional<EntitlementGrant> holdOne(String grantId, Instant now) {
         Query query = Query.query(Criteria.where("grantId").is(grantId)
                 .and("state").is("ACTIVE")
@@ -45,5 +49,42 @@ public class EntitlementGrantRepository {
                 query, update, FindAndModifyOptions.options().returnNew(true), EntitlementGrant.class
         );
         return Optional.ofNullable(updated);
+    }
+
+    public Optional<EntitlementGrant> consumeHeldOne(
+            String grantId,
+            long expectedVersion,
+            Instant now
+    ) {
+        return moveHeldOne(grantId, expectedVersion, "consumedUnits", now);
+    }
+
+    public Optional<EntitlementGrant> releaseHeldOne(
+            String grantId,
+            long expectedVersion,
+            Instant now
+    ) {
+        return moveHeldOne(grantId, expectedVersion, "availableUnits", now);
+    }
+
+    private Optional<EntitlementGrant> moveHeldOne(
+            String grantId,
+            long expectedVersion,
+            String destination,
+            Instant now
+    ) {
+        Query query = Query.query(Criteria.where("grantId").is(grantId)
+                .and("state").is("ACTIVE")
+                .and("heldUnits").gte(1)
+                .and("version").is(expectedVersion));
+        Update update = new Update()
+                .inc("heldUnits", -1)
+                .inc(destination, 1)
+                .inc("version", 1)
+                .set("updatedAt", now);
+        return Optional.ofNullable(mongoTemplate.findAndModify(
+                query, update, FindAndModifyOptions.options().returnNew(true),
+                EntitlementGrant.class
+        ));
     }
 }

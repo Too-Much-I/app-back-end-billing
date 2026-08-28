@@ -3,7 +3,7 @@
 - 상태: 구현 완료; production 활성화 gate 유지
 - 작성일: 2026-08-28
 - 대상 저장소: `app-back-end-billing`
-- Jira: `TMI-112` — `[Billing] Free exam initial reserve 구현`
+- Jira: `TMI-112` — `[Billing] Free exam initial reserve 구현` (`완료`)
 - 선행 작업: `PLAN-001` 구현 완료, `TMI-110` 완료
 - 관련 계약: `docs/adr/ADR-001-free-trial-internal-api-and-mongo-contract.md`, `docs/adr/ADR-002-vpc-lattice-ecs-sigv4-and-environment-migration.md`, `docs/contracts/BILLING_SERVICE_INTEGRATION_CONTRACT.md`, `docs/codex/CONTRACT_DECISIONS.md`
 
@@ -792,7 +792,7 @@ PLAN-002 승인 뒤에는 먼저 별도 Jira를 만들고 그 완료 조건을 �
 
 ## 21. 구현 결과
 
-2026-08-28 Jira `TMI-112` 범위로 PLAN-002 구현을 완료했다. Jira 상태는 사용자 승인 없이 변경하지 않아 `해야 할 일`로 유지한다.
+2026-08-28 Jira `TMI-112` 범위로 PLAN-002 구현을 완료했고, 사용자 승인에 따라 Jira도 `완료`로 전환했다.
 
 - strict reserve request decoder, lowercase UUID v4 `Idempotency-Key` parser와 canonical SHA-256 payload hash를 구현했다.
 - `trial_claims`, `trial_candidate_aliases`, `billing_subject_links`, grant·ledger, Reservation·allocation, command, AttemptGroup/session projection document와 repository를 추가했다.

@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.locks.LockSupport;
 
 import com.mongodb.MongoException;
 import org.springframework.dao.DataAccessException;
@@ -120,12 +121,14 @@ public class ReserveService {
                     metrics.record(committed.snapshot().reservationKind(), "REPLAYED");
                     return committed;
                 }
+                retryBackoff(attempt);
             } catch (DataAccessException | MongoException exception) {
                 ReserveResult committed = classifyCommitted(command);
                 if (committed != null) {
                     metrics.record(committed.snapshot().reservationKind(), "REPLAYED");
                     return committed;
                 }
+                retryBackoff(attempt);
             }
         }
         ReserveResult committed = classifyCommitted(command);
@@ -376,6 +379,10 @@ public class ReserveService {
 
     private static String uuid() {
         return UUID.randomUUID().toString();
+    }
+
+    private static void retryBackoff(int attempt) {
+        LockSupport.parkNanos(attempt * 5_000_000L);
     }
 
     private record ClaimContext(

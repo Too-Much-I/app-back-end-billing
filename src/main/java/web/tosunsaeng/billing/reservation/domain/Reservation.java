@@ -92,6 +92,10 @@ public class Reservation {
         return reservationId;
     }
 
+    public String getCallerService() {
+        return callerService;
+    }
+
     public String getSubjectRefId() {
         return subjectRefId;
     }
@@ -126,6 +130,18 @@ public class Reservation {
 
     public Instant getExpiresAt() {
         return expiresAt;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public Instant getTerminalAt() {
+        return terminalAt;
+    }
+
+    public long getVersion() {
+        return version;
     }
 
     @Override

@@ -29,6 +29,25 @@ public class IdempotencyCommandRepository {
         return Optional.ofNullable(mongoTemplate.findOne(query, IdempotencyCommand.class));
     }
 
+    public Optional<IdempotencyCommand> find(
+            String userId,
+            String operationId,
+            String commandType
+    ) {
+        Query query = Query.query(Criteria.where("callerService").is("LEARNING_CORE")
+                .and("userId").is(userId)
+                .and("operationId").is(operationId)
+                .and("commandType").is(commandType));
+        return Optional.ofNullable(mongoTemplate.findOne(query, IdempotencyCommand.class));
+    }
+
+    public Optional<IdempotencyCommand> findReserveByReservationId(String reservationId) {
+        Query query = Query.query(Criteria.where("callerService").is("LEARNING_CORE")
+                .and("commandType").is("RESERVE")
+                .and("reservationId").is(reservationId));
+        return Optional.ofNullable(mongoTemplate.findOne(query, IdempotencyCommand.class));
+    }
+
     public Optional<IdempotencyCommand> findActiveReserve(String userId) {
         Query query = Query.query(Criteria.where("callerService").is("LEARNING_CORE")
                 .and("userId").is(userId)

@@ -94,6 +94,10 @@ public class EntitlementGrant {
         return version;
     }
 
+    public String getState() {
+        return state;
+    }
+
     @Override
     public String toString() {
         return "EntitlementGrant[state=" + state + ", units=[REDACTED]]";

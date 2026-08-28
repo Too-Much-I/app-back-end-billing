@@ -15,6 +15,10 @@ billing:
     expected-consumer-scope-id: ${BILLING_TRIAL_EXPECTED_CONSUMER_SCOPE_ID:}
   reservation:
     hold-duration: ${BILLING_RESERVATION_HOLD_DURATION:5m}
+    expiry-enabled: ${BILLING_RESERVATION_EXPIRY_ENABLED:false}
+    expiry-scan-interval: ${BILLING_RESERVATION_EXPIRY_SCAN_INTERVAL:10s}
+    expiry-batch-size: ${BILLING_RESERVATION_EXPIRY_BATCH_SIZE:100}
+    terminal-command-retention: ${BILLING_RESERVATION_TERMINAL_COMMAND_RETENTION:7d}
   mongodb:
     initialize-indexes: ${BILLING_MONGODB_INITIALIZE_INDEXES:false}
     require-transactions: ${BILLING_MONGODB_REQUIRE_TRANSACTIONS:false}

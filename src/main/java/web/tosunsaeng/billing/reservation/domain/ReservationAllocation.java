@@ -65,7 +65,15 @@ public class ReservationAllocation {
         return grantId;
     }
 
+    public int getUnits() {
+        return units;
+    }
+
     public Status getStatus() {
         return status;
+    }
+
+    public long getVersion() {
+        return version;
     }
 }

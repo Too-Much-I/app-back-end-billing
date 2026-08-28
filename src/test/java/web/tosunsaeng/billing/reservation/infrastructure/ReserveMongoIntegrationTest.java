@@ -47,6 +47,12 @@ import web.tosunsaeng.billing.reservation.application.ReserveCommand;
 import web.tosunsaeng.billing.reservation.application.ReserveMetrics;
 import web.tosunsaeng.billing.reservation.application.ReserveResult;
 import web.tosunsaeng.billing.reservation.application.ReserveService;
+import web.tosunsaeng.billing.reservation.application.CancelCommand;
+import web.tosunsaeng.billing.reservation.application.ConfirmCommand;
+import web.tosunsaeng.billing.reservation.application.LifecycleResult;
+import web.tosunsaeng.billing.reservation.application.ReservationLifecycleService;
+import web.tosunsaeng.billing.reservation.application.ReservationLifecycleMetrics;
+import web.tosunsaeng.billing.reservation.application.ReservationStatusResult;
 import web.tosunsaeng.billing.reservation.domain.AttemptGroup;
 import web.tosunsaeng.billing.reservation.domain.AttemptSession;
 import web.tosunsaeng.billing.reservation.domain.BillingSubjectLink;
@@ -99,6 +105,8 @@ class ReserveMongoIntegrationTest {
     @Autowired
     private ReserveService reserveService;
     @Autowired
+    private ReservationLifecycleService lifecycleService;
+    @Autowired
     private BillingMongoIndexInitializer indexInitializer;
     @Autowired
     private MongoTransactionManager transactionManager;
@@ -130,6 +138,8 @@ class ReserveMongoIntegrationTest {
     private ReservationProperties reservationProperties;
     @Autowired
     private ReserveMetrics reserveMetrics;
+    @Autowired
+    private ReservationLifecycleMetrics lifecycleMetrics;
 
     @MockitoBean
     private Clock clock;
@@ -480,12 +490,434 @@ class ReserveMongoIntegrationTest {
         assertThat(count(EntitlementLedgerEntry.class)).isEqualTo(2);
     }
 
+    @Test
+    void initialConfirmConsumesHeldGrantAndOpensAttemptGroup() {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        ReserveResult reserved = reserveService.reserve(command(
+                USER_ONE, OP_ONE, "session-1", "mock-1", "reserve-hash"
+        ));
+
+        LifecycleResult result = lifecycleService.confirm(confirmCommand(reserved, "confirm-hash"));
+
+        assertThat(result.snapshot().reservationStatus()).isEqualTo(Reservation.Status.CONFIRMED);
+        assertThat(result.snapshot().attemptGroupStatus()).isEqualTo(AttemptGroup.Status.OPEN);
+        EntitlementGrant grant = mongoTemplate.findAll(EntitlementGrant.class).getFirst();
+        assertThat(grant.getAvailableUnits()).isZero();
+        assertThat(grant.getHeldUnits()).isZero();
+        assertThat(grant.getConsumedUnits()).isOne();
+        assertThat(mongoTemplate.findAll(ReservationAllocation.class).getFirst().getStatus())
+                .isEqualTo(ReservationAllocation.Status.CONSUMED);
+        assertThat(mongoTemplate.findById("session-1", AttemptSession.class).getState())
+                .isEqualTo(AttemptSession.State.ACTIVE);
+        assertThat(count(AttemptGroup.class)).isOne();
+        assertThat(mongoTemplate.findAll(EntitlementLedgerEntry.class))
+                .extracting(EntitlementLedgerEntry::getEventType)
+                .containsExactlyInAnyOrder(
+                        EntitlementLedgerEntry.EventType.GRANTED,
+                        EntitlementLedgerEntry.EventType.RESERVED,
+                        EntitlementLedgerEntry.EventType.CONSUMED
+                );
+
+        LifecycleResult replay = lifecycleService.confirm(confirmCommand(reserved, "confirm-hash"));
+        assertThat(replay.replayed()).isTrue();
+        assertThat(count(EntitlementLedgerEntry.class)).isEqualTo(3);
+        assertThatThrownBy(() -> lifecycleService.confirm(confirmCommand(
+                reserved, "different-hash"
+        )))
+                .isInstanceOf(InternalApiException.class)
+                .extracting("code").isEqualTo("IDEMPOTENCY_KEY_CONFLICT");
+    }
+
+    @Test
+    void initialCancelReleasesHoldWithoutDeletingClaim() {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        ReserveResult reserved = reserveService.reserve(command(
+                USER_ONE, OP_ONE, "session-1", "mock-1", "reserve-hash"
+        ));
+
+        LifecycleResult result = lifecycleService.cancel(cancelCommand(reserved, "cancel-hash"));
+
+        assertThat(result.snapshot().reservationStatus()).isEqualTo(Reservation.Status.CANCELED);
+        EntitlementGrant grant = mongoTemplate.findAll(EntitlementGrant.class).getFirst();
+        assertThat(grant.getAvailableUnits()).isOne();
+        assertThat(grant.getHeldUnits()).isZero();
+        assertThat(grant.getConsumedUnits()).isZero();
+        assertThat(mongoTemplate.findAll(ReservationAllocation.class).getFirst().getStatus())
+                .isEqualTo(ReservationAllocation.Status.RELEASED);
+        assertThat(mongoTemplate.findById("session-1", AttemptSession.class).getState())
+                .isEqualTo(AttemptSession.State.FAILED);
+        assertThat(count(TrialClaim.class)).isOne();
+        assertThat(count(AttemptGroup.class)).isZero();
+    }
+
+    @Test
+    void dueInitialReservationExpiresAndStatusIsReadOnly() {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        ReserveResult reserved = reserveService.reserve(command(
+                USER_ONE, OP_ONE, "session-1", "mock-1", "reserve-hash"
+        ));
+
+        assertThat(lifecycleService.expire(
+                reserved.snapshot().reservationId(), NOW.plusSeconds(301)
+        )).isTrue();
+        long commandsBefore = count(IdempotencyCommand.class);
+        long ledgerBefore = count(EntitlementLedgerEntry.class);
+        ReservationStatusResult status = lifecycleService.status(USER_ONE, OP_ONE);
+
+        assertThat(status.reservationStatus()).isEqualTo(Reservation.Status.EXPIRED);
+        assertThat(status.attemptGroupStatus()).isNull();
+        assertThat(status.terminalAt()).isEqualTo(NOW.plusSeconds(301));
+        assertThat(count(IdempotencyCommand.class)).isEqualTo(commandsBefore);
+        assertThat(count(EntitlementLedgerEntry.class)).isEqualTo(ledgerBefore);
+        assertThat(lifecycleService.expire(
+                reserved.snapshot().reservationId(), NOW.plusSeconds(302)
+        )).isFalse();
+    }
+
+    @Test
+    void replacementConfirmReusesConsumptionWithoutNewAllocationOrLedger() {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        ReserveResult initial = reserveService.reserve(command(
+                USER_ONE, OP_ONE, "session-1", "mock-1", "reserve-hash-1"
+        ));
+        lifecycleService.confirm(confirmCommand(initial, "confirm-hash-1"));
+        mongoTemplate.updateFirst(
+                Query.query(org.springframework.data.mongodb.core.query.Criteria.where(
+                        "attemptGroupId"
+                ).is(initial.snapshot().attemptGroupId())),
+                new Update().set("status", AttemptGroup.Status.RETAKE_AVAILABLE),
+                AttemptGroup.class
+        );
+        ReserveResult replacement = reserveService.reserve(command(
+                USER_ONE, OP_TWO, "session-2", "mock-1", "reserve-hash-2"
+        ));
+
+        LifecycleResult result = lifecycleService.confirm(new ConfirmCommand(
+                OP_TWO, replacement.snapshot().reservationId(), USER_ONE, "session-2",
+                NOW, "confirm-hash-2"
+        ));
+
+        assertThat(replacement.snapshot().reservationKind()).isEqualTo(Reservation.Kind.REPLACEMENT);
+        assertThat(result.snapshot().reservationStatus()).isEqualTo(Reservation.Status.CONFIRMED);
+        assertThat(count(ReservationAllocation.class)).isOne();
+        assertThat(count(EntitlementLedgerEntry.class)).isEqualTo(3);
+        assertThat(count(AttemptGroup.class)).isOne();
+        EntitlementGrant grant = mongoTemplate.findAll(EntitlementGrant.class).getFirst();
+        assertThat(grant.getConsumedUnits()).isOne();
+        assertThat(mongoTemplate.findById("session-2", AttemptSession.class).getState())
+                .isEqualTo(AttemptSession.State.ACTIVE);
+        assertThat(attemptGroupRepository.findById(initial.snapshot().attemptGroupId())
+                .orElseThrow().getStatus()).isEqualTo(AttemptGroup.Status.OPEN);
+    }
+
+    @Test
+    void replacementCancelAndExpiryDoNotRestoreConsumedGrant() {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        ReserveResult initial = reserveService.reserve(command(
+                USER_ONE, OP_ONE, "session-1", "mock-1", "reserve-hash-1"
+        ));
+        lifecycleService.confirm(confirmCommand(initial, "confirm-hash-1"));
+        ReserveResult canceledReplacement = reserveService.reserve(command(
+                USER_ONE, OP_TWO, "session-2", "mock-1", "reserve-hash-2"
+        ));
+
+        lifecycleService.cancel(new CancelCommand(
+                OP_TWO, canceledReplacement.snapshot().reservationId(), USER_ONE,
+                web.tosunsaeng.billing.reservation.api.CancelRequest.Reason.CALLER_ABORTED,
+                "cancel-hash-2"
+        ));
+
+        assertConsumedGrantUnchanged();
+        String operationThree = "2993287e-72d9-4acf-956f-04dbd46b197d";
+        ReserveResult expiredReplacement = reserveService.reserve(command(
+                USER_ONE, operationThree, "session-3", "mock-1", "reserve-hash-3"
+        ));
+        assertThat(lifecycleService.expire(
+                expiredReplacement.snapshot().reservationId(), NOW.plusSeconds(301)
+        )).isTrue();
+
+        assertConsumedGrantUnchanged();
+        assertThat(count(ReservationAllocation.class)).isOne();
+        assertThat(count(EntitlementLedgerEntry.class)).isEqualTo(3);
+        assertThat(attemptGroupRepository.findById(initial.snapshot().attemptGroupId()))
+                .get().extracting(AttemptGroup::getStatus).isEqualTo(AttemptGroup.Status.OPEN);
+    }
+
+    @Test
+    void terminalReservationRejectsOppositeCommandWithoutRepair() {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        ReserveResult confirmed = reserveService.reserve(command(
+                USER_ONE, OP_ONE, "session-1", "mock-1", "reserve-hash"
+        ));
+        lifecycleService.confirm(confirmCommand(confirmed, "confirm-hash"));
+
+        assertThatThrownBy(() -> lifecycleService.cancel(cancelCommand(
+                confirmed, "cancel-after-confirm"
+        )))
+                .isInstanceOf(InternalApiException.class)
+                .extracting("code").isEqualTo("RESERVATION_STATE_CONFLICT");
+
+        String userThree = "6f7c0278-3374-40eb-8ece-a93c6a27a943";
+        String candidateThree = "C".repeat(43);
+        String operationThree = "2993287e-72d9-4acf-956f-04dbd46b197d";
+        applyVerified(userThree, 1, "00000000-0000-4000-8000-000000000003", candidateThree);
+        ReserveResult canceled = reserveService.reserve(command(
+                userThree, operationThree, "session-3", "mock-3", "reserve-hash-3"
+        ));
+        lifecycleService.cancel(new CancelCommand(
+                operationThree, canceled.snapshot().reservationId(), userThree,
+                web.tosunsaeng.billing.reservation.api.CancelRequest.Reason.CALLER_ABORTED,
+                "cancel-hash-3"
+        ));
+        assertThatThrownBy(() -> lifecycleService.confirm(new ConfirmCommand(
+                operationThree, canceled.snapshot().reservationId(), userThree, "session-3",
+                NOW, "confirm-after-cancel"
+        )))
+                .isInstanceOf(InternalApiException.class)
+                .extracting("code").isEqualTo("RESERVATION_STATE_CONFLICT");
+    }
+
+    @Test
+    void confirmRejectsMismatchedUserAndSessionWithoutWritingCommand() {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        ReserveResult reserved = reserveService.reserve(command(
+                USER_ONE, OP_ONE, "session-1", "mock-1", "reserve-hash"
+        ));
+
+        assertThatThrownBy(() -> lifecycleService.confirm(new ConfirmCommand(
+                OP_ONE, reserved.snapshot().reservationId(), USER_TWO, "session-1", NOW,
+                "wrong-user-hash"
+        )))
+                .isInstanceOf(InternalApiException.class)
+                .extracting("code").isEqualTo("RESERVATION_STATE_CONFLICT");
+        assertThatThrownBy(() -> lifecycleService.confirm(new ConfirmCommand(
+                OP_ONE, reserved.snapshot().reservationId(), USER_ONE, "session-other", NOW,
+                "wrong-session-hash"
+        )))
+                .isInstanceOf(InternalApiException.class)
+                .extracting("code").isEqualTo("RESERVATION_STATE_CONFLICT");
+        assertThat(count(IdempotencyCommand.class)).isOne();
+        assertThat(reservationRepository.findById(reserved.snapshot().reservationId()))
+                .get().extracting(Reservation::getStatus).isEqualTo(Reservation.Status.RESERVED);
+    }
+
+    @Test
+    void statusMissingOperationIs404AndTerminalCommandsRetainForSevenDays() {
+        assertThatThrownBy(() -> lifecycleService.status(USER_ONE, OP_ONE))
+                .isInstanceOf(InternalApiException.class)
+                .extracting("code").isEqualTo("OPERATION_NOT_FOUND");
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        ReserveResult reserved = reserveService.reserve(command(
+                USER_ONE, OP_ONE, "session-1", "mock-1", "reserve-hash"
+        ));
+        lifecycleService.cancel(cancelCommand(reserved, "cancel-hash"));
+
+        assertThat(mongoTemplate.findAll(IdempotencyCommand.class))
+                .allSatisfy(command -> {
+                    assertThat(command.isActive()).isFalse();
+                    assertThat(command.getTerminalAt()).isEqualTo(NOW);
+                    assertThat(command.getPurgeAt()).isEqualTo(NOW.plusSeconds(7 * 24 * 60 * 60));
+                });
+    }
+
+    @Test
+    void concurrentExpiryWorkersReleaseOnlyOnceAndNonDueIsNoOp() throws Exception {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        ReserveResult reserved = reserveService.reserve(command(
+                USER_ONE, OP_ONE, "session-1", "mock-1", "reserve-hash"
+        ));
+        assertThat(lifecycleService.expire(
+                reserved.snapshot().reservationId(), NOW.plusSeconds(299)
+        )).isFalse();
+
+        race(
+                () -> lifecycleService.expire(
+                        reserved.snapshot().reservationId(), NOW.plusSeconds(301)
+                ),
+                () -> lifecycleService.expire(
+                        reserved.snapshot().reservationId(), NOW.plusSeconds(301)
+                )
+        );
+
+        assertThat(reservationRepository.findById(reserved.snapshot().reservationId()))
+                .get().extracting(Reservation::getStatus).isEqualTo(Reservation.Status.EXPIRED);
+        assertThat(mongoTemplate.findAll(EntitlementLedgerEntry.class))
+                .filteredOn(entry -> entry.getEventType() == EntitlementLedgerEntry.EventType.RELEASED)
+                .hasSize(1);
+        assertThat(mongoTemplate.findAll(EntitlementGrant.class).getFirst().getAvailableUnits())
+                .isOne();
+    }
+
+    @Test
+    void concurrentCancelAndExpiryReleaseExactlyOnce() throws Exception {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        ReserveResult reserved = reserveService.reserve(command(
+                USER_ONE, OP_ONE, "session-1", "mock-1", "reserve-hash"
+        ));
+
+        race(
+                () -> lifecycleService.cancel(cancelCommand(reserved, "cancel-hash")),
+                () -> lifecycleService.expire(
+                        reserved.snapshot().reservationId(), NOW.plusSeconds(301)
+                )
+        );
+
+        assertThat(reservationRepository.findById(reserved.snapshot().reservationId()))
+                .get().extracting(Reservation::getStatus)
+                .isIn(Reservation.Status.CANCELED, Reservation.Status.EXPIRED);
+        assertThat(mongoTemplate.findAll(EntitlementLedgerEntry.class))
+                .filteredOn(entry -> entry.getEventType() == EntitlementLedgerEntry.EventType.RELEASED)
+                .hasSize(1);
+        EntitlementGrant grant = mongoTemplate.findAll(EntitlementGrant.class).getFirst();
+        assertThat(grant.getAvailableUnits()).isOne();
+        assertThat(grant.getHeldUnits()).isZero();
+    }
+
+    @Test
+    void lifecycleTransientTransactionErrorRetries() {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        ReserveResult reserved = reserveService.reserve(command(
+                USER_ONE, OP_ONE, "session-1", "mock-1", "reserve-hash"
+        ));
+        AtomicBoolean first = new AtomicBoolean(true);
+        MongoTransactionExecutor transientExecutor = new MongoTransactionExecutor(
+                transactionManager
+        ) {
+            @Override
+            public <T> T execute(Supplier<T> operation) {
+                if (first.getAndSet(false)) {
+                    MongoException exception = new MongoException("simulated transient error");
+                    exception.addLabel(MongoException.TRANSIENT_TRANSACTION_ERROR_LABEL);
+                    throw exception;
+                }
+                return super.execute(operation);
+            }
+        };
+
+        LifecycleResult result = lifecycleServiceWith(transientExecutor)
+                .confirm(confirmCommand(reserved, "confirm-hash"));
+
+        assertThat(result.replayed()).isFalse();
+        assertThat(count(EntitlementLedgerEntry.class)).isEqualTo(3);
+    }
+
+    @Test
+    void concurrentConfirmAndCancelHaveExactlyOneTerminalWinner() throws Exception {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        ReserveResult reserved = reserveService.reserve(command(
+                USER_ONE, OP_ONE, "session-1", "mock-1", "reserve-hash"
+        ));
+
+        List<Object> results = race(
+                () -> lifecycleService.confirm(confirmCommand(reserved, "confirm-hash")),
+                () -> lifecycleService.cancel(cancelCommand(reserved, "cancel-hash"))
+        );
+
+        assertThat(results).anyMatch(LifecycleResult.class::isInstance);
+        assertThat(results).anyMatch(value -> value instanceof InternalApiException exception
+                && "RESERVATION_STATE_CONFLICT".equals(exception.code()));
+        Reservation reservation = reservationRepository.findById(
+                reserved.snapshot().reservationId()
+        ).orElseThrow();
+        assertThat(reservation.getStatus()).isIn(
+                Reservation.Status.CONFIRMED, Reservation.Status.CANCELED
+        );
+        EntitlementGrant grant = mongoTemplate.findAll(EntitlementGrant.class).getFirst();
+        assertThat(grant.getAvailableUnits() + grant.getHeldUnits() + grant.getConsumedUnits())
+                .isOne();
+        assertThat(count(EntitlementLedgerEntry.class)).isEqualTo(3);
+    }
+
+    @Test
+    void concurrentSameConfirmReplaysOneCommittedResult() throws Exception {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        ReserveResult reserved = reserveService.reserve(command(
+                USER_ONE, OP_ONE, "session-1", "mock-1", "reserve-hash"
+        ));
+
+        List<Object> results = race(
+                () -> lifecycleService.confirm(confirmCommand(reserved, "confirm-hash")),
+                () -> lifecycleService.confirm(confirmCommand(reserved, "confirm-hash"))
+        );
+
+        assertThat(results).allMatch(LifecycleResult.class::isInstance);
+        assertThat(results.stream().map(LifecycleResult.class::cast)
+                .filter(LifecycleResult::replayed).count()).isOne();
+        assertThat(count(EntitlementLedgerEntry.class)).isEqualTo(3);
+        assertThat(count(AttemptGroup.class)).isOne();
+    }
+
+    @Test
+    void confirmUnknownCommitConvergesFromLifecycleSnapshot() {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        ReserveResult reserved = reserveService.reserve(command(
+                USER_ONE, OP_ONE, "session-1", "mock-1", "reserve-hash"
+        ));
+        AtomicBoolean first = new AtomicBoolean(true);
+        MongoTransactionExecutor unknownCommitExecutor = new MongoTransactionExecutor(
+                transactionManager
+        ) {
+            @Override
+            public <T> T execute(Supplier<T> operation) {
+                T result = super.execute(operation);
+                if (first.getAndSet(false)) {
+                    MongoException exception = new MongoException("simulated unknown commit result");
+                    exception.addLabel(MongoException.UNKNOWN_TRANSACTION_COMMIT_RESULT_LABEL);
+                    throw exception;
+                }
+                return result;
+            }
+        };
+
+        LifecycleResult result = lifecycleServiceWith(unknownCommitExecutor)
+                .confirm(confirmCommand(reserved, "confirm-hash"));
+
+        assertThat(result.replayed()).isTrue();
+        assertThat(count(EntitlementLedgerEntry.class)).isEqualTo(3);
+        assertThat(count(AttemptGroup.class)).isOne();
+    }
+
+    @Test
+    void confirmAndExpiryRaceHasOneTerminalStateAndConservedGrant() throws Exception {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        ReserveResult reserved = reserveService.reserve(command(
+                USER_ONE, OP_ONE, "session-1", "mock-1", "reserve-hash"
+        ));
+
+        List<Object> results = race(
+                () -> lifecycleService.confirm(confirmCommand(reserved, "confirm-hash")),
+                () -> lifecycleService.expire(
+                        reserved.snapshot().reservationId(), NOW.plusSeconds(301)
+                )
+        );
+
+        Reservation reservation = reservationRepository.findById(
+                reserved.snapshot().reservationId()
+        ).orElseThrow();
+        assertThat(reservation.getStatus()).isIn(
+                Reservation.Status.CONFIRMED, Reservation.Status.EXPIRED
+        );
+        EntitlementGrant grant = mongoTemplate.findAll(EntitlementGrant.class).getFirst();
+        assertThat(grant.getAvailableUnits() + grant.getHeldUnits() + grant.getConsumedUnits())
+                .isOne();
+        assertThat(count(EntitlementLedgerEntry.class)).isEqualTo(3);
+        assertThat(results).hasSize(2);
+    }
+
     private ReserveService serviceWith(MongoTransactionExecutor executor) {
         return new ReserveService(
                 eligibilityRepository, claimRepository, aliasRepository, subjectLinkRepository,
                 grantRepository, ledgerRepository, reservationRepository, allocationRepository,
                 commandRepository, attemptGroupRepository, attemptSessionRepository, executor,
                 eligibilityProperties, reservationProperties, reserveMetrics, clock
+        );
+    }
+
+    private ReservationLifecycleService lifecycleServiceWith(MongoTransactionExecutor executor) {
+        return new ReservationLifecycleService(
+                reservationRepository, allocationRepository, grantRepository, ledgerRepository,
+                attemptGroupRepository, attemptSessionRepository, commandRepository, executor,
+                reservationProperties, lifecycleMetrics, clock
         );
     }
 
@@ -594,6 +1026,27 @@ class ReserveMongoIntegrationTest {
             String hash
     ) {
         return new ReserveCommand(operationId, userId, sessionId, mockExamId, hash);
+    }
+
+    private static ConfirmCommand confirmCommand(ReserveResult reserved, String hash) {
+        return new ConfirmCommand(
+                reserved.snapshot().operationId(), reserved.snapshot().reservationId(), USER_ONE,
+                reserved.snapshot().sessionId(), NOW, hash
+        );
+    }
+
+    private static CancelCommand cancelCommand(ReserveResult reserved, String hash) {
+        return new CancelCommand(
+                reserved.snapshot().operationId(), reserved.snapshot().reservationId(), USER_ONE,
+                web.tosunsaeng.billing.reservation.api.CancelRequest.Reason.CALLER_ABORTED, hash
+        );
+    }
+
+    private void assertConsumedGrantUnchanged() {
+        EntitlementGrant grant = mongoTemplate.findAll(EntitlementGrant.class).getFirst();
+        assertThat(grant.getAvailableUnits()).isZero();
+        assertThat(grant.getHeldUnits()).isZero();
+        assertThat(grant.getConsumedUnits()).isOne();
     }
 
     private long count(Class<?> type) {

@@ -29,6 +29,11 @@ import web.tosunsaeng.billing.reservation.application.ReserveCommand;
 import web.tosunsaeng.billing.reservation.application.ReservePayloadHasher;
 import web.tosunsaeng.billing.reservation.application.ReserveResult;
 import web.tosunsaeng.billing.reservation.application.ReserveService;
+import web.tosunsaeng.billing.reservation.application.LifecyclePayloadHasher;
+import web.tosunsaeng.billing.reservation.application.ReservationLifecycleService;
+import web.tosunsaeng.billing.reservation.application.LifecycleResult;
+import web.tosunsaeng.billing.reservation.application.ReservationStatusResult;
+import web.tosunsaeng.billing.reservation.domain.AttemptGroup;
 import web.tosunsaeng.billing.reservation.domain.IdempotencyCommand;
 import web.tosunsaeng.billing.reservation.domain.Reservation;
 
@@ -43,6 +48,7 @@ class ReservationControllerTest {
 
     private static final String PATH = "/internal/v1/reservations";
     private static final String KEY = "018f6f36-2f42-4bf5-8c17-0be35de4872c";
+    private static final String RESERVATION_ID = "36c2356c-29d1-443f-b8f1-298345ee4e89";
     private static final String JSON = """
             {"userId":"e8b37a41-bae6-47f1-a770-052e6c5786d4",
              "sessionId":"session-1","mockExamId":"mock-1"}
@@ -62,6 +68,18 @@ class ReservationControllerTest {
 
     @MockitoBean
     private ReserveService reserveService;
+
+    @MockitoBean
+    private LifecycleRequestDecoder lifecycleRequestDecoder;
+
+    @MockitoBean
+    private ReservationIdParser reservationIdParser;
+
+    @MockitoBean
+    private LifecyclePayloadHasher lifecyclePayloadHasher;
+
+    @MockitoBean
+    private ReservationLifecycleService reservationLifecycleService;
 
     @Test
     void learningCorePrincipalReceivesDirect200Dto() throws Exception {
@@ -146,6 +164,86 @@ class ReservationControllerTest {
         verifyNoInteractions(decoder, payloadHasher, reserveService);
     }
 
+    @Test
+    void confirmReturnsDirectLifecycleDto() throws Exception {
+        ConfirmRequest body = new ConfirmRequest(
+                "e8b37a41-bae6-47f1-a770-052e6c5786d4", "session-1",
+                Instant.parse("2026-08-26T06:30:01.200Z")
+        );
+        when(reservationIdParser.parse(RESERVATION_ID)).thenReturn(RESERVATION_ID);
+        when(keyParser.parse(KEY)).thenReturn(KEY);
+        when(lifecycleRequestDecoder.decodeConfirm(any())).thenReturn(body);
+        when(lifecyclePayloadHasher.hashConfirm(RESERVATION_ID, body)).thenReturn("hash");
+        when(reservationLifecycleService.confirm(any())).thenReturn(new LifecycleResult(
+                lifecycleSnapshot(Reservation.Status.CONFIRMED, AttemptGroup.Status.OPEN), false
+        ));
+
+        mockMvc.perform(post(PATH + "/" + RESERVATION_ID + "/confirm")
+                        .with(user("learning-core").roles("LEARNING_CORE_WORKLOAD"))
+                        .header("Idempotency-Key", KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reservationStatus").value("CONFIRMED"))
+                .andExpect(jsonPath("$.attemptGroupStatus").value("OPEN"))
+                .andExpect(jsonPath("$.confirmedAt").value("2026-08-28T00:00:00Z"))
+                .andExpect(jsonPath("$.data").doesNotExist());
+    }
+
+    @Test
+    void cancelAndStatusAreLearningCoreOnly() throws Exception {
+        CancelRequest cancel = new CancelRequest(
+                "e8b37a41-bae6-47f1-a770-052e6c5786d4",
+                CancelRequest.Reason.SESSION_COMMIT_FAILED
+        );
+        when(reservationIdParser.parse(RESERVATION_ID)).thenReturn(RESERVATION_ID);
+        when(keyParser.parse(KEY)).thenReturn(KEY);
+        when(lifecycleRequestDecoder.decodeCancel(any())).thenReturn(cancel);
+        when(lifecyclePayloadHasher.hashCancel(RESERVATION_ID, cancel)).thenReturn("hash");
+        when(reservationLifecycleService.cancel(any())).thenReturn(new LifecycleResult(
+                lifecycleSnapshot(Reservation.Status.CANCELED, null), false
+        ));
+
+        mockMvc.perform(post(PATH + "/" + RESERVATION_ID + "/cancel")
+                        .with(user("learning-core").roles("LEARNING_CORE_WORKLOAD"))
+                        .header("Idempotency-Key", KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reservationStatus").value("CANCELED"))
+                .andExpect(jsonPath("$.attemptGroupId").doesNotExist());
+
+        mockMvc.perform(post(PATH + "/status")
+                        .with(user("identity").roles("IDENTITY_WORKLOAD"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void statusReturnsLiveReadModelWithOptionalFields() throws Exception {
+        ReservationStatusRequest body = new ReservationStatusRequest(
+                "e8b37a41-bae6-47f1-a770-052e6c5786d4", KEY
+        );
+        when(lifecycleRequestDecoder.decodeStatus(any())).thenReturn(body);
+        when(reservationLifecycleService.status(body.userId(), body.operationId()))
+                .thenReturn(new ReservationStatusResult(
+                        KEY, RESERVATION_ID, Reservation.Kind.INITIAL,
+                        Reservation.Status.RESERVED,
+                        "be07ae1d-f877-4ae4-82df-c5f442e9bb8e", null,
+                        "session-1", "mock-1", Instant.parse("2026-08-28T00:05:00Z"), null
+                ));
+
+        mockMvc.perform(post(PATH + "/status")
+                        .with(user("learning-core").roles("LEARNING_CORE_WORKLOAD"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reservationStatus").value("RESERVED"))
+                .andExpect(jsonPath("$.attemptGroupStatus").doesNotExist())
+                .andExpect(jsonPath("$.terminalAt").doesNotExist());
+    }
+
     private static ReserveRequest request() {
         return new ReserveRequest(
                 "e8b37a41-bae6-47f1-a770-052e6c5786d4", "session-1", "mock-1"
@@ -162,6 +260,17 @@ class ReservationControllerTest {
                 "session-1",
                 "mock-1",
                 Instant.parse("2026-08-28T00:05:00Z")
+        );
+    }
+
+    private static IdempotencyCommand.LifecycleResponseSnapshot lifecycleSnapshot(
+            Reservation.Status status,
+            AttemptGroup.Status groupStatus
+    ) {
+        return new IdempotencyCommand.LifecycleResponseSnapshot(
+                KEY, RESERVATION_ID, status,
+                groupStatus == null ? null : "be07ae1d-f877-4ae4-82df-c5f442e9bb8e",
+                groupStatus, "session-1", Instant.parse("2026-08-28T00:00:00Z")
         );
     }
 }

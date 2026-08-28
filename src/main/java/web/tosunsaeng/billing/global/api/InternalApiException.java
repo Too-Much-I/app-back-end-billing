@@ -98,6 +98,15 @@ public class InternalApiException extends RuntimeException {
         );
     }
 
+    public static InternalApiException operationNotFound() {
+        return new InternalApiException(
+                HttpStatus.NOT_FOUND,
+                "OPERATION_NOT_FOUND",
+                "The operation was not found.",
+                false
+        );
+    }
+
     public static InternalApiException unsupportedContract() {
         return new InternalApiException(
                 HttpStatus.UNPROCESSABLE_ENTITY,

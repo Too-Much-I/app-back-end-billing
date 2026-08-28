@@ -2,7 +2,118 @@
 
 - 최종 갱신일: 2026-08-28
 - 현재 브랜치: `develop`
-- Jira: `TMI-112` — `[Billing] Free exam initial reserve 구현` (`해야 할 일`, 담당자 미지정)
+- Jira: `TMI-113` — `[Billing] Reservation lifecycle 구현` (`해야 할 일`, 담당자 미지정)
+
+## 2026-08-28 TMI-113 PLAN-003 Reservation lifecycle 구현 완료
+
+- `POST /internal/v1/reservations/{reservationId}/confirm`, `cancel`, `POST /internal/v1/reservations/status`를 구현했다. confirm/cancel은 16 KiB strict JSON, lowercase UUID v4 path·header·body, exact enum·UTC millisecond timestamp와 canonical SHA-256 command hash를 사용한다.
+- INITIAL confirm은 HELD allocation과 grant를 CONSUMED로 전이하고 `CONSUMED:<reservationId>` ledger, AttemptGroup OPEN과 Session ACTIVE를 하나의 Mongo Transaction으로 반영한다. REPLACEMENT confirm은 기존 consumption을 유지하고 group Session만 교체한다.
+- INITIAL cancel·expiry는 allocation을 RELEASED, grant held를 available로 복원하고 `RELEASED:<reservationId>` ledger를 하나만 남긴다. REPLACEMENT cancel·expiry는 entitlement를 변경하지 않는다. TrialClaim·alias·subject retention은 lifecycle에서 건드리지 않는다.
+- confirm·cancel·expiry는 `RESERVED + activeGuard + version` Reservation CAS를 첫 write로 사용한다. CONFIRMED 취소와 CANCELED/EXPIRED 일반 confirm은 409이며 repair route는 추가하지 않았다.
+- terminal RESERVE·CONFIRM·CANCEL command는 active guard를 해제하고 `terminalAt + 7일` purgeAt을 기록한다. Reservation·ledger audit에는 TTL을 추가하지 않았다. status는 RESERVE operation과 live Reservation·group을 읽기만 하며 missing operation은 404다.
+- expiry worker는 기본 disabled, scan 10초·batch 100 기본값이며 due Reservation별 독립 Transaction과 다중 ECS task CAS 수렴을 사용한다. due batch size와 oldest due lag를 식별자 없는 metric으로 기록한다.
+- schema v2와 기존 index를 그대로 재사용했다. 새 collection, index, 결제·AttemptGroup 상태 event·owner rebind·repair·타 서비스 코드는 추가하지 않았다.
+- `./gradlew clean test`에서 총 82개 테스트가 성공했고 실패·오류·skip은 0개다. replica-set Testcontainers가 INITIAL/REPLACEMENT, concurrent same-command replay, confirm/cancel/expiry 모든 race, multi-worker, transient retry와 unknown commit을 실제 검증했다.
+- Jira `TMI-113`은 사용자 승인 없이 상태를 변경하지 않아 `해야 할 일`로 유지한다. production caller는 Learning Core saga, expiry 운영 활성화, Lattice/IAM/SG와 staging E2E 전까지 열지 않는다.
+
+## 2026-08-28 PLAN-003 Jira 작업 생성
+
+- TMI 프로젝트에 `TMI-113` — `[Billing] Reservation lifecycle 구현`을 `작업` 유형으로 생성했다. 상태는 `해야 할 일`, 담당자는 미지정이다.
+- Jira 본문에 confirm·cancel·status, 5분 expiry worker, INITIAL consume/release, REPLACEMENT 무추가차감, terminal command 7일 보존과 confirm/cancel/expiry CAS race 완료 조건을 반영했다.
+- AttemptGroup 상태 event, 탈퇴·재가입 owner rebind, repair route, Learning Core saga, Identity 변경, 실제 Lattice/AWS 배포, TrialClaim purge와 결제는 제외 범위로 명시했다.
+- PLAN-003 상태를 사용자 승인·Jira 생성·구현 전으로 갱신했다. 애플리케이션 구현과 AGENTS 현재 구현 단위 전환은 아직 시작하지 않았다.
+- production Reservation caller는 PLAN-003만으로 활성화하지 않고 후속 상태 event·서비스 연동·AWS staging E2E gate를 유지한다.
+
+## 2026-08-28 PLAN-005 이후 남은 출시 작업 구분
+
+- PLAN-005 재가입 owner rebind까지 완료하면 phone당 무료 1회, reserve lifecycle, 결과 실패 재응시와 탈퇴·재가입 승계를 포함한 Billing 핵심 제품 정책은 완성된다.
+- 그러나 실제 출시 전에는 Learning Core의 Billing client·시험 생성 saga·status reconciliation과 AttemptGroup outbox, Identity 실제 SigV4 eligibility delivery/owner transfer 계약, VPC Lattice·IAM·SG·ECS 설정이 남는다.
+- staging에서 same-key retry, Session commit 실패, confirm 응답 유실, expiry/confirm race, 최종 결과 실패·재가입과 unsigned/wrong-role/direct-bypass E2E를 통과해야 한다.
+- production Mongo index/migration preflight, expiry worker enable, metric·alert, backup/rollback runbook과 rollout도 필요하다.
+- TrialClaim 3년 만료 daily purge·24시간 SLA와 35일 backup restore purge는 별도 운영 vertical slice로 남는다. 최초 Claim 만료 전에는 반드시 구현·검증돼야 한다.
+- 따라서 PLAN-005는 핵심 Billing 기능의 끝이지 전체 production 출시의 끝은 아니다. 이번 설명에서는 PLAN 번호나 계약을 새로 확정하지 않았다.
+
+## 2026-08-28 PLAN-003 이후 재가입 권리 승계 구현 순서
+
+- PLAN-003 Reservation confirm/cancel/status·expiry lifecycle을 먼저 구현하는 순서가 맞다. owner rebind가 소비·복원·terminal 상태를 안전하게 판정하려면 lifecycle 상태 머신과 CAS가 선행돼야 한다.
+- 결과 실패 후 재가입 재응시까지 완성하려면 PLAN-003 다음에 AttemptGroup 상태 event consumer를 구현해 `GRADING`, `COMPLETED`, `RETAKE_AVAILABLE`을 신뢰 가능한 상태로 만든다.
+- 그 다음 별도 vertical slice로 old eligibility REVOKED + new VERIFIED + same candidate에 따른 retained subject owner rebind를 구현한다. 새 Claim·grant는 만들지 않고 기존 미사용 unit 또는 same consumption만 새 userId가 사용한다.
+- 권장 순서는 `PLAN-003 lifecycle → AttemptGroup event → 재가입 owner rebind → Learning Core saga/Lattice E2E`다.
+- PLAN-003 계획은 아직 초안이고 Jira도 미생성이다. 이번 확인에서는 구현·Jira·계약·PLAN을 변경하지 않았다.
+
+## 2026-08-28 Identity phone uniqueness와 Billing owner transfer 전제 정정
+
+- Identity는 verified phone 하나를 동시에 한 Firebase User와 한 ACTIVE MEMBER에만 연결한다. 다른 활성 owner가 점유하면 가입·Guest 승격은 `PHONE_ALREADY_LINKED`로 실패하므로 정상 흐름에서 같은 번호의 활성 계정 두 개는 존재하지 않는다.
+- 탈퇴 lifecycle이 기존 PhoneIdentity/active alias와 Firebase phone 점유를 해제한 뒤에만 같은 번호로 새 UUID 가입이 가능하다.
+- 재가입 시 Billing에 남은 old `billing_subject_link`는 활성 Identity 계정이 아니라 Claim 3년 dedupe를 위한 과거 owner mapping이다. owner transfer는 두 활성 계정 사이의 이전이 아니라 이 retained mapping을 새 verified userId에 재연결하는 작업이다.
+- 이전 권장안의 “기존 활성 계정이면 자동 이전 금지”는 정상 제품 분기가 아니라 Identity uniqueness drift, revoke/verified event 순서와 부분 완료를 막는 fail-closed 방어 조건으로 정정한다.
+- Billing transfer의 실질 조건은 old user eligibility `REVOKED`, new user eligibility `VERIFIED`, 같은 retained candidate와 active Claim 일치다. event 순서가 아직 수렴하지 않았으면 이전하지 않고 processing/reconciliation으로 보낸다.
+- 이 설명은 아직 owner-transfer 계약 승인이나 PLAN 변경을 의미하지 않는다.
+
+## 2026-08-28 재가입 사용자의 기존 무료시험 권리 승계 공백 확인
+
+- 현행 owner mismatch 차단은 탈퇴 후 새 UUID로 재가입한 사용자가 같은 verified phone candidate의 기존 Claim을 이어받지 못하게 한다. 중복 무료 지급은 막지만 미사용·재응시 가능 권리까지 영구 차단하는 제품 공백이 있다.
+- phone당 1회 정책에 맞는 해결은 새 TrialClaim/grant를 발급하는 것이 아니라 기존 Claim·grant·consumption을 유지한 채 `billing_subject_link`의 owner를 검증된 새 userId로 이전하는 것이다.
+- 권장 transfer 조건은 새 사용자의 current VERIFIED candidate가 기존 active Claim alias와 일치하고, 기존 owner가 Identity에서 WITHDRAWN/이전 가능 상태임이 인증된 event로 증명되며, active RESERVED/GRADING race가 없는 경우다. current owner가 활성 상태면 자동 이전하지 않는다.
+- 미사용 또는 cancel/expiry로 복원된 grant는 같은 Claim의 available unit을 새 owner가 INITIAL reserve한다. OPEN·RETAKE_AVAILABLE은 같은 AttemptGroup·consumption·mockExamId로 새 Session만 시작한다. GRADING은 최종 수렴 전 차단하고 COMPLETED는 추가 무료 응시를 허용하지 않는다.
+- 이전 Session·답안·upload·결과·Summary는 새 계정에 승계하거나 노출하지 않는다. old Session을 fencing하고 새 Session에서 처음부터 시작한다.
+- Claim ID, `claimedAt`, `retentionExpiresAt`, grant와 consumption ledger는 변경하지 않아 phone당 1회를 유지한다. owner transfer 자체는 멱등 event·Transaction과 비식별 audit ledger가 필요하다.
+- 이 방향은 권장안이며 아직 계약을 변경하거나 PLAN-003에 포함하지 않았다. 승인 시 별도 owner-transfer 계약과 구현 계획을 작성하고 production gate에 포함해야 한다.
+
+## 2026-08-28 탈퇴·재가입 시 미완료 AttemptGroup 재응시 확인
+
+- Identity의 현재 재가입 계약은 탈퇴한 계정을 복구하지 않고 새 canonical UUID `userId`를 발급한다.
+- Billing은 TrialClaim과 candidate dedupe를 3년 유지하므로 탈퇴·재가입으로 새 무료권을 지급하지 않는다. 기존 Claim의 active subject link는 old userId를 가리킨다.
+- 새 userId가 같은 전화 candidate로 reserve하면 기존 Claim을 찾지만 owner mismatch가 발생해 현재 구현은 `ENTITLEMENT_INSUFFICIENT`로 차단한다. 기존 OPEN·RETAKE_AVAILABLE AttemptGroup도 자동 이전하지 않는다.
+- 같은 userId라면 OPEN·RETAKE_AVAILABLE은 REPLACEMENT 재응시가 가능하고 GRADING은 최종 처리 전이므로 `COMMAND_PROCESSING`으로 차단한다. 실제 재가입은 새 UUID이므로 이 예외에 해당하지 않는다.
+- 재가입 사용자에게 기존 consumption 재응시를 허용하려면 phone candidate 일치만으로 이전하지 않고 Identity가 인증한 owner-transfer/rejoin event와 Billing의 원자적 subject link·AttemptGroup ownership 이전 계약이 필요하다. 현재 `UserMerged`/owner transfer wire 계약은 미확정·미구현이다.
+- 이번 확인으로 계약·코드·PLAN을 변경하지 않았다. 현재 권장 동작은 자동 이전 차단이다.
+
+## 2026-08-28 같은 consumption 재응시 처리 설명
+
+- 최초 INITIAL confirm에서 무료 unit을 한 번 `CONSUMED`하고 그 ledger event를 AttemptGroup의 `consumptionLedgerEventId`로 연결하는 것이 목표 계약이다.
+- 결과 생성 중에는 AttemptGroup이 `GRADING`이며 새 reserve를 `COMMAND_PROCESSING`으로 막는다. 최종 실패가 확정되면 후속 AttemptGroup event consumer가 group을 `RETAKE_AVAILABLE`로 전환한다.
+- 재응시는 새 operationId·새 sessionId로 reserve하지만 동일 AttemptGroup ID와 고정 `mockExamId`를 사용한다. Billing은 이를 `REPLACEMENT`로 판정한다.
+- REPLACEMENT는 새 TrialClaim, grant, allocation, `GRANTED`·`RESERVED`·`CONSUMED` ledger를 만들지 않는다. 기존 consumption을 유지한 채 새 Reservation·PROPOSED Session만 만들고 confirm에서 Session pointer를 교체한다.
+- PLAN-002 코드에는 OPEN·RETAKE_AVAILABLE group의 REPLACEMENT 판정과 무allocation·무ledger reserve가 구현돼 있다. PLAN-003 confirm은 아직 미구현이며 결과 실패를 RETAKE_AVAILABLE로 만드는 AttemptGroup event consumer도 PLAN-003 이후 후속 작업이다.
+- 따라서 계약과 일부 reserve 기반은 준비됐지만 결과 실패부터 재응시까지의 end-to-end 흐름은 아직 구현 완료 상태가 아니다.
+
+## 2026-08-28 무료권 소비 확정과 Summary 완료 시점 재확인
+
+- `reserve`는 무료 unit을 `HELD`로 잠가 다른 시험 생성 요청이 동시에 사용하지 못하게 하는 임시 상태다.
+- 현재 확정 계약에서 무료권의 최종 소비는 Summary 생성 때가 아니라 Learning Core ExamSession이 durable commit된 직후 `confirm`에서 일어난다.
+- confirm은 allocation을 `CONSUMED`로 바꾸고 AttemptGroup을 `OPEN`으로 연다. 이는 시험 1회가 시작됐다는 entitlement 확정이며 시험 결과가 완성됐다는 뜻은 아니다.
+- 필수 피드백·유효 점수·Summary가 사용자에게 조회 가능해지면 별도 AttemptGroup 상태 event로 `COMPLETED` 처리한다.
+- 결과 생성이 최종 실패하면 무료 Claim/grant를 새로 지급하거나 consumption을 취소하지 않고 `RETAKE_AVAILABLE`로 전환해 같은 consumption·mockExamId로 새 Session을 허용한다.
+- 이번 설명으로 계약이나 PLAN-003을 변경하지 않았다. 소비 확정을 Summary 완료까지 미루려면 기존 ADR·통합 계약·PLAN과 실패·동시성 정책을 함께 변경하는 별도 결정이 필요하다.
+
+## 2026-08-28 PLAN-003 Reservation lifecycle 계획서 작성
+
+- `docs/plans/PLAN-003-reservation-lifecycle.md` 초안을 작성했으며 신규 Jira는 아직 생성하지 않았다.
+- 범위는 confirm, cancel, read-only status와 5분 expiry worker다. 네 경로가 같은 Reservation terminal 상태를 공유하므로 하나의 vertical slice로 묶었다.
+- INITIAL confirm은 allocation·grant consume, `CONSUMED` ledger, AttemptGroup `OPEN`, Session `ACTIVE`를 한 Transaction으로 처리한다. REPLACEMENT confirm은 기존 consumption을 유지한다.
+- INITIAL cancel/expiry는 allocation을 원 grant로 정확히 복원하고 하나의 `RELEASED` ledger를 남긴다. REPLACEMENT는 기존 consumption을 변경하지 않으며 모든 경로에서 TrialClaim은 유지한다.
+- confirm/cancel/expiry는 Reservation expected-state/version CAS를 첫 write로 사용해 경쟁 시 terminal 상태 하나만 commit한다. status는 command·ledger를 만들지 않는 조회로 고정했다.
+- terminal command 7일 보존, expiry scan interval 10초·batch 100의 configurable 최초 제안, existing Mongo schema v2 index 재사용과 production caller gate를 계획에 포함했다.
+- Learning Core saga, AttemptGroup 상태 event, repair, 실제 Lattice/AWS 배포와 결제는 제외했다. 계획 승인 뒤 별도 사용자 승인으로 Jira를 생성한다.
+
+## 2026-08-28 다음 작업: Reservation lifecycle
+
+- 다음 권장 vertical slice는 `confirm`, `cancel`, `status`와 5분 expiry worker를 함께 구현하는 PLAN-003이다.
+- PLAN-002의 `reserve`는 무료 시험 unit을 `RESERVED`로 잠근 단계까지만 구현했다. 다음 작업은 Learning Core Session 저장 성공 시 `CONFIRMED`로 최종 소비하고, 저장 실패 시 `CANCELED`, 호출 없이 5분이 지나면 `EXPIRED`로 잠금을 해제한다.
+- `status`는 confirm 응답 유실이나 timeout 때 새 command·ledger를 만들지 않고 기존 Reservation의 실제 결과를 조회하기 위한 read-only API다.
+- INITIAL confirm은 allocation과 grant를 `held → consumed`로 전환하고 `CONSUMED` ledger, AttemptGroup `OPEN`, Session `ACTIVE`를 하나의 Transaction으로 반영한다. REPLACEMENT confirm은 기존 consumption을 재사용하고 추가 차감하지 않는다.
+- INITIAL cancel/expiry는 원래 grant에 allocation을 정확히 복원하고 `RELEASED` ledger를 남긴다. TrialClaim과 `claimedAt`은 유지한다. REPLACEMENT cancel/expiry는 기존 consumption을 변경하지 않는다.
+- confirm·cancel·expiry 경쟁은 Reservation 상태 CAS와 Mongo Transaction으로 한 terminal 상태만 승리하게 해야 한다. `CONFIRMED` 일반 cancel과 CANCELED/EXPIRED 자동 repair-confirm은 금지한다.
+- 이 lifecycle이 완성되기 전에는 production Learning Core가 reserve route를 호출하도록 활성화하지 않는다. 이후 작업은 AttemptGroup 상태 event·reconciliation, Learning Core saga, 실제 Lattice staging E2E 순서다.
+- 이번 작업은 다음 범위를 설명한 분석이며 PLAN-003, Jira, 애플리케이션 코드는 아직 생성하거나 변경하지 않았다.
+
+## 2026-08-28 TMI-112 완료 처리
+
+- 사용자의 명시적 승인에 따라 Jira `TMI-112`를 `해야 할 일`에서 `완료`로 전환했고 완료 category를 재확인했다.
+- Jira 설명·담당자, 애플리케이션 코드, PLAN-002 API·Mongo·보안 계약과 Git branch는 변경하지 않았다.
+- 완료 근거는 직전 PLAN-002 구현과 `./gradlew clean test` 총 58개 성공, 실패·skip 0 결과다.
+- 실제 production 활성화를 의미하지 않는다. confirm/cancel/status·expiry, Learning Core saga와 Lattice staging gate는 후속 작업으로 유지한다.
 
 ## 2026-08-28 TMI-112 PLAN-002 initial reserve 구현 완료
 
