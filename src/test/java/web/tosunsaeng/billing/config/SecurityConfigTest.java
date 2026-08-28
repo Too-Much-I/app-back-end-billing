@@ -17,6 +17,10 @@ import web.tosunsaeng.billing.trialeligibility.api.TrialEligibilityEventDecoder;
 import web.tosunsaeng.billing.trialeligibility.application.TrialEligibilityEventService;
 import web.tosunsaeng.billing.reservation.api.IdempotencyKeyParser;
 import web.tosunsaeng.billing.reservation.api.ReserveRequestDecoder;
+import web.tosunsaeng.billing.reservation.api.LifecycleRequestDecoder;
+import web.tosunsaeng.billing.reservation.api.ReservationIdParser;
+import web.tosunsaeng.billing.reservation.application.LifecyclePayloadHasher;
+import web.tosunsaeng.billing.reservation.application.ReservationLifecycleService;
 import web.tosunsaeng.billing.reservation.application.ReservePayloadHasher;
 import web.tosunsaeng.billing.reservation.application.ReserveService;
 
@@ -44,6 +48,18 @@ class SecurityConfigTest {
 
     @MockitoBean
     private ReserveService reserveService;
+
+    @MockitoBean
+    private LifecycleRequestDecoder lifecycleRequestDecoder;
+
+    @MockitoBean
+    private ReservationIdParser reservationIdParser;
+
+    @MockitoBean
+    private LifecyclePayloadHasher lifecyclePayloadHasher;
+
+    @MockitoBean
+    private ReservationLifecycleService reservationLifecycleService;
 
     @Test
     void unconfiguredEndpointIsDenied() throws Exception {

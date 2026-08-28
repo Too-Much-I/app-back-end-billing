@@ -70,6 +70,23 @@ public class AttemptGroup {
         );
     }
 
+    public static AttemptGroup open(
+            String attemptGroupId,
+            String subjectRefId,
+            String trialClaimId,
+            String consumptionLedgerEventId,
+            String mockExamId,
+            String activeSessionId,
+            Instant now
+    ) {
+        AttemptGroup group = new AttemptGroup(
+                attemptGroupId, subjectRefId, trialClaimId, consumptionLedgerEventId,
+                mockExamId, Status.OPEN, now
+        );
+        group.activeSessionId = activeSessionId;
+        return group;
+    }
+
     public String getAttemptGroupId() {
         return attemptGroupId;
     }
@@ -88,5 +105,17 @@ public class AttemptGroup {
 
     public Status getStatus() {
         return status;
+    }
+
+    public String getConsumptionLedgerEventId() {
+        return consumptionLedgerEventId;
+    }
+
+    public String getActiveSessionId() {
+        return activeSessionId;
+    }
+
+    public long getVersion() {
+        return version;
     }
 }

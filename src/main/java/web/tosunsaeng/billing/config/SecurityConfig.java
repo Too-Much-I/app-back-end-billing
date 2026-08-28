@@ -46,7 +46,10 @@ public class SecurityConfig {
                         ).hasRole("IDENTITY_WORKLOAD");
                         authorize.requestMatchers(
                                 HttpMethod.POST,
-                                "/internal/v1/reservations"
+                                "/internal/v1/reservations",
+                                "/internal/v1/reservations/status",
+                                "/internal/v1/reservations/*/confirm",
+                                "/internal/v1/reservations/*/cancel"
                         ).hasRole("LEARNING_CORE_WORKLOAD");
                     } else if (ingressProperties.getMode()
                             == InternalIngressProperties.Mode.LATTICE_AWS_IAM) {
@@ -56,7 +59,10 @@ public class SecurityConfig {
                         ).permitAll();
                         authorize.requestMatchers(
                                 HttpMethod.POST,
-                                "/internal/v1/reservations"
+                                "/internal/v1/reservations",
+                                "/internal/v1/reservations/status",
+                                "/internal/v1/reservations/*/confirm",
+                                "/internal/v1/reservations/*/cancel"
                         ).permitAll();
                     }
                     authorize.anyRequest().denyAll();
