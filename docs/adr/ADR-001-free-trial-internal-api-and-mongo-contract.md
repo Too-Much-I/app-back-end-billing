@@ -380,6 +380,10 @@ INITIAL confirm → OPEN → GRADING → COMPLETED
 
 ## 8. MongoDB collection 계약
 
+현재 greenfield Billing schema version은 `v3`다. `v2`의 `benefitType`·`grantType`
+field와 index가 존재하는 DB는 application startup에서 자동 변경하지 않고 별도 migration
+또는 비운영 DB 재생성 후 v3를 활성화한다.
+
 ### 8.1 `inbound_event_inbox`
 
 event payload 자체를 복제하지 않고 멱등성에 필요한 digest와 최소 metadata만 저장한다.
@@ -406,24 +410,36 @@ candidates[{keyVersion, value}], verifiedAt?, revokedAt?, updatedAt
 - verified event는 candidates 전체 교체다.
 - revoked는 candidates를 제거하지만 revision high-water tombstone을 유지한다.
 
-### 8.3 `trial_claims`
+### 8.3 `benefit_definitions`
 
 ```text
-trialClaimId, benefitType, subjectRefId?, sourceEventId?,
+_id=benefitCode, displayName, entitlementModel, unitType,
+defaultGrantUnits, policyVersion, active, createdAt
+```
+
+- 최초 seed는 `FREE_EXAM_ONCE`, `UNIT`, `EXAM_ATTEMPT`, 1 unit, policy v1, active다.
+- `_id`의 stable `benefitCode`만 Claim·alias·Grant authorization reference로 사용한다.
+- seed가 없으면 insert하고, 기존 document의 승인 policy가 다르면 덮어쓰지 않고 startup을 실패시킨다.
+- catalog seed는 user, candidate, TrialClaim 또는 Grant를 생성하지 않는다.
+
+### 8.4 `trial_claims`
+
+```text
+trialClaimId, benefitCode, subjectRefId?, sourceEventId?,
 claimedAt, retentionExpiresAt, state, anonymizedAt?
 ```
 
-- `benefitType`: v1에서 `FREE_EXAM_ONCE`
+- `benefitCode`: 현재 `FREE_EXAM_ONCE`
 - `state`: `ACTIVE`, `ANONYMIZED`
 - `claimedAt`과 `retentionExpiresAt`은 갱신하지 않는다.
 - anonymize 시 subject/source 연결을 unset하고 비식별 tombstone만 남긴다.
 
-### 8.4 `trial_candidate_aliases`
+### 8.5 `trial_candidate_aliases`
 
 한 Claim의 key rotation candidate마다 한 문서를 둔다.
 
 ```text
-aliasId, benefitType, keyVersion, candidate,
+aliasId, benefitCode, keyVersion, candidate,
 trialClaimId, active, createdAt, retentionExpiresAt
 ```
 
@@ -432,7 +448,7 @@ trialClaimId, active, createdAt, retentionExpiresAt
 - 한 binding의 candidate가 서로 다른 active Claim에 연결되면 security invariant 위반으로 fail-closed하고 경보한다.
 - expired alias가 아직 물리 삭제되지 않았으면 reserve Transaction이 먼저 `active=false`로 fencing한 뒤 새 Claim을 만들 수 있다.
 
-### 8.5 `billing_subject_links`
+### 8.6 `billing_subject_links`
 
 ```text
 subjectRefId, trialClaimId, consumerScopeId, userId,
@@ -441,19 +457,19 @@ active, createdAt, retentionExpiresAt
 
 ledger·Reservation·AttemptGroup은 가능한 한 `userId` 대신 `subjectRefId`를 참조한다. 3년 purge에서 이 mapping을 삭제하면 audit core는 유지하면서 개인 연결을 끊을 수 있다.
 
-### 8.6 `entitlement_grants`
+### 8.7 `entitlement_grants`
 
 ```text
-grantId, grantType, sourceType, sourceId,
+grantId, benefitCode, sourceType, sourceId,
 subjectRefId, totalUnits, availableUnits, heldUnits, consumedUnits,
 state, createdAt, updatedAt, version
 ```
 
-- 무료 MVP는 `grantType=FREE_EXAM_ONCE`, `totalUnits=1`이다.
+- 무료 MVP는 `benefitCode=FREE_EXAM_ONCE`, `totalUnits=1`이다.
 - mutable 수량은 projection이며 truth source는 ledger다.
 - 모든 수량은 음수가 아닌 정수이고 합은 `totalUnits`와 같아야 한다.
 
-### 8.7 `entitlement_ledger`
+### 8.8 `entitlement_ledger`
 
 ```text
 ledgerEventId, aggregateType, aggregateId, sequence,
@@ -467,7 +483,7 @@ occurredAt, metadataVersion
 - 민감 payload, candidate, userId와 provider 원문을 넣지 않는다.
 - subject link 삭제 뒤에는 subjectRefId가 개인으로 resolve되지 않아야 한다.
 
-### 8.8 `reservations`
+### 8.9 `reservations`
 
 ```text
 reservationId, callerService, subjectRefId, operationId,
@@ -481,7 +497,7 @@ createdAt, expiresAt, terminalAt?, version, activeGuard
 - `activeGuard=true`는 RESERVED에만 존재하고 terminal transition에서 unset한다.
 - audit 문서에 TTL index를 두지 않는다.
 
-### 8.9 `reservation_allocations`
+### 8.10 `reservation_allocations`
 
 ```text
 allocationId, reservationId, grantId, units,
@@ -492,7 +508,7 @@ status, createdAt, terminalAt?, version
 - cancel/expiry는 정확히 원래 grant로 복원한다.
 - REPLACEMENT Reservation은 allocation이 없다.
 
-### 8.10 `idempotency_commands`
+### 8.11 `idempotency_commands`
 
 ```text
 commandId, callerService, userId, operationId, commandType,
@@ -506,7 +522,7 @@ createdAt, terminalAt?, purgeAt?, active
 - PROCESSING에는 `purgeAt`을 두지 않는다.
 - response snapshot에는 candidate, balance와 provider 원문을 넣지 않는다.
 
-### 8.11 `attempt_groups`
+### 8.12 `attempt_groups`
 
 ```text
 attemptGroupId, subjectRefId, trialClaimId, consumptionLedgerEventId,
@@ -518,7 +534,7 @@ createdAt, updatedAt, completedAt?, version
 - non-terminal일 때만 `openGuard=true`이고 COMPLETED에서 unset한다.
 - Learning Core 학습 데이터를 복제하지 않는 entitlement authorization projection이다.
 
-### 8.12 `attempt_sessions`
+### 8.13 `attempt_sessions`
 
 ```text
 sessionId, attemptGroupId, subjectRefId, operationId,
@@ -540,14 +556,15 @@ index 이름을 명시적으로 고정하고 production에서 `spring.data.mongo
 | `inbound_event_inbox` | `{purgeAt: 1}` | TTL `expireAfterSeconds: 0` | `ttl_inbox_purge_at` |
 | `trial_eligibility` | `{consumerScopeId: 1, userId: 1}` | unique | `ux_trial_scope_user` |
 | `trial_eligibility` | `{consumerScopeId: 1, "candidates.keyVersion": 1}` | non-unique | `ix_trial_key_version` |
+| `benefit_definitions` | `{_id: 1}` | built-in unique | `_id_` |
 | `trial_claims` | `{retentionExpiresAt: 1, state: 1}` | non-unique | `ix_claim_retention_state` |
-| `trial_candidate_aliases` | `{benefitType: 1, keyVersion: 1, candidate: 1}` | unique partial `{active: true}` | `ux_active_trial_candidate` |
+| `trial_candidate_aliases` | `{benefitCode: 1, keyVersion: 1, candidate: 1}` | unique partial `{active: true}` | `ux_active_trial_candidate` |
 | `trial_candidate_aliases` | `{active: 1, retentionExpiresAt: 1}` | non-unique | `ix_alias_active_expiry` |
 | `trial_candidate_aliases` | `{trialClaimId: 1}` | non-unique | `ix_alias_claim` |
 | `billing_subject_links` | `{trialClaimId: 1}` | unique | `ux_subject_link_claim` |
 | `billing_subject_links` | `{userId: 1, active: 1}` | non-unique | `ix_subject_link_user_active` |
 | `billing_subject_links` | `{active: 1, retentionExpiresAt: 1}` | non-unique | `ix_subject_link_expiry` |
-| `entitlement_grants` | `{sourceType: 1, sourceId: 1, grantType: 1}` | unique | `ux_grant_source_type` |
+| `entitlement_grants` | `{sourceType: 1, sourceId: 1, benefitCode: 1}` | unique | `ux_grant_source_type` |
 | `entitlement_ledger` | `{dedupeKey: 1}` | unique | `ux_ledger_dedupe` |
 | `entitlement_ledger` | `{aggregateType: 1, aggregateId: 1, sequence: 1}` | unique | `ux_ledger_aggregate_sequence` |
 | `reservations` | `{subjectRefId: 1, operationId: 1}` | unique | `ux_reservation_subject_operation` |
@@ -581,7 +598,8 @@ MongoDB는 replica set과 Transaction을 필수로 사용한다. `TransientTrans
 1. idempotency command claim/payload hash 확인
 2. current verified binding과 revision 확인
 3. expired alias fencing 및 active alias 교집합 확인
-4. 필요한 경우 TrialClaim, subject link, 모든 candidate alias, free grant와 `GRANTED` ledger 생성
+4. FREE_EXAM_ONCE BenefitDefinition의 active·policy v1을 확인하고 필요한 경우 TrialClaim,
+   subject link, 모든 candidate alias, definition 기반 free grant와 `GRANTED` ledger 생성
 5. 기존 non-terminal AttemptGroup 판정
 6. INITIAL grant allocation hold 또는 REPLACEMENT authorization
 7. Reservation, proposed attempt session과 `RESERVED` ledger 생성

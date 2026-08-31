@@ -55,22 +55,20 @@ Identity 또는 Learning Core 코드를 이 저장소로 복사하지 않는다.
 
 ## 현재 구현 단위
 
-현재 즉시 구현할 단위는 Jira `TMI-113`, `docs/plans/PLAN-003-reservation-lifecycle.md`의 Reservation lifecycle vertical slice다.
+현재 즉시 구현할 단위는 Jira `TMI-115`, `docs/plans/PLAN-004-benefit-definition-foundation.md`의 BenefitDefinition foundation vertical slice다.
 
 포함 범위:
 
-- `POST /internal/v1/reservations/{reservationId}/confirm`
-- `POST /internal/v1/reservations/{reservationId}/cancel`
-- `POST /internal/v1/reservations/status`
-- confirm/cancel strict decode, canonical payload hash와 terminal command 7일 retention
-- INITIAL allocation·grant consume 또는 release와 append-only `CONSUMED`·`RELEASED` ledger
-- REPLACEMENT의 기존 consumption 유지와 active Session 교체
-- 5분 expiry worker, Reservation expected-state/version CAS와 terminal race 수렴
-- read-only status, transient retry와 unknown commit 결과 재확인
-- internal endpoint default deny와 Identity/Learning Core route 분리
-- replica-set Testcontainers 기반 transaction·동시성 검증
+- `benefit_definitions` collection과 `_id=benefitCode`
+- `FREE_EXAM_ONCE` seed, active UNIT/EXAM_ATTEMPT/1-unit/policy-v1 exact validation
+- policy drift 자동 수정 금지와 startup fail-fast
+- TrialClaim·TrialCandidateAlias·EntitlementGrant의 `benefitCode` reference 통일
+- Mongo schema v3와 alias/grant index key 보정, legacy v2 data fail-fast
+- BenefitCatalog 기반 최초 reserve lazy Claim·Grant 발급
+- definition 누락·inactive·Grant 불일치의 부분 지급 없는 503 fail-closed
+- replica-set Testcontainers 기반 seed·index·transaction·lifecycle 회귀 검증
 
-이 구현 단위에서는 AttemptGroup `GRADING`·`COMPLETED`·`RETAKE_AVAILABLE` 상태 event, 탈퇴·재가입 owner rebind, reconciliation·repair, 타 서비스 client·SigV4 adapter와 실제 AWS 배포를 추가하지 않는다. PLAN-003 완료만으로 production caller를 활성화하지 않고 후속 상태 event·Learning Core saga·Lattice staging E2E gate를 유지한다.
+이 구현 단위에서는 `PREMIUM_SUBSCRIPTION`, `SubscriptionEntitlement`, Store lifecycle, 구독 Reservation 분기, eager TrialClaim, public 상품 API, AttemptGroup 상태 event, owner rebind와 타 서비스·AWS 변경을 추가하지 않는다. PLAN-004 완료만으로 production caller를 활성화하지 않고 후속 상태 event·Learning Core saga·Lattice staging E2E gate를 유지한다.
 
 ## 핵심 불변식
 
@@ -93,7 +91,7 @@ Identity 또는 Learning Core 코드를 이 저장소로 복사하지 않는다.
 - Apple/Google 구매는 클라이언트 주장만 신뢰하지 않고 서버에서 검증한다.
 - Identity eligibility event를 수신하는 것만으로 TrialClaim, grant 또는 balance를 만들지 않는다. 최초 reserve Transaction에서 현재 binding과 기존 Claim을 확인해 지급과 Reservation을 원자적으로 처리한다.
 
-상세 상품·사용권 계약과 미확정 선택지는 이 저장소의 `docs/codex/CONTRACT_DECISIONS.md`를 단일 기준으로 사용한다. 서비스 간 전체 흐름은 `docs/contracts/BILLING_SERVICE_INTEGRATION_CONTRACT.md`, 내부 API와 Mongo 계약은 `docs/adr/ADR-001-free-trial-internal-api-and-mongo-contract.md`, Lattice·SigV4·환경 이관 계약은 `docs/adr/ADR-002-vpc-lattice-ecs-sigv4-and-environment-migration.md`, 현재 구현 순서는 `docs/plans/PLAN-003-reservation-lifecycle.md`를 따른다. 통합 안내서와 세부 ADR이 충돌하면 ADR을 따르며, 확정된 계약을 임의로 재해석하지 말고 작업을 중단해 보고한다.
+상세 상품·사용권 계약과 미확정 선택지는 이 저장소의 `docs/codex/CONTRACT_DECISIONS.md`를 단일 기준으로 사용한다. 서비스 간 전체 흐름은 `docs/contracts/BILLING_SERVICE_INTEGRATION_CONTRACT.md`, 내부 API와 Mongo 계약은 `docs/adr/ADR-001-free-trial-internal-api-and-mongo-contract.md`, Lattice·SigV4·환경 이관 계약은 `docs/adr/ADR-002-vpc-lattice-ecs-sigv4-and-environment-migration.md`, 현재 구현 순서는 `docs/plans/PLAN-004-benefit-definition-foundation.md`를 따른다. 통합 안내서와 세부 ADR이 충돌하면 ADR을 따르며, 확정된 계약을 임의로 재해석하지 말고 작업을 중단해 보고한다.
 
 과거 Learning Core 문서는 역사적 참고 자료일 뿐이며, 앞으로 Billing 관련 결정과 작업기록은 이 저장소의 `docs`에만 추가한다.
 

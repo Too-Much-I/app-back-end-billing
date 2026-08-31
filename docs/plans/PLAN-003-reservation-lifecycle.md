@@ -1,9 +1,9 @@
 # PLAN-003: Reservation lifecycle vertical slice
 
-- 상태: 구현 완료·전체 회귀 성공; Jira 종료 전
+- 상태: 구현 완료·전체 회귀 성공·Jira 완료
 - 작성일: 2026-08-28
 - 대상 저장소: `app-back-end-billing`
-- Jira: `TMI-113` — `[Billing] Reservation lifecycle 구현` (`해야 할 일`)
+- Jira: `TMI-113` — `[Billing] Reservation lifecycle 구현` (`완료`)
 - 선행 작업: `PLAN-002` 구현 완료, `TMI-112` 완료
 - 관련 계약: `docs/adr/ADR-001-free-trial-internal-api-and-mongo-contract.md`, `docs/adr/ADR-002-vpc-lattice-ecs-sigv4-and-environment-migration.md`, `docs/contracts/BILLING_SERVICE_INTEGRATION_CONTRACT.md`, `docs/codex/CONTRACT_DECISIONS.md`
 
@@ -609,7 +609,7 @@ PLAN-001·PLAN-002 테스트를 포함한 전체 테스트가 통과해야 한�
 - schema v2 collection·index는 변경하지 않았다. `ix_reservation_status_expiry`, command TTL과 기존 unique index를 재사용한다.
 - replica-set Testcontainers에서 INITIAL·REPLACEMENT, replay/conflict, 세 terminal race, multi-worker, transient retry와 unknown commit을 실행했다.
 - 2026-08-28 `./gradlew clean test`: 총 82개, 실패 0, 오류 0, skip 0.
-- Jira `TMI-113` 상태는 사용자 별도 승인 전이므로 `해야 할 일`로 유지한다.
+- 사용자 승인에 따라 Jira `TMI-113`을 `완료`로 전환하고 완료 category를 재확인했다.
 
 ## 19. 위험과 대응
 
@@ -639,7 +639,7 @@ PLAN-001·PLAN-002 테스트를 포함한 전체 테스트가 통과해야 한�
 
 ## 21. 후속 작업
 
-PLAN-003 구현과 회귀 검증은 완료됐다. Jira 완료 전환은 사용자 별도 승인으로 수행하며, 이후 기능 순서는 다음과 같다.
+PLAN-003 구현·회귀 검증과 Jira 완료 전환은 끝났다. 이후 기능 순서는 다음과 같다.
 
 1. AttemptGroup 상태 event consumer와 entitlement projection
 2. Learning Core Billing client·시험 생성 saga와 status reconciliation

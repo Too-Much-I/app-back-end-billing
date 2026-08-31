@@ -64,6 +64,19 @@
 - 현재 인프라는 AWS Console에서 최초 수동 생성했고, 배포는 GitHub Actions OIDC로 ECR image를 push한 뒤 실행 중인 ECS Service의 Task Definition image를 render한 새 revision을 배포한다 — 현재 방식 확인.
 - 새 production cluster·Lattice·IAM·SG 생성에 Console 수동 방식을 계속 쓸지 IaC를 도입할지는 ADR-002 구현·운영 선택으로 남긴다.
 
+## 1C. 2026-08-28 승인된 장기 Entitlement 구조
+
+- `BenefitDefinition`은 공통 혜택 종류·정책 catalog다. stable `benefitCode`, 표시 이름, one-time/subscription 유형, 소비 방식과 policy version을 소유한다. 최초 코드는 `FREE_EXAM_ONCE`이며 `PREMIUM_SUBSCRIPTION`은 후속 구독 계약용 식별자로 예약한다.
+- `TrialClaim`은 `(verified-phone candidate, FREE_EXAM_ONCE)`의 3년 중복 수급 방지 전용이며 일반 상품 catalog나 소비 이력으로 사용하지 않는다.
+- `EntitlementGrant`는 subject가 실제로 보유한 one-time 혜택 instance/batch다. 무료 MVP에서는 `FREE_EXAM_ONCE` 1 unit이며 allocation과 ledger로 available·held·consumed를 관리한다.
+- `SubscriptionEntitlement`는 후속 유료 구독의 subject별 기간형 권리다. 수량 차감 대신 상태와 시작·종료 시각으로 authorization하며 plan, Store 검증, renewal, cancel, expiry와 grace 정책은 구독 구현 전에 별도 승인한다.
+- `Reservation`은 무료 Grant와 활성 SubscriptionEntitlement 모두에 사용하는 공통 시험 시작 승인·멱등성 경계다. INITIAL/REPLACEMENT attempt 관계와 GRANT/SUBSCRIPTION authorization source는 서로 다른 축으로 모델링한다.
+- `AttemptGroup`은 최초 시험 사용 건과 same-consumption replacement Session을 연결하며 entitlement 종류와 무관하게 결과 생성 lifecycle을 추적한다.
+- 실제 지급·hold·release·consume 감사 이력은 append-only `EntitlementLedger`가 소유한다. TrialClaim이나 mutable Grant projection을 이력 원장으로 대체하지 않는다.
+- 이 구조 승인은 현재 무료 MVP의 lazy TrialClaim/Grant 생성, `reserve → Session commit → confirm`과 Mongo wire/schema를 즉시 변경하지 않는다. 현재 코드에 없는 BenefitDefinition foundation은 별도 vertical slice로, SubscriptionEntitlement와 구독 resolver는 결제 재개 시 별도 계약·계획으로 구현한다.
+- 과거 credit/pass 상품 초안은 역사적·동결 상태로 유지하며, 사용자 선호는 credit balance보다 단순 premium subscription이다. 실제 기존 credit 계약을 폐기하고 구독 계약으로 대체하는 결정은 Store plan·가격·갱신 정책 승인 시 확정한다.
+- 2026-08-28 사용자 결정으로 현재 업데이트에는 `FREE_EXAM_ONCE` BenefitDefinition foundation만 구현한다. `PREMIUM_SUBSCRIPTION`, SubscriptionEntitlement, Store/renewal과 구독 authorization 분기는 다음 제품 업데이트까지 구현하지 않는다.
+
 ## 2. 무료 최소 계약 선택지 검토 기록
 
 ### C1. 앱이 Billing 사용자 API를 호출하는 경로
@@ -395,7 +408,7 @@ A는 캠페인별 비용과 악용을 통제하지만 운영 catalog가 복잡�
 
 - raw phone·last4·Identity fingerprint는 저장하지 않는다.
 - `retentionExpiresAt = claimedAt + 3년`이며 로그인, merge, 탈퇴, binding revoke, Reservation cancel/expiry 또는 재응시로 연장하거나 다시 계산하지 않는다.
-- 보존기간 안에는 benefit-scoped candidate alias, keyVersion, claimedAt, benefitType과 필요한 source event 연결만 최소 저장하고 Claim을 다시 열지 않는다.
+- 보존기간 안에는 benefit-scoped candidate alias, keyVersion, claimedAt, stable benefitCode와 필요한 source event 연결만 최소 저장하고 Claim을 다시 열지 않는다.
 - `retentionExpiresAt`부터 기존 alias는 dedupe matching에서 즉시 제외해 같은 번호의 새 Claim을 허용한다. 물리 purge가 지연돼도 만료된 alias가 재수급을 차단해서는 안 된다.
 - purge는 candidate alias·keyVersion과 사용자·source event 연결을 삭제 또는 비가역 비식별화한다. 감사·통계가 필요하면 개인이나 candidate에 다시 연결할 수 없는 benefit type, terminal status와 거친 시각 정보만 남긴다.
 - purge job은 매일 실행하며 `retentionExpiresAt`부터 24시간 안에 운영 DB의 candidate alias와 erasable subject 연결을 물리 삭제하고 Claim을 비식별 tombstone으로 전환해야 한다. 24시간 SLA를 넘긴 항목이 있으면 운영 경보를 발생시키고 성공할 때까지 재시도한다.
