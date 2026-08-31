@@ -151,7 +151,8 @@ public class TrialEligibilityEventService {
     }
 
     private static boolean sameDigest(InboundEventInbox inbox, TrialEligibilityEvent event) {
-        return inbox.getPayloadDigest().equals(event.payloadDigest());
+        return event.producer().equals(inbox.getProducer())
+                && inbox.getPayloadDigest().equals(event.payloadDigest());
     }
 
     private static TrialEligibilityEventOutcome conflict() {

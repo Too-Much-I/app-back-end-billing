@@ -12,25 +12,31 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import web.tosunsaeng.billing.domain.eligibility.trial.api.TrialEligibilityEventController;
 import web.tosunsaeng.billing.domain.eligibility.trial.application.TrialEligibilityMetrics;
+import web.tosunsaeng.billing.domain.attempt.api.AttemptGroupEventController;
+import web.tosunsaeng.billing.domain.attempt.application.AttemptGroupEventMetrics;
 import web.tosunsaeng.billing.domain.reservation.api.ReservationController;
 import web.tosunsaeng.billing.domain.reservation.application.ReserveMetrics;
 import web.tosunsaeng.billing.global.response.InternalApiError;
 
 @RestControllerAdvice(assignableTypes = {
         TrialEligibilityEventController.class,
+        AttemptGroupEventController.class,
         ReservationController.class
 })
 public class InternalApiExceptionHandler {
 
     private final TrialEligibilityMetrics metrics;
     private final ReserveMetrics reserveMetrics;
+    private final AttemptGroupEventMetrics attemptGroupEventMetrics;
 
     public InternalApiExceptionHandler(
             ObjectProvider<TrialEligibilityMetrics> metrics,
-            ObjectProvider<ReserveMetrics> reserveMetrics
+            ObjectProvider<ReserveMetrics> reserveMetrics,
+            ObjectProvider<AttemptGroupEventMetrics> attemptGroupEventMetrics
     ) {
         this.metrics = metrics.getIfAvailable();
         this.reserveMetrics = reserveMetrics.getIfAvailable();
+        this.attemptGroupEventMetrics = attemptGroupEventMetrics.getIfAvailable();
     }
 
     @ExceptionHandler(InternalApiException.class)
@@ -38,7 +44,13 @@ public class InternalApiExceptionHandler {
             InternalApiException exception,
             HttpServletRequest request
     ) {
-        if (isReservationPath(request)) {
+        if (isAttemptGroupEventPath(request)) {
+            if ("INVALID_REQUEST".equals(exception.code())) {
+                recordAttemptGroupRejected("INVALID");
+            } else if ("UNSUPPORTED_CONTRACT".equals(exception.code())) {
+                recordAttemptGroupRejected("UNSUPPORTED");
+            }
+        } else if (isReservationPath(request)) {
             if ("INVALID_REQUEST".equals(exception.code())
                     || "INVALID_IDEMPOTENCY_KEY".equals(exception.code())) {
                 recordReserveRejected();
@@ -62,7 +74,9 @@ public class InternalApiExceptionHandler {
 
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
     ResponseEntity<InternalApiError> handleUnsupportedMediaType(HttpServletRequest request) {
-        if (isReservationPath(request)) {
+        if (isAttemptGroupEventPath(request)) {
+            recordAttemptGroupRejected("INVALID");
+        } else if (isReservationPath(request)) {
             recordReserveRejected();
         } else {
             recordEligibilityRejected("INVALID");
@@ -85,6 +99,16 @@ public class InternalApiExceptionHandler {
         if (reserveMetrics != null) {
             reserveMetrics.record(null, "INVALID");
         }
+    }
+
+    private void recordAttemptGroupRejected(String outcome) {
+        if (attemptGroupEventMetrics != null) {
+            attemptGroupEventMetrics.recordRejected(outcome);
+        }
+    }
+
+    private static boolean isAttemptGroupEventPath(HttpServletRequest request) {
+        return request.getRequestURI().equals("/internal/v1/attempt-group-events");
     }
 
     private static boolean isReservationPath(HttpServletRequest request) {

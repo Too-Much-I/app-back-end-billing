@@ -15,6 +15,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import web.tosunsaeng.billing.domain.eligibility.trial.api.TrialEligibilityEventDecoder;
 import web.tosunsaeng.billing.domain.eligibility.trial.application.TrialEligibilityEventService;
+import web.tosunsaeng.billing.domain.attempt.api.AttemptGroupEventDecoder;
+import web.tosunsaeng.billing.domain.attempt.application.AttemptGroupEventMetrics;
+import web.tosunsaeng.billing.domain.attempt.application.AttemptGroupEventService;
 import web.tosunsaeng.billing.domain.reservation.api.support.IdempotencyKeyParser;
 import web.tosunsaeng.billing.domain.reservation.api.support.ReserveRequestDecoder;
 import web.tosunsaeng.billing.domain.reservation.api.support.LifecycleRequestDecoder;
@@ -24,6 +27,7 @@ import web.tosunsaeng.billing.domain.reservation.application.ReservationLifecycl
 import web.tosunsaeng.billing.domain.reservation.application.ReservePayloadHasher;
 import web.tosunsaeng.billing.domain.reservation.application.ReserveService;
 import web.tosunsaeng.billing.domain.reservation.converter.ReservationConverter;
+import web.tosunsaeng.billing.global.observability.TraceCorrelation;
 
 @WebMvcTest
 @Import(SecurityConfig.class)
@@ -37,6 +41,18 @@ class SecurityConfigTest {
 
     @MockitoBean
     private TrialEligibilityEventService service;
+
+    @MockitoBean
+    private AttemptGroupEventDecoder attemptGroupEventDecoder;
+
+    @MockitoBean
+    private AttemptGroupEventService attemptGroupEventService;
+
+    @MockitoBean
+    private AttemptGroupEventMetrics attemptGroupEventMetrics;
+
+    @MockitoBean
+    private TraceCorrelation traceCorrelation;
 
     @MockitoBean
     private ReserveRequestDecoder reserveRequestDecoder;
@@ -82,6 +98,14 @@ class SecurityConfigTest {
     @Test
     void internalReservationEndpointIsDeniedByDefault() throws Exception {
         mockMvc.perform(post("/internal/v1/reservations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void internalAttemptGroupEndpointIsDeniedByDefault() throws Exception {
+        mockMvc.perform(post("/internal/v1/attempt-group-events")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isForbidden());

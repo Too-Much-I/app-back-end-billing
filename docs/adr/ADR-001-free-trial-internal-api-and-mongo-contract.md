@@ -88,8 +88,10 @@ Idempotency-Key: 018f6f36-2f42-4bf5-8c17-0be35de4872c
 | 409 | `IDEMPOTENCY_KEY_CONFLICT` | 같은 command key를 다른 canonical payload에 재사용 | 아니오 |
 | 409 | `RESERVATION_STATE_CONFLICT` | confirm/cancel의 허용되지 않은 상태 전이 | 상태 조회 후 판단 |
 | 409 | `EVENT_ID_CONFLICT` | 같은 eventId의 canonical payload가 다름 | 아니오; 격리 |
+| 409 | `EVENT_TARGET_CONFLICT` | 존재하는 group/session/subject 관계가 event와 충돌 | 아니오; 격리·조사 |
 | 422 | `UNSUPPORTED_CONTRACT` | 알 수 없는 schema/event/enum version | 아니오; reader 배포 |
 | 429 | `RATE_LIMITED` | rate limit | 예 |
+| 503 | `ATTEMPT_PROJECTION_NOT_READY` | 정상 순서상 group/session projection이 아직 보이지 않음 | 예; `Retry-After: 5` |
 | 503 | `BILLING_TEMPORARILY_UNAVAILABLE` | DB/Transaction/의존 인프라 일시 장애 | 예 |
 
 409 processing, 429와 503은 정수 초 단위 `Retry-After` header를 준다. 오류에는 balance, candidate, keyVersion, reservation/payment identifier, provider 원문과 stack trace를 넣지 않는다.
@@ -342,10 +344,25 @@ POST /internal/v1/attempt-group-events
 허용 target은 `GRADING`, `COMPLETED`, `RETAKE_AVAILABLE`이다.
 
 - `COMPLETED`는 evidence boolean 세 개가 모두 true여야 한다.
-- `RETAKE_AVAILABLE`에는 evidence 대신 저 cardinality `failureCode`를 허용한다. exception message와 AI/provider 원문은 금지한다.
+- `RETAKE_AVAILABLE`에는 evidence 대신 `REQUIRED_RESULTS_UNAVAILABLE`, `SUMMARY_UNAVAILABLE`, `GRADING_DEADLINE_EXCEEDED`, `RESULT_INTEGRITY_VIOLATION` 중 하나의 `failureCode`만 허용한다. exception message, AI/provider 이름·code·원문과 자유 문자열은 금지한다.
 - Identity의 `bindingRevision`에 해당하는 sequence가 없는 at-least-once event이므로 eventId/digest뿐 아니라 현재 group 상태와 허용 transition을 함께 검사한다.
 - same eventId/same digest는 204 no-op, different digest는 409다.
 - abandoned/stale Session event는 현재 active session fencing에 실패하면 204 stale no-op로 기록한다.
+- event `sessionId`는 group `activeSessionId`, AttemptSession의 group·subject와 `ACTIVE` state를 모두 만족해야 한다. RETAKE_AVAILABLE에서 해당 Session을 FAILED terminal로 닫고 REPLACEMENT confirm이 새 Session을 ACTIVE로 만들기 전까지 이전 Session event는 stale다.
+- `OPEN→GRADING/COMPLETED/RETAKE_AVAILABLE`, `GRADING→COMPLETED/RETAKE_AVAILABLE`만 전진으로 허용한다. 동일 target은 no-op이고 COMPLETED 이후와 terminal Session의 역행 event는 stale다.
+- Learning Core는 같은 active Session에 COMPLETED와 RETAKE_AVAILABLE을 모두 생성하지 않는다. local terminal 결과와 outbox event는 같은 Mongo Transaction/CAS에 저장하고 Session당 terminal event 하나를 unique하게 강제한다.
+- 정상 생성 순서상 group/session projection이 아직 없으면 503 `ATTEMPT_PROJECTION_NOT_READY`와 `Retry-After: 5`, old/abandoned Session이면 204 stale, 존재하는 관계가 다르면 409 `EVENT_TARGET_CONFLICT`다. consumer는 missing target을 생성하거나 임의 연결하지 않는다.
+
+### 6.1 outbox delivery와 trace
+
+- Learning Core retryable PENDING outbox는 TTL로 삭제하지 않는다. network/408/425/429/5xx는 `5초→15초→1분→5분→15분` 뒤 최대 15분+jitter로 재시도한다.
+- 400/409/422는 DEAD_LETTER, 401/403은 publish 정지와 긴급 경보다. DELIVERED는 30일, DEAD_LETTER는 90일 보존하고 장기 PENDING을 경보한다.
+- retry와 수동 replay는 같은 eventId와 canonical payload를 유지한다. 새 eventId로 우회하거나 consumer state를 직접 수정하지 않는다.
+- 서비스 간 추적은 event JSON이 아닌 W3C `traceparent` header를 사용한다. Learning Core outbox는 `baggage` 없이 필요한 trace context만 보존해 publish span을 continue/link하고 Billing은 수신 trace를 잇는다.
+- AttemptGroup publish/consume 구조화 로그의 공통 field는 `service`, `operation`, `outcome`, `traceId`, `eventId`, `durationMs`다. `service`는 `learning-core`/`billing` allowlist, `operation`은 `attempt_group_outbox_publish`/`attempt_group_event_consume` 같은 고정값, `durationMs`는 monotonic clock으로 잰 해당 단계 처리 시간의 non-negative integer다.
+- Billing consume log에는 `eventAgeMs=max(0, consumeNow-occurredAt)`도 기록해 outbox 대기·network·retry를 포함한 전달 지연을 구분한다. 음수 원시 값은 0으로 정규화하되 clock-skew counter와 low-cardinality outcome으로 관측한다.
+- 플랫폼 log timestamp는 UTC로 유지한다. `durationMs`와 `eventAgeMs`는 log field와 histogram 값으로 사용할 수 있지만 metric label로 사용하지 않는다. `service`, `operation`, `outcome`만 승인된 low-cardinality label로 사용할 수 있다.
+- traceId/eventId는 metric label, canonical digest, idempotency key나 domain aggregate field가 아니다. userId, sessionId, attemptGroupId, candidate와 provider 원문은 일반 log/trace attribute에 기록하지 않는다.
 
 TrialClaim retention expiry로 subject link가 제거된 group은 더 이상 새 replacement authorization의 근거가 되지 않는다. 기존 Learning Core Session·결과는 삭제하지 않으며 늦은 terminal event는 익명 audit projection만 닫을 수 있다.
 

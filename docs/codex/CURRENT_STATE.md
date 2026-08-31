@@ -1,8 +1,94 @@
 # Billing Service 현재 상태
 
-- 최종 갱신일: 2026-08-28
+- 최종 갱신일: 2026-08-31
 - 현재 브랜치: `develop`
-- Jira: `TMI-115` — `[Billing] BenefitDefinition foundation 구현` (`해야 할 일`, 담당자 미지정)
+- Jira: `TMI-115` Billing 구현과 Learning Core `TMI-116` saga가 각각 `develop`에 merge 완료. `TMI-117` 구현은 local `develop` worktree에서 완료됐고 Jira 상태는 별도 승인 전까지 `해야 할 일`이다.
+
+## 2026-08-31 TMI-117 변경 파일 역할 검토
+
+- 사용자의 요청에 따라 TMI-117에서 추가·수정된 API, decoder, 상태 처리, inbox, repository, 관측성, 보안, 설정과 테스트 파일의 책임을 실제 코드 기준으로 다시 분류했다.
+- 파일 수가 늘어난 이유는 HTTP 수신, strict 계약 검증, Mongo Transaction/CAS 상태 전이, 오류 계약, metric/trace와 계층별 테스트를 분리했기 때문이다. 검토 과정에서 애플리케이션 동작이나 계약은 변경하지 않았다.
+- 정상 no-op 결과는 `APPLIED/DUPLICATE/STALE`로 204 처리하고, `CONFLICT/PROJECTION_NOT_READY`는 각각 409/503 예외 계약으로 분리된 현재 구현을 확인했다.
+
+## 2026-08-31 TMI-117 PLAN-005 AttemptGroup event consumer 구현 완료
+
+- `POST /internal/v1/attempt-group-events`와 16 KiB strict decoder, canonical SHA-256 digest, target별 evidence/failureCode 검증을 구현했다. endpoint flag는 기본 false이며 TEST mode에서는 Learning Core workload role만 허용한다.
+- 동일 `inbound_event_inbox` collection에 `_class`와 user/group/session/evidence/failureCode 없이 최소 document를 저장한다. global eventId·120일 TTL과 Identity partial revision index를 그대로 사용하며 cross-producer same eventId는 digest가 같아도 conflict로 고정했다.
+- active Session/group/subject link fencing과 `OPEN/GRADING → GRADING/COMPLETED/RETAKE_AVAILABLE` 단방향 전이를 구현했다. terminal 전이는 AttemptGroup·AttemptSession·inbox를 하나의 Mongo Transaction과 expected-version CAS로 반영한다.
+- RETAKE_AVAILABLE은 AttemptSession만 FAILED로 닫고 Claim·Grant·allocation·ledger consumption을 변경하지 않는다. retention으로 subject link가 없을 때 COMPLETED만 익명 audit close를 허용하고 GRADING/RETAKE는 STALE 처리한다.
+- Micrometer Tracing OpenTelemetry bridge와 W3C-only ContextPropagators를 추가하고 baggage를 비활성화했다. 구조화 로그에는 service/operation/outcome/traceId/eventId/durationMs/eventAgeMs만 기록하며 식별자와 payload를 제외한다.
+- decoder·service·API/security·metric/log/privacy·W3C HTTP propagation과 replica-set inbox/상태/동시성 테스트를 추가했다. `./gradlew clean test` 전체 137개 테스트가 성공했다.
+- 실제 Learning Core outbox/publisher, trace exporter/backend, Lattice/IAM/SG와 staging E2E는 구현하지 않았으며 production caller gate를 유지한다. Jira 댓글·상태 변경, commit·push도 수행하지 않았다.
+
+## 2026-08-31 PLAN-005 승인 및 Jira TMI-117 생성
+
+- 사용자가 PLAN-005를 승인해 Jira `TMI-117` — `[Billing] AttemptGroup status event consumer 구현`을 `작업` 유형으로 생성했다. 상태는 `해야 할 일`, 담당자는 미지정이다.
+- Jira 본문에 strict decoder/digest, shared inbox, active Session fencing, group/session Transaction·CAS, 204/400/409/422/503, approved failureCode, trace/log/metric과 replica-set 테스트 완료 조건을 반영했다.
+- Learning Core outbox/publisher, 실제 Lattice/IAM/SG, staging E2E와 owner rebind는 제외 범위와 후속 gate로 유지했다.
+- PLAN-005 상태는 사용자 승인·Jira 생성 완료·구현 요청 대기로 갱신했다. 애플리케이션 구현과 Jira 상태 전환은 아직 수행하지 않았다.
+
+## 2026-08-31 PLAN-005 event 처리 결과 분류 설명
+
+- `APPLIED`, `DUPLICATE`, `STALE`, `CONFLICT`, `PROJECTION_NOT_READY`는 AttemptGroup의 업무 상태가 아니라 Billing consumer가 수신 event 한 건을 어떻게 처리했는지 나타내는 내부 outcome이다.
+- APPLIED는 새 유효 event를 Transaction으로 반영한 경우, DUPLICATE는 같은 eventId·digest가 이미 commit된 경우, STALE은 새 event지만 이전 Session·이미 닫힌 상태·동일 상태 no-op이라 현재 projection을 바꾸지 않는 경우다. 세 경우 모두 Learning Core가 재전송을 끝낼 수 있도록 204를 반환한다.
+- CONFLICT는 같은 eventId의 내용 변조 또는 존재하는 group/session/subject 관계 충돌이므로 409와 운영 조사 대상이다. PROJECTION_NOT_READY는 정상 순서상 group/session이 아직 보이지 않는 일시 상태이므로 inbox에 저장하지 않고 503과 Retry-After 5초로 같은 event 재전송을 요구한다.
+
+## 2026-08-31 PLAN-005 AttemptGroup status event consumer 계획서 작성
+
+- `docs/plans/PLAN-005-attempt-group-status-event-consumer.md`를 작성했다. 작성 당시에는 구현 승인 대기·Jira 미생성이었고, 현재는 위 기록처럼 승인 및 `TMI-117` 생성이 완료됐다.
+- 범위는 Billing `POST /internal/v1/attempt-group-events`, strict decoder/digest, shared inbox eventId 멱등성, active Session fencing, group/session Transaction·CAS, stable 204/400/409/422/503, trace·duration/event-age 관측성과 replica-set concurrency test다.
+- 기존 Identity inbox entity를 이동하지 않고 같은 `inbound_event_inbox` collection에 AttemptGroup 전용 최소 view를 추가한다. global unique eventId·120일 TTL을 재사용하고 Identity revision partial index는 유지하므로 schema v3와 기존 index를 변경하지 않는다.
+- approved 1A·2A·3A·4A를 완료 조건으로 고정했다. RETAKE_AVAILABLE은 새 Claim/Grant/consumption이 아니며 COMPLETED는 불가역이다.
+- Learning Core outbox/publisher, 실제 Lattice/IAM/SG와 staging E2E는 이번 Billing 계획의 제외 범위·후속 gate다. consumer를 먼저 배포한 뒤 publisher 별도 PLAN/Jira를 진행한다.
+
+## 2026-08-31 Learning Core TMI-116 수정·merge 재검증 완료
+
+- Learning Core 수정 commit `c3e3c82`와 merge commit `d95d18b`가 local·`origin/develop`에 반영됐다.
+- operation-first 복구로 `SESSION_COMMITTED + ENTITLEMENT_CONFIRMING` same-key 요청이 confirm/status 상태 머신을 다시 실행한다. operation이 purge된 경우에만 durable Session fallback을 사용한다.
+- Mongo transient/unknown commit 결과는 shared reservation을 cancel하지 않고 operation·Session 관측 결과와 same-key retry로 수렴한다. 확정적인 local `IllegalStateException`이고 operation·Session 전진이 모두 관측되지 않을 때만 cancel 보상을 수행한다.
+- Billing success decoder는 scalar/date/enum coercion과 missing required field를 거절하며 confirm `attemptGroupStatus=OPEN`·필수 terminal timestamp, cancel/status의 조건부 timestamp를 검증한다.
+- 최신 Learning Core `develop`에서 `./gradlew clean test`가 성공했고 앞서 보고한 세 finding은 해소됐다. 검토 범위에서 새 merge 차단 결함은 확인되지 않았다.
+- production 활성화 전 실제 Mongo replica-set transient/unknown commit failure injection, Lattice/IAM/SG와 INITIAL·REPLACEMENT staging E2E gate는 계속 남아 있다.
+
+## 2026-08-31 다음 개발 작업 — AttemptGroup 상태 연동
+
+- TMI-116이 `attemptGroupId`를 Learning Core ExamSession에 저장했으므로 다음 vertical slice는 시험 결과 lifecycle을 Billing AttemptGroup에 전달하는 상태 event 연동이다.
+- 상태는 `OPEN → GRADING → COMPLETED` 또는 최종 결과 생성 실패 시 `RETAKE_AVAILABLE`이다. `COMPLETED`는 필수 feedback·유효 score·Summary가 모두 조회 가능할 때만 허용하고 다시 열지 않는다.
+- `RETAKE_AVAILABLE`은 무료권 복원이나 새 Grant 발급이 아니다. 기존 consumption·AttemptGroup·mockExamId를 유지한 REPLACEMENT Session만 추가 차감 없이 허용한다.
+- 안전한 개발·배포 순서는 event schema와 전이를 최종 동결한 뒤 Billing consumer를 먼저 구현·배포하고, Learning Core가 동일 local Transaction에서 outbox를 적재한 뒤 SigV4 publisher를 활성화하는 순서다.
+- 별도 운영 gate인 Mongo replica-set failure injection, Lattice/IAM/SG, INITIAL·REPLACEMENT staging E2E는 이 개발 작업과 구분하되 production flag 활성화 전에 모두 완료해야 한다.
+
+## 2026-08-31 AttemptGroup 상태 연동 미확정 정책 선택지
+
+- 이미 확정된 것은 `COMPLETED` evidence 조건, sequence 없는 at-least-once event, eventId/digest 멱등성, active Session fencing과 stale Session 204 처리다.
+- 추가 선택이 필요한 항목은 failureCode의 세분화, 같은 active Session의 out-of-order event 수렴, target projection 누락 분류, Learning Core outbox의 재시도·보존 정책이다.
+- 권장 조합은 `1A 고정 저카디널리티 failureCode`, `2A 상태 전이표+Session fencing`, `3A 503/204/409 원인별 분리`, `4A pending 무TTL+지수 backoff와 delivered/dead-letter 기한 보존`이다.
+- 사용자가 `1A·2A·3A·4A`를 모두 승인했다. CONTRACT_DECISIONS, ADR-001과 통합 계약에 failureCode allowlist, 상태/Session fencing, 503·204·409 분류, durable outbox와 trace 정책을 반영했다.
+- traceId는 failureCode를 대체하지 않고 상세 조사 경로를 제공한다. 현재 Learning Core의 requestId/Sentry만으로는 Billing까지 연결되지 않으므로 W3C traceparent propagation과 Billing tracing 기반을 구현 계획에 포함한다.
+- 사용자 추가 승인으로 AttemptGroup publish/consume 구조화 로그에 서비스 식별 `service`, 고정 `operation`·`outcome`, 단계 처리 시간 `durationMs`를 포함한다. Billing consume에는 생성부터 수신까지 지연 `eventAgeMs`도 기록해 서비스 내부 지연과 outbox/network/retry 지연을 분리한다.
+
+## 2026-08-31 상태 전이표·Session fencing 방식 상세 설명
+
+- Billing은 event의 `occurredAt` 최신 여부로 덮어쓰지 않고 먼저 event `sessionId`가 AttemptGroup의 `activeSessionId`와 같고 해당 AttemptSession이 `ACTIVE`인지 확인한다. 다르면 이전·폐기 Session event이므로 204 stale 처리한다.
+- fencing을 통과한 뒤 현재 group status와 targetStatus의 허용 전이표를 적용한다. `OPEN→GRADING/COMPLETED/RETAKE_AVAILABLE`, `GRADING→COMPLETED/RETAKE_AVAILABLE`만 전진이며 같은 상태는 duplicate no-op, COMPLETED 이후는 재개방하지 않는다.
+- RETAKE_AVAILABLE 전환은 해당 AttemptSession을 FAILED terminal로 닫는다. 이후 같은 Session의 늦은 event는 stale이고, 새 REPLACEMENT confirm이 새로운 activeSessionId와 OPEN을 만든 뒤 새 Session event만 허용한다.
+- group/session/inbox 변경은 expected version CAS를 포함한 하나의 Mongo Transaction으로 처리해 동시에 도착한 terminal event 중 하나만 승리하도록 한다.
+
+## 2026-08-31 revision 없이 안전하다는 의미 보완
+
+- revision 없이 보장하는 것은 producer의 정확한 event 생성 순서 복원이 아니라 duplicate 부작용 방지, 과거 Session 격리, 상태 역행 방지와 동시 write 단일 승자다.
+- eventId/digest는 같은 event 재전송을 막고, activeSessionId/AttemptSession state는 재응시 세대를 구분하며, 단방향 상태 전이표는 늦은 GRADING이 COMPLETED를 되돌리지 못하게 하고, Mongo document version CAS는 동시 update 중 하나만 commit하게 한다.
+- 같은 active Session에서 서로 모순되는 COMPLETED와 RETAKE_AVAILABLE을 모두 발행한 경우 revision 없는 consumer는 어느 것이 producer 기준 최신·정답인지 알 수 없다. 이는 Learning Core가 둘 중 하나만 durable terminal event로 생성해야 한다는 producer 불변식과 outbox Transaction으로 막아야 한다.
+- 따라서 event revision은 정상 상태 머신에서는 불필요하지만 모순 terminal event의 우선순위를 consumer가 판정해야 한다면 추가해야 한다.
+
+## 2026-08-31 Billing merge 및 Learning Core TMI-116 구현 리뷰
+
+- Billing PR #3의 merge commit `39e424d`가 local·`origin/develop`에 반영됐고 BenefitDefinition 구현 commit은 `18f1265`다. 현재 Billing 전체 테스트는 성공했다.
+- Learning Core `feat/TMI-116-billing-reservation-exam-saga`는 commit `9241a39`로 구현·push됐고 전체 테스트도 성공했다. 공개 API shape, 기본 off flag, Billing URL/DTO, 서울 리전 `vpc-lattice-svcs` SigV4의 정상 흐름은 Billing 계약과 일치한다.
+- merge 전 수정이 필요한 핵심 결함이 있다. durable `ENTITLEMENT_CONFIRMING` Session을 operation보다 먼저 replay하면 `SESSION_COMMITTED`의 confirm/status 재조정을 영구 건너뛴다. Mongo commit의 transient/unknown 실패를 일반 local failure로 분류해 동시 same-key winner가 commit 중인데 shared reservation을 cancel할 수 있다.
+- Billing 성공 응답 decoder는 unknown/duplicate/trailing field를 막지만 scalar coercion과 missing required field를 완전히 차단하지 않고, confirm의 `attemptGroupStatus=OPEN`·`confirmedAt` exact 검증도 빠져 있다.
+- TMI-116 branch의 단일 commit에는 saga 외에도 비용 추정·10초 챌린지·frontend handoff 등 관련 없는 대형 문서 변경이 함께 포함돼 있으므로 PR 범위를 분리하거나 의도된 포함인지 확인해야 한다.
+- production caller gate는 유지한다. 위 코드 결함 수정과 회귀 테스트, replica-set failure injection, 실제 Lattice/IAM/SG 및 INITIAL·REPLACEMENT staging E2E 전에는 flag를 활성화하지 않는다.
 
 ## 2026-08-28 TMI-115 PLAN-004 BenefitDefinition foundation 구현 완료
 
@@ -723,3 +809,11 @@
 - 앱→Learning Core 시험 생성 operation ID의 정확한 wire source가 통합 계약에서 충분히 명시되지 않았다. 제품 결정은 공개 시험 생성 요청의 필수 `Idempotency-Key`지만 현재 Learning Core controller에는 이 header가 없다. Reservation saga 연결 전 Learning Core 후속 변경과 contract test가 필요하다.
 - 앱 종료 뒤 기존 시험을 이어풀지 않고 새 key·새 examId를 사용하는 승인 불변식은 CONTRACT_DECISIONS에는 있으나 AGENTS 핵심 불변식과 통합 계약 흐름에는 명시가 약하다. 실제 Learning Core `startNew`는 기존 진행 Session을 abandon하고 새 Session을 만들어 현재 동작은 맞지만 후속 계약 문서 보강이 필요하다.
 - 리뷰 요청은 수정 승인이 아니므로 계약·ADR·AGENTS와 다른 서버 코드는 변경하지 않았다. PLAN-001 시작 전 Billing ADR Phase 0 보정, staging 연동 전 Identity transport/retry 변경, Reservation 연동 전 Learning Core public idempotency 계약 보강 순서가 적절하다.
+
+## 2026-08-31 앱 서버 통합 구조 조사 반영
+
+- 신규 Jira 없이 Learning Core·Identity·Billing 전체 구조 조사에 Billing `develop@39e424d` snapshot을 반영했다. 관련 현재 구현 문맥은 `TMI-115`와 Learning Core `TMI-116`이며 Jira 상태는 변경하지 않았다. 통합 draw.io와 본 문서는 Learning Core `docs/architecture`에 있다.
+- Billing은 TrialEligibility projection, BenefitDefinition, TrialClaim·Grant·Ledger, Reservation·Allocation과 AttemptGroup/AttemptSession 최소 projection을 소유하고 문제·음성·채점 결과는 저장하지 않는 것으로 정리했다.
+- reserve·confirm·cancel·status와 expiry는 구현됐고, AttemptGroup `OPEN→GRADING→COMPLETED/RETAKE_AVAILABLE` event consumer는 아직 미구현이다. 앱용 공개 Billing API와 Store 결제·구독은 현재 범위 밖이다.
+- 강점은 strict internal decode, durable command idempotency, Transaction·unique/partial index·CAS와 append-only ledger다. 주요 남은 gate는 Identity SigV4 transport, AttemptGroup consumer-first 연동, actual Lattice/Mongo failure-injection staging E2E다.
+- 애플리케이션·계약·Jira·외부 인프라는 변경하지 않았고 코드 변경이 없어 Gradle 테스트는 실행하지 않았다.

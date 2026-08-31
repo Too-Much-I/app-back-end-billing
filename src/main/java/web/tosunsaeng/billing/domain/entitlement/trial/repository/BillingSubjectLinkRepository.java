@@ -23,6 +23,10 @@ public class BillingSubjectLinkRepository {
         return Optional.ofNullable(mongoTemplate.findOne(query, BillingSubjectLink.class));
     }
 
+    public Optional<BillingSubjectLink> findBySubjectRefId(String subjectRefId) {
+        return Optional.ofNullable(mongoTemplate.findById(subjectRefId, BillingSubjectLink.class));
+    }
+
     public BillingSubjectLink insert(BillingSubjectLink link) {
         return mongoTemplate.insert(link);
     }

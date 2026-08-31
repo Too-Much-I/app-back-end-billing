@@ -81,6 +81,58 @@ public class AttemptSessionRepository {
         ));
     }
 
+    public Optional<AttemptSession> completeActive(
+            String sessionId,
+            String attemptGroupId,
+            String subjectRefId,
+            long expectedVersion,
+            Instant terminalAt
+    ) {
+        Update update = new Update()
+                .set("state", AttemptSession.State.COMPLETED)
+                .unset("activeGuard")
+                .set("terminalAt", terminalAt)
+                .inc("version", 1);
+        return findAndModifyActive(
+                sessionId, attemptGroupId, subjectRefId, expectedVersion, update
+        );
+    }
+
+    public Optional<AttemptSession> failActive(
+            String sessionId,
+            String attemptGroupId,
+            String subjectRefId,
+            long expectedVersion,
+            Instant terminalAt
+    ) {
+        Update update = new Update()
+                .set("state", AttemptSession.State.FAILED)
+                .unset("activeGuard")
+                .set("terminalAt", terminalAt)
+                .inc("version", 1);
+        return findAndModifyActive(
+                sessionId, attemptGroupId, subjectRefId, expectedVersion, update
+        );
+    }
+
+    private Optional<AttemptSession> findAndModifyActive(
+            String sessionId,
+            String attemptGroupId,
+            String subjectRefId,
+            long expectedVersion,
+            Update update
+    ) {
+        Query query = Query.query(Criteria.where("sessionId").is(sessionId)
+                .and("attemptGroupId").is(attemptGroupId)
+                .and("subjectRefId").is(subjectRefId)
+                .and("state").is(AttemptSession.State.ACTIVE)
+                .and("activeGuard").is(true)
+                .and("version").is(expectedVersion));
+        return Optional.ofNullable(mongoTemplate.findAndModify(
+                query, update, FindAndModifyOptions.options().returnNew(true), AttemptSession.class
+        ));
+    }
+
     private static Query proposedQuery(
             String sessionId,
             String attemptGroupId,
