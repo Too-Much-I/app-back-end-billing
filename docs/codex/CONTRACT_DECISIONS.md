@@ -50,6 +50,7 @@
 - 사용자당 OPEN AttemptGroup 1개, active Session 1개, 생성 command 1개만 허용한다. 동일 operation은 같은 Reservation을 반환하고 confirm 결과 불명은 `ENTITLEMENT_CONFIRMING`, status retry와 reconciliation으로 수렴시킨다.
 - 무료권은 reserve에서 `RESERVED`로 잠그고 Learning Core가 ExamSession을 durable commit한 뒤 confirm에서 ledger를 `CONFIRMED`/`CONSUMED`로 최종 전환한다. Session commit 전 실패·cancel·5분 expiry는 allocation을 복구하지만 `TrialClaim`은 삭제하거나 다시 열지 않는다. confirm 뒤 일반 cancel은 금지한다.
 - 필수 피드백, 유효 점수와 Summary가 사용자에게 조회 가능할 때 AttemptGroup을 `COMPLETED`로 닫는다. 결과 생성이 최종 실패하면 `RETAKE_AVAILABLE`로 전환하고 같은 consumption으로 새 Session을 허용한다. 완료 전 허용된 restart도 같은 consumption과 mockExamId를 사용한다.
+- AttemptGroup 상태 연동은 고정 저카디널리티 failureCode, active Session fencing과 단방향 전이표, missing/stale/conflict 원인별 503·204·409 분리, pending event 무TTL 지수 backoff outbox를 사용한다. 서비스 간 추적은 JSON 계약이 아닌 W3C `traceparent`와 구조화 로그의 `traceId + eventId`로 수행한다.
 - TrialClaim의 dedupe 연결은 immutable `claimedAt`부터 3년 동안 보존한다. 이 기간에는 계정 merge·탈퇴·binding revoke·Reservation cancel/expiry로 Claim을 삭제하거나 재개방하지 않는다. 3년 만료 시 candidate alias와 사용자·source event 연결을 dedupe 대상에서 제거하고 삭제·비식별화하며, 이후 같은 번호의 새 Claim을 허용한다. raw phone·last4·Identity fingerprint는 저장하지 않는다.
 - 번호 재할당도 기존 Claim의 3년 보존기간 안에는 새 Claim을 허용하지 않는다. `retentionExpiresAt` 뒤에는 재할당 증거 없이도 같은 번호의 새 Claim을 허용한다.
 
@@ -307,6 +308,25 @@ promotional credit끼리는 만료 임박순, paid credit끼리는 오래된 gra
 장점: 사용자 경험상 소비 완료 시점이 직관적일 수 있다.
 
 단점: 결과를 확인하지 않은 계정이 영원히 OPEN으로 남고 클라이언트 이벤트를 신뢰해야 한다.
+
+### C8-1. AttemptGroup 상태 event 수렴·outbox 정책
+
+#### A. 고정 failureCode·상태/Session fencing·원인별 오류·durable outbox — 확정
+
+- `RETAKE_AVAILABLE.failureCode`는 `REQUIRED_RESULTS_UNAVAILABLE`, `SUMMARY_UNAVAILABLE`, `GRADING_DEADLINE_EXCEEDED`, `RESULT_INTEGRITY_VIOLATION`만 허용한다. exception message, provider 이름·code·원문과 자유 문자열은 금지한다.
+- event revision을 추가하지 않는다. same eventId/digest는 duplicate no-op이고, `activeSessionId`와 AttemptSession `ACTIVE` 상태가 일치한 event만 단방향 상태 전이표로 처리한다.
+- terminal evidence가 먼저 도착할 수 있으므로 `OPEN→COMPLETED`와 `OPEN→RETAKE_AVAILABLE` 직접 전진을 허용한다. 늦은 `GRADING`, abandoned/restarted/failed Session event와 COMPLETED 이후 역행은 204 stale no-op다.
+- 같은 active Session의 `COMPLETED`와 `RETAKE_AVAILABLE`을 모두 발행하지 않는 것을 Learning Core producer 불변식으로 둔다. 결과 상태와 terminal outbox event를 같은 Mongo Transaction/CAS로 저장하고 Session별 terminal event는 하나만 허용한다.
+- 아직 생성 순서상 보이지 않는 group/session projection은 503 `ATTEMPT_PROJECTION_NOT_READY`와 `Retry-After: 5`, abandoned/old Session은 204 stale, 존재하는 group/session/subject 관계 충돌은 409 `EVENT_TARGET_CONFLICT`로 분리한다. consumer가 missing target을 임의 생성하거나 연결하지 않는다.
+- Learning Core outbox의 retryable PENDING event는 TTL로 삭제하지 않는다. network/408/425/429/5xx는 `5초→15초→1분→5분→15분` 뒤 최대 15분+jitter로 재시도한다. 400/409/422는 DEAD_LETTER, 401/403은 전송 일시 정지와 긴급 경보다.
+- DELIVERED outbox는 30일, DEAD_LETTER는 90일 보존한다. 장기 PENDING과 dead-letter는 운영 경보·수동 replay 대상이며 replay에서도 eventId와 canonical payload를 바꾸지 않는다.
+- 운영 추적은 W3C `traceparent`로 서비스 간 전달하고 구조화 로그에 `traceId`, `eventId`, 고정 `service`, `operation`, `outcome`, `durationMs`를 함께 기록한다. Billing consume 시에는 event 생성부터 수신까지의 `eventAgeMs`도 기록한다. 비동기 outbox는 원본 trace context를 안전하게 저장해 publish span을 continue 또는 link하며 `baggage`는 전달·저장하지 않는다.
+- `service`는 `learning-core` 또는 `billing` 고정값이고 `durationMs`는 각 publish/consume 처리의 monotonic elapsed time이다. `eventAgeMs`는 UTC `now-occurredAt`의 전달 지연이며 clock skew로 음수가 되면 0으로 정규화하고 skew metric을 별도로 올린다.
+- trace context는 event JSON, canonical digest, idempotency key와 domain aggregate에 포함하지 않는다. `traceId`와 `eventId`는 metric label로 사용하지 않고, userId·sessionId·attemptGroupId·candidate·provider 원문도 일반 log/trace attribute에 기록하지 않는다.
+
+장점: failureCode는 안정적으로 유지하면서 상세 장애는 traceId/eventId로 Learning Core 로그와 publish/Billing consume 구간을 연결해 조사할 수 있고, service·durationMs·eventAgeMs로 어느 서비스·단계가 느렸는지 구분할 수 있다. event 순서 역전·중복·재응시 세대를 기존 상태와 식별자로 수렴시키고 장기 Billing 장애에도 event를 유실하지 않는다.
+
+단점: Learning Core와 Billing에 실제 tracing propagation·MDC/log 연동, outbox trace context와 dead-letter 운영 기능이 필요하다. 같은 Session의 모순 terminal event가 producer에서 생성되면 revision 없는 Billing은 어느 것이 제품상 정답인지 판정할 수 없으므로 producer terminal 단일성 보장이 필수다.
 
 ## 3. 결제 구현 전에 확정할 계약
 

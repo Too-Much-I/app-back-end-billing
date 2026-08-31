@@ -11,12 +11,14 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 
 import web.tosunsaeng.billing.domain.eligibility.trial.config.TrialEligibilityProperties;
+import web.tosunsaeng.billing.domain.attempt.config.AttemptGroupEventProperties;
 import web.tosunsaeng.billing.domain.reservation.config.ReservationProperties;
 import web.tosunsaeng.billing.global.config.mongodb.BillingMongoProperties;
 
 @Configuration
 @EnableConfigurationProperties({
         InternalIngressProperties.class,
+        AttemptGroupEventProperties.class,
         TrialEligibilityProperties.class,
         ReservationProperties.class,
         BillingMongoProperties.class
@@ -27,12 +29,14 @@ public class SecurityConfig {
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             InternalIngressProperties ingressProperties,
+            AttemptGroupEventProperties attemptGroupEventProperties,
             TrialEligibilityProperties trialEligibilityProperties,
             BillingMongoProperties mongoProperties,
             Environment environment
     ) throws Exception {
         validateConfiguration(
-                ingressProperties, trialEligibilityProperties, mongoProperties, environment
+                ingressProperties, attemptGroupEventProperties,
+                trialEligibilityProperties, mongoProperties, environment
         );
         return http
                 .csrf(csrf -> csrf.disable())
@@ -55,12 +59,24 @@ public class SecurityConfig {
                                 "/internal/v1/reservations/*/confirm",
                                 "/internal/v1/reservations/*/cancel"
                         ).hasRole("LEARNING_CORE_WORKLOAD");
+                        if (attemptGroupEventProperties.isEnabled()) {
+                            authorize.requestMatchers(
+                                    HttpMethod.POST,
+                                    "/internal/v1/attempt-group-events"
+                            ).hasRole("LEARNING_CORE_WORKLOAD");
+                        }
                     } else if (ingressProperties.getMode()
                             == InternalIngressProperties.Mode.LATTICE_AWS_IAM) {
                         authorize.requestMatchers(
                                 HttpMethod.POST,
                                 "/internal/v1/eligibility/trial/events"
                         ).permitAll();
+                        if (attemptGroupEventProperties.isEnabled()) {
+                            authorize.requestMatchers(
+                                    HttpMethod.POST,
+                                    "/internal/v1/attempt-group-events"
+                            ).permitAll();
+                        }
                         authorize.requestMatchers(
                                 HttpMethod.POST,
                                 "/internal/v1/reservations",
@@ -76,6 +92,7 @@ public class SecurityConfig {
 
     private static void validateConfiguration(
             InternalIngressProperties ingress,
+            AttemptGroupEventProperties attemptGroupEvents,
             TrialEligibilityProperties eligibility,
             BillingMongoProperties mongo,
             Environment environment
@@ -87,6 +104,11 @@ public class SecurityConfig {
         if (ingress.getMode() != InternalIngressProperties.Mode.DISABLED
                 && eligibility.getExpectedConsumerScopeId().isBlank()) {
             throw new IllegalStateException("Expected eligibility consumer scope is required.");
+        }
+        if (attemptGroupEvents.isEnabled()
+                && (attemptGroupEvents.getMaxFutureSkew() == null
+                || attemptGroupEvents.getMaxFutureSkew().isNegative())) {
+            throw new IllegalStateException("AttemptGroup future clock skew must be non-negative.");
         }
         if (ingress.getMode() == InternalIngressProperties.Mode.LATTICE_AWS_IAM) {
             boolean validEnvironment = "production".equals(ingress.getEnvironment())

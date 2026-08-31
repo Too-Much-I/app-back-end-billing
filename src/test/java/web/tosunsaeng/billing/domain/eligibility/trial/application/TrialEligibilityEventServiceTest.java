@@ -112,6 +112,22 @@ class TrialEligibilityEventServiceTest {
     }
 
     @Test
+    void sameEventIdAndDigestFromDifferentProducerIsConflict() {
+        TrialEligibilityEvent event = event(
+                1, "00000000-0000-4000-8000-000000000001", "same-digest"
+        );
+        InboundEventInbox otherProducer = mock(InboundEventInbox.class);
+        when(otherProducer.getProducer()).thenReturn("learning-core");
+        when(otherProducer.getPayloadDigest()).thenReturn("same-digest");
+        when(inboxRepository.findByEventId(event.eventId()))
+                .thenReturn(Optional.of(otherProducer));
+
+        assertThatThrownBy(() -> service.process(event))
+                .isInstanceOf(InternalApiException.class)
+                .extracting("code").isEqualTo("EVENT_ID_CONFLICT");
+    }
+
+    @Test
     void sameRevisionWithDifferentEventIsConflict() {
         TrialEligibilityEvent original = event(
                 1, "00000000-0000-4000-8000-000000000001", "digest-1"

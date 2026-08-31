@@ -302,6 +302,13 @@ Learning Core는 시험 문제나 AI 결과 원문을 보내지 않고 Billing c
 - same eventId·same digest는 204 no-op, 다른 digest는 409다.
 - abandoned 또는 stale Session event는 active Session fencing에 실패하면 204 stale no-op다.
 - Billing은 Learning Core Session·문제·AI 결과 document를 복제하지 않는다.
+- `RETAKE_AVAILABLE.failureCode`는 `REQUIRED_RESULTS_UNAVAILABLE`, `SUMMARY_UNAVAILABLE`, `GRADING_DEADLINE_EXCEEDED`, `RESULT_INTEGRITY_VIOLATION`만 허용한다.
+- event revision 없이 group `activeSessionId`, AttemptSession `ACTIVE`, 단방향 transition과 Mongo CAS로 수렴한다. terminal evidence의 역순 도착을 위해 OPEN에서 COMPLETED/RETAKE_AVAILABLE 직접 전진을 허용하되 Learning Core는 Session당 COMPLETED 또는 RETAKE_AVAILABLE terminal event 하나만 Transaction/CAS로 생성한다.
+- 정상 순서상 projection 미준비는 503 `ATTEMPT_PROJECTION_NOT_READY`와 `Retry-After: 5`, stale Session은 204, 존재하는 관계 충돌은 409 `EVENT_TARGET_CONFLICT`다.
+- Learning Core PENDING outbox는 전달 전 TTL 삭제하지 않고 network/408/425/429/5xx를 5초, 15초, 1분, 5분, 15분 뒤 최대 15분+jitter로 재시도한다. DELIVERED는 30일, DEAD_LETTER는 90일 보존한다.
+- W3C `traceparent`를 HTTP header로 전달하고 양쪽 구조화 로그에 `service`, `operation`, `outcome`, `traceId`, `eventId`, `durationMs`를 기록한다. Billing consume은 event 생성부터 수신까지 `eventAgeMs`도 기록한다.
+- `service`는 `learning-core`/`billing`, operation과 outcome은 승인된 low-cardinality 값만 사용한다. `durationMs`는 해당 publish/consume 단계의 monotonic elapsed time이고 `eventAgeMs=max(0, consumeNow-occurredAt)`는 outbox 대기·retry를 포함한 전달 지연이다.
+- trace context는 JSON/digest/business key가 아니며 baggage, 사용자·Session·AttemptGroup 식별자와 provider 원문은 trace attribute에 넣지 않는다. traceId/eventId/durationMs/eventAgeMs는 metric label로 사용하지 않는다.
 
 ## 8. 공통 오류·재시도 규칙
 
@@ -315,9 +322,11 @@ Learning Core는 시험 문제나 AI 결과 원문을 보내지 않고 Billing c
 | 404 | `OPERATION_NOT_FOUND` | Learning Core reconciliation 판단 |
 | 409 | `COMMAND_PROCESSING` | `Retry-After` 후 같은 key 재시도 |
 | 409 | `IDEMPOTENCY_KEY_CONFLICT`, `EVENT_ID_CONFLICT` | 자동 우회 금지; 격리·조사 |
+| 409 | `EVENT_TARGET_CONFLICT` | 자동 재시도 금지; 관계 충돌 격리·조사 |
 | 409 | `RESERVATION_STATE_CONFLICT` | status 조회 후 복구 판단 |
 | 422 | `UNSUPPORTED_CONTRACT` | consumer reader 배포·설정 확인 |
 | 429 | `RATE_LIMITED` | `Retry-After` 후 같은 event/key 재시도 |
+| 503 | `ATTEMPT_PROJECTION_NOT_READY` | `Retry-After: 5` 후 같은 event 재시도 |
 | 503 | `BILLING_TEMPORARILY_UNAVAILABLE` | 같은 event/key로 backoff+jitter 재시도 |
 
 processing, 429와 503에는 정수 초 `Retry-After`를 사용한다. retryable 오류에서도 새로운 eventId, operation ID나 Session을 만들지 않는다.

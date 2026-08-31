@@ -89,4 +89,12 @@ public class AttemptSession {
     public long getVersion() {
         return version;
     }
+
+    public Boolean getActiveGuard() {
+        return activeGuard;
+    }
+
+    public Instant getTerminalAt() {
+        return terminalAt;
+    }
 }

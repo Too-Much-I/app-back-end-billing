@@ -118,4 +118,16 @@ public class AttemptGroup {
     public long getVersion() {
         return version;
     }
+
+    public Boolean getOpenGuard() {
+        return openGuard;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public Instant getCompletedAt() {
+        return completedAt;
+    }
 }
