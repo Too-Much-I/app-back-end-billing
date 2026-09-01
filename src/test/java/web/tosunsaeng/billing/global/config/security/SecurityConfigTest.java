@@ -18,6 +18,7 @@ import web.tosunsaeng.billing.domain.eligibility.trial.application.TrialEligibil
 import web.tosunsaeng.billing.domain.attempt.api.AttemptGroupEventDecoder;
 import web.tosunsaeng.billing.domain.attempt.application.AttemptGroupEventMetrics;
 import web.tosunsaeng.billing.domain.attempt.application.AttemptGroupEventService;
+import web.tosunsaeng.billing.domain.attempt.application.AttemptGroupEventTracing;
 import web.tosunsaeng.billing.domain.reservation.api.support.IdempotencyKeyParser;
 import web.tosunsaeng.billing.domain.reservation.api.support.ReserveRequestDecoder;
 import web.tosunsaeng.billing.domain.reservation.api.support.LifecycleRequestDecoder;
@@ -47,6 +48,8 @@ class SecurityConfigTest {
 
     @MockitoBean
     private AttemptGroupEventService attemptGroupEventService;
+    @MockitoBean
+    private AttemptGroupEventTracing attemptGroupEventTracing;
 
     @MockitoBean
     private AttemptGroupEventMetrics attemptGroupEventMetrics;

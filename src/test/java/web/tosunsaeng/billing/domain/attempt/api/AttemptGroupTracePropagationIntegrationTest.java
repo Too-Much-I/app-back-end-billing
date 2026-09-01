@@ -3,22 +3,40 @@ package web.tosunsaeng.billing.domain.attempt.api;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicReference;
 
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
 import io.micrometer.tracing.propagation.Propagator;
+import io.opentelemetry.api.trace.SpanKind;
+import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.sdk.trace.ReadWriteSpan;
+import io.opentelemetry.sdk.trace.ReadableSpan;
+import io.opentelemetry.sdk.trace.SpanProcessor;
+import io.opentelemetry.sdk.trace.data.SpanData;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.MediaType;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.core.annotation.Order;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -26,12 +44,14 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import web.tosunsaeng.billing.domain.attempt.application.AttemptGroupEventOutcome;
 import web.tosunsaeng.billing.domain.attempt.application.AttemptGroupEventService;
+import web.tosunsaeng.billing.domain.attempt.application.AttemptGroupEventTracing;
 import web.tosunsaeng.billing.domain.attempt.domain.enums.AttemptGroupEventTarget;
 import web.tosunsaeng.billing.domain.attempt.domain.model.AttemptGroupStatusEvent;
+import web.tosunsaeng.billing.domain.attempt.exception.AttemptGroupEventException;
 
-@SpringBootTest
-@AutoConfigureMockMvc
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
+@Import(AttemptGroupTracePropagationIntegrationTest.SpanCaptureConfiguration.class)
 @TestPropertySource(properties = {
         "management.tracing.enabled=true",
         "billing.internal-ingress.mode=test",
@@ -49,12 +69,19 @@ class AttemptGroupTracePropagationIntegrationTest {
     @Autowired
     private Propagator propagator;
     @Autowired
-    private MockMvc mockMvc;
+    private CapturingSpanProcessor spanProcessor;
+    @LocalServerPort
+    private int port;
 
     @MockitoBean
     private AttemptGroupEventDecoder decoder;
     @MockitoBean
     private AttemptGroupEventService service;
+
+    @BeforeEach
+    void clearSpans() {
+        spanProcessor.clear();
+    }
 
     @Test
     void configuredPropagatorContinuesValidInboundW3cTraceparent() {
@@ -77,21 +104,112 @@ class AttemptGroupTracePropagationIntegrationTest {
     @Test
     void httpConsumerContinuesInboundTraceparent() throws Exception {
         AttemptGroupStatusEvent event = event();
-        AtomicReference<String> observedTraceId = new AtomicReference<>();
-        when(decoder.decode(any())).thenReturn(event);
+        AtomicReference<String> decoderSpanId = new AtomicReference<>();
+        AtomicReference<String> serviceSpanId = new AtomicReference<>();
+        AtomicReference<Map<String, String>> observedBaggage = new AtomicReference<>();
+        when(decoder.decode(any())).thenAnswer(invocation -> {
+            decoderSpanId.set(tracer.currentSpan().context().spanId());
+            return event;
+        });
         when(service.process(event)).thenAnswer(invocation -> {
-            observedTraceId.set(tracer.currentSpan().context().traceId());
+            serviceSpanId.set(tracer.currentSpan().context().spanId());
+            observedBaggage.set(tracer.getAllBaggage());
             return AttemptGroupEventOutcome.APPLIED;
         });
 
-        mockMvc.perform(post("/internal/v1/attempt-group-events")
-                        .with(user("learning-core").roles("LEARNING_CORE_WORKLOAD"))
-                        .header("traceparent", TRACEPARENT)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"schemaVersion\":1}"))
-                .andExpect(status().isNoContent());
+        HttpResponse<Void> response = sendEvent(true);
 
-        assertThat(observedTraceId).hasValue(TRACE_ID);
+        assertThat(response.statusCode()).isEqualTo(204);
+
+        SpanData consumeSpan = consumeSpan();
+        SpanData serverSpan = spanProcessor.finishedSpans().stream()
+                .filter(span -> span.getKind() == SpanKind.SERVER)
+                .filter(span -> span.getTraceId().equals(consumeSpan.getTraceId()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(consumeSpan.getTraceId()).isEqualTo(TRACE_ID);
+        assertThat(consumeSpan.getName()).isEqualTo(AttemptGroupEventTracing.SPAN_NAME);
+        assertThat(consumeSpan.getKind()).isEqualTo(SpanKind.INTERNAL);
+        assertThat(consumeSpan.hasEnded()).isTrue();
+        assertThat(serverSpan.getKind()).isEqualTo(SpanKind.SERVER);
+        assertThat(serverSpan.getTraceId()).isEqualTo(consumeSpan.getTraceId());
+        assertThat(serverSpan.getSpanId()).isNotEqualTo(consumeSpan.getSpanId());
+        assertThat(isDescendantOf(
+                consumeSpan, serverSpan, spanProcessor.finishedSpans()
+        )).isTrue();
+        assertThat(decoderSpanId).hasValue(consumeSpan.getSpanId());
+        assertThat(serviceSpanId).hasValue(consumeSpan.getSpanId());
+        assertThat(observedBaggage.get()).isEmpty();
+        assertNoSensitiveAttributes(consumeSpan);
+    }
+
+    @Test
+    void productionControllerEndsFailedConsumeSpanWithoutSensitiveAttributes() throws Exception {
+        AttemptGroupStatusEvent event = event();
+        when(decoder.decode(any())).thenReturn(event);
+        when(service.process(event)).thenThrow(AttemptGroupEventException.targetConflict());
+
+        HttpResponse<Void> response = sendEvent(false);
+
+        assertThat(response.statusCode()).isEqualTo(409);
+
+        SpanData consumeSpan = consumeSpan();
+        assertThat(consumeSpan.hasEnded()).isTrue();
+        assertThat(consumeSpan.getStatus().getStatusCode()).isEqualTo(StatusCode.ERROR);
+        assertNoSensitiveAttributes(consumeSpan);
+    }
+
+    private SpanData consumeSpan() {
+        return spanProcessor.finishedSpans().stream()
+                .filter(span -> AttemptGroupEventTracing.SPAN_NAME.equals(span.getName()))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private HttpResponse<Void> sendEvent(boolean includeBaggage) throws Exception {
+        HttpRequest.Builder request = HttpRequest.newBuilder()
+                .uri(URI.create("http://127.0.0.1:" + port
+                        + "/internal/v1/attempt-group-events"))
+                .header("Content-Type", "application/json")
+                .header("traceparent", TRACEPARENT)
+                .POST(HttpRequest.BodyPublishers.ofString("{\"schemaVersion\":1}"));
+        if (includeBaggage) {
+            request.header("baggage", "private-key=must-not-propagate");
+        }
+        return HttpClient.newHttpClient().send(
+                request.build(), HttpResponse.BodyHandlers.discarding()
+        );
+    }
+
+    private static void assertNoSensitiveAttributes(SpanData span) {
+        Set<String> attributeNames = span.getAttributes().asMap().keySet().stream()
+                .map(key -> key.getKey())
+                .collect(java.util.stream.Collectors.toSet());
+        assertThat(attributeNames).doesNotContain(
+                "eventId", "userId", "sessionId", "attemptGroupId", "payload", "digest",
+                "Authorization", "traceparent", "SigV4", "credential"
+        );
+    }
+
+    private static boolean isDescendantOf(
+            SpanData descendant,
+            SpanData ancestor,
+            List<SpanData> spans
+    ) {
+        String parentSpanId = descendant.getParentSpanId();
+        while (!parentSpanId.equals("0000000000000000")) {
+            if (parentSpanId.equals(ancestor.getSpanId())) {
+                return true;
+            }
+            String currentParentSpanId = parentSpanId;
+            parentSpanId = spans.stream()
+                    .filter(span -> span.getSpanId().equals(currentParentSpanId))
+                    .map(SpanData::getParentSpanId)
+                    .findFirst()
+                    .orElse("0000000000000000");
+        }
+        return false;
     }
 
     private static AttemptGroupStatusEvent event() {
@@ -109,5 +227,59 @@ class AttemptGroupTracePropagationIntegrationTest {
                 null,
                 "digest"
         );
+    }
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class SpanCaptureConfiguration {
+
+        @Bean
+        CapturingSpanProcessor capturingSpanProcessor() {
+            return new CapturingSpanProcessor();
+        }
+
+        @Bean
+        @Order(0)
+        SecurityFilterChain traceEndpointSecurity(HttpSecurity http) throws Exception {
+            return http
+                    .securityMatcher("/internal/v1/attempt-group-events")
+                    .csrf(csrf -> csrf.disable())
+                    .sessionManagement(session -> session
+                            .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                    .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll())
+                    .build();
+        }
+    }
+
+    static final class CapturingSpanProcessor implements SpanProcessor {
+
+        private final ConcurrentLinkedQueue<SpanData> finishedSpans =
+                new ConcurrentLinkedQueue<>();
+
+        @Override
+        public void onStart(Context parentContext, ReadWriteSpan span) {
+        }
+
+        @Override
+        public boolean isStartRequired() {
+            return false;
+        }
+
+        @Override
+        public void onEnd(ReadableSpan span) {
+            finishedSpans.add(span.toSpanData());
+        }
+
+        @Override
+        public boolean isEndRequired() {
+            return true;
+        }
+
+        List<SpanData> finishedSpans() {
+            return List.copyOf(finishedSpans);
+        }
+
+        void clear() {
+            finishedSpans.clear();
+        }
     }
 }

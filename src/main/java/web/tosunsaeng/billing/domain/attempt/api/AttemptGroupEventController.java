@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import web.tosunsaeng.billing.domain.attempt.application.AttemptGroupEventMetrics;
 import web.tosunsaeng.billing.domain.attempt.application.AttemptGroupEventService;
+import web.tosunsaeng.billing.domain.attempt.application.AttemptGroupEventTracing;
 import web.tosunsaeng.billing.domain.attempt.domain.model.AttemptGroupStatusEvent;
 import web.tosunsaeng.billing.global.exception.InternalApiException;
 import web.tosunsaeng.billing.global.observability.TraceCorrelation;
@@ -21,17 +22,20 @@ public class AttemptGroupEventController {
 
     private final AttemptGroupEventDecoder decoder;
     private final AttemptGroupEventService service;
+    private final AttemptGroupEventTracing tracing;
     private final AttemptGroupEventMetrics metrics;
     private final TraceCorrelation traceCorrelation;
 
     public AttemptGroupEventController(
             AttemptGroupEventDecoder decoder,
             AttemptGroupEventService service,
+            AttemptGroupEventTracing tracing,
             AttemptGroupEventMetrics metrics,
             TraceCorrelation traceCorrelation
     ) {
         this.decoder = decoder;
         this.service = service;
+        this.tracing = tracing;
         this.metrics = metrics;
         this.traceCorrelation = traceCorrelation;
     }
@@ -41,9 +45,11 @@ public class AttemptGroupEventController {
         observeTraceContext(request.getHeader("traceparent"));
         validateContentType(request);
         byte[] payload = readBoundedPayload(request);
-        AttemptGroupStatusEvent event = decoder.decode(payload);
-        service.process(event);
-        return ResponseEntity.noContent().build();
+        return tracing.inConsumeSpan(() -> {
+            AttemptGroupStatusEvent event = decoder.decode(payload);
+            service.process(event);
+            return ResponseEntity.noContent().build();
+        });
     }
 
     private void observeTraceContext(String traceparent) {
