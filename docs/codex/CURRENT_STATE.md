@@ -2,7 +2,28 @@
 
 - 최종 갱신일: 2026-08-31
 - 현재 브랜치: `develop`
-- Jira: `TMI-115` Billing 구현과 Learning Core `TMI-116` saga가 각각 `develop`에 merge 완료. `TMI-117` 구현은 local `develop` worktree에서 완료됐고 Jira 상태는 별도 승인 전까지 `해야 할 일`이다.
+- Jira: `TMI-115` Billing 구현과 Learning Core `TMI-116` saga가 각각 `develop`에 merge 완료. Billing AttemptGroup event consumer `TMI-117`은 local 구현·검증 후 2026-08-31 `완료` 처리됐다.
+
+## 2026-08-31 Billing AttemptGroup 업무 span 보완
+
+- Learning Core 전달사항을 대조한 결과 기존 production Controller에는 명시적인 `attempt_group_event_consume` 업무 span이 없고 기존 첫 trace test가 test 내부에서 span을 수동 생성한 사실을 확인했다.
+- 실제 Controller가 payload 크기 확인 뒤 strict decode부터 service의 멱등성·Mongo 처리까지 `attempt_group_event_consume` span으로 감싸도록 `AttemptGroupEventTracing`을 추가했다. Micrometer에 INTERNAL enum이 없으므로 kind를 지정하지 않는 OpenTelemetry 기본 INTERNAL span으로 생성하며 정상·RuntimeException·Error 모두 종료한다.
+- embedded Tomcat 실제 HTTP 요청과 capturing SpanProcessor로 inbound traceId 유지, HTTP SERVER와 consume의 다른 spanId 및 descendant 관계, 정확한 span 이름·INTERNAL kind, decoder/service scope, baggage 미전파와 민감 attribute 부재를 검증했다. Spring Security INTERNAL span이 중간에 존재할 수 있다.
+- 외부 event JSON, endpoint와 HTTP status, 기존 구조화 로그·metric은 변경하지 않았다. 선택 제안인 `trace_context_missing` metric rename은 호환성 영향을 고려해 이번에는 수행하지 않았다.
+- `./gradlew clean test` 전체 138개 테스트가 성공했다. Jira `TMI-117`은 완료 상태를 유지하고 댓글·상태를 변경하지 않았다.
+
+## 2026-08-31 Learning Core trace 연동 전달사항 정리
+
+- `docs/contracts/LEARNING_CORE_ATTEMPT_GROUP_TRACE_HANDOFF.md`에 Learning Core outbox publisher와 Billing consumer가 공유할 W3C Trace Context, 구조화 로그, metric cardinality와 privacy 계약을 복사 가능한 형태로 정리했다.
+- 같은 `traceId` 안에서 origin/publisher/consumer가 서로 다른 `spanId`를 가져야 하며, 저장된 traceparent를 그대로 replay하지 않고 publisher span을 만든 뒤 해당 context를 HTTP header에 inject하도록 명시했다.
+- 공통 log field는 service/operation/outcome/traceId/eventId/durationMs이며 Billing만 eventAgeMs를 추가한다. baggage, 사용자·group·session 식별자, payload, digest와 credential은 log/trace에서 제외한다.
+- 이는 전달 문서 정리이며 Learning Core 코드·설정과 Billing 애플리케이션 동작은 변경하지 않았다. publisher outcome allowlist는 Learning Core 구현 PLAN에서 최종 고정해야 한다.
+
+## 2026-08-31 Jira TMI-117 완료
+
+- 사용자 승인에 따라 Jira `TMI-117`을 전환 ID `41`로 `해야 할 일`에서 `완료`로 변경했다.
+- 재조회 결과 status와 resolution은 모두 `완료`이며 resolution 시각은 2026-08-31 17:30:03 KST다. Jira 댓글·담당자·본문은 변경하지 않았다.
+- Billing 코드와 기능 플래그는 추가 변경하지 않았다. 실제 Learning Core outbox/publisher, Lattice/IAM/SG와 staging E2E는 후속 production gate로 유지한다.
 
 ## 2026-08-31 TMI-117 변경 파일 역할 검토
 
@@ -18,7 +39,7 @@
 - RETAKE_AVAILABLE은 AttemptSession만 FAILED로 닫고 Claim·Grant·allocation·ledger consumption을 변경하지 않는다. retention으로 subject link가 없을 때 COMPLETED만 익명 audit close를 허용하고 GRADING/RETAKE는 STALE 처리한다.
 - Micrometer Tracing OpenTelemetry bridge와 W3C-only ContextPropagators를 추가하고 baggage를 비활성화했다. 구조화 로그에는 service/operation/outcome/traceId/eventId/durationMs/eventAgeMs만 기록하며 식별자와 payload를 제외한다.
 - decoder·service·API/security·metric/log/privacy·W3C HTTP propagation과 replica-set inbox/상태/동시성 테스트를 추가했다. `./gradlew clean test` 전체 137개 테스트가 성공했다.
-- 실제 Learning Core outbox/publisher, trace exporter/backend, Lattice/IAM/SG와 staging E2E는 구현하지 않았으며 production caller gate를 유지한다. Jira 댓글·상태 변경, commit·push도 수행하지 않았다.
+- 실제 Learning Core outbox/publisher, trace exporter/backend, Lattice/IAM/SG와 staging E2E는 구현하지 않았으며 production caller gate를 유지한다. 이후 사용자 승인으로 Jira는 완료 처리했으며 댓글 추가, commit·push는 수행하지 않았다.
 
 ## 2026-08-31 PLAN-005 승인 및 Jira TMI-117 생성
 
@@ -817,3 +838,10 @@
 - reserve·confirm·cancel·status와 expiry는 구현됐고, AttemptGroup `OPEN→GRADING→COMPLETED/RETAKE_AVAILABLE` event consumer는 아직 미구현이다. 앱용 공개 Billing API와 Store 결제·구독은 현재 범위 밖이다.
 - 강점은 strict internal decode, durable command idempotency, Transaction·unique/partial index·CAS와 append-only ledger다. 주요 남은 gate는 Identity SigV4 transport, AttemptGroup consumer-first 연동, actual Lattice/Mongo failure-injection staging E2E다.
 - 애플리케이션·계약·Jira·외부 인프라는 변경하지 않았고 코드 변경이 없어 Gradle 테스트는 실행하지 않았다.
+
+## 2026-08-31 문서 계층·완료 보고 규칙
+
+- 별도 Jira 없이 `AGENTS.md`에 계획·조사 문서의 6단계 읽기 계층과 구현 완료 보고 필수 항목을 추가했다.
+- 결론별 파일 근거와 구현 사실·계획·추론 구분을 요구하며, 상세 목록과 표는 부록으로 보존한다.
+- 구현 완료 후 변경·계약·테스트·위험·배포 전 확인·예상 밖 diff·다음 확인을 보고한다.
+- Billing 애플리케이션과 외부 계약은 변경하지 않았고 Gradle 테스트를 실행하지 않았다.

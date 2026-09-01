@@ -2096,3 +2096,66 @@
 - 결정사항: `APPLIED/DUPLICATE/STALE`는 정상 204 outcome이고 `CONFLICT/PROJECTION_NOT_READY`는 각각 409/503 예외 계약인 계층 분리를 사용자 설명에 명시한다.
 - 위험 요소: 파일별 책임을 이해해도 실제 event 발행은 아직 연결되지 않는다. Learning Core outbox/publisher와 staging Lattice E2E는 계속 후속 작업이다.
 - 다음 작업: 사용자 검토 후 승인을 받으면 Jira `TMI-117`을 완료 처리하고, 이후 Learning Core publisher 계획을 작성한다.
+
+## 2026-08-31 — Jira TMI-117 완료 전환
+
+<!-- codex-turn:tmi-117-jira-completed -->
+
+- 날짜: 2026-08-31
+- 브랜치: Billing `develop`
+- Jira: `TMI-117` — `[Billing] AttemptGroup status event consumer 구현` (`완료`, resolution `완료`, 담당자 미지정)
+- 작업 목표: 사용자의 명시적 승인에 따라 구현·검증이 끝난 TMI-117을 Jira 완료 상태로 닫는다.
+- 변경 파일: `docs/plans/PLAN-005-attempt-group-status-event-consumer.md`, `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`. 애플리케이션, 테스트, 계약, Identity, Learning Core와 AWS 파일은 변경하지 않았다.
+- Jira 동작: 변경 전 `해야 할 일`과 사용 가능한 완료 전환 ID `41`을 조회한 뒤 `완료`로 전환했다. 별도 댓글, 담당자 변경과 본문 수정은 하지 않았다.
+- 검증 결과: 전환 후 Jira를 다시 조회해 status `완료`, status category `done`, resolution `완료`, resolution date `2026-08-31T17:30:03.649+0900`을 확인했다. 문서 변경 후 `git diff --check`를 수행한다.
+- 유지한 계약: endpoint 기본 off, COMPLETED 불가역, RETAKE_AVAILABLE entitlement 불복원, consumer-first production gate와 Jira 외부 범위는 변경하지 않았다.
+- 결정사항: PLAN-005와 CURRENT_STATE의 현재 Jira 상태를 완료로 갱신하고 WORKLOG의 과거 기록은 그대로 보존한다.
+- 위험 요소: Jira 완료는 cross-service production 연동 완료를 뜻하지 않는다. Learning Core outbox/publisher와 Lattice staging E2E는 후속 작업이다.
+- 다음 작업: Learning Core outbox/publisher의 계약과 구현 계획을 작성하고 별도 Jira 승인 절차를 진행한다.
+
+## 2026-08-31 — Learning Core AttemptGroup trace 연동 전달사항 정리
+
+<!-- codex-turn:learning-core-attempt-group-trace-handoff -->
+
+- 날짜: 2026-08-31
+- 브랜치: Billing `develop`
+- Jira: 후속 Learning Core outbox/publisher Jira 미생성. 완료된 Billing 기준 이슈는 `TMI-117`이다.
+- 작업 목표: Learning Core에 전달할 AttemptGroup outbox publisher와 Billing consumer의 trace·구조화 로그 규격을 명확히 정리한다.
+- 변경 파일: `docs/contracts/LEARNING_CORE_ATTEMPT_GROUP_TRACE_HANDOFF.md`, `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`. Billing 애플리케이션·테스트, Identity, Learning Core와 AWS 파일은 변경하지 않았다.
+- 정리 내용: W3C traceparent/tracestate, baggage 금지, outbox trace metadata와 publisher span 생성/inject 순서, retry span, 공통 service/operation/outcome/traceId/eventId/durationMs, Billing eventAgeMs, privacy와 metric cardinality 및 필수 테스트를 정의했다.
+- 검증 결과: Billing 실제 `AttemptGroupEventService`, metrics, `TraceCorrelation`, `TracingConfig`와 ADR-001·통합 계약·C8-1을 대조했다. 문서 변경 후 `git diff --check`를 수행한다.
+- 유지한 계약: trace context는 event JSON/digest/idempotency/domain key가 아니며 사용자·Session·AttemptGroup·candidate·payload·credential을 log/trace에 기록하지 않는다. missing/invalid trace로 event 처리를 실패시키지 않는다.
+- 결정사항: 같은 distributed trace는 동일 traceId와 단계별 서로 다른 spanId로 표현한다. publisher는 저장된 traceparent를 그대로 replay하지 않고 새 publish span context를 inject한다.
+- 위험 요소: Learning Core publisher outcome allowlist와 실제 framework adapter는 후속 구현 PLAN에서 확정해야 한다. exporter/backend와 dashboard는 별도 운영 범위다.
+- 다음 작업: Learning Core 저장소에서 현행 tracing 의존성과 outbox schema를 확인한 뒤 publisher PLAN/Jira를 작성한다.
+
+## 2026-08-31 — 세 앱 서버 문서 계층·완료 보고 규칙 통일
+
+- 날짜: 2026-08-31
+- 브랜치: `develop`
+- Jira: 별도 Jira 이슈 키가 없으며 Jira를 조회하거나 변경하지 않았다.
+- 작업 목표: Billing을 포함한 세 앱 서버의 계획·조사 문서와 구현 완료 보고 형식을 읽기 쉬운 공통 계층으로 통일한다.
+- 변경 파일: `AGENTS.md`, `docs/codex/WORKLOG.md`, `docs/codex/CURRENT_STATE.md`.
+- 변경 내용: 5줄 결론부터 상세 부록까지의 6단계 문서 구조와 파일 근거·구현 사실/계획/추론 구분을 추가했다. 구현 완료 보고에는 변경·계약·테스트·위험·배포 전 확인·예상 밖 diff·다음 확인을 포함한다.
+- 유지한 계약: Billing internal API, eligibility, Reservation, AttemptGroup, 원장과 workload 인증 계약을 변경하지 않았다.
+- 테스트·검증: 규칙·기록 문서만 변경해 Gradle 테스트는 실행하지 않고 `git diff --check`로 검증한다.
+- 위험·다음 작업: 새 규칙이 이후 계획과 구현 보고에 실제 적용되는지 확인한다. 애플리케이션 배포 전 확인 사항은 없다.
+- 예상 밖 diff: 이번 작업과 무관한 기존 `PLAN-005`와 Learning Core trace handoff 문서 변경이 작업 트리에 있으며 수정하지 않았다.
+- Git commit·push를 수행하지 않았고 Secret, Token, 결제 원문이나 개인정보를 기록하지 않았다.
+
+## 2026-08-31 — Billing AttemptGroup production 업무 span 보완
+
+<!-- codex-turn:billing-attempt-group-inner-span -->
+
+- 날짜: 2026-08-31
+- 브랜치: Billing `develop`
+- Jira: 완료된 `TMI-117` 관련 후속 보완이며 Jira 상태·댓글·담당자는 변경하지 않았다.
+- 작업 목표: 실제 Billing HTTP 요청에서 server span 아래 `attempt_group_event_consume` INTERNAL 업무 span을 생성하고 strict decode부터 service·Mongo 처리까지 추적한다.
+- 변경 파일: `src/main/java/web/tosunsaeng/billing/domain/attempt/application/AttemptGroupEventTracing.java`, `AttemptGroupEventController.java`, `AttemptGroupEventControllerTest.java`, `AttemptGroupTracePropagationIntegrationTest.java`, `SecurityConfigTest.java`, `docs/plans/PLAN-005-attempt-group-status-event-consumer.md`, `docs/contracts/LEARNING_CORE_ATTEMPT_GROUP_TRACE_HANDOFF.md`, `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`. 기존 사용자 변경인 `AGENTS.md`는 수정하지 않았다.
+- 구현 내용: 현재 server/security span을 parent로 새 Micrometer span을 만들고 이름을 `attempt_group_event_consume`으로 고정했다. kind 미지정 시 OpenTelemetry INTERNAL이 되며 try-with-resources와 finally로 정상·RuntimeException·Error 경로를 모두 종료하고 예외는 error로 기록한다. span attribute는 추가하지 않았다.
+- 테스트 내용: 테스트 내부 수동 consume span만 확인하던 방식을 보강해 embedded Tomcat에 실제 HTTP 요청을 보낸다. inbound traceId, SERVER ancestor, 서로 다른 HTTP/consume spanId, 정확한 이름·INTERNAL kind, decode/service 동일 scope, baggage 미전파, 정상·예외 종료와 금지 attribute 부재를 capturing SpanProcessor로 검증한다.
+- 테스트 결과: 집중 Controller/trace 테스트가 성공했고 `./gradlew clean test` 전체 138개가 성공했다. `git diff --check`와 privacy pattern 검사를 추가 수행한다.
+- 유지한 계약: `POST /internal/v1/attempt-group-events`, event JSON·digest, 204/400/409/422/503, W3C inbound, baggage disabled, 구조화 로그와 기존 metric 이름·tag를 변경하지 않았다.
+- 결정사항: Spring Security가 HTTP SERVER와 업무 span 사이에 INTERNAL 관측 span을 추가할 수 있으므로 직접 부모가 아니라 동일 trace의 descendant 관계를 검증한다. 선택 제안인 `billing.attempt_group.trace_context_missing` rename은 dashboard/alert migration 없는 즉시 변경을 피하기 위해 보류했다.
+- 위험 요소: 실제 exporter/backend가 없어 운영 UI에서의 trace 시각화는 후속 인프라가 필요하다. Learning Core outbox metadata·retry sibling span·fallback trace·auth circuit·SigV4 inject/sign 순서는 Learning Core 범위다.
+- 다음 작업: Learning Core publisher 구현 후 staging에서 `learning-core publish → Billing HTTP → consume` trace 연결과 금지 attribute 부재를 cross-service E2E로 검증한다.

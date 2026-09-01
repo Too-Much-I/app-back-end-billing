@@ -1,6 +1,6 @@
 # PLAN-005: AttemptGroup status event consumer vertical slice
 
-- 상태: 구현 완료·사용자 검토 및 Jira 종료 승인 대기
+- 상태: 구현 완료·Jira `TMI-117` 완료
 - 작성일: 2026-08-31
 - 대상 저장소: `app-back-end-billing`
 - Jira: `TMI-117` — `[Billing] AttemptGroup status event consumer 구현`
@@ -342,14 +342,17 @@ internal error envelope만 사용하고 앱용 `BaseResponse`를 사용하지 �
 
 ### 12.1 tracing 기반
 
-Billing에는 현재 cross-service tracing 기반이 없으므로 Spring Boot dependency management를 따르는 Micrometer Tracing + OpenTelemetry bridge를 adapter 뒤에 추가한다.
+Billing은 Spring Boot dependency management를 따르는 Micrometer Tracing + OpenTelemetry bridge를 사용한다.
 
 - propagation: W3C `traceparent`
 - baggage: disabled
 - exporter/backend credential: 이번 저장소에 추가하지 않음
-- valid inbound context: Billing consume span으로 연결
+- valid inbound context: Billing HTTP server span 아래 `attempt_group_event_consume` INTERNAL 업무 span으로 연결
+- 업무 span 범위: strict event decode부터 멱등성 확인, service 처리와 Mongo 반영까지
+- 정상·예외 경로 모두 업무 span 종료; 예외는 span error로 기록
+- 업무 span attribute에 event/user/session/group ID, payload, digest, 인증·SigV4 정보를 넣지 않음
 - missing/invalid context: 새 trace 시작, counter 기록, event 처리 계속
-- test: in-memory/fake observation registry 사용
+- test: 실제 embedded HTTP server 요청과 OpenTelemetry SpanProcessor로 server/consume 관계, 이름·kind·종료·privacy 검증
 
 Learning Core의 origin trace 저장과 publish span continue/link는 후속 publisher PLAN에서 같은 W3C 계약으로 구현한다.
 
@@ -562,7 +565,7 @@ PLAN-005 코드 완료만으로 publisher나 production caller를 활성화하�
 
 ## 19. 다음 작업
 
-Jira `TMI-117` 기준 Billing local 구현과 전체 회귀 테스트는 완료됐다. 사용자 검토와 Jira 완료 승인을 거친 뒤 Billing consumer를 먼저 staging에 배포하고, Learning Core 저장소에서 다음 별도 계획을 작성한다.
+Jira `TMI-117` 기준 Billing local 구현과 전체 회귀 테스트, 사용자 검토 및 Jira 완료 전환이 끝났다. 다음으로 Billing consumer를 먼저 staging에 배포하고, Learning Core 저장소에서 별도 outbox/publisher 계획을 작성한다.
 
 ```text
 결과 상태 판정

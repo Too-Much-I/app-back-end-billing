@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
+import java.util.function.Supplier;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import web.tosunsaeng.billing.domain.attempt.application.AttemptGroupEventMetrics;
 import web.tosunsaeng.billing.domain.attempt.application.AttemptGroupEventOutcome;
 import web.tosunsaeng.billing.domain.attempt.application.AttemptGroupEventService;
+import web.tosunsaeng.billing.domain.attempt.application.AttemptGroupEventTracing;
 import web.tosunsaeng.billing.domain.attempt.domain.enums.AttemptGroupEventTarget;
 import web.tosunsaeng.billing.domain.attempt.domain.model.AttemptGroupStatusEvent;
 import web.tosunsaeng.billing.domain.attempt.exception.AttemptGroupEventException;
@@ -56,6 +58,8 @@ class AttemptGroupEventControllerTest {
     @MockitoBean
     private AttemptGroupEventService service;
     @MockitoBean
+    private AttemptGroupEventTracing tracing;
+    @MockitoBean
     private AttemptGroupEventMetrics metrics;
     @MockitoBean
     private TraceCorrelation traceCorrelation;
@@ -64,6 +68,10 @@ class AttemptGroupEventControllerTest {
     void traceContext() {
         when(traceCorrelation.classify(nullable(String.class)))
                 .thenReturn(TraceCorrelation.TraceparentStatus.MISSING);
+        when(tracing.inConsumeSpan(any())).thenAnswer(invocation -> {
+            Supplier<?> action = invocation.getArgument(0);
+            return action.get();
+        });
     }
 
     @Test
