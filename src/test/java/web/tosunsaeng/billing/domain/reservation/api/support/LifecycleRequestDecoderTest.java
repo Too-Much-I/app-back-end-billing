@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import web.tosunsaeng.billing.domain.reservation.dto.request.CancelRequest;
 import web.tosunsaeng.billing.domain.reservation.dto.request.ConfirmRequest;
+import web.tosunsaeng.billing.domain.reservation.dto.request.PhoneContinuationRequest;
 import web.tosunsaeng.billing.domain.reservation.dto.request.ReservationStatusRequest;
 import web.tosunsaeng.billing.global.exception.InternalApiException;
 
@@ -74,6 +75,20 @@ class LifecycleRequestDecoderTest {
                 .extracting("code").isEqualTo("INVALID_REQUEST");
         assertThatThrownBy(() -> decoder.decodeStatus(bytes("""
                 {"operationId":"00000000-0000-1000-8000-000000000001","userId":"%s"}
+                """.formatted(USER))))
+                .isInstanceOf(InternalApiException.class)
+                .extracting("code").isEqualTo("INVALID_REQUEST");
+    }
+
+    @Test
+    void phoneContinuationAcceptsOnlyExactUserField() {
+        PhoneContinuationRequest request = decoder.decodePhoneContinuation(bytes("""
+                {"userId":"%s"}
+                """.formatted(USER)));
+
+        assertThat(request.userId()).isEqualTo(USER);
+        assertThatThrownBy(() -> decoder.decodePhoneContinuation(bytes("""
+                {"userId":"%s","extra":true}
                 """.formatted(USER))))
                 .isInstanceOf(InternalApiException.class)
                 .extracting("code").isEqualTo("INVALID_REQUEST");

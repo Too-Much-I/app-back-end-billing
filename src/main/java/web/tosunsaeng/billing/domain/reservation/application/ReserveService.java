@@ -180,9 +180,15 @@ public class ReserveService {
         Optional<AttemptGroup> existingGroup = attemptGroupRepository
                 .findNonTerminalBySubject(claim.subjectRefId());
         Reservation.Kind kind = determineKind(existingGroup, claim, command.mockExamId());
+        Reservation.ContinuationReason continuationReason = ReserveContinuationPolicy.validate(
+                command, claim.link(), existingGroup, kind
+        );
         String attemptGroupId = existingGroup
                 .map(AttemptGroup::getAttemptGroupId)
                 .orElse(ids.attemptGroupId());
+        String authoritativeMockExamId = existingGroup
+                .map(AttemptGroup::getMockExamId)
+                .orElse(command.mockExamId());
 
         if (attemptSessionRepository.findBySessionId(command.sessionId()).isPresent()) {
             throw ReservationException.stateConflict();
@@ -211,7 +217,8 @@ public class ReserveService {
         Reservation reservation = Reservation.reserved(
                 ids.reservationId(), claim.subjectRefId(), command.operationId(),
                 command.payloadHash(), kind, attemptGroupId, command.sessionId(),
-                command.mockExamId(), now, expiresAt
+                authoritativeMockExamId, continuationReason, command.continuationId(),
+                now, expiresAt
         );
         reservationRepository.insert(reservation);
         attemptSessionRepository.insert(AttemptSession.proposed(
@@ -222,7 +229,7 @@ public class ReserveService {
         IdempotencyCommand.ResponseSnapshot snapshot = new IdempotencyCommand.ResponseSnapshot(
                 command.operationId(), reservation.getReservationId(), kind,
                 Reservation.Status.RESERVED, attemptGroupId, command.sessionId(),
-                command.mockExamId(), expiresAt
+                authoritativeMockExamId, continuationReason, command.continuationId(), expiresAt
         );
         commandDocument.succeed(reservation.getReservationId(), snapshot);
         commandRepository.save(commandDocument);
@@ -271,7 +278,7 @@ public class ReserveService {
                     )
                     .orElseThrow(this::catalogUnavailable);
             validateDefinitionGrant(definition, grant);
-            return new ClaimContext(claim, link.getSubjectRefId(), grant);
+            return new ClaimContext(claim, link, grant);
         }
 
         Instant retentionExpiresAt = now.atZone(ZoneOffset.UTC).plusYears(3).toInstant();
@@ -280,7 +287,7 @@ public class ReserveService {
                 eligibility.getLastEventId(), now, retentionExpiresAt
         );
         claimRepository.insert(claim);
-        subjectLinkRepository.insert(BillingSubjectLink.active(
+        BillingSubjectLink link = subjectLinkRepository.insert(BillingSubjectLink.active(
                 ids.subjectRefId(), ids.trialClaimId(), eligibility.getConsumerScopeId(),
                 userId, now, retentionExpiresAt
         ));
@@ -299,7 +306,7 @@ public class ReserveService {
                 ids.grantedLedgerId(), ids.grantId(), ids.subjectRefId(),
                 ids.trialClaimId(), now
         ));
-        return new ClaimContext(claim, ids.subjectRefId(), grant);
+        return new ClaimContext(claim, link, grant);
     }
 
     private void addMissingAliases(
@@ -422,9 +429,12 @@ public class ReserveService {
 
     private record ClaimContext(
             TrialClaim claim,
-            String subjectRefId,
+            BillingSubjectLink link,
             EntitlementGrant grant
     ) {
+        private String subjectRefId() {
+            return link.getSubjectRefId();
+        }
     }
 
     private record CandidateKey(String keyVersion, String candidate) {

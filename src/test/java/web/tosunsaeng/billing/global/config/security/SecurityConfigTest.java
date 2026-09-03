@@ -27,6 +27,7 @@ import web.tosunsaeng.billing.domain.reservation.application.LifecyclePayloadHas
 import web.tosunsaeng.billing.domain.reservation.application.ReservationLifecycleService;
 import web.tosunsaeng.billing.domain.reservation.application.ReservePayloadHasher;
 import web.tosunsaeng.billing.domain.reservation.application.ReserveService;
+import web.tosunsaeng.billing.domain.reservation.application.PhoneContinuationService;
 import web.tosunsaeng.billing.domain.reservation.converter.ReservationConverter;
 import web.tosunsaeng.billing.domain.ownerrebind.api.PhoneOwnerRebindEventDecoder;
 import web.tosunsaeng.billing.domain.ownerrebind.api.UserMergedEventDecoder;
@@ -73,6 +74,9 @@ class SecurityConfigTest {
 
     @MockitoBean
     private ReserveService reserveService;
+
+    @MockitoBean
+    private PhoneContinuationService phoneContinuationService;
 
     @MockitoBean
     private LifecycleRequestDecoder lifecycleRequestDecoder;
@@ -141,6 +145,10 @@ class SecurityConfigTest {
                         .content("{}"))
                 .andExpect(status().isForbidden());
         mockMvc.perform(post("/internal/v1/owners/merge/events")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/internal/v1/reservations/continuations/phone")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isForbidden());

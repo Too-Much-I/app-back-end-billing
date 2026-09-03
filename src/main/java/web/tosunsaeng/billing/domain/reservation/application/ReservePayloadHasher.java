@@ -18,6 +18,11 @@ public class ReservePayloadHasher {
                 + "userId=" + request.userId() + "\n"
                 + "sessionId=" + request.sessionId() + "\n"
                 + "mockExamId=" + request.mockExamId();
+        if (request.continuationReason() != null) {
+            canonical += "\ncontinuationReason=" + request.continuationReason()
+                    + "\ncontinuationId=" + request.continuationId()
+                    + "\nexpectedAttemptGroupId=" + request.expectedAttemptGroupId();
+        }
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")
                     .digest(canonical.getBytes(StandardCharsets.UTF_8));
@@ -31,4 +36,5 @@ public class ReservePayloadHasher {
             throw new IllegalStateException("Reserve payload hash could not be created.", exception);
         }
     }
+
 }

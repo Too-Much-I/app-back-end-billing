@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import web.tosunsaeng.billing.global.exception.InternalApiException;
 import web.tosunsaeng.billing.domain.reservation.application.ReserveResult;
 import web.tosunsaeng.billing.domain.reservation.application.ReserveService;
+import web.tosunsaeng.billing.domain.reservation.application.PhoneContinuationService;
 import web.tosunsaeng.billing.domain.reservation.application.LifecycleResult;
 import web.tosunsaeng.billing.domain.reservation.application.ReservationLifecycleService;
 import web.tosunsaeng.billing.domain.reservation.application.ReservationStatusResult;
@@ -23,10 +24,12 @@ import web.tosunsaeng.billing.domain.reservation.api.support.ReservationIdParser
 import web.tosunsaeng.billing.domain.reservation.api.support.ReserveRequestDecoder;
 import web.tosunsaeng.billing.domain.reservation.dto.request.CancelRequest;
 import web.tosunsaeng.billing.domain.reservation.dto.request.ConfirmRequest;
+import web.tosunsaeng.billing.domain.reservation.dto.request.PhoneContinuationRequest;
 import web.tosunsaeng.billing.domain.reservation.dto.request.ReservationStatusRequest;
 import web.tosunsaeng.billing.domain.reservation.dto.request.ReserveRequest;
 import web.tosunsaeng.billing.domain.reservation.dto.response.CancelResponse;
 import web.tosunsaeng.billing.domain.reservation.dto.response.ConfirmResponse;
+import web.tosunsaeng.billing.domain.reservation.dto.response.PhoneContinuationResponse;
 import web.tosunsaeng.billing.domain.reservation.dto.response.ReservationStatusResponse;
 import web.tosunsaeng.billing.domain.reservation.dto.response.ReserveResponse;
 import web.tosunsaeng.billing.domain.reservation.converter.ReservationConverter;
@@ -41,6 +44,7 @@ public class ReservationController {
     private final LifecycleRequestDecoder lifecycleDecoder;
     private final ReservationIdParser reservationIdParser;
     private final ReservationLifecycleService lifecycleService;
+    private final PhoneContinuationService phoneContinuationService;
     private final ReservationConverter converter;
 
     public ReservationController(
@@ -50,6 +54,7 @@ public class ReservationController {
             LifecycleRequestDecoder lifecycleDecoder,
             ReservationIdParser reservationIdParser,
             ReservationLifecycleService lifecycleService,
+            PhoneContinuationService phoneContinuationService,
             ReservationConverter converter
     ) {
         this.decoder = decoder;
@@ -58,6 +63,7 @@ public class ReservationController {
         this.lifecycleDecoder = lifecycleDecoder;
         this.reservationIdParser = reservationIdParser;
         this.lifecycleService = lifecycleService;
+        this.phoneContinuationService = phoneContinuationService;
         this.converter = converter;
     }
 
@@ -72,6 +78,22 @@ public class ReservationController {
                 converter.toReserveCommand(operationId, reserveRequest)
         );
         return ResponseEntity.ok(converter.toReserveResponse(result.snapshot()));
+    }
+
+    @PostMapping("/continuations/phone")
+    public ResponseEntity<PhoneContinuationResponse> phoneContinuation(
+            HttpServletRequest request
+    ) {
+        validateContentType(request);
+        PhoneContinuationRequest body = lifecycleDecoder.decodePhoneContinuation(
+                readBoundedPayload(request)
+        );
+        return phoneContinuationService.resolve(body.userId())
+                .map(result -> ResponseEntity.ok(new PhoneContinuationResponse(
+                        result.continuationReason(), result.continuationId(),
+                        result.attemptGroupId(), result.mockExamId()
+                )))
+                .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     @PostMapping("/{reservationId}/confirm")

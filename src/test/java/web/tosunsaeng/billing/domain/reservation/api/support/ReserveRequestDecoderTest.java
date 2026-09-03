@@ -25,6 +25,45 @@ class ReserveRequestDecoderTest {
     }
 
     @Test
+    void decodesExactPhoneContinuationContract() {
+        ReserveRequest request = decoder.decode(("""
+                {"userId":"e8b37a41-bae6-47f1-a770-052e6c5786d4",
+                 "sessionId":"session-new","mockExamId":"mock-original",
+                 "continuationReason":"PHONE_REJOIN",
+                 "continuationId":"018f6f36-2f42-4bf5-8c17-0be35de4872c",
+                 "expectedAttemptGroupId":"group-original"}
+                """).getBytes(StandardCharsets.UTF_8));
+
+        assertThat(request.continuationReason().name()).isEqualTo("PHONE_REJOIN");
+        assertThat(request.continuationId())
+                .isEqualTo("018f6f36-2f42-4bf5-8c17-0be35de4872c");
+        assertThat(request.expectedAttemptGroupId()).isEqualTo("group-original");
+    }
+
+    @Test
+    void rejectsPartialOrUnknownContinuation() {
+        assertInvalid("""
+                {"userId":"e8b37a41-bae6-47f1-a770-052e6c5786d4",
+                 "sessionId":"session-new","mockExamId":"mock-original",
+                 "continuationReason":"PHONE_REJOIN"}
+                """);
+        assertInvalid("""
+                {"userId":"e8b37a41-bae6-47f1-a770-052e6c5786d4",
+                 "sessionId":"session-new","mockExamId":"mock-original",
+                 "continuationReason":"PHONE_REJOIN",
+                 "continuationId":"00000000-0000-1000-8000-000000000001",
+                 "expectedAttemptGroupId":"group-original"}
+                """);
+        assertInvalid("""
+                {"userId":"e8b37a41-bae6-47f1-a770-052e6c5786d4",
+                 "sessionId":"session-new","mockExamId":"mock-original",
+                 "continuationReason":"OTHER",
+                 "continuationId":"018f6f36-2f42-4bf5-8c17-0be35de4872c",
+                 "expectedAttemptGroupId":"group-original"}
+                """);
+    }
+
+    @Test
     void rejectsDuplicateUnknownCoercionAndTrailingToken() {
         assertInvalid("""
                 {"userId":"e8b37a41-bae6-47f1-a770-052e6c5786d4",

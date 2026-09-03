@@ -24,8 +24,26 @@ public class IdempotencyCommand {
             String attemptGroupId,
             String sessionId,
             String mockExamId,
+            Reservation.ContinuationReason continuationReason,
+            String continuationId,
             Instant expiresAt
     ) {
+        public ResponseSnapshot(
+                String operationId,
+                String reservationId,
+                Reservation.Kind reservationKind,
+                Reservation.Status reservationStatus,
+                String attemptGroupId,
+                String sessionId,
+                String mockExamId,
+                Instant expiresAt
+        ) {
+            this(
+                    operationId, reservationId, reservationKind, reservationStatus,
+                    attemptGroupId, sessionId, mockExamId, null, null, expiresAt
+            );
+        }
+
         @Override
         public String toString() {
             return "ResponseSnapshot[kind=" + reservationKind

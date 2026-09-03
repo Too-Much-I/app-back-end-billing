@@ -13,7 +13,7 @@
 2. 새 `TrialClaim`, Grant, allocation 또는 consumption을 만들지 않고 stable `subjectRefId`의 현재 owner mapping만 source→target으로 변경한다.
 3. Identity의 현재 `UserMerged` v1은 Guest→기존 Member merge 전용이므로 phone 재가입에 재사용하지 않고 별도 승인 event를 사용한다.
 4. 진행 중 `RESERVED`/PROCESSING command는 이전하지 않고 최대 5분 lifecycle 종료까지 retry하며, 이미 시작된 AttemptGroup은 이전 Session event를 잃지 않도록 fencing한다.
-5. `UserMerged`만 Billing·Learning Core 양쪽 consumer가 처리한다. phone 재가입은 Billing-only이며 미완료 group의 정상 `REPLACEMENT` 응답으로 target의 새 Session을 만들고 과거 Session·결과는 이전하지 않는다.
+5. `UserMerged`만 Billing·Learning Core 양쪽 consumer가 처리한다. phone 재가입은 Billing-only이며 continuation discovery로 기존 group/mock을 받은 뒤 명시적 `PHONE_REJOIN REPLACEMENT`로 target의 새 Session을 만들고 과거 Session·결과는 이전하지 않는다.
 
 ## 2. 사용자가 반드시 읽어야 하는 내용
 
@@ -96,7 +96,7 @@ Identity가 source account가 더 이상 active actor가 아니고 target이 새
 단점:
 
 - Identity producer/outbox와 소비자별 delivery 상태가 추가된다.
-- target replacement 생성 시 Learning Core가 Billing 응답의 기존 group을 받아들이는 계약 검증이 필요하다.
+- target replacement 생성 시 Learning Core가 Billing phone continuation route에서 authoritative group/mock/context를 먼저 받고 exact echo한 경우만 받아들이는 계약 검증이 필요하다.
 - consumer-first 배포와 producer activation 순서를 지켜야 한다.
 
 #### B. Billing이 VERIFIED/REVOKED projection과 candidate로 lazy 추론
@@ -401,6 +401,19 @@ Billing route는 `POST /internal/v1/owners/merge/events`다. endpoint context가
 - 425, 202와 409를 temporary pending에 사용하지 않는다. 409는 permanent event/owner conflict에만 사용한다.
 - `OWNER_REBIND_PENDING`과 Mongo/서비스 장애는 stable error code와 low-cardinality metric으로 구분한다.
 
+### 6.5 phone continuation discovery와 reserve 확장
+
+Learning Core 전용 read-only route는 `POST /internal/v1/reservations/continuations/phone`이다. exact request는 target `userId` 하나뿐이다.
+
+- current `BillingSubjectLink.ownerTransitionReason=PHONE_REJOIN`
+- `ownerTransitionId`가 존재
+- 같은 subject의 group이 `OPEN` 또는 `RETAKE_AVAILABLE`
+- group의 Claim/subject가 link와 일치
+
+위 조건이면 200으로 `continuationReason=PHONE_REJOIN`, `continuationId=ownerTransitionId`, existing `attemptGroupId`, existing `mockExamId`를 반환한다. 대상 없음은 204, GRADING은 retryable 409, 중복·projection 불일치는 503이다.
+
+phone reserve는 기존 request에 `continuationReason`, `continuationId`, `expectedAttemptGroupId`를 모두 추가한다. strict decoder는 기본 3-field schema 또는 phone 6-field schema만 허용한다. Reserve Transaction은 owner transition ID/reason과 expected group/mock을 다시 검사하고, 성공 snapshot·Reservation·status에 optional reason/id를 저장한다. 일반 request/response에는 optional field가 없으며 일반 unexpected REPLACEMENT는 Learning Core에서 fail-closed한다.
+
 ## 7. Domain 상태와 불변식
 
 ### 7.1 정상 전이
@@ -465,7 +478,8 @@ replacement는 source Session을 target으로 rewrite하지 않는다. target의
 ```text
 subjectRefId, trialClaimId, consumerScopeId, userId,
 active, createdAt, retentionExpiresAt,
-ownerVersion, ownerUpdatedAt
+ownerVersion, ownerUpdatedAt,
+ownerTransitionReason?, ownerTransitionId?
 ```
 
 - legacy document의 `ownerVersion` reader-first 호환과 migration은 ADR-003의 schema v4 계약을 따른다.
@@ -647,6 +661,8 @@ domain/ownerrebind/
 - source의 새 reserve/다른 Session event 거절
 - target REPLACEMENT가 같은 consumption/mockExamId를 사용
 - target REPLACEMENT는 source Session 기록을 이전하지 않고 새 examId로 시작
+- phone continuation 200/204와 exact owner epoch/group/mock 검증
+- 잘못되거나 일부만 온 context fail-closed, 일반 replacement에는 phone reason 없음
 - COMPLETED group을 re-open하거나 새 free unit을 만들지 않음
 
 ### 13.4 replica-set Testcontainers
@@ -707,7 +723,7 @@ domain/ownerrebind/
 
 1. schema/index preflight와 backup 확인
 2. Billing reader/consumer와 flag off 배포
-3. Learning Core `UserMerged` consumer와 phone replacement 처리 flag off 배포
+3. Learning Core `UserMerged` consumer와 phone continuation reader·명시적 replacement 처리 flag off 배포
 4. Identity event별 outbox/delivery writer 배포, publisher off
 5. staging positive/negative, event ordering과 phone replacement E2E
 6. Identity publisher idle/canary

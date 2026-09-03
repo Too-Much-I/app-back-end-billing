@@ -206,7 +206,10 @@ public class OwnerRebindService {
 
         for (BillingSubjectLink link : links) {
             createFenceIfRequired(command, link, now);
-            subjectLinkRepository.rebindOwner(link, command.targetUserId(), now)
+            subjectLinkRepository.rebindOwner(
+                            link, command.targetUserId(), now,
+                            command.eventKind().name(), command.eventId()
+                    )
                     .orElseThrow(OwnerRebindService::concurrentUpdate);
         }
         save(command, OwnerRebindDisposition.APPLIED, links.size(), now);

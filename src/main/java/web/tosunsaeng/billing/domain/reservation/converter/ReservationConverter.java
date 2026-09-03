@@ -37,6 +37,9 @@ public class ReservationConverter {
                 request.userId(),
                 request.sessionId(),
                 request.mockExamId(),
+                request.continuationReason(),
+                request.continuationId(),
+                request.expectedAttemptGroupId(),
                 reservePayloadHasher.hash(request)
         );
     }
@@ -74,7 +77,8 @@ public class ReservationConverter {
         return new ReserveResponse(
                 snapshot.operationId(), snapshot.reservationId(), snapshot.reservationKind(),
                 snapshot.reservationStatus(), snapshot.attemptGroupId(), snapshot.sessionId(),
-                snapshot.mockExamId(), snapshot.expiresAt()
+                snapshot.mockExamId(), snapshot.continuationReason(),
+                snapshot.continuationId(), snapshot.expiresAt()
         );
     }
 
@@ -101,7 +105,8 @@ public class ReservationConverter {
         return new ReservationStatusResponse(
                 result.operationId(), result.reservationId(), result.reservationKind(),
                 result.reservationStatus(), result.attemptGroupId(), result.attemptGroupStatus(),
-                result.sessionId(), result.mockExamId(), result.expiresAt(), result.terminalAt()
+                result.sessionId(), result.mockExamId(), result.continuationReason(),
+                result.continuationId(), result.expiresAt(), result.terminalAt()
         );
     }
 }

@@ -69,7 +69,7 @@ Identity 또는 Learning Core 코드를 이 저장소로 복사하지 않는다.
 - 최대 1시간 cleanup worker, 24시간 overdue 경보와 privacy-safe log/metric/trace
 - replica-set Testcontainers 기반 legacy version, transaction, duplicate와 동시성 회귀 검증
 
-이 구현 단위에서는 새 Claim·Grant·allocation·consumption, historical backfill, privileged repair route, Identity durable fan-out, Learning Core `UserMerged` owner migration/source deny, 실제 AWS resource와 결제·구독·coupon을 추가하지 않는다. phone 재가입은 Learning Core owner event를 만들지 않고 target의 정상 reserve가 반환한 기존 AttemptGroup에 새 replacement Session을 생성한다. TMI-120 완료만으로 production owner rebind를 활성화하지 않고 타 서비스 consumer와 staging E2E gate를 유지한다.
+이 구현 단위에서는 새 Claim·Grant·allocation·consumption, historical backfill, privileged repair route, Identity durable fan-out, Learning Core `UserMerged` owner migration/source deny, 실제 AWS resource와 결제·구독·coupon을 추가하지 않는다. phone 재가입은 Learning Core owner event를 만들지 않고 Billing continuation discovery와 exact reserve echo로 승인된 기존 AttemptGroup에 새 replacement Session을 생성한다. TMI-120 완료만으로 production owner rebind를 활성화하지 않고 타 서비스 consumer와 staging E2E gate를 유지한다.
 
 ## 핵심 불변식
 
@@ -94,7 +94,7 @@ Identity 또는 Learning Core 코드를 이 저장소로 복사하지 않는다.
 - owner rebind는 새 Claim·Grant·allocation·consumption을 만들지 않고 stable `subjectRefId`의 current `BillingSubjectLink.userId`만 source→target CAS로 변경한다.
 - active Reservation 또는 PROCESSING reserve command가 있으면 owner를 rewrite하지 않고 503 pending으로 재시도시킨다.
 - phone 재가입은 AttemptGroup이 없거나 `OPEN`/`RETAKE_AVAILABLE`일 때만 owner를 이전한다. `GRADING`은 503 pending, `COMPLETED`는 owner/fence 변경 없는 성공 NOOP다.
-- phone 재가입 뒤 재응시는 기존 consumption·AttemptGroup·mockExamId를 유지하되 target 명의의 새 replacement Session을 처음부터 만든다. source의 기존 Session·답안·결과를 target으로 이전하지 않는다.
+- phone 재가입 뒤 재응시는 Learning Core가 Billing phone continuation route에서 authoritative AttemptGroup·mockExamId와 owner-epoch context를 먼저 조회하고 exact echo한 경우에만 허용한다. 기존 consumption을 유지하고 target 명의의 새 replacement Session을 처음부터 만들며 source의 기존 Session·답안·결과는 이전하지 않는다.
 - rebind 이전 exact AttemptGroup/Session의 source status event만 bounded fence 안에서 상태 전진에 허용하고 신규 reserve·replacement·다른 Session 권한으로 사용하지 않는다.
 
 상세 상품·사용권 계약과 미확정 선택지는 이 저장소의 `docs/codex/CONTRACT_DECISIONS.md`를 단일 기준으로 사용한다. 서비스 간 전체 흐름은 `docs/contracts/BILLING_SERVICE_INTEGRATION_CONTRACT.md`, 내부 API와 Mongo 계약은 `docs/adr/ADR-001-free-trial-internal-api-and-mongo-contract.md`, Lattice·SigV4·환경 이관 계약은 `docs/adr/ADR-002-vpc-lattice-ecs-sigv4-and-environment-migration.md`, owner rebind 계약은 `docs/adr/ADR-003-retained-trial-owner-rebind-contract.md`, 현재 구현 순서는 `docs/plans/PLAN-006-retained-trial-owner-rebind.md`를 따른다. 통합 안내서와 세부 ADR이 충돌하면 ADR을 따르며, 확정된 계약을 임의로 재해석하지 말고 작업을 중단해 보고한다.
@@ -130,6 +130,7 @@ PLAN-002 Reservation을 구현할 때 다음 계약을 유지한다.
 - `status`는 userId가 URL/access log에 남지 않도록 `POST /internal/v1/reservations/status` body로 조회하며 새 command나 ledger를 만들지 않는다.
 - 같은 caller·user·operation·command와 같은 canonical payload는 기존 결과를 반환하고 다른 payload는 `IDEMPOTENCY_KEY_CONFLICT`다.
 - INITIAL reserve에서만 Claim·grant가 필요하면 같은 Transaction에서 생성하고 allocation을 hold한다. REPLACEMENT는 기존 consumption을 재사용하며 추가 차감하지 않는다.
+- phone continuation discovery는 `/internal/v1/reservations/continuations/phone`에서 target userId만 받고 적용 대상이 없으면 204, 있으면 `PHONE_REJOIN`, continuationId, 기존 attemptGroupId/mockExamId를 반환한다. reserve는 continuationReason/id/expectedAttemptGroupId 세 field의 all-or-none strict contract와 current owner transition exact match를 사용한다.
 - TrialClaim은 cancel·expiry 때 삭제하거나 `claimedAt`을 갱신하지 않는다.
 - confirm이 CANCELED 또는 EXPIRED 상태에 도착하면 자동 repair-confirm하지 않는다. privileged repair route는 별도 계약 전까지 열지 않는다.
 

@@ -510,6 +510,68 @@ class ReserveMongoIntegrationTest {
     }
 
     @Test
+    void phoneContinuationAuthorizesExactExistingGroupWithoutAdditionalConsumption() {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        ReserveResult initial = reserveService.reserve(command(
+                USER_ONE, OP_ONE, "session-1", "mock-original", "hash-1"
+        ));
+        prepareConfirmedOpenGroup(initial);
+        String continuationId = "018f6f36-2f42-4bf5-8c17-0be35de4872d";
+        mongoTemplate.updateFirst(
+                Query.query(org.springframework.data.mongodb.core.query.Criteria
+                        .where("userId").is(USER_ONE)),
+                new Update()
+                        .set("ownerTransitionReason", "PHONE_REJOIN")
+                        .set("ownerTransitionId", continuationId),
+                BillingSubjectLink.class
+        );
+
+        ReserveResult replacement = reserveService.reserve(new ReserveCommand(
+                OP_TWO, USER_ONE, "session-2", "mock-original",
+                Reservation.ContinuationReason.PHONE_REJOIN, continuationId,
+                initial.snapshot().attemptGroupId(), "hash-2"
+        ));
+
+        assertThat(replacement.snapshot().reservationKind())
+                .isEqualTo(Reservation.Kind.REPLACEMENT);
+        assertThat(replacement.snapshot().continuationReason())
+                .isEqualTo(Reservation.ContinuationReason.PHONE_REJOIN);
+        assertThat(replacement.snapshot().continuationId()).isEqualTo(continuationId);
+        assertThat(replacement.snapshot().attemptGroupId())
+                .isEqualTo(initial.snapshot().attemptGroupId());
+        assertThat(replacement.snapshot().mockExamId()).isEqualTo("mock-original");
+        assertThat(count(EntitlementLedgerEntry.class)).isEqualTo(2);
+        assertThat(count(ReservationAllocation.class)).isOne();
+    }
+
+    @Test
+    void phoneContinuationWithWrongGroupFailsClosedWithoutReservation() {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        ReserveResult initial = reserveService.reserve(command(
+                USER_ONE, OP_ONE, "session-1", "mock-original", "hash-1"
+        ));
+        prepareConfirmedOpenGroup(initial);
+        String continuationId = "018f6f36-2f42-4bf5-8c17-0be35de4872d";
+        mongoTemplate.updateFirst(
+                Query.query(org.springframework.data.mongodb.core.query.Criteria
+                        .where("userId").is(USER_ONE)),
+                new Update()
+                        .set("ownerTransitionReason", "PHONE_REJOIN")
+                        .set("ownerTransitionId", continuationId),
+                BillingSubjectLink.class
+        );
+
+        assertThatThrownBy(() -> reserveService.reserve(new ReserveCommand(
+                OP_TWO, USER_ONE, "session-2", "mock-original",
+                Reservation.ContinuationReason.PHONE_REJOIN, continuationId,
+                "wrong-group", "hash-2"
+        )))
+                .isInstanceOf(InternalApiException.class)
+                .extracting("code").isEqualTo("RESERVATION_STATE_CONFLICT");
+        assertThat(count(Reservation.class)).isOne();
+    }
+
+    @Test
     void replacementRejectsDifferentMockExamAndRollsBack() {
         applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
         ReserveResult initial = reserveService.reserve(command(

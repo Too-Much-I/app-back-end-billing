@@ -62,6 +62,10 @@ public class SecurityConfig {
                                     "/internal/v1/eligibility/trial/owner/events",
                                     "/internal/v1/owners/merge/events"
                             ).hasRole("IDENTITY_WORKLOAD");
+                            authorize.requestMatchers(
+                                    HttpMethod.POST,
+                                    "/internal/v1/reservations/continuations/phone"
+                            ).hasRole("LEARNING_CORE_WORKLOAD");
                         }
                         authorize.requestMatchers(
                                 HttpMethod.POST,
@@ -87,6 +91,10 @@ public class SecurityConfig {
                                     HttpMethod.POST,
                                     "/internal/v1/eligibility/trial/owner/events",
                                     "/internal/v1/owners/merge/events"
+                            ).permitAll();
+                            authorize.requestMatchers(
+                                    HttpMethod.POST,
+                                    "/internal/v1/reservations/continuations/phone"
                             ).permitAll();
                         }
                         if (attemptGroupEventProperties.isEnabled()) {

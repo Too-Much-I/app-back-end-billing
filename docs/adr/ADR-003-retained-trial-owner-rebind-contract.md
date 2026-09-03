@@ -12,7 +12,7 @@
 2. phone 재가입 `TrialOwnerRebindApproved`와 Guest merge `UserMerged`는 서로 다른 strict decoder·route를 사용하고 검증 뒤 내부 `OwnerRebindCommand`로만 수렴한다.
 3. Billing Mongo schema는 v4로 올리며 `owner_rebind_inbox`, `subject_owner_rebinds`와 `BillingSubjectLink.ownerVersion`을 추가하되 legacy v3 document를 자동 bulk rewrite하지 않는다.
 4. active Reservation/PROCESSING은 503 pending으로 미루고, rebind 전에 생성된 exact Session status만 legacy source fencing으로 terminal 수렴까지 한시 허용한다.
-5. `UserMerged`만 Billing·Learning Core 양쪽에 전달하고 `TrialOwnerRebindApproved`는 Billing에만 전달한다. phone 재가입 target은 정상 reserve에서 기존 group을 `REPLACEMENT`로 승인받아 새 Session을 만들며 과거 Session·결과를 이전받지 않는다.
+5. `UserMerged`만 Billing·Learning Core 양쪽에 전달하고 `TrialOwnerRebindApproved`는 Billing에만 전달한다. phone 재가입 target은 Billing의 명시적인 continuation context로 기존 group을 발견한 뒤 `REPLACEMENT`를 승인받아 새 Session을 만들며 과거 Session·결과를 이전받지 않는다.
 
 ## 2. 사용자가 반드시 읽어야 하는 내용
 
@@ -53,11 +53,15 @@
 `TrialOwnerRebindApproved`는 동일 phone 재가입의 무료시험 권리 판정용이며 Billing에만 전달한다. phone proof는 완료된 시험·답안·피드백의 소유권 증명이 아니다. Billing이 미사용 또는 재개 가능한 group의 owner link를 target으로 변경한 뒤 target의 정상 시험 생성 요청에서 다음처럼 수렴한다.
 
 ```text
-target reserve
-→ Billing: REPLACEMENT + 기존 attemptGroupId/mockExamId
-→ Learning Core: source의 기존 Session은 유지/abandoned
-→ target userId로 새 examId(Session)를 처음부터 생성
+target phone continuation 조회
+→ Billing: PHONE_REJOIN + continuationId + 기존 attemptGroupId/mockExamId
+→ Learning Core: 새 examId를 proposed Session ID로 준비
+→ target reserve: context 세 필드를 exact echo
+→ Billing: PHONE_REJOIN REPLACEMENT
+→ Learning Core: source의 기존 Session은 유지/abandoned하고 새 Session을 처음부터 생성
 ```
+
+Learning Core에 기존 userId의 Session이 없으므로 기존 `mockExamId`를 미리 알 수 없다는 점을 전제로 한다. 일반 reserve가 값을 추측하거나 Billing이 임의의 요청을 기존 group에 자동 연결하지 않는다.
 
 production 활성화에는 다음이 모두 필요하다.
 
@@ -127,7 +131,46 @@ exact field 집합:
 - `consumerScopeId`는 Billing 환경 설정의 expected opaque scope와 exact match한다.
 - raw phone, candidate, Firebase UID, email, token과 credential은 field로 허용하지 않는다.
 
-#### 4.1.2 Guest merge
+#### 4.1.2 phone continuation discovery와 reserve echo
+
+Learning Core만 다음 read-only route를 호출한다.
+
+```http
+POST /internal/v1/reservations/continuations/phone
+Content-Type: application/json
+
+{"userId":"<lowercase canonical UUID>"}
+```
+
+현재 owner transition이 `PHONE_REJOIN`이고 같은 subject의 AttemptGroup이 `OPEN` 또는 `RETAKE_AVAILABLE`이면 `200`으로 Billing 저장값을 반환한다.
+
+```json
+{
+  "continuationReason": "PHONE_REJOIN",
+  "continuationId": "<TrialOwnerRebindApproved eventId>",
+  "attemptGroupId": "<existing opaque group>",
+  "mockExamId": "<existing opaque mock exam>"
+}
+```
+
+적용 가능한 phone continuation이 없으면 body 없는 `204`다. `GRADING`은 retryable `409 COMMAND_PROCESSING`, 중복 context나 내부 projection 불일치는 `503 BILLING_TEMPORARILY_UNAVAILABLE`다. 이 조회는 Claim·Grant·Reservation·ledger를 만들거나 바꾸지 않는다.
+
+phone continuation reserve는 기존 세 field에 다음 세 field를 모두 추가한다. 일부만 보내면 strict decoder가 400으로 거절한다.
+
+```json
+{
+  "userId": "<target UUID>",
+  "sessionId": "<new target examId>",
+  "mockExamId": "<discovery value>",
+  "continuationReason": "PHONE_REJOIN",
+  "continuationId": "<discovery value>",
+  "expectedAttemptGroupId": "<discovery value>"
+}
+```
+
+Billing은 같은 Transaction에서 current owner, `ownerTransitionReason/ownerTransitionId`, nonterminal group, Claim, expected group과 mockExamId를 다시 검증한다. 성공 응답과 status에는 `continuationReason`, `continuationId`를 포함하고 attemptGroupId/mockExamId는 요청 echo가 아니라 Billing의 existing AttemptGroup 값을 authoritative하게 사용한다. context 없는 일반 reserve와 일반 REPLACEMENT 응답에는 두 optional field가 없으며 Learning Core는 예상하지 않은 일반 REPLACEMENT를 계속 fail-closed한다.
+
+#### 4.1.3 Guest merge
 
 ```http
 POST /internal/v1/owners/merge/events
@@ -148,7 +191,7 @@ Identity 기존 `UserMerged` v1 wire를 그대로 사용한다.
 
 endpoint와 인증 principal이 `producer=identity`, `eventKind=USER_MERGED` 의미를 고정한다. 기존 wire에 `eventType`, `producer`, `consumerScopeId` 또는 reason을 추가하지 않는다.
 
-#### 4.1.3 공통 decode 규칙
+#### 4.1.4 공통 decode 규칙
 
 - body 상한은 16 KiB, 기존 Identity `UserMerged` producer 상한은 4 KiB를 유지한다.
 - duplicate field, trailing token, unknown field와 string/number/boolean coercion을 거절한다.
@@ -286,6 +329,13 @@ owner link를 변경하지 않고 retry하는 조건:
 ### 4.7 Billing Mongo schema v4
 
 #### 4.7.1 `billing_subject_links` 확장
+
+phone continuation을 current owner epoch에 결속하기 위해 다음 optional reader-first field를 함께 둔다.
+
+- `ownerTransitionReason`: `PHONE_REJOIN` 또는 `USER_MERGED`
+- `ownerTransitionId`: 해당 owner event의 lowercase UUID v4 `eventId`
+
+owner CAS 한 번에서 `userId`, `ownerVersion`, `ownerUpdatedAt`과 위 두 field를 같이 갱신한다. 다음 owner CAS가 발생하면 새 transition 값으로 덮어써 이전 continuation을 자동 무효화한다. source userId나 raw phone을 추가 저장하지 않으며 신규 index나 schema version 증가는 필요하지 않다.
 
 ```text
 _id=subjectRefId
@@ -475,7 +525,7 @@ Identity가 Learning Core로 보내는 owner lifecycle은 실제 계정 통합 `
 
 Learning Core는 `UserMerged` strict decoder 뒤 한 local Transaction에서 event inbox, source actor deny marker와 실제 계정 통합 범위의 ownership migration을 처리한다.
 
-phone 재가입에서는 과거 시험·Session owner를 일괄 migration하지 않는다. target의 정상 reserve가 `REPLACEMENT`와 기존 attemptGroupId를 반환하면 새 target Session을 생성하고 source Session은 그대로 terminal/abandoned 처리한다. 이미 source userId로 저장된 status outbox는 Billing bounded fence 안에서만 수렴한다.
+phone 재가입에서는 과거 시험·Session owner를 일괄 migration하지 않는다. target이 continuation discovery 값을 exact echo해 `PHONE_REJOIN REPLACEMENT`와 기존 attemptGroupId를 반환받으면 새 target Session을 생성하고 source Session은 그대로 terminal/abandoned 처리한다. 이미 source userId로 저장된 status outbox는 Billing bounded fence 안에서만 수렴한다.
 
 Learning Core `UserMerged` route 구현·저장 schema와 phone replacement 처리는 Learning Core 저장소가 소유한다. 이 ADR은 cross-service wire와 activation gate만 고정한다.
 
@@ -485,6 +535,7 @@ Identity→Billing exact action은 `vpc-lattice-svcs:Invoke`다. Identity→Lear
 
 - Lattice caller identity policy는 환경별 exact Billing service ARN만 허용한다.
 - Billing service auth policy는 같은 환경 exact Identity application task role Principal, POST와 두 승인 route만 허용한다.
+- Learning Core task role에는 기존 Reservation route와 함께 exact `POST /internal/v1/reservations/continuations/phone`만 추가하며 Identity role에는 이 조회 권한을 주지 않는다.
 - `Action:*`, `Resource:*`, wildcard/account-root principal, production↔staging 교차 ARN을 금지한다.
 - 불필요한 `vpc-lattice-svcs:InvokeWithServiceNetworkContext`를 추가하지 않는다.
 - task execution role과 GitHub OIDC deploy role에는 application invoke 권한을 주지 않는다.
@@ -537,7 +588,7 @@ TMI-120 브랜치에서 `BillingMongoIndexInitializer.SCHEMA_VERSION=4`, owner r
 
 ### 5.3 Learning Core lifecycle별 처리가 다르다
 
-`UserMerged`는 Learning Core owner consumer와 source deny 구현이 별도로 필요하다. phone 재가입은 별도 owner event를 소비하지 않으며, target의 정상 reserve가 기존 attemptGroupId의 `REPLACEMENT`를 반환할 때 source Session을 이전하지 않고 target 명의 새 Session을 생성해야 한다. 이 replacement E2E 없이 phone production flag를 켜면 안 된다.
+`UserMerged`는 Learning Core owner consumer와 source deny 구현이 별도로 필요하다. phone 재가입은 별도 owner event를 소비하지 않으며, continuation discovery와 exact reserve echo로 기존 attemptGroupId의 `REPLACEMENT`를 받은 경우에만 source Session을 이전하지 않고 target 명의 새 Session을 생성해야 한다. 이 replacement E2E 없이 phone production flag를 켜면 안 된다.
 
 ### 5.4 hard cap 이후 자동 복구 route가 없다
 
@@ -568,7 +619,7 @@ TMI-120에는 privileged HTTP repair route를 만들지 않는다. hard cap 이�
 9. ADR-001·통합 계약·운영 문서 갱신
 10. Identity event별 delivery, Learning Core `UserMerged` consumer와 phone replacement staging E2E
 
-TMI-120은 1~9의 Billing 범위만 구현한다. Identity, Learning Core와 실제 AWS resource 변경은 이 저장소의 구현 범위가 아니다. phone replacement는 기존 Billing reserve wire를 유지하며 Learning Core 코드 검증은 별도 저장소에서 수행한다.
+TMI-120은 1~9의 Billing 범위와 phone continuation discovery/optional reserve echo를 구현한다. Identity, Learning Core와 실제 AWS resource 변경은 이 저장소의 구현 범위가 아니다. Learning Core reader와 fail-closed 처리 검증은 별도 저장소에서 수행한다.
 
 ## 7. 상세 부록
 

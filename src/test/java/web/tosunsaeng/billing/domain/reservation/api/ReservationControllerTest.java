@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +30,8 @@ import web.tosunsaeng.billing.domain.reservation.application.ReserveCommand;
 import web.tosunsaeng.billing.domain.reservation.application.ReservePayloadHasher;
 import web.tosunsaeng.billing.domain.reservation.application.ReserveResult;
 import web.tosunsaeng.billing.domain.reservation.application.ReserveService;
+import web.tosunsaeng.billing.domain.reservation.application.PhoneContinuationService;
+import web.tosunsaeng.billing.domain.reservation.application.PhoneContinuationResult;
 import web.tosunsaeng.billing.domain.reservation.application.LifecyclePayloadHasher;
 import web.tosunsaeng.billing.domain.reservation.application.ReservationLifecycleService;
 import web.tosunsaeng.billing.domain.reservation.application.LifecycleResult;
@@ -42,6 +45,7 @@ import web.tosunsaeng.billing.domain.reservation.domain.entity.IdempotencyComman
 import web.tosunsaeng.billing.domain.reservation.domain.entity.Reservation;
 import web.tosunsaeng.billing.domain.reservation.dto.request.CancelRequest;
 import web.tosunsaeng.billing.domain.reservation.dto.request.ConfirmRequest;
+import web.tosunsaeng.billing.domain.reservation.dto.request.PhoneContinuationRequest;
 import web.tosunsaeng.billing.domain.reservation.dto.request.ReservationStatusRequest;
 import web.tosunsaeng.billing.domain.reservation.dto.request.ReserveRequest;
 import web.tosunsaeng.billing.domain.reservation.converter.ReservationConverter;
@@ -51,7 +55,8 @@ import web.tosunsaeng.billing.domain.reservation.converter.ReservationConverter;
 @ActiveProfiles("test")
 @TestPropertySource(properties = {
         "billing.internal-ingress.mode=test",
-        "billing.trial-eligibility.expected-consumer-scope-id=opaque-scope-v1"
+        "billing.trial-eligibility.expected-consumer-scope-id=opaque-scope-v1",
+        "billing.owner-rebind.enabled=true"
 })
 class ReservationControllerTest {
 
@@ -77,6 +82,9 @@ class ReservationControllerTest {
 
     @MockitoBean
     private ReserveService reserveService;
+
+    @MockitoBean
+    private PhoneContinuationService phoneContinuationService;
 
     @MockitoBean
     private LifecycleRequestDecoder lifecycleRequestDecoder;
@@ -108,7 +116,81 @@ class ReservationControllerTest {
                 .andExpect(jsonPath("$.reservationKind").value("INITIAL"))
                 .andExpect(jsonPath("$.reservationStatus").value("RESERVED"))
                 .andExpect(jsonPath("$.sessionId").value("session-1"))
+                .andExpect(jsonPath("$.continuationReason").doesNotExist())
                 .andExpect(jsonPath("$.data").doesNotExist());
+    }
+
+    @Test
+    void phoneReserveResponseExplicitlyMarksContinuation() throws Exception {
+        ReserveRequest request = new ReserveRequest(
+                "e8b37a41-bae6-47f1-a770-052e6c5786d4", "session-new", "mock-original",
+                Reservation.ContinuationReason.PHONE_REJOIN, KEY, "group-original"
+        );
+        when(keyParser.parse(KEY)).thenReturn(KEY);
+        when(decoder.decode(any())).thenReturn(request);
+        when(payloadHasher.hash(request)).thenReturn("digest");
+        when(reserveService.reserve(any())).thenReturn(new ReserveResult(
+                new IdempotencyCommand.ResponseSnapshot(
+                        KEY, RESERVATION_ID, Reservation.Kind.REPLACEMENT,
+                        Reservation.Status.RESERVED, "group-original", "session-new",
+                        "mock-original", Reservation.ContinuationReason.PHONE_REJOIN,
+                        KEY, Instant.parse("2026-08-28T00:05:00Z")
+                ), false
+        ));
+
+        mockMvc.perform(post(PATH)
+                        .with(user("learning-core").roles("LEARNING_CORE_WORKLOAD"))
+                        .header("Idempotency-Key", KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reservationKind").value("REPLACEMENT"))
+                .andExpect(jsonPath("$.continuationReason").value("PHONE_REJOIN"))
+                .andExpect(jsonPath("$.continuationId").value(KEY))
+                .andExpect(jsonPath("$.attemptGroupId").value("group-original"))
+                .andExpect(jsonPath("$.mockExamId").value("mock-original"));
+    }
+
+    @Test
+    void phoneContinuationReturnsAuthoritativeContextOrNoContent() throws Exception {
+        PhoneContinuationRequest request = new PhoneContinuationRequest(
+                "e8b37a41-bae6-47f1-a770-052e6c5786d4"
+        );
+        when(lifecycleRequestDecoder.decodePhoneContinuation(any())).thenReturn(request);
+        when(phoneContinuationService.resolve(request.userId())).thenReturn(Optional.of(
+                new PhoneContinuationResult(
+                        Reservation.ContinuationReason.PHONE_REJOIN, KEY,
+                        "group-original", "mock-original"
+                )
+        ));
+
+        mockMvc.perform(post(PATH + "/continuations/phone")
+                        .with(user("learning-core").roles("LEARNING_CORE_WORKLOAD"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.continuationReason").value("PHONE_REJOIN"))
+                .andExpect(jsonPath("$.continuationId").value(KEY))
+                .andExpect(jsonPath("$.attemptGroupId").value("group-original"))
+                .andExpect(jsonPath("$.mockExamId").value("mock-original"));
+
+        when(phoneContinuationService.resolve(request.userId())).thenReturn(Optional.empty());
+        mockMvc.perform(post(PATH + "/continuations/phone")
+                        .with(user("learning-core").roles("LEARNING_CORE_WORKLOAD"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void identityCannotResolvePhoneContinuation() throws Exception {
+        mockMvc.perform(post(PATH + "/continuations/phone")
+                        .with(user("identity").roles("IDENTITY_WORKLOAD"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(phoneContinuationService);
     }
 
     @Test

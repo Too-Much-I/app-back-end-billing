@@ -102,11 +102,15 @@ class OwnerRebindServiceTest {
     @Test
     void guestMergeMovesOnlyCurrentOwnerMapping() {
         arrangeOneActiveLink();
-        when(subjectLinkRepository.rebindOwner(link, TARGET, NOW)).thenReturn(Optional.of(link));
+        when(subjectLinkRepository.rebindOwner(
+                eq(link), eq(TARGET), eq(NOW), eq("USER_MERGED"), any()
+        )).thenReturn(Optional.of(link));
 
         assertThat(service.process(guestCommand(1))).isEqualTo(OwnerRebindOutcome.APPLIED);
 
-        verify(subjectLinkRepository).rebindOwner(link, TARGET, NOW);
+        verify(subjectLinkRepository).rebindOwner(
+                eq(link), eq(TARGET), eq(NOW), eq("USER_MERGED"), any()
+        );
         ArgumentCaptor<OwnerRebindInbox> inbox = ArgumentCaptor.forClass(OwnerRebindInbox.class);
         verify(inboxRepository).insert(inbox.capture());
         assertThat(inbox.getValue().getDisposition()).isEqualTo(OwnerRebindDisposition.APPLIED);
@@ -119,7 +123,7 @@ class OwnerRebindServiceTest {
 
         assertThat(service.process(guestCommand(2))).isEqualTo(OwnerRebindOutcome.NOOP);
 
-        verify(subjectLinkRepository, never()).rebindOwner(any(), any(), any());
+        verify(subjectLinkRepository, never()).rebindOwner(any(), any(), any(), any(), any());
         ArgumentCaptor<OwnerRebindInbox> inbox = ArgumentCaptor.forClass(OwnerRebindInbox.class);
         verify(inboxRepository).insert(inbox.capture());
         assertThat(inbox.getValue().getDisposition()).isEqualTo(OwnerRebindDisposition.NOOP);
@@ -135,7 +139,7 @@ class OwnerRebindServiceTest {
                 .extracting("code")
                 .isEqualTo("OWNER_REBIND_CONFLICT");
 
-        verify(subjectLinkRepository, never()).rebindOwner(any(), any(), any());
+        verify(subjectLinkRepository, never()).rebindOwner(any(), any(), any(), any(), any());
         verify(metrics).recordInvariantViolation("subject_limit");
     }
 
@@ -157,7 +161,7 @@ class OwnerRebindServiceTest {
                     assertThat(api.code()).isEqualTo("OWNER_REBIND_PENDING");
                     assertThat(api.retryAfterSeconds()).isEqualTo(300);
                 });
-        verify(subjectLinkRepository, never()).rebindOwner(any(), any(), any());
+        verify(subjectLinkRepository, never()).rebindOwner(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -173,7 +177,7 @@ class OwnerRebindServiceTest {
                     assertThat(api.retryAfterSeconds()).isEqualTo(5);
                 });
 
-        verify(subjectLinkRepository, never()).rebindOwner(any(), any(), any());
+        verify(subjectLinkRepository, never()).rebindOwner(any(), any(), any(), any(), any());
         verify(inboxRepository, never()).insert(any());
     }
 
@@ -190,7 +194,9 @@ class OwnerRebindServiceTest {
         when(session.getState()).thenReturn(AttemptSession.State.ACTIVE);
         when(session.getProposedAt()).thenReturn(NOW.minusSeconds(60));
         when(session.getSessionId()).thenReturn("session-1");
-        when(subjectLinkRepository.rebindOwner(link, TARGET, NOW)).thenReturn(Optional.of(link));
+        when(subjectLinkRepository.rebindOwner(
+                eq(link), eq(TARGET), eq(NOW), eq("USER_MERGED"), any()
+        )).thenReturn(Optional.of(link));
 
         assertThat(service.process(guestCommand(9))).isEqualTo(OwnerRebindOutcome.APPLIED);
 
@@ -227,7 +233,9 @@ class OwnerRebindServiceTest {
     @Test
     void phoneRejoinRequiresVerifiedCandidateToMatchRetainedClaim() {
         arrangePhoneReady();
-        when(subjectLinkRepository.rebindOwner(link, TARGET, NOW)).thenReturn(Optional.of(link));
+        when(subjectLinkRepository.rebindOwner(
+                eq(link), eq(TARGET), eq(NOW), eq("PHONE_REJOIN"), any()
+        )).thenReturn(Optional.of(link));
 
         assertThat(service.process(phoneCommand(6, 2, 1)))
                 .isEqualTo(OwnerRebindOutcome.APPLIED);
@@ -242,12 +250,16 @@ class OwnerRebindServiceTest {
         );
         when(groupRepository.findByClaimIds(List.of(CLAIM))).thenReturn(List.of(group));
         when(groupRepository.findNonTerminalBySubject(SUBJECT)).thenReturn(Optional.of(group));
-        when(subjectLinkRepository.rebindOwner(link, TARGET, NOW)).thenReturn(Optional.of(link));
+        when(subjectLinkRepository.rebindOwner(
+                eq(link), eq(TARGET), eq(NOW), eq("PHONE_REJOIN"), any()
+        )).thenReturn(Optional.of(link));
 
         assertThat(service.process(phoneCommand(10, 2, 1)))
                 .isEqualTo(OwnerRebindOutcome.APPLIED);
 
-        verify(subjectLinkRepository).rebindOwner(link, TARGET, NOW);
+        verify(subjectLinkRepository).rebindOwner(
+                eq(link), eq(TARGET), eq(NOW), eq("PHONE_REJOIN"), any()
+        );
     }
 
     @Test
@@ -258,12 +270,16 @@ class OwnerRebindServiceTest {
                 AttemptGroup.Status.RETAKE_AVAILABLE, NOW.minusSeconds(120)
         );
         when(groupRepository.findByClaimIds(List.of(CLAIM))).thenReturn(List.of(group));
-        when(subjectLinkRepository.rebindOwner(link, TARGET, NOW)).thenReturn(Optional.of(link));
+        when(subjectLinkRepository.rebindOwner(
+                eq(link), eq(TARGET), eq(NOW), eq("PHONE_REJOIN"), any()
+        )).thenReturn(Optional.of(link));
 
         assertThat(service.process(phoneCommand(11, 2, 1)))
                 .isEqualTo(OwnerRebindOutcome.APPLIED);
 
-        verify(subjectLinkRepository).rebindOwner(link, TARGET, NOW);
+        verify(subjectLinkRepository).rebindOwner(
+                eq(link), eq(TARGET), eq(NOW), eq("PHONE_REJOIN"), any()
+        );
     }
 
     @Test
@@ -283,7 +299,7 @@ class OwnerRebindServiceTest {
                     assertThat(api.retryAfterSeconds()).isEqualTo(5);
                 });
 
-        verify(subjectLinkRepository, never()).rebindOwner(any(), any(), any());
+        verify(subjectLinkRepository, never()).rebindOwner(any(), any(), any(), any(), any());
         verify(rebindRepository, never()).insert(any());
         verify(inboxRepository, never()).insert(any());
     }
@@ -300,7 +316,7 @@ class OwnerRebindServiceTest {
         assertThat(service.process(phoneCommand(13, 2, 1)))
                 .isEqualTo(OwnerRebindOutcome.NOOP);
 
-        verify(subjectLinkRepository, never()).rebindOwner(any(), any(), any());
+        verify(subjectLinkRepository, never()).rebindOwner(any(), any(), any(), any(), any());
         verify(rebindRepository, never()).insert(any());
         ArgumentCaptor<OwnerRebindInbox> inbox = ArgumentCaptor.forClass(OwnerRebindInbox.class);
         verify(inboxRepository).insert(inbox.capture());
@@ -319,7 +335,7 @@ class OwnerRebindServiceTest {
 
         assertThat(service.process(command)).isEqualTo(OwnerRebindOutcome.DUPLICATE);
 
-        verify(subjectLinkRepository, never()).rebindOwner(any(), any(), any());
+        verify(subjectLinkRepository, never()).rebindOwner(any(), any(), any(), any(), any());
     }
 
     @Test

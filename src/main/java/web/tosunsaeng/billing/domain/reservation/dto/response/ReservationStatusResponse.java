@@ -17,6 +17,8 @@ public record ReservationStatusResponse(
         AttemptGroup.Status attemptGroupStatus,
         String sessionId,
         String mockExamId,
+        Reservation.ContinuationReason continuationReason,
+        String continuationId,
         Instant expiresAt,
         Instant terminalAt
 ) {

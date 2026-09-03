@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import web.tosunsaeng.billing.global.exception.InternalApiException;
 import web.tosunsaeng.billing.domain.reservation.dto.request.CancelRequest;
 import web.tosunsaeng.billing.domain.reservation.dto.request.ConfirmRequest;
+import web.tosunsaeng.billing.domain.reservation.dto.request.PhoneContinuationRequest;
 import web.tosunsaeng.billing.domain.reservation.dto.request.ReservationStatusRequest;
 
 @Component
@@ -19,6 +20,7 @@ public class LifecycleRequestDecoder {
     );
     private static final Set<String> CANCEL_FIELDS = Set.of("userId", "reason");
     private static final Set<String> STATUS_FIELDS = Set.of("userId", "operationId");
+    private static final Set<String> PHONE_CONTINUATION_FIELDS = Set.of("userId");
     private final LifecycleJsonDecoder decoder = new LifecycleJsonDecoder();
 
     public ConfirmRequest decodeConfirm(byte[] payload) {
@@ -47,5 +49,10 @@ public class LifecycleRequestDecoder {
         return new ReservationStatusRequest(
                 decoder.uuid(root, "userId"), decoder.uuid(root, "operationId")
         );
+    }
+
+    public PhoneContinuationRequest decodePhoneContinuation(byte[] payload) {
+        JsonNode root = decoder.object(payload, PHONE_CONTINUATION_FIELDS);
+        return new PhoneContinuationRequest(decoder.uuid(root, "userId"));
     }
 }
