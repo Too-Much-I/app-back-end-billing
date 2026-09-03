@@ -2159,3 +2159,339 @@
 - 결정사항: Spring Security가 HTTP SERVER와 업무 span 사이에 INTERNAL 관측 span을 추가할 수 있으므로 직접 부모가 아니라 동일 trace의 descendant 관계를 검증한다. 선택 제안인 `billing.attempt_group.trace_context_missing` rename은 dashboard/alert migration 없는 즉시 변경을 피하기 위해 보류했다.
 - 위험 요소: 실제 exporter/backend가 없어 운영 UI에서의 trace 시각화는 후속 인프라가 필요하다. Learning Core outbox metadata·retry sibling span·fallback trace·auth circuit·SigV4 inject/sign 순서는 Learning Core 범위다.
 - 다음 작업: Learning Core publisher 구현 후 staging에서 `learning-core publish → Billing HTTP → consume` trace 연결과 금지 attribute 부재를 cross-service E2E로 검증한다.
+
+## 2026-09-01 — Learning Core TMI-118 구현 검토와 Billing 다음 작업 판정
+
+<!-- codex-turn:tmi-118-review-and-billing-next -->
+
+- 날짜: 2026-09-01
+- 브랜치: Billing `develop`; Learning Core `develop`은 읽기·테스트 대상으로만 사용했다.
+- Jira: Learning Core `TMI-118` `[Learning Core] AttemptGroup durable outbox/publisher 구현`은 status/resolution `완료`; Billing `TMI-117`도 완료다. Jira를 수정하거나 댓글을 추가하지 않았다.
+- 작업 목표: TMI-118의 merge·테스트·핵심 구현을 완료 조건과 대조하고 다음 제품 개발이 Billing인지 판정한다.
+- 확인 결과: Learning Core commit `63d0f7d`가 PR #25 merge `c00d872`로 local/remote develop에 반영됐다. writer/publisher 기본 off, GRADING/COMPLETED/RETAKE_AVAILABLE, outbox·lease·retry·BLOCKED_AUTH·trace·SigV4와 replacement 연결 코드가 존재한다.
+- 실행 테스트: Learning Core 현재 develop에서 `./gradlew clean test`를 실행해 총 439개, failures/errors 0과 `BUILD SUCCESSFUL`을 확인했다. Billing 애플리케이션 테스트는 변경이 없어 재실행하지 않았고 Billing 문서 변경 후 `git diff --check`를 수행한다.
+- release blocker: `AttemptGroupSummaryCompletionService`가 Mongo Transaction 내부 Summary insert의 `DuplicateKeyException`을 catch하고 Transaction을 계속 사용한다. Mongo duplicate key는 해당 Transaction을 abort하므로 committed replay에서 이후 Job/Session/outbox 처리까지 안전하게 계속된다는 주석과 다르게 실패할 수 있다.
+- 테스트 간극: 신규 AttemptGroup 테스트 6개는 mock 기반이다. replica-set Transaction commit/rollback·unknown commit·terminal race, multi-instance lease reclaim/half-open probe, 실제 SigV4 header mutation 순서, same trace/different span·baggage/privacy를 완료 조건대로 직접 입증하지 않는다.
+- 유지한 계약: Billing endpoint/event JSON/status, TrialClaim·Grant·consumption, 공개 Learning API와 AI/S3/Redis 계약은 변경하지 않았다. Identity와 Learning Core 코드는 수정하지 않았다.
+- 결정사항: 다음 즉시 작업은 Learning Core TMI-118 blocker 수정과 integration/contract test 보강이다. 그 뒤 다음 제품 vertical slice는 Billing UserMerged retained subject owner rebind로 진행하는 것이 맞다.
+- Billing 다음 범위: Identity UserMerged schema, BillingSubjectLink·Claim·Grant·Reservation·AttemptGroup owner 필드와 unique index, active hold/terminal/replacement 충돌 정책, inbox/idempotency와 owner-transfer Transaction을 ADR/PLAN으로 먼저 확정한다. 현재 Billing에는 consumer/transfer 구현과 전용 Jira가 없다.
+- 위험·배포 전 확인: TMI-118은 flag off라 코드 merge만으로 production 동작하지 않는다. Billing consumer 배포·flag, Mongo replica-set/index, Lattice/IAM/SG, publisher idle·writer canary와 GRADING/terminal/auth/retry E2E가 필요하다.
+- 예상 밖 diff: Learning Core 작업 트리에 기존 `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md` 수정이 있었으며 이번 검토에서는 건드리지 않았다. Billing은 이 분석 기록 두 파일만 변경했다.
+- 다음 작업: Learning Core blocker 수정 여부를 먼저 결정하고, 완료 후 Billing owner rebind의 미확정 계약 선택지와 구현 계획을 작성한다.
+
+## 2026-09-01 — Learning Core TMI-118 보완 재검토와 Billing 다음 단계 확인
+
+<!-- codex-turn:tmi-118-fix-review-and-owner-rebind-next -->
+
+- 날짜: 2026-09-01
+- 브랜치: Billing `develop`; Learning Core `develop`은 읽기·테스트 대상으로만 사용했다.
+- Jira: 완료된 Learning Core `TMI-118`의 후속 보완 검토다. Jira 상태·본문·댓글을 조회하거나 변경하지 않았다.
+- 작업 목표: 이전에 발견한 aborted Summary Transaction 재사용 문제가 수정됐는지 확인하고 다음 제품 작업이 Billing인지 판정한다.
+- 확인 결과: fix commit `4781723`가 PR #26 merge commit `4f9e74c`로 Learning Core local/remote develop에 반영됐다. duplicate insert 예외는 Transaction 밖으로 전파되고 bounded outer loop가 전체 unit을 새 Transaction에서 재시도한다. 재시도에서는 기존 Summary의 id·examId·userId·mockExamId를 검증하며 coordinator의 terminal-slot duplicate도 outer retry까지 전파한다.
+- 테스트 결과: Learning Core `./gradlew clean test`를 새로 실행해 총 444개, skipped/failures/errors 0과 `BUILD SUCCESSFUL in 11s`를 확인했다. 신규 단위 테스트는 duplicate-key rollback 후 whole-unit retry, unknown commit result, deterministic identity conflict, terminal-slot duplicate 전파를 검증한다. Billing 애플리케이션 코드는 변경하지 않아 Billing Gradle 테스트는 실행하지 않았다.
+- 결정사항: 기존 release blocker는 해소됐다. 실제 replica-set Transaction, multi-instance lease, 실제 SigV4와 Learning Core→Billing trace/privacy는 staging/release gate로 유지하면서 다음 제품 vertical slice인 Billing owner rebind 계약·계획 작업으로 진행할 수 있다.
+- 계약 경계: Identity의 현재 `UserMerged` schema v1은 ACTIVE GUEST source를 기존 MEMBER target으로 canonical merge하는 event이며 `eventId`, `schemaVersion`, `sourceUserId`, `targetUserId`, `occurredAt`만 포함한다. 이것은 탈퇴 후 같은 phone으로 새 UUID가 발급되는 재가입 event가 아니므로 Billing에서 두 lifecycle을 같은 의미로 추측해 처리하지 않는다.
+- Billing 다음 범위: owner rebind trigger, Identity→Billing 전달/fan-out, source revoked·target verified 조건, `BillingSubjectLink.userId`의 CAS 이전, active Reservation·AttemptGroup event 순서 fencing, inbox/digest/idempotency와 index·Transaction을 ADR과 PLAN에서 먼저 확정한다. Grant·Reservation·AttemptGroup은 `subjectRefId`를 사용하므로 원장·Claim·consumption을 새로 만들지 않고 owner mapping을 이전하는 방향을 유지한다.
+- 유지한 계약: phone당 무료 1회, TrialClaim `claimedAt + 3년`, 새 Claim·grant 중복 발급 금지, immutable ledger, active Session/group fencing과 Identity/Learning Core·Billing 도메인 경계를 변경하지 않았다.
+- 위험·배포 전 확인: Identity의 현 UserMerged publisher는 Learning Core 전용 endpoint와 단일 delivery 상태를 사용하므로 Billing consumer 추가 시 producer fan-out 계약이 필요할 수 있다. 재가입은 기존 eligibility VERIFIED/REVOKED projection으로 lazy rebind할지 전용 lifecycle event를 추가할지 결정되지 않았다. 실제 cross-service 검증과 Lattice/IAM/SG·feature flag 활성화는 별도 release gate다.
+- 예상 밖 diff: Learning Core develop은 테스트 후 clean이며 코드를 수정하지 않았다. Billing은 기존 분석 기록 위에 `CURRENT_STATE.md`, `WORKLOG.md`만 갱신했다.
+- 다음 작업: 사용자에게 owner rebind 작업의 목적과 처리 흐름을 설명한 뒤, trigger와 active hold 정책의 선택지를 확정해 ADR·구현 계획서를 작성한다. Jira 생성과 구현은 각각 별도 승인 후 수행한다.
+
+## 2026-09-01 — PLAN-006 retained trial owner rebind 계획서 작성
+
+<!-- codex-turn:plan-006-retained-trial-owner-rebind -->
+
+- 날짜: 2026-09-01
+- 브랜치: Billing `develop`
+- Jira: 미생성. Jira 생성·수정·댓글·상태 전환을 수행하지 않았다.
+- 작업 목표: phone당 무료 1회 정책을 유지하면서 Guest merge와 탈퇴·재가입 뒤 기존 미사용권 또는 same-consumption retake를 새 canonical userId가 이어받도록 Billing owner rebind 구현 계획을 작성한다.
+- 변경 파일: `docs/plans/PLAN-006-retained-trial-owner-rebind.md` 신규, `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md` 갱신.
+- 계획 내용: Identity UserMerged v1과 phone rejoin의 의미를 분리하고 lifecycle별 decoder를 공통 `OwnerRebindCommand`로 수렴시킨다. Claim·Grant·ledger·Reservation·AttemptGroup의 stable subjectRef는 유지하고 `BillingSubjectLink.userId`만 expected-owner/version CAS로 바꾸며, inbox/rebind record와 schema v4 index를 추가하는 방향을 제안했다.
+- 권장 선택: phone 재가입 전용 Identity source→target 승인 event, 공통 owner-rebind domain, active RESERVED/PROCESSING 종료까지 최대 5분 retry, pre-rebind exact Session status event의 bounded legacy-source fencing, source 연결의 목적 종료 후 cleanup을 D1~D5 권장안으로 기록했다.
+- 구현·테스트 계획: strict decoder/canonical digest, event idempotency/conflict, owner chain fencing, Mongo whole-unit retry, replica-set transaction/concurrency/index test, workload negative security, W3C trace/privacy와 staged rollout/rollback을 포함했다.
+- 유지한 계약: TrialClaim `claimedAt + 3년`, phone당 무료 1회, 새 Claim·Grant·consumption 금지, immutable ledger, stable subjectRef, 5분 Reservation, exact Session fencing, SigV4/Lattice workload 경계를 변경하지 않았다.
+- 위험·미확인: Identity UserMerged는 Learning Core 전용 단일 delivery이고 Learning Core current code에는 UserMerged consumer가 없다. phone rejoin 전용 wire 이름·route·field, consumer별 fan-out, 425/503 선택과 source 연결 cleanup window는 ADR 승인이 필요하다. 번호 재할당 사용자를 candidate만으로 과거 시험 owner로 추측하지 않는다.
+- 테스트 결과: 문서만 변경해 Billing Gradle 테스트는 실행하지 않았다. 종료 전 `git diff --check`, plan marker와 기록 append, 예상 diff 범위를 검증한다.
+- 예상 밖 diff: 이번 계획 작업 전부터 Billing `CURRENT_STATE.md`, `WORKLOG.md`에 이전 분석 기록 변경이 있었고 이를 보존했다. 애플리케이션 코드와 Identity/Learning Core 저장소는 수정하지 않았다.
+- 다음 작업: 사용자가 PLAN-006 D1~D5 권장안을 검토·승인하면 cross-service owner rebind ADR과 정확한 wire/route/schema/index migration을 확정한다. 이후 별도 승인으로 Jira를 생성하고 Billing 구현을 시작한다.
+
+## 2026-09-02 — PLAN-006 strict decoder와 bounded legacy-source fencing 설명
+
+<!-- codex-turn:plan-006-decoder-fencing-explanation -->
+
+- 날짜: 2026-09-02
+- 브랜치: Billing `develop`
+- Jira: 미생성. Jira 변경을 수행하지 않았다.
+- 작업 목표: PLAN-006의 lifecycle별 strict decoder/OwnerRebindCommand와 late pre-rebind AttemptGroup event용 bounded legacy-source fencing의 역할과 보안 경계를 설명한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 설명 내용: Guest→Member UserMerged와 phone 재가입 event는 각 전용 decoder가 exact schema·producer·reason·UUID·field 집합을 검증한 뒤 공통 command로 정규화한다. 소유자 CAS와 멱등성은 공통 service에서 처리하지만 wire 의미를 하나의 generic payload로 합치지 않는다.
+- fencing 의미: rebind 전에 source userId로 이미 생성된 Learning Core outbox event가 owner 변경 후 늦게 도착해 영구 conflict가 되는 것을 막기 위해 exact pre-rebind group/session의 GRADING·terminal 전진만 한시 허용한다. source 신규 reserve·replacement·다른 Session과 사용자 actor 권한은 허용하지 않는다.
+- 유지한 계약: stable subjectRef, TrialClaim 3년, 새 권리 미발급, current target owner authorization과 exact Session fencing을 유지한다. source 연결은 terminal 또는 승인된 retry window 종료 후 cleanup한다.
+- 테스트 결과: 설명·기록 문서만 변경해 Gradle 테스트는 실행하지 않았다. 종료 전 `git diff --check`를 수행한다.
+- 위험·미확인: 구체적인 phone 재가입 wire와 legacy retry window는 아직 ADR 승인 전이다. 구현 시 source event 허용 범위를 status projection 수렴 밖으로 넓히면 안 된다.
+- 예상 밖 diff: 애플리케이션 코드를 변경하지 않았고 기존 PLAN-006 및 이전 기록 변경을 보존했다.
+- 다음 작업: D1~D5 권장안 승인 후 ADR에서 decoder별 exact contract와 fence key·cleanup window를 수치로 확정한다.
+
+## 2026-09-02 — PLAN-006 승인 반영과 Jira TMI-120 생성
+
+<!-- codex-turn:plan-006-approved-jira-tmi-120 -->
+
+- 날짜: 2026-09-02
+- 브랜치: Billing `develop`
+- Jira: `TMI-120` `[Billing] Retained trial owner rebind consumer 및 Transaction 구현` 신규 생성.
+- 작업 목표: 사용자가 승인한 PLAN-006과 D1~D5 권장안을 확정 계약으로 반영하고 동일 범위의 Billing 구현 Jira를 생성한다.
+- 변경 파일: `docs/plans/PLAN-006-retained-trial-owner-rebind.md`, `docs/codex/CONTRACT_DECISIONS.md`, `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- Jira 작업: 중복 검색에서 동일 Billing owner rebind 이슈가 없고 Identity 재가입 기반 `TMI-107`만 있음을 확인했다. TMI `작업` 유형으로 `TMI-120`을 생성했으며 기본 priority Medium, 상태 `해야 할 일`, resolution 없음, assignee 없음이다. 생성 후 저장된 summary·description·status를 재조회했다.
+- 확정사항: phone 재가입 전용 Identity source→target 승인 event, lifecycle별 decoder + 공통 command/domain, active RESERVED/PROCESSING 종료까지 retry, exact pre-rebind Session의 bounded legacy-source status fencing, 목적 종료 후 source 연결 cleanup을 C14-A로 확정했다.
+- Jira 범위: owner CAS와 stable subject 불변식, strict decode/digest/inbox, chain conflict, schema v4/index migration, Mongo whole-unit retry·replica-set concurrency, Identity route security, trace/privacy와 문서 갱신을 포함했다.
+- 제외·gate: Identity producer/fan-out과 Learning Core owner consumer, AWS resource와 production activation은 제외했다. 정확한 event wire, 425/503과 cleanup window는 cross-service ADR 뒤 consumer-first로 구현하며 양 서비스와 staging E2E 전에는 flag를 켜지 않는다.
+- 테스트 결과: Jira·계약·계획 문서만 변경해 Gradle 테스트는 실행하지 않았다. 종료 전 `git diff --check`, plan status/Jira key/C14와 worklog marker를 검증한다.
+- 유지한 계약: phone당 무료 1회, TrialClaim 3년, 새 Claim·Grant·consumption 금지, immutable ledger, stable subjectRef, 5분 Reservation, SigV4/Lattice workload 경계를 유지했다.
+- 예상 밖 diff: 애플리케이션 코드를 변경하지 않았고 기존 PLAN-006·작업 기록 변경을 보존했다. Jira 댓글·담당자·상태 전환은 수행하지 않았다.
+- 다음 작업: TMI-120 구현 전에 cross-service owner rebind ADR을 작성해 exact event name/route/schema, fan-out, retry status와 legacy fence cleanup window를 확정한다.
+
+## 2026-09-02 — owner rebind ADR의 event·route·pending status 설명
+
+<!-- codex-turn:owner-rebind-adr-wire-options-explanation -->
+
+- 날짜: 2026-09-02
+- 브랜치: Billing `develop`
+- Jira: `TMI-120` 참고. Jira 변경을 수행하지 않았다.
+- 작업 목표: ADR에서 exact event name, route와 425/503 중 무엇을 왜 결정해야 하는지 설명하고 승인 전 권장 초안을 정리한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- event 권장 초안: phone 재가입은 `TrialOwnerRebindApproved`로 두어 Identity가 Billing 권리 owner 이전을 승인했다는 의미를 고정하고 Guest merge `UserMerged` v1과 분리한다. exact payload에는 event/schema/producer/scope/time, source/target, lifecycle reason과 source/target binding revision 필요성을 ADR에서 검토한다.
+- route 권장 초안: phone 재가입은 `POST /internal/v1/eligibility/trial/owner/events`, Guest merge는 별도 `POST /internal/v1/owners/merge/events`를 사용한다. 기존 trial eligibility endpoint에 schema를 추가하거나 UserMerged 의미를 재사용하지 않는다.
+- pending 응답 권장 초안: no-write pending은 `503 OWNER_REBIND_PENDING`과 bounded `Retry-After`로 통일한다. 425는 TLS early data 의미와 proxy/client 호환성 때문에 비권장하고, 409는 permanent conflict, 202는 durable async acceptance가 아니므로 사용하지 않는다.
+- 유지한 계약: C14 D1~D5, strict decoder 분리, active Reservation rewrite 금지, producer retry와 fail-closed를 변경하지 않았다. 이번 설명은 exact wire 승인 자체가 아니다.
+- 테스트 결과: 문서 설명만 변경해 Gradle 테스트는 실행하지 않았다. 종료 전 `git diff --check`를 수행한다.
+- 위험·미확인: Identity publisher가 `Retry-After`를 bounded parsing하고 503을 재시도하는지 contract test로 고정해야 한다. exact seconds, route IAM action과 event revision field는 ADR에 남아 있다.
+- 예상 밖 diff: 애플리케이션과 Jira를 변경하지 않았고 기존 계획·계약 기록을 보존했다.
+- 다음 작업: 사용자가 권장값을 승인하면 ADR에 exact event/route/status와 schema/revision/Retry-After 수치를 고정한다.
+
+## 2026-09-02 — owner rebind exact wire 승인 반영과 Jira TMI-120 갱신
+
+<!-- codex-turn:owner-rebind-wire-approved-jira-updated -->
+
+- 날짜: 2026-09-02
+- 브랜치: Billing `develop`
+- Jira: `TMI-120` description 갱신. 상태·priority·담당자·댓글은 변경하지 않았다.
+- 작업 목표: 사용자가 승인한 owner rebind event 이름·route·503 pending 권장안을 exact 계약으로 반영하고 Jira 완료 조건과 일치시킨다.
+- 변경 파일: `docs/plans/PLAN-006-retained-trial-owner-rebind.md`, `docs/codex/CONTRACT_DECISIONS.md`, `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 확정 wire: phone 재가입은 `TrialOwnerRebindApproved`를 `POST /internal/v1/eligibility/trial/owner/events`로 전달한다. exact schema v1에는 producer/scope/time, source/target, `PHONE_REJOIN`과 1 이상 source/target binding revision이 포함되며 민감 phone/candidate/credential은 제외한다.
+- Guest merge: Identity 기존 `UserMerged` v1 payload는 변경하지 않고 Billing route `POST /internal/v1/owners/merge/events`로 분리한다.
+- pending 계약: active Reservation/PROCESSING 또는 projection prerequisite는 `503 OWNER_REBIND_PENDING`과 delta-seconds `Retry-After`를 사용한다. Reservation은 남은 expiry를 1~300초로 clamp하고 다른 pending은 5초다. 425/202/409는 temporary pending에 사용하지 않는다.
+- Jira 검증: 변경 전 `TMI-120`을 재조회하고 description만 수정했다. 저장된 exact event/route/field/response와 기존 포함·제외·완료 조건이 유지된 것을 tool 응답에서 확인했다.
+- 유지한 계약: C14 D1~D5, stable subjectRef, 새 Claim·Grant·consumption 금지, active Reservation rewrite 금지, bounded legacy-source fencing과 production flag off를 유지했다.
+- 테스트 결과: Jira·계약·계획 문서만 변경해 Gradle 테스트는 실행하지 않았다. 종료 전 `git diff --check`와 미확정 marker 제거 여부를 검증한다.
+- 위험·미확인: Identity consumer별 durable fan-out, exact Lattice IAM action과 legacy fence cleanup window는 후속 ADR에 남아 있다. Identity producer가 503/Retry-After와 revision field를 contract test로 지원해야 한다.
+- 예상 밖 diff: 애플리케이션 코드를 변경하지 않았고 기존 승인 문서와 작업 기록 변경을 보존했다.
+- 다음 작업: 남은 delivery/IAM/cleanup 값을 ADR로 작성한 뒤 TMI-120 Billing consumer를 reader-first로 구현한다.
+
+## 2026-09-02 — owner rebind durable fan-out·IAM·cleanup 선택지 설명
+
+<!-- codex-turn:owner-rebind-delivery-iam-cleanup-options -->
+
+- 날짜: 2026-09-02
+- 브랜치: Billing `develop`
+- Jira: `TMI-120` 참고. Jira 변경을 수행하지 않았다.
+- 작업 목표: 후속 ADR에 남은 Identity consumer별 durable fan-out, Lattice IAM action과 legacy-source cleanup 기간의 의미·선택지·권장값을 설명한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- fan-out 권장안: immutable event core와 `(eventId, consumer=BILLING|LEARNING_CORE)` unique delivery record 두 건을 Identity lifecycle Transaction에 원자 저장한다. 각 record가 lease·retry·dead-letter·published 상태와 feature flag를 독립 관리해 한 consumer의 성공이 다른 실패를 가리지 않게 한다.
+- IAM 권장안: caller task-role identity policy와 Lattice service auth policy 모두 action `vpc-lattice-svcs:Invoke`를 사용한다. 환경별 exact service ARN, exact Identity role Principal, POST와 승인 path를 함께 제한하고 wildcard/cross-environment/불필요 action을 허용하지 않는다.
+- cleanup 권장안: exact pre-rebind Session terminal 뒤 daily worker가 24시간 안에 legacy sourceUserId를 unset한다. terminal이 없더라도 `min(appliedAt+120일, Claim retentionExpiresAt)`에 강제 삭제한다. 120일은 Learning Core dead-letter 90일 + 30일 buffer이자 Billing inbox retention과 맞춘다.
+- 대안 평가: full outbox를 consumer별 복제하면 단순하지만 payload/state 중복과 drift가 커지고, 동기 순차 POST/global PUBLISHED는 부분 전달 복구가 안 된다. 90일 exact cleanup은 마지막 dead-letter replay 경계가 좁고, Claim 3년 전체 보존은 목적 종료 개인정보를 과다 보존한다.
+- 유지한 계약: C14 exact event/route/503, at-least-once, consumer-first, source actor 비허용, TrialClaim 3년 upper bound와 privacy minimum을 변경하지 않았다. 이번 설명은 사용자 승인 전이므로 새 값을 CONTRACT_DECISIONS나 Jira에 확정 반영하지 않았다.
+- 테스트 결과: 설명·기록 문서만 변경해 Gradle 테스트는 실행하지 않았다. 종료 전 `git diff --check`를 수행한다.
+- 위험·미확인: Identity 저장소의 existing `UserMergedOutbox`를 event core + delivery로 reader-first migration하는 구체 schema와 Learning Core owner endpoint path는 ADR에서 추가로 고정해야 한다. cleanup worker는 terminal 판정과 TTL 단독 삭제가 아니라 명시적 unset·audit count가 필요하다.
+- 예상 밖 diff: 애플리케이션·Jira·확정 계약을 변경하지 않았고 기존 계획·기록 변경을 보존했다.
+- 다음 작업: 사용자가 세 권장안을 승인하면 C14, PLAN-006와 TMI-120에 exact fan-out/IAM/24시간+120일 cleanup을 반영하고 cross-service ADR을 작성한다.
+
+## 2026-09-02 — owner rebind fan-out·IAM·cleanup 승인 반영과 Jira 갱신
+
+<!-- codex-turn:owner-rebind-delivery-iam-cleanup-approved -->
+
+- 날짜: 2026-09-02
+- 브랜치: Billing `develop`
+- Jira: `TMI-120` description 갱신. 상태·priority·담당자·댓글은 변경하지 않았다.
+- 작업 목표: 승인된 consumer별 durable fan-out, exact Lattice IAM action과 legacy-source cleanup 기간을 확정 계약·Jira·통합 문서에 일관되게 반영한다.
+- 변경 파일: `docs/plans/PLAN-006-retained-trial-owner-rebind.md`, `docs/codex/CONTRACT_DECISIONS.md`, `docs/adr/ADR-002-vpc-lattice-ecs-sigv4-and-environment-migration.md`, `docs/contracts/BILLING_SERVICE_INTEGRATION_CONTRACT.md`, `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- fan-out 확정: Identity lifecycle Transaction이 immutable event core와 `(eventId, BILLING|LEARNING_CORE)` delivery 두 건을 원자 저장하고 각 delivery가 lease·retry·dead-letter·published·feature flag를 독립 관리한다. global PUBLISHED, 동기 순차 POST와 full payload 복제를 금지한다.
+- IAM 확정: action `vpc-lattice-svcs:Invoke`, 환경별 exact service ARN, exact Identity role Principal, POST와 승인 path를 사용한다. wildcard/cross-environment/불필요 `InvokeWithServiceNetworkContext`는 허용하지 않는다. ADR-002 Billing auth-policy 예시에 두 owner route를 추가했다.
+- cleanup 확정: related Session terminal 뒤 24시간 SLA로 sourceUserId를 unset하고 terminal 미수렴은 `min(appliedAt+120일, Claim retentionExpiresAt)`에 강제 삭제한다. 120일 뒤 late source event는 privileged reconciliation 대상이며 비식별 멱등성 기록은 user 연결과 분리한다.
+- Jira 검증: durable fan-out/IAM/cleanup section과 완료 조건을 추가했고 edit 응답에서 세 항목 포함을 확인했다. Identity fan-out·AWS resource 구현은 Billing code 제외 범위와 production gate로 유지했다.
+- 유지한 계약: exact event·route·503, C14 D1~D5, stable subjectRef, 새 Claim·Grant·consumption 금지, privacy minimum과 TrialClaim 3년 upper bound를 유지했다.
+- 테스트 결과: Jira·계약·계획 문서만 변경해 Gradle 테스트는 실행하지 않았다. 종료 전 `git diff --check`, auth-policy JSON block과 exact marker를 검증한다.
+- 위험·미확인: Identity existing UserMergedOutbox migration schema, Learning Core owner endpoint path와 privileged reconciliation runbook은 후속 ADR에서 구체화해야 한다.
+- 예상 밖 diff: 애플리케이션 코드를 변경하지 않았고 기존 승인 문서·기록 변경을 보존했다.
+- 다음 작업: cross-service ADR을 작성해 reader-first migration·Learning Core route·reconciliation runbook을 완성한 뒤 TMI-120 Billing 구현을 시작한다.
+
+## 2026-09-02 — TMI-120 구현 시작 가능 여부와 ADR gate 확인
+
+<!-- codex-turn:tmi-120-implementation-readiness-adr-gate -->
+
+- 날짜: 2026-09-02
+- 브랜치: Billing `develop`
+- Jira: `TMI-120` 참고. Jira 변경을 수행하지 않았다.
+- 작업 목표: 승인된 owner rebind 계약만으로 구현을 시작할 수 있는지 저장소의 별도 ADR 요구사항과 대조한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 확인 결과: event/route/schema, 503/Retry-After, fan-out, IAM과 24시간/120일 cleanup 정책은 확정됐다. 다만 통합 계약 10절은 구체적인 UserMerged consumer wire를 별도 ADR 전 임의 추가하지 못하게 하고 현재 ADR은 001·002뿐이므로 ADR-003 작성·승인이 구현 선행 gate다.
+- ADR-003 남은 내용: Billing collection/index/schema v4와 legacy backfill, owner CAS/chain state, cleanup worker, privileged reconciliation, Identity existing outbox reader-first delivery migration, Learning Core exact owner endpoint를 승인값 안에서 구체화한다.
+- 결정사항: 신규 제품 선택을 다시 묻지 않는다. ADR-003 뒤 Billing reader-first consumer를 구현할 수 있으며 Identity/Learning Core 코드는 별도 작업과 production gate로 유지한다.
+- 테스트 결과: 분석·기록 문서만 변경해 Gradle 테스트는 실행하지 않았다. 종료 전 `git diff --check`를 수행한다.
+- 유지한 계약: C14, TMI-120 scope, 타 저장소 읽기 전용 원칙, producer/consumer-first와 feature flag off를 유지했다.
+- 예상 밖 diff: 애플리케이션·Jira를 변경하지 않았고 기존 문서 변경을 보존했다.
+- 다음 작업: 사용자 요청 시 `ADR-003-retained-trial-owner-rebind-contract.md`를 작성하고 검토·승인 뒤 TMI-120을 구현한다.
+
+## 2026-09-02 — ADR-003 작성 전 추가 사용자 결정 필요 여부 확인
+
+<!-- codex-turn:adr-003-user-decisions-readiness -->
+
+- 날짜: 2026-09-02
+- 브랜치: Billing `develop`
+- Jira: `TMI-120` 참고. Jira 변경을 수행하지 않았다.
+- 작업 목표: ADR-003 작성 전에 제품 소유자가 추가로 확정해야 할 정책이 있는지 승인된 C14·PLAN-006·TMI-120 범위와 대조한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 확인 결과: event/route/schema, 503/Retry-After, durable fan-out, exact IAM, stable subject owner CAS, active Reservation pending, bounded legacy fencing과 terminal 24시간/120일 cleanup이 모두 확정돼 필수 사용자 선택은 남지 않았다.
+- 기술 기본값: collection/index/schema v4/backfill/CAS, reader-first migration, Learning Core internal route와 scheduler/metric은 기존 규칙에 맞춰 ADR 권장값으로 작성한다. mismatch legacy data/index는 자동 수정하지 않고 startup fail-fast한다.
+- repair 기본값: TMI-120에 privileged HTTP repair route를 추가하지 않는다. hard cap 뒤 late event는 자동 처리하지 않고 alert·운영 review 대상으로 남기며 실제 mutation route는 별도 future repair ADR과 운영 role 승인 없이는 만들지 않는다.
+- delivery 기본값: Identity lifecycle commit은 downstream 동기 성공을 기다리지 않고 event core + two delivery를 저장한 뒤 각 consumer가 독립 수렴한다. 두 consumer readiness와 staging E2E 전 production flag는 off다.
+- 유지한 계약: Billing 범위, 타 저장소 읽기 전용, no automatic migration/drop, privacy minimum과 fail-closed를 유지했다.
+- 테스트 결과: 분석·기록 문서만 변경해 Gradle 테스트는 실행하지 않았다. 종료 전 `git diff --check`를 수행한다.
+- 예상 밖 diff: 애플리케이션·Jira·확정 계약을 변경하지 않고 기존 문서 변경을 보존했다.
+- 다음 작업: 별도 운영 repair endpoint 또는 historical backfill 추가 요구가 없으면 추가 질문 없이 ADR-003 초안을 작성한다.
+
+## 2026-09-02 — ADR-003 retained trial owner rebind 계약 초안 작성
+
+<!-- codex-turn:adr-003-retained-trial-owner-rebind-draft -->
+
+- 날짜: 2026-09-02
+- 브랜치: Billing `develop`
+- Jira: `TMI-120` 참고. Jira 생성·수정·댓글·상태 전환을 수행하지 않았다.
+- 작업 목표: 승인된 owner rebind 제품·wire·fan-out·IAM·cleanup 결정을 Billing과 downstream이 구현할 수 있는 단일 cross-service 기술 계약으로 작성한다.
+- 변경 파일: `docs/adr/ADR-003-retained-trial-owner-rebind-contract.md`, `docs/plans/PLAN-006-retained-trial-owner-rebind.md`, `docs/codex/CONTRACT_DECISIONS.md`, `docs/contracts/BILLING_SERVICE_INTEGRATION_CONTRACT.md`, `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- Billing 계약: phone/Guest lifecycle별 strict decoder와 공통 command, canonical digest/inbox, source→target 상태 전이, phone projection prerequisite, Guest 최대 100 link all-or-nothing, 503 pending과 whole-unit Transaction retry를 구체화했다.
+- Mongo 계약: schema v4에 `owner_rebind_inbox`, `subject_owner_rebinds`, `ownerVersion/ownerUpdatedAt`을 추가한다. v3 missing version은 logical 1로 읽고 first CAS에서 2로 수렴하며 legacy document/index를 자동 bulk rewrite 또는 drop/recreate하지 않는다.
+- fencing·cleanup: authenticated Learning Core의 exact pre-rebind subject/group/session 전진 event만 source로 한시 허용한다. terminal 또는 120일/Claim 만료 hard cap에 논리 종료하고 최대 1시간 간격 worker가 24시간 안에 source 연결을 unset하며 TTL은 safety net으로만 둔다.
+- cross-service 계약: Identity existing UserMerged outbox reader-first core/delivery 전환, consumer별 독립 retry, Learning Core phone route `/internal/v1/owners/trial/rebind/events`, source deny·ownership migration·target terminal 재발행과 hard-cap reconciliation 절차를 정했다.
+- 관측성·보안: exact `vpc-lattice-svcs:Invoke`, route/principal/environment 제한, `owner_rebind_consume` span, `service + traceId + eventId + outcome + durationMs` log와 식별자 비로깅을 유지했다.
+- 유지한 계약: 새 Claim·Grant·allocation·consumption 금지, stable subjectRef, immutable ledger/command audit, active Reservation rewrite 금지, phone당 무료 1회와 TrialClaim 3년 보존, source actor 신규 권한 금지와 production flag off를 유지했다.
+- 테스트 결과: 문서만 변경해 Gradle 애플리케이션 테스트는 실행하지 않았다. `git diff --check`, code-fence 짝수 여부, trailing whitespace와 unresolved placeholder 검사가 모두 통과했다.
+- 위험·미확인: 실제 Billing은 아직 schema v3이며 Identity delivery 분리와 Learning Core owner consumer도 미구현이다. ADR 검토 승인, 각 저장소 별도 구현과 staging 순서 역전 E2E 전에는 production 활성화할 수 없다.
+- 예상 밖 diff: 애플리케이션·Jira·타 저장소·AWS를 변경하지 않았다. 이전 turn에서 누적된 승인 문서 변경은 보존했다.
+- 다음 작업: 사용자가 ADR-003을 검토·승인하면 TMI-120 Billing reader-first schema v4와 owner rebind consumer 구현을 시작한다.
+
+## 2026-09-02 — Guest merge retained subject 100건 상한 설명
+
+<!-- codex-turn:owner-rebind-subject-limit-explanation -->
+
+- 날짜: 2026-09-02
+- 브랜치: Billing `develop`
+- Jira: `TMI-120` 참고. Jira 변경을 수행하지 않았다.
+- 작업 목표: ADR-003의 Guest merge event당 retained subject 100건 상한이 무엇을 세는지 설명한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 설명 내용: subject 한 건은 시험 횟수가 아니라 source user가 current owner로 연결된 active·unexpired `BillingSubjectLink`다. 현재 무료시험 범위에서는 정상 0~1건이며, 100은 미래 benefit 증가나 데이터 이상으로 한 Mongo Transaction이 무제한 커지는 것을 막는 방어 상한이다.
+- 초과 처리: 100건을 넘으면 일부만 target으로 옮기지 않고 전체 Transaction을 중단해 409 conflict와 invariant alert로 운영 검토한다. 새 Claim·Grant·시험 기회를 생성하지 않는다.
+- 유지한 계약: multi-link all-or-nothing, stable subjectRef, 새 권리 미발급, immutable ledger와 owner mapping만 CAS 이전하는 원칙을 유지했다.
+- 테스트 결과: 설명·기록 문서만 변경해 Gradle 테스트는 실행하지 않았다. `git diff --check`를 수행한다.
+- 위험·미확인: 100은 현재 제품 수요값이 아니라 기술 방어값이다. 미래에 정상적으로 100개 초과 subject가 필요하면 ADR과 batching/Transaction 정책을 재승인해야 한다.
+- 예상 밖 diff: 애플리케이션·Jira·타 저장소를 변경하지 않았고 기존 문서 변경을 보존했다.
+- 다음 작업: 사용자가 100건 방어 상한을 승인하거나 원하는 더 작은 상한을 지정한 뒤 ADR-003 전체를 승인한다.
+
+## 2026-09-02 — owner rebind strict decoder 의미 설명
+
+<!-- codex-turn:owner-rebind-strict-decoder-explanation -->
+
+- 날짜: 2026-09-02
+- 브랜치: Billing `develop`
+- Jira: `TMI-120` 참고. Jira 변경을 수행하지 않았다.
+- 작업 목표: ADR-003에서 strict decoder가 담당하는 계약·보안 경계와 일반 JSON parsing의 차이를 설명한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 설명 내용: route별 exact field/type/constant와 UUID·revision·timestamp·source-target 관계를 검증한 뒤에만 내부 `OwnerRebindCommand`를 생성한다. phone rejoin과 Guest merge decoder는 분리하고 검증 뒤 공통 service로 수렴한다.
+- 거절 규칙: duplicate/unknown field, trailing token, scalar coercion과 잘못된 casing·값을 거절한다. malformed는 400, 지원하지 않는 정상 계약은 422로 구분한다.
+- 개인정보·멱등성: strict validation 전에 raw payload를 저장·로깅하지 않고, 통과한 semantic value만 canonicalize해 digest를 계산한다.
+- 유지한 계약: 기존 wire exact 의미, reader-first optional field 배포, source actor fail-closed, raw phone/credential 비저장을 유지했다.
+- 테스트 결과: 설명·기록 문서만 변경해 Gradle 테스트는 실행하지 않았다. `git diff --check`를 수행한다.
+- 위험·미확인: producer가 새 optional field를 먼저 보내면 old strict consumer는 unknown field로 거절하므로 항상 consumer reader-first 배포가 필요하다.
+- 예상 밖 diff: 애플리케이션·Jira·타 저장소를 변경하지 않았고 기존 문서 변경을 보존했다.
+- 다음 작업: ADR-003의 남은 기술 기본값을 검토한 뒤 전체 승인 여부를 확정한다.
+
+## 2026-09-02 — ADR-003 승인 반영과 Jira TMI-120 갱신
+
+<!-- codex-turn:adr-003-approved-jira-tmi-120-updated -->
+
+- 날짜: 2026-09-02
+- 브랜치: Billing `develop`
+- Jira: `TMI-120` description 갱신. 상태·priority·담당자·Resolution·댓글은 변경하지 않았다.
+- 작업 목표: 사용자가 승인한 ADR-003 전체와 다섯 기술 기본값을 문서의 확정 기준 및 Jira 구현 완료 조건에 반영한다.
+- 변경 파일: `docs/adr/ADR-003-retained-trial-owner-rebind-contract.md`, `docs/plans/PLAN-006-retained-trial-owner-rebind.md`, `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 승인값: `owner_rebind_inbox`/`subject_owner_rebinds`, Guest merge 100 subject all-or-nothing 상한, 최대 1시간 cleanup worker, Learning Core `/internal/v1/owners/trial/rebind/events`, historical backfill과 privileged mutation HTTP route 제외다.
+- strict decoder: phone/Guest route별 exact JSON 계약을 검증하고 malformed 400·unsupported 422를 구분한 뒤에만 내부 `OwnerRebindCommand`와 canonical digest로 진행하는 기준을 유지했다.
+- Jira 검증: 갱신 전 TMI-120의 summary/description/status/priority/assignee/resolution을 재조회했다. 기존 본문을 보존하고 ADR-003 승인 기술 기준을 추가한 뒤 collection, 100건, 1시간, Learning Core route와 제외 범위가 저장된 것을 재확인했다.
+- 유지한 계약: 새 Claim·Grant·allocation·consumption 금지, stable subjectRef, active Reservation pending, exact legacy Session fencing, 24시간/120일 cleanup과 production flag off를 유지했다.
+- 테스트 결과: 문서·Jira만 변경해 Gradle 테스트는 실행하지 않았다. Jira 저장 결과 검증과 `git diff --check`가 통과했다.
+- 위험·미확인: Billing 구현 계약은 확정됐지만 Identity durable fan-out, Learning Core owner consumer, 실제 Lattice/IAM/SG와 staging 순서 역전 E2E는 별도 작업이다.
+- 예상 밖 diff: 애플리케이션·타 저장소·AWS를 변경하지 않았고 기존 승인 문서 변경을 보존했다.
+- 다음 작업: TMI-120 Billing reader-first schema v4와 owner rebind consumer 구현을 시작한다.
+
+## 2026-09-02 — TMI-120 Billing retained trial owner rebind 구현
+
+<!-- codex-turn:tmi-120-owner-rebind-implementation -->
+
+- 날짜: 2026-09-02
+- 브랜치: Billing `feat/TMI-120-trial-owner-rebind-consumer`
+- Jira: `TMI-120` 완료 조건을 기준으로 구현했다. 이번 작업에서 Jira 조회·댓글·상태 전환은 수행하지 않았다.
+- 작업 목표: ADR-003의 phone 재가입·Guest merge owner event를 strict 수신하고 새 권리 생성 없이 retained `BillingSubjectLink` current owner만 source→target으로 안전하게 이전한다.
+- 변경 파일: `AGENTS.md`, `src/main/java/.../domain/ownerrebind/**`, `BillingSubjectLink`, `BillingSubjectLinkRepository`, `ReservationRepository`, `IdempotencyCommandRepository`, `AttemptSession`, `AttemptGroupEventService`, `BillingMongoIndexInitializer`, `BillingMongoProperties`, `SecurityConfig`, `InternalApiExceptionHandler`, `application.yml`, 관련 unit/MVC/trace/Mongo integration test, ADR-003·PLAN-006·통합 계약·CONTRACT_DECISIONS·CURRENT_STATE·WORKLOG.
+- wire/API: phone은 `POST /internal/v1/eligibility/trial/owner/events`의 `TrialOwnerRebindApproved` v1, Guest는 `POST /internal/v1/owners/merge/events`의 기존 `UserMerged` 5-field v1을 사용한다. duplicate/unknown/trailing/coercion, UUID/revision/time과 exact schema/event/producer/reason/scope를 lifecycle별 decoder에서 검증하고 canonical JSON SHA-256 digest로 멱등 처리한다.
+- Mongo/schema: schema v4에 `owner_rebind_inbox`, `subject_owner_rebinds`와 승인 index를 추가했다. 신규 link는 owner version 1을 기록하고 legacy missing version은 logical 1로 읽어 exact source/current CAS에서 version 2로 수렴한다. invalid ownerVersion/ownerUpdatedAt 조합과 index mismatch는 자동 rewrite/drop 없이 fail-fast한다.
+- application 동작: active·unexpired Claim과 subject 관계를 확인하고 phone은 projection revision/state 및 target candidate-to-Claim을 재검증한다. Guest는 최대 100 retained subject를 한 Transaction에서 all-or-nothing 이전한다. 100건 초과는 invariant metric과 409, active Reservation은 남은 시간 1~300초·PROCESSING/prerequisite는 5초 `OWNER_REBIND_PENDING`으로 처리한다.
+- 멱등성·원자성: event inbox 확인, prerequisite, Reservation/command guard, pre-rebind fence, owner CAS와 disposition 저장을 하나의 Mongo Transaction으로 처리한다. exact replay는 duplicate, digest mismatch는 event conflict, permanent business conflict는 비식별 inbox로 보존하고 transient/unknown commit은 bounded whole-unit retry와 commit 재확인으로 수렴한다.
+- legacy fence: rebind 전 active exact AttemptGroup/Session에만 source·group·session fence를 만들고 `min(appliedAt+120일, Claim.retentionExpiresAt)`을 hard cap으로 둔다. AttemptGroup consumer는 current owner mismatch 때만 exact fence와 `Session.proposedAt < appliedAt`을 확인하고 기존 상태 전진에만 source event를 허용하며 terminal 적용 시 즉시 logical fence를 종료한다.
+- cleanup·관측성: 최대 1시간 scheduler가 due source/group/session 연결을 unset하고 CLEANED·sourceUnlinkedAt을 기록한다. 성공/실패·지연 bucket·duration 집계 로그와 저카디널리티 metric, 24시간 초과 경보를 추가했다. HTTP server span 아래 `owner_rebind_consume` INTERNAL span을 만들고 W3C traceId를 연결하되 baggage와 source/target/subject/Claim/group/session/payload/digest/credential은 log·metric tag·span attribute에 넣지 않는다.
+- 보안: owner endpoint는 feature flag가 켜져도 test principal 또는 Lattice 외부 검증을 통과한 Identity workload route에만 열리고 Learning Core role·unsigned·미설정 route는 거절한다. production owner consumer와 cleanup flag 기본값은 false다.
+- 테스트 추가: decoder canonicalization/strict rejection, 204/400/409/422/503와 Retry-After, Identity/wrong-role/unsigned, service APPLIED/NOOP/CONFLICT/PENDING/duplicate, 100건 상한, phone projection/candidate, active Session fence, exact/expired legacy status, terminal 종료, cleanup failure isolation·overdue privacy log, 실제 HTTP traceId/inner span/baggage 미전파를 검증했다. replica-set integration test는 legacy missing ownerVersion→2, Claim/Grant/ledger 불변, concurrent duplicate와 active Reservation rollback을 검증하도록 작성했다.
+- 테스트 결과: 최종 `./gradlew clean test`는 compile 후 118개 test case 중 비-Docker 114개가 통과했다. 기존 3개와 신규 `OwnerRebindMongoIntegrationTest` 등 Testcontainers suite 4개는 local Docker environment를 찾지 못해 test body 실행 전 initialization failure가 났다. 별도 owner-rebind unit/MVC/security/trace 타깃 suite는 `BUILD SUCCESSFUL`이다. `git diff --check`도 통과했다.
+- 유지한 계약: 새 Claim·Grant·allocation·consumption 금지, phone당 무료 1회와 TrialClaim 3년 보존, immutable ledger, stable subjectRef, active Reservation rewrite 금지, source 신규 authorization 금지, Identity/Learning Core 코드와 AWS resource 비변경, production flag off를 유지했다.
+- 위험·미확인: replica-set transaction/index/concurrency test의 실제 실행 성공은 Docker daemon이 가능한 환경에서 재확인해야 한다. Identity consumer별 durable fan-out, Learning Core owner migration/source deny, 실제 Lattice/IAM/SG와 staging 순서 역전·응답 유실 E2E가 남아 있으므로 production 활성화할 수 없다. historical backfill과 privileged repair route는 의도적으로 제외했다.
+- 예상 밖 diff: 없었다. 작업 시작 전 이미 수정돼 있던 ADR-002, CONTRACT_DECISIONS, CURRENT_STATE, WORKLOG와 통합 계약의 사용자 승인 변경은 보존하고 TMI-120 구현 상태만 추가했다. Identity/Learning Core 저장소, Jira, git commit/push는 변경하지 않았다.
+- 다음 작업: Docker daemon이 있는 환경에서 `./gradlew clean test`를 다시 실행해 4개 replica-set suite를 통과시킨 뒤 diff를 검토한다. 그 후 사용자 승인으로 Jira TMI-120 상태를 전환하고, 별도 Jira에서 Identity durable fan-out과 Learning Core owner consumer를 구현해 staging E2E를 진행한다.
+
+## 2026-09-02 — TMI-120 이후 작업 순서 설명
+
+<!-- codex-turn:tmi-120-next-work-explanation -->
+
+- 날짜: 2026-09-02
+- 브랜치: Billing `feat/TMI-120-trial-owner-rebind-consumer`
+- Jira: `TMI-120` 참고. Jira 변경은 수행하지 않았다.
+- 작업 목표: Billing owner rebind 구현 뒤 남은 검증과 cross-service 후속 구현 순서를 확정된 production gate 기준으로 설명한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 즉시 작업: Docker 환경에서 `./gradlew clean test`를 재실행해 기존 3개와 신규 owner rebind Mongo replica-set suite를 검증하고 최종 diff를 검토한다. 통과 후 사용자 승인으로 TMI-120을 완료 처리한다.
+- 후속 구현: Identity consumer별 durable delivery/fan-out, Learning Core lifecycle별 owner migration/source deny consumer 순서로 별도 계획·Jira를 진행한다.
+- release gate: Mongo schema v4 migration과 Lattice IAM/SG를 staging에 반영하고 순서 역전·중복·응답 유실 E2E를 통과한 뒤에만 production flag/canary를 켠다.
+- 유지한 계약: Billing feature flag 기본 off, 새 권리 미생성, historical backfill·privileged repair 제외, Identity/Learning Core/AWS 별도 승인 범위를 유지했다.
+- 테스트 결과: 설명·기록만 변경해 Gradle 테스트는 재실행하지 않았다. 직전 clean test에서 비-Docker 114개 통과, Docker 미가동으로 Testcontainers 4개 initialization failure 상태다.
+- 위험·미확인: replica-set test가 아직 실행되지 않았으므로 TMI-120을 완료로 닫거나 production 활성화할 단계는 아니다.
+- 예상 밖 diff: 없으며 기존 구현과 사용자 승인 문서 변경을 보존했다.
+- 다음 작업: Docker daemon을 실행한 뒤 Billing 전체 테스트를 재검증한다.
+
+## 2026-09-02 — Identity durable owner-event fan-out 구현 인계 설명
+
+<!-- codex-turn:identity-owner-event-fanout-handoff-explanation -->
+
+- 날짜: 2026-09-02
+- 브랜치: Billing `feat/TMI-120-trial-owner-rebind-consumer`
+- Jira: Billing `TMI-120`과 후속 Identity 작업 참고. Jira 변경은 수행하지 않았다.
+- 작업 목표: Identity 팀이 `UserMerged`와 `TrialOwnerRebindApproved`를 Billing/Learning Core에 독립적으로 durable 전달하는 후속 작업을 계획·구현할 수 있도록 현재 코드와 목표 구조를 설명한다.
+- 확인한 현재 구현: Identity `UserMergedOutbox`는 event core와 `PENDING/IN_FLIGHT/PUBLISHED/DEAD_LETTER` 단일 delivery 상태가 결합돼 있고 publisher configuration은 endpoint 하나와 legacy audience를 사용한다. phone eligibility publisher 패턴에는 lease/retry/dead-letter와 auth-failure scope pause가 있지만 owner rebind event core/fan-out은 아직 없다.
+- 목표 구조: lifecycle별 immutable event core를 유지하고 별도 delivery에 `(eventId, consumer=BILLING|LEARNING_CORE)` unique를 둔다. lifecycle Transaction에서 core와 두 delivery를 원자 저장하며 delivery에는 payload를 복제하지 않는다. status·attempt·nextAttemptAt·lease·failure·published/dead-letter/cleanup과 feature flag는 consumer별 독립 상태다.
+- wire/route: Guest는 기존 5-field `UserMerged` v1을 그대로 두고 Billing/Learning Core 모두 `/internal/v1/owners/merge/events`로 보낸다. phone은 exact `TrialOwnerRebindApproved` v1을 Billing `/internal/v1/eligibility/trial/owner/events`, Learning Core `/internal/v1/owners/trial/rebind/events`로 보낸다.
+- lifecycle: Guest merge aggregate commit과 같은 Transaction에서 core+두 delivery를 만든다. phone rejoin은 source 비활성/revoked, target verified와 binding revision을 확정한 Transaction에서 별도 core+두 delivery를 만들고 raw phone/candidate/credential은 wire·delivery/log에 넣지 않는다.
+- transport/실패 처리: Identity application task role의 VPC Lattice SigV4(`vpc-lattice-svcs`, `ap-northeast-2`)를 사용하고 W3C traceparent를 inject한 뒤 최종 서명하며 redirect/baggage는 허용하지 않는다. 2xx는 해당 delivery만 published, timeout/connection/408/425/429/5xx 및 Billing 503 pending은 same event retry, 유효한 Retry-After를 존중한다. 400/409/422는 permanent dead-letter, 401/403은 해당 consumer delivery circuit만 중지한다.
+- migration/활성화: 기존 `user_merged_outbox`는 transition 동안 core로 reader-first 호환하고 legacy Learning Core publisher 상태를 깨뜨리지 않는다. 신규 event부터 delivery 두 건을 만들며 historical Billing merge backfill은 하지 않는다. consumer readiness와 preflight가 끝나기 전 모든 신규 publisher flag는 false다.
+- 필수 테스트: core+두 delivery atomicity, `(eventId, consumer)` unique, consumer별 독립 success/retry/dead-letter, multi-instance lease, response/Retry-After 분류, legacy row preflight, exact wire fixture, SigV4 after trace inject, no redirect/baggage, 민감정보 비로깅과 publisher flag off를 검증해야 한다.
+- 유지한 계약: Identity가 Billing/Learning Core DB를 직접 수정하지 않고 merge/signup 요청이 downstream HTTP 완료를 동기 대기하지 않는다. global PUBLISHED, consumer별 payload 복제, 기존 eventId payload 변경, historical backfill과 production 조기 활성화를 금지한다.
+- 변경 파일: Billing `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`만 갱신했다. Identity는 계약 확인을 위해 읽기만 했다.
+- 테스트 결과: 설명·기록 작업으로 애플리케이션 테스트는 실행하지 않았다. `git diff --check`를 수행한다.
+- 위험·미확인: Identity 실제 collection/index 이름, transition row 분류와 phone rejoin lifecycle service의 정확한 Transaction 위치는 Identity 저장소 계획/ADR에서 코드 근거와 함께 확정해야 한다. Billing Mongo Testcontainers 재검증과 Learning Core consumer 구현 전에는 publisher를 활성화할 수 없다.
+- 예상 밖 diff: 없으며 Identity/Learning Core 코드, Jira, AWS와 git 상태를 변경하지 않았다.
+- 다음 작업: Identity 저장소에서 reader-first migration과 lifecycle별 core/delivery/publisher 구현 계획서를 작성하고 사용자 승인 후 별도 Jira를 생성한다.

@@ -22,10 +22,19 @@ billing:
   attempt-group-events:
     enabled: ${BILLING_ATTEMPT_GROUP_EVENTS_ENABLED:false}
     max-future-skew: ${BILLING_ATTEMPT_GROUP_EVENTS_MAX_FUTURE_SKEW:30s}
+  owner-rebind:
+    enabled: ${BILLING_OWNER_REBIND_ENABLED:false}
+    max-future-skew: ${BILLING_OWNER_REBIND_MAX_FUTURE_SKEW:30s}
+    inbox-retention: ${BILLING_OWNER_REBIND_INBOX_RETENTION:120d}
+    legacy-fence-retention: ${BILLING_OWNER_REBIND_LEGACY_FENCE_RETENTION:120d}
+    cleanup-enabled: ${BILLING_OWNER_REBIND_CLEANUP_ENABLED:false}
+    cleanup-scan-interval: ${BILLING_OWNER_REBIND_CLEANUP_SCAN_INTERVAL:1h}
+    cleanup-batch-size: ${BILLING_OWNER_REBIND_CLEANUP_BATCH_SIZE:100}
+    max-subjects-per-event: ${BILLING_OWNER_REBIND_MAX_SUBJECTS_PER_EVENT:100}
   mongodb:
     initialize-indexes: ${BILLING_MONGODB_INITIALIZE_INDEXES:false}
     require-transactions: ${BILLING_MONGODB_REQUIRE_TRANSACTIONS:false}
-    schema-version: 3
+    schema-version: 4
 
 server:
   port: ${SERVER_PORT:8082}

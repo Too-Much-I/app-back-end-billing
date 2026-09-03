@@ -16,11 +16,14 @@ import web.tosunsaeng.billing.domain.attempt.api.AttemptGroupEventController;
 import web.tosunsaeng.billing.domain.attempt.application.AttemptGroupEventMetrics;
 import web.tosunsaeng.billing.domain.reservation.api.ReservationController;
 import web.tosunsaeng.billing.domain.reservation.application.ReserveMetrics;
+import web.tosunsaeng.billing.domain.ownerrebind.api.OwnerRebindEventController;
+import web.tosunsaeng.billing.domain.ownerrebind.application.OwnerRebindMetrics;
 import web.tosunsaeng.billing.global.response.InternalApiError;
 
 @RestControllerAdvice(assignableTypes = {
         TrialEligibilityEventController.class,
         AttemptGroupEventController.class,
+        OwnerRebindEventController.class,
         ReservationController.class
 })
 public class InternalApiExceptionHandler {
@@ -28,15 +31,18 @@ public class InternalApiExceptionHandler {
     private final TrialEligibilityMetrics metrics;
     private final ReserveMetrics reserveMetrics;
     private final AttemptGroupEventMetrics attemptGroupEventMetrics;
+    private final OwnerRebindMetrics ownerRebindMetrics;
 
     public InternalApiExceptionHandler(
             ObjectProvider<TrialEligibilityMetrics> metrics,
             ObjectProvider<ReserveMetrics> reserveMetrics,
-            ObjectProvider<AttemptGroupEventMetrics> attemptGroupEventMetrics
+            ObjectProvider<AttemptGroupEventMetrics> attemptGroupEventMetrics,
+            ObjectProvider<OwnerRebindMetrics> ownerRebindMetrics
     ) {
         this.metrics = metrics.getIfAvailable();
         this.reserveMetrics = reserveMetrics.getIfAvailable();
         this.attemptGroupEventMetrics = attemptGroupEventMetrics.getIfAvailable();
+        this.ownerRebindMetrics = ownerRebindMetrics.getIfAvailable();
     }
 
     @ExceptionHandler(InternalApiException.class)
@@ -44,7 +50,13 @@ public class InternalApiExceptionHandler {
             InternalApiException exception,
             HttpServletRequest request
     ) {
-        if (isAttemptGroupEventPath(request)) {
+        if (isOwnerRebindPath(request)) {
+            if ("INVALID_REQUEST".equals(exception.code())) {
+                recordOwnerRebindRejected("INVALID");
+            } else if ("UNSUPPORTED_CONTRACT".equals(exception.code())) {
+                recordOwnerRebindRejected("UNSUPPORTED");
+            }
+        } else if (isAttemptGroupEventPath(request)) {
             if ("INVALID_REQUEST".equals(exception.code())) {
                 recordAttemptGroupRejected("INVALID");
             } else if ("UNSUPPORTED_CONTRACT".equals(exception.code())) {
@@ -74,7 +86,9 @@ public class InternalApiExceptionHandler {
 
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
     ResponseEntity<InternalApiError> handleUnsupportedMediaType(HttpServletRequest request) {
-        if (isAttemptGroupEventPath(request)) {
+        if (isOwnerRebindPath(request)) {
+            recordOwnerRebindRejected("INVALID");
+        } else if (isAttemptGroupEventPath(request)) {
             recordAttemptGroupRejected("INVALID");
         } else if (isReservationPath(request)) {
             recordReserveRejected();
@@ -105,6 +119,17 @@ public class InternalApiExceptionHandler {
         if (attemptGroupEventMetrics != null) {
             attemptGroupEventMetrics.recordRejected(outcome);
         }
+    }
+
+    private void recordOwnerRebindRejected(String outcome) {
+        if (ownerRebindMetrics != null) {
+            ownerRebindMetrics.recordRejected(outcome);
+        }
+    }
+
+    private static boolean isOwnerRebindPath(HttpServletRequest request) {
+        return request.getRequestURI().equals(OwnerRebindEventController.PHONE_PATH)
+                || request.getRequestURI().equals(OwnerRebindEventController.MERGE_PATH);
     }
 
     private static boolean isAttemptGroupEventPath(HttpServletRequest request) {

@@ -97,4 +97,8 @@ public class AttemptSession {
     public Instant getTerminalAt() {
         return terminalAt;
     }
+
+    public Instant getProposedAt() {
+        return proposedAt;
+    }
 }

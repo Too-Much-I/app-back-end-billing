@@ -56,6 +56,15 @@ public class IdempotencyCommandRepository {
         return Optional.ofNullable(mongoTemplate.findOne(query, IdempotencyCommand.class));
     }
 
+    public boolean existsProcessingReserve(String userId) {
+        Query query = Query.query(Criteria.where("callerService").is("LEARNING_CORE")
+                .and("userId").is(userId)
+                .and("commandType").is("RESERVE")
+                .and("state").is(IdempotencyCommand.State.PROCESSING)
+                .and("active").is(true));
+        return mongoTemplate.exists(query, IdempotencyCommand.class);
+    }
+
     public IdempotencyCommand insert(IdempotencyCommand command) {
         return mongoTemplate.insert(command);
     }

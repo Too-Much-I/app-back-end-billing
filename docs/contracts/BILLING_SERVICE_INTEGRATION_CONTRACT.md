@@ -14,7 +14,8 @@
 1. 제품 정책: `docs/codex/CONTRACT_DECISIONS.md`
 2. 내부 HTTP·DTO·Mongo 계약: `docs/adr/ADR-001-free-trial-internal-api-and-mongo-contract.md`
 3. VPC Lattice·SigV4·환경 격리: `docs/adr/ADR-002-vpc-lattice-ecs-sigv4-and-environment-migration.md`
-4. 현재 구현 순서: `docs/plans/PLAN-001-trial-eligibility-event-consumer.md`
+4. retained trial owner rebind: `docs/adr/ADR-003-retained-trial-owner-rebind-contract.md`
+5. 현재 owner rebind 구현 순서: `docs/plans/PLAN-006-retained-trial-owner-rebind.md`
 
 이 문서와 ADR이 충돌하면 ADR을 따른다. 계약을 변경할 때는 이 안내서만 고치지 않고 producer와 consumer의 ADR·fixture·contract test를 함께 갱신한다.
 
@@ -41,7 +42,7 @@ flowchart LR
 
     APP -->|"회원·인증, 사용자 JWT"| ID
     APP -->|"시험 생성과 학습 API"| LC
-    ID -->|"SigV4: phone eligibility event"| LAT
+    ID -->|"SigV4: phone eligibility·owner event"| LAT
     LC -->|"SigV4: reserve·confirm·cancel·status·AttemptGroup event"| LAT
     LAT --> BILL
 ```
@@ -57,7 +58,7 @@ Billing도 현재 계약에서는 Identity나 Learning Core를 동기 호출하�
 - Identity와 Learning Core는 ECS application task role의 임시 credential을 사용한다.
 - 요청은 SigV4 service `vpc-lattice-svcs`, region `ap-northeast-2`로 서명한다.
 - VPC Lattice Billing service는 `AWS_IAM` auth policy로 principal, HTTP Method와 Path를 함께 검사한다.
-- Identity role은 Trial eligibility event route만 호출할 수 있다.
+- Identity role은 Trial eligibility와 승인된 owner rebind event route만 호출할 수 있다.
 - Learning Core role은 Reservation, status와 AttemptGroup event route만 호출할 수 있다.
 - unsigned 요청, 잘못된 role, 반대 환경 role, 권한 없는 route와 Billing task 직접 접근은 거절한다.
 - public ALB, shared API key, caller가 임의로 넣은 identity header 또는 사용자 Access Token forwarding을 내부 workload 인증으로 사용하지 않는다.
@@ -156,6 +157,16 @@ Billing은 검증된 event를 canonical JSON으로 정규화하고 SHA-256 diges
 - eligibility endpoint의 409는 `EVENT_ID_CONFLICT` 전용이다. `COMMAND_PROCESSING`은 Reservation command에만 사용한다.
 - 400·409·422는 자동으로 새 eventId를 만들어 우회하지 않고 producer 운영 절차에 따라 격리·조사한다.
 - 인증 실패는 payload 문제로 취급하지 않고 role·Lattice policy·환경 설정을 수정한다.
+
+### 5.6 owner rebind delivery·IAM·cleanup
+
+- Identity는 immutable owner-rebind event core와 `(eventId, consumer)` unique delivery를 사용한다. required consumer는 `BILLING`, `LEARNING_CORE`다.
+- event core와 두 delivery는 Identity lifecycle Transaction에서 원자 저장하고 delivery별 lease·retry·dead-letter·published와 feature flag를 독립 관리한다.
+- phone 재가입은 `TrialOwnerRebindApproved`를 `POST /internal/v1/eligibility/trial/owner/events`, Guest merge `UserMerged` v1은 `POST /internal/v1/owners/merge/events`로 전달한다.
+- Billing Lattice auth policy는 Identity task role의 `vpc-lattice-svcs:Invoke`, POST와 위 route 및 기존 `/internal/v1/eligibility/trial/events`만 허용한다.
+- active Reservation/processing/prerequisite pending은 503 `OWNER_REBIND_PENDING`과 승인된 delta-seconds `Retry-After`로 재시도한다.
+- related Session terminal 뒤 24시간 안에 legacy sourceUserId를 unset한다. terminal 미수렴 hard upper bound는 `min(rebindAppliedAt+120일, TrialClaim.retentionExpiresAt)`이다.
+- hard cap 뒤 late source event는 자동 owner authorization에 사용하지 않고 privileged reconciliation 대상으로 분류한다.
 
 ```mermaid
 sequenceDiagram
@@ -364,7 +375,7 @@ candidate, userId, payload digest와 eventId를 metric tag로 사용하지 않�
 - backup은 최대 35일이며 복구본을 서비스에 연결하기 전에 현재 시각 기준 expiry purge를 실행한다.
 - 3년 뒤 같은 번호가 다시 verified되면 새 Claim을 허용한다.
 
-Identity user merge가 발생해도 Billing은 Claim의 candidate 중복 방지 기록을 삭제하지 않고 entitlement owner mapping만 승인된 owner-transfer Transaction으로 변경한다. 구체적인 `UserMerged` consumer wire 계약은 별도 ADR 확정 전 임의로 추가하지 않는다.
+Identity user merge가 발생해도 Billing은 Claim의 candidate 중복 방지 기록을 삭제하지 않고 entitlement owner mapping만 승인된 owner-transfer Transaction으로 변경한다. 구체적인 `UserMerged`/phone rejoin consumer wire, Mongo v4, fencing과 cleanup은 `ADR-003-retained-trial-owner-rebind-contract.md`를 따른다.
 
 ## 11. local·test 계약
 
@@ -415,11 +426,11 @@ Identity producer나 Learning Core 시험 생성 gate를 Billing consumer보다 
 ## 14. 현재 구현 상태
 
 - Identity의 phone eligibility outbox·publisher는 구현돼 있다.
-- Billing은 health-only skeleton이며 Trial eligibility consumer는 아직 구현 전이다.
-- Learning Core는 현재 Billing reserve 없이 ExamSession을 생성하므로 Billing saga client가 아직 없다.
+- Billing의 Trial eligibility consumer, FREE_EXAM_ONCE BenefitDefinition/Claim·Grant, Reservation lifecycle와 AttemptGroup status consumer는 구현돼 있다.
+- Billing TMI-120 브랜치에는 schema v4 reader-first owner CAS, phone/Guest strict consumer, active Reservation pending, exact legacy Session fence와 개인정보 cleanup worker가 구현돼 있다. production owner rebind flag는 기본 false다.
+- Learning Core의 Billing reserve saga와 AttemptGroup status publisher는 구현돼 있으나 owner migration/source deny consumer는 별도 후속 작업이다.
 - VPC Lattice, Billing ECS service와 실제 IAM/SG 리소스는 아직 없다.
-- 현재 첫 구현 작업은 PLAN-001 Trial eligibility event consumer다.
-- TrialClaim·grant·Reservation과 Learning Core saga는 PLAN-001 완료 후 후속 vertical slice다.
+- Identity consumer별 owner event durable delivery, Learning Core owner consumer와 staging 순서 역전 E2E가 끝나기 전에는 production owner rebind를 활성화하지 않는다.
 - Apple/Google 결제, paid credit, pass, coupon과 환불은 무료 MVP 후속이다.
 
 ## 15. 연동 점검 체크리스트

@@ -44,6 +44,9 @@ import web.tosunsaeng.billing.domain.attempt.repository.AttemptGroupRepository;
 import web.tosunsaeng.billing.domain.attempt.repository.AttemptSessionRepository;
 import web.tosunsaeng.billing.domain.entitlement.trial.domain.entity.BillingSubjectLink;
 import web.tosunsaeng.billing.domain.entitlement.trial.repository.BillingSubjectLinkRepository;
+import web.tosunsaeng.billing.domain.ownerrebind.domain.entity.SubjectOwnerRebind;
+import web.tosunsaeng.billing.domain.ownerrebind.domain.enums.OwnerRebindEventKind;
+import web.tosunsaeng.billing.domain.ownerrebind.repository.SubjectOwnerRebindRepository;
 import web.tosunsaeng.billing.global.exception.InternalApiException;
 import web.tosunsaeng.billing.global.infrastructure.mongodb.MongoTransactionExecutor;
 import web.tosunsaeng.billing.global.observability.TraceCorrelation;
@@ -57,6 +60,7 @@ class AttemptGroupEventServiceTest {
     private static final String SUBJECT_ID = "subject-ref-1";
     private static final String CLAIM_ID = "claim-1";
     private static final String USER_ID = "e8b37a41-bae6-47f1-a770-052e6c5786d4";
+    private static final String TARGET_USER_ID = "00000000-0000-4000-8000-000000000099";
 
     @Mock
     private AttemptGroupEventInboxRepository inboxRepository;
@@ -66,6 +70,8 @@ class AttemptGroupEventServiceTest {
     private AttemptSessionRepository sessionRepository;
     @Mock
     private BillingSubjectLinkRepository subjectLinkRepository;
+    @Mock
+    private SubjectOwnerRebindRepository ownerRebindRepository;
     @Mock
     private MongoTransactionExecutor transactionExecutor;
     @Mock
@@ -84,6 +90,7 @@ class AttemptGroupEventServiceTest {
         when(traceCorrelation.currentTraceId()).thenReturn("0123456789abcdef0123456789abcdef");
         service = new AttemptGroupEventService(
                 inboxRepository, groupRepository, sessionRepository, subjectLinkRepository,
+                ownerRebindRepository,
                 transactionExecutor, metrics, traceCorrelation,
                 Clock.fixed(NOW, ZoneOffset.UTC)
         );
@@ -267,6 +274,78 @@ class AttemptGroupEventServiceTest {
     }
 
     @Test
+    void exactPreRebindSessionAllowsLateLegacySourceEvent() {
+        AttemptGroup group = openGroup();
+        AttemptSession session = activeSession();
+        when(session.getProposedAt()).thenReturn(NOW.minusSeconds(60));
+        arrangeProjectionWithCurrentOwner(group, session, TARGET_USER_ID);
+        SubjectOwnerRebind fence = SubjectOwnerRebind.waitingTerminal(
+                "00000000-0000-4000-8000-000000000090",
+                OwnerRebindEventKind.USER_MERGED,
+                SUBJECT_ID, CLAIM_ID, USER_ID, GROUP_ID, SESSION_ID,
+                1, NOW.minusSeconds(30), NOW.plusSeconds(60)
+        );
+        when(ownerRebindRepository.findActiveFence(
+                SUBJECT_ID, USER_ID, GROUP_ID, SESSION_ID, NOW
+        )).thenReturn(Optional.of(fence));
+        when(groupRepository.markGrading(GROUP_ID, SESSION_ID, 1, NOW))
+                .thenReturn(Optional.of(group));
+
+        assertThat(service.process(event(AttemptGroupEventTarget.GRADING, 14)))
+                .isEqualTo(AttemptGroupEventOutcome.APPLIED);
+
+        verify(groupRepository).markGrading(GROUP_ID, SESSION_ID, 1, NOW);
+        verify(ownerRebindRepository, never()).markTerminalDue(any(), any(), any(), any());
+    }
+
+    @Test
+    void missingOrExpiredLegacyFenceRejectsOldOwnerEvent() {
+        AttemptGroup group = openGroup();
+        AttemptSession session = activeSession();
+        arrangeProjectionWithCurrentOwner(group, session, TARGET_USER_ID);
+        when(ownerRebindRepository.findActiveFence(
+                SUBJECT_ID, USER_ID, GROUP_ID, SESSION_ID, NOW
+        )).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.process(event(AttemptGroupEventTarget.GRADING, 15)))
+                .isInstanceOf(InternalApiException.class)
+                .extracting("code")
+                .isEqualTo("EVENT_TARGET_CONFLICT");
+
+        verify(groupRepository, never()).markGrading(any(), any(), anyLong(), any());
+    }
+
+    @Test
+    void terminalLegacySourceEventMakesFenceImmediatelyDue() {
+        AttemptGroup group = openGroup();
+        AttemptSession session = activeSession();
+        when(session.getProposedAt()).thenReturn(NOW.minusSeconds(60));
+        arrangeProjectionWithCurrentOwner(group, session, TARGET_USER_ID);
+        SubjectOwnerRebind fence = SubjectOwnerRebind.waitingTerminal(
+                "00000000-0000-4000-8000-000000000091",
+                OwnerRebindEventKind.USER_MERGED,
+                SUBJECT_ID, CLAIM_ID, USER_ID, GROUP_ID, SESSION_ID,
+                1, NOW.minusSeconds(30), NOW.plusSeconds(60)
+        );
+        when(ownerRebindRepository.findActiveFence(
+                SUBJECT_ID, USER_ID, GROUP_ID, SESSION_ID, NOW
+        )).thenReturn(Optional.of(fence));
+        when(groupRepository.markCompleted(
+                eq(GROUP_ID), eq(SESSION_ID), eq(1L), any(), eq(NOW)
+        )).thenReturn(Optional.of(group));
+        when(sessionRepository.completeActive(
+                eq(SESSION_ID), eq(GROUP_ID), eq(SUBJECT_ID), eq(2L), any()
+        )).thenReturn(Optional.of(session));
+
+        AttemptGroupStatusEvent completed = event(AttemptGroupEventTarget.COMPLETED, 16);
+        assertThat(service.process(completed)).isEqualTo(AttemptGroupEventOutcome.APPLIED);
+
+        verify(ownerRebindRepository).markTerminalDue(
+                SUBJECT_ID, GROUP_ID, SESSION_ID, completed.occurredAt()
+        );
+    }
+
+    @Test
     void unknownCommitRechecksInboxAndConvergesToDuplicate() {
         AttemptGroupStatusEvent event = event(AttemptGroupEventTarget.GRADING, 11);
         MongoException unknownCommit = new MongoException(251, "unknown commit");
@@ -366,6 +445,22 @@ class AttemptGroupEventServiceTest {
                     )
             ));
         }
+    }
+
+    private void arrangeProjectionWithCurrentOwner(
+            AttemptGroup group,
+            AttemptSession session,
+            String currentOwner
+    ) {
+        when(inboxRepository.findByEventId(any())).thenReturn(Optional.empty());
+        when(groupRepository.findById(GROUP_ID)).thenReturn(Optional.of(group));
+        when(sessionRepository.findBySessionId(SESSION_ID)).thenReturn(Optional.of(session));
+        when(subjectLinkRepository.findBySubjectRefId(SUBJECT_ID)).thenReturn(Optional.of(
+                BillingSubjectLink.active(
+                        SUBJECT_ID, CLAIM_ID, "scope", currentOwner,
+                        NOW.minusSeconds(60), NOW.plusSeconds(3600)
+                )
+        ));
     }
 
     private void assertInboxDisposition(AttemptGroupEventDisposition disposition) {
