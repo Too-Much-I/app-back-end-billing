@@ -160,6 +160,7 @@ public class ReservationLifecycleService {
                 operationId, reservation.getReservationId(), reservation.getReservationKind(),
                 reservation.getStatus(), reservation.getAttemptGroupId(), groupStatus,
                 reservation.getProposedSessionId(), reservation.getMockExamId(),
+                reservation.getContinuationReason(), reservation.getContinuationId(),
                 reservation.getExpiresAt(), reservation.getTerminalAt()
         );
     }

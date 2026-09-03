@@ -4,6 +4,23 @@
 - 현재 브랜치: `develop`
 - Jira: `TMI-115` Billing 구현과 Learning Core `TMI-116` saga가 각각 `develop`에 merge 완료. Billing AttemptGroup event consumer `TMI-117`은 완료됐고 owner rebind `TMI-120` Billing 구현과 검증을 진행 중이다.
 
+## 2026-09-03 PHONE_REJOIN continuation discovery 구현
+
+- Learning Core 전용 `POST /internal/v1/reservations/continuations/phone`을 추가했다. target userId의 current owner transition이 PHONE_REJOIN이고 group이 OPEN/RETAKE_AVAILABLE이면 Billing 저장값인 reason/id/attemptGroupId/mockExamId를 200으로 반환하고 대상 없음은 204다.
+- owner CAS는 `ownerTransitionReason`, `ownerTransitionId`를 같은 update에 저장한다. 다음 owner CAS가 이 값을 교체하므로 context는 current owner epoch에 결속되며 source userId나 raw phone을 새로 저장하지 않는다.
+- reserve strict decoder는 기존 3-field request 또는 phone 6-field request만 허용한다. phone context 세 field는 all-or-none이며 current transition ID, expected group, 기존 mockExamId가 모두 일치해야 `PHONE_REJOIN REPLACEMENT`가 된다.
+- phone reserve 응답과 status에는 optional continuation reason/id가 남고 attemptGroupId/mockExamId는 existing group 값을 authoritative하게 사용한다. 일반 reserve 응답과 기존 canonical idempotency digest는 변경하지 않는다.
+- 핵심 MVC/security/decoder/policy/service/hash 테스트는 성공했다. `./gradlew clean test` 136개 중 비-Docker 132개는 통과했고 Docker daemon 미가동으로 Testcontainers 4개 initialization failure가 남았다.
+- production flag는 계속 off다. Learning Core reader-first 적용, Lattice auth policy에 exact continuation route 추가, Docker replica-set test와 staging E2E 전에는 활성화하지 않는다.
+
+## 2026-09-03 PHONE_REJOIN replacement discovery 계약 공백 확인
+
+- 현재 reserve 요청은 Learning Core가 `mockExamId`를 필수로 먼저 보내며 Billing은 기존 nonterminal AttemptGroup의 `mockExamId`와 exact match한 경우에만 `REPLACEMENT`를 반환한다.
+- 재가입한 새 userId의 Learning Core에는 기존 Session과 `mockExamId`가 없으므로 임의의 새 값으로 요청하면 Billing은 응답 전 `STATE_CONFLICT`로 거절한다. 따라서 문서의 phone replacement 흐름은 현재 wire 계약만으로 실행할 수 없다.
+- 일반 reserve의 fail-closed 성질은 유지하고, phone rejoin에 한해 Billing이 기존 `attemptGroupId`·`mockExamId`와 명시적인 continuation reason/context를 authoritative하게 제공하는 discovery 계약이 추가로 필요하다.
+- Learning Core는 유효한 phone-rejoin context를 받은 경우에만 target 명의 새 examId를 만들고 같은 AttemptGroup에 연결한다. source Session·답안·결과 owner는 변경하지 않는다.
+- 구체적인 discovery route, context의 식별·만료·1회성, reserve echo field와 오류 계약은 아직 ADR에서 확정하지 않았으며 현재 구현이나 Jira는 변경하지 않았다.
+
 ## 2026-09-03 PHONE_REJOIN 상태별 제한 승계 보정
 
 - `TrialOwnerRebindApproved`는 Billing-only delivery이며 phone proof만으로 완료된 과거 시험·답안·피드백을 Learning Core에서 이전하지 않는다. `UserMerged`만 Billing·Learning Core 양쪽에 전달한다.

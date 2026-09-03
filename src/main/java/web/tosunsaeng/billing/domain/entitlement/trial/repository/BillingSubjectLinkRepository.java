@@ -60,7 +60,9 @@ public class BillingSubjectLinkRepository {
     public Optional<BillingSubjectLink> rebindOwner(
             BillingSubjectLink current,
             String targetUserId,
-            Instant updatedAt
+            Instant updatedAt,
+            String transitionReason,
+            String transitionId
     ) {
         Criteria version = current.hasExplicitOwnerVersion()
                 ? Criteria.where("ownerVersion").is(current.getOwnerVersion())
@@ -78,7 +80,9 @@ public class BillingSubjectLinkRepository {
         Update update = new Update()
                 .set("userId", targetUserId)
                 .set("ownerVersion", current.getOwnerVersion() + 1)
-                .set("ownerUpdatedAt", updatedAt);
+                .set("ownerUpdatedAt", updatedAt)
+                .set("ownerTransitionReason", transitionReason)
+                .set("ownerTransitionId", transitionId);
         return Optional.ofNullable(mongoTemplate.findAndModify(
                 query,
                 update,

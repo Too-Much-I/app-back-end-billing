@@ -195,6 +195,8 @@ class OwnerRebindMongoIntegrationTest {
                 .find(new Document("_id", SUBJECT)).first();
         assertThat(link).isNotNull();
         assertThat(link.getString("userId")).isEqualTo(TARGET);
+        assertThat(link.getString("ownerTransitionReason")).isEqualTo("PHONE_REJOIN");
+        assertThat(link.getString("ownerTransitionId")).isEqualTo(command.eventId());
         assertThat(mongoTemplate.getCollection("attempt_groups")
                 .find(new Document("_id", "attempt-group-open")).first()).isEqualTo(groupBefore);
     }

@@ -168,6 +168,8 @@ Billing은 검증된 event를 canonical JSON으로 정규화하고 SHA-256 diges
 - active Reservation/processing/prerequisite pending은 503 `OWNER_REBIND_PENDING`과 승인된 delta-seconds `Retry-After`로 재시도한다.
 - phone AttemptGroup 없음/OPEN/RETAKE_AVAILABLE은 owner 이전, GRADING은 pending, COMPLETED는 owner/fence 불변 NOOP다.
 - target 재응시는 기존 group·consumption·mockExamId를 재사용하되 source Session을 이전하지 않고 새 examId로 처음부터 시작한다.
+- Learning Core에 기존 Session이 없는 phone target은 `POST /internal/v1/reservations/continuations/phone`에 target `userId`만 보내 Billing authoritative `continuationReason=PHONE_REJOIN`, `continuationId`, `attemptGroupId`, `mockExamId`를 먼저 조회한다. 대상이 없으면 204다.
+- phone reserve는 위 context의 `continuationReason`, `continuationId`, `expectedAttemptGroupId`를 모두 echo한다. Billing은 current owner transition과 group/mock을 재검증하고 명시적인 phone REPLACEMENT로 응답한다.
 - related Session terminal 뒤 24시간 안에 legacy sourceUserId를 unset한다. terminal 미수렴 hard upper bound는 `min(rebindAppliedAt+120일, TrialClaim.retentionExpiresAt)`이다.
 - hard cap 뒤 late source event는 자동 owner authorization에 사용하지 않고 privileged reconciliation 대상으로 분류한다.
 
@@ -262,6 +264,8 @@ reserve는 아직 durable하지 않은 proposed `sessionId`, 고정할 `mockExam
 - `GRADING` group에는 새 Session을 즉시 허용하지 않고 processing conflict를 반환한다.
 - 같은 operation·같은 canonical payload는 기존 Reservation 결과를 반환한다.
 - 같은 operation을 다른 payload로 사용하면 409 `IDEMPOTENCY_KEY_CONFLICT`다.
+- 일반 요청은 기존 세 field만 사용한다. phone continuation 요청만 `continuationReason=PHONE_REJOIN`, `continuationId`, `expectedAttemptGroupId`를 모두 추가하며 일부 field, 잘못된 owner epoch/group/mock은 거절한다.
+- phone 성공 응답과 status는 optional `continuationReason`, `continuationId`를 포함하고 기존 AttemptGroup의 attemptGroupId/mockExamId를 authoritative하게 반환한다. 일반 응답에는 optional field를 생략한다.
 
 `RESERVED`의 기본 expiry는 5분이다. 이 시간은 사용자 대기시간이 아니라 Session commit 실패 시 hold가 영원히 남지 않게 하는 안전장치다.
 

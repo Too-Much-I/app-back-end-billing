@@ -14,13 +14,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
 
 import web.tosunsaeng.billing.global.exception.InternalApiException;
+import web.tosunsaeng.billing.domain.reservation.domain.entity.Reservation;
 import web.tosunsaeng.billing.domain.reservation.dto.request.ReserveRequest;
 
 @Component
 public class ReserveRequestDecoder {
 
     public static final int MAX_PAYLOAD_BYTES = 16 * 1024;
-    private static final Set<String> FIELDS = Set.of("userId", "sessionId", "mockExamId");
+    private static final Set<String> BASE_FIELDS = Set.of("userId", "sessionId", "mockExamId");
+    private static final Set<String> CONTINUATION_FIELDS = Set.of(
+            "userId", "sessionId", "mockExamId", "continuationReason",
+            "continuationId", "expectedAttemptGroupId"
+    );
 
     private final JsonFactory jsonFactory;
     private final ObjectMapper objectMapper;
@@ -43,13 +48,26 @@ public class ReserveRequestDecoder {
         Set<String> actual = new HashSet<>();
         Iterator<String> names = root.fieldNames();
         names.forEachRemaining(actual::add);
-        if (!actual.equals(FIELDS)) {
+        if (!actual.equals(BASE_FIELDS) && !actual.equals(CONTINUATION_FIELDS)) {
             throw InternalApiException.invalidRequest();
         }
         String userId = canonicalUuid(requiredText(root, "userId"));
         String sessionId = opaqueToken(root, "sessionId");
         String mockExamId = opaqueToken(root, "mockExamId");
-        return new ReserveRequest(userId, sessionId, mockExamId);
+        if (actual.equals(BASE_FIELDS)) {
+            return new ReserveRequest(userId, sessionId, mockExamId);
+        }
+        if (!Reservation.ContinuationReason.PHONE_REJOIN.name().equals(
+                requiredText(root, "continuationReason")
+        )) {
+            throw InternalApiException.invalidRequest();
+        }
+        return new ReserveRequest(
+                userId, sessionId, mockExamId,
+                Reservation.ContinuationReason.PHONE_REJOIN,
+                canonicalUuidV4(requiredText(root, "continuationId")),
+                opaqueToken(root, "expectedAttemptGroupId")
+        );
     }
 
     private JsonNode parse(byte[] payload) {
@@ -84,6 +102,14 @@ public class ReserveRequestDecoder {
         } catch (IllegalArgumentException exception) {
             throw InternalApiException.invalidRequest();
         }
+    }
+
+    private static String canonicalUuidV4(String value) {
+        String canonical = canonicalUuid(value);
+        if (UUID.fromString(canonical).version() != 4) {
+            throw InternalApiException.invalidRequest();
+        }
+        return canonical;
     }
 
     private static String opaqueToken(JsonNode root, String field) {

@@ -2615,3 +2615,119 @@
 - 위험·미확인: 사용자가 실행한 원래 push 명령의 오류 출력은 확인하지 못했지만 remote tracking이 갱신된 뒤에도 ahead 1이므로 commit이 origin에 없는 사실은 확정이다.
 - 예상 밖 diff: 없음. 앞선 구현 commit 뒤 이번 진단 기록 두 파일만 새로 수정됐다.
 - 다음 작업: 사용자가 직접 branch 분리·push한 뒤 base develop/head fix branch로 PR을 생성한다.
+
+## 2026-09-03 — PHONE_REJOIN replacement discovery 계약 공백 확인
+
+<!-- codex-turn:phone-rejoin-replacement-discovery-gap -->
+
+- 날짜: 2026-09-03
+- 브랜치: Billing `develop`
+- Jira: `TMI-120` 참고. Jira 변경은 수행하지 않았다.
+- 작업 목표: 재가입 target에게 Learning Core의 기존 ExamSession이 없을 때 현재 reserve 계약만으로 같은 AttemptGroup의 replacement Session을 만들 수 있는지 확인한다.
+- 확인한 구현: `ReserveRequest.mockExamId`는 필수이고 `ReserveService.determineKind`는 기존 OPEN/RETAKE_AVAILABLE group의 `mockExamId`와 요청 값이 exact match해야만 `REPLACEMENT`를 반환한다. 응답에는 attemptGroupId/mockExamId가 있지만 요청자가 기존 값을 이미 알아야 도달할 수 있다.
+- 결론: Learning Core가 기존 mockExamId를 모르면 예상 밖 REPLACEMENT를 받은 뒤 거절하는 것이 아니라 Billing 응답 전 `STATE_CONFLICT`가 발생한다. 문서에 적힌 phone replacement E2E에는 discovery/continuation 계약이 빠져 있다.
+- 권장 계약: 일반 reserve는 기존 fail-closed 동작을 유지한다. phone rejoin에만 Billing이 authoritative attemptGroupId/mockExamId와 명시적 continuation reason/context를 제공하고, Learning Core가 이를 reserve에 echo한 경우에만 target 명의 새 examId를 같은 group에 연결한다.
+- 유지할 경계: source Session·답안·결과 owner는 변경하지 않고 새 Claim·Grant·allocation·consumption도 만들지 않는다. 명시적 context가 없는 일반 unexpected REPLACEMENT는 계속 거절한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`만 분석 기록으로 갱신했다. 애플리케이션·ADR·PLAN·Jira는 변경하지 않았다.
+- 테스트 결과: 코드·계약 분석 작업이므로 Gradle 테스트는 실행하지 않았다. 문서 형식은 `git diff --check`로 확인한다.
+- 위험·미확인: 별도 discovery route와 reserve 확장 중 선택, context 만료·재사용·경합 처리, 최초 target Session confirm 뒤 context 종료 조건은 ADR에서 확정해야 한다.
+- 예상 밖 diff: 없음.
+- 다음 작업: discovery/continuation wire 계약 선택지를 확정한 뒤 ADR-003, PLAN-006, 통합 계약과 Billing/Learning Core 구현 계획을 함께 보정한다.
+
+## 2026-09-03 — PHONE_REJOIN replacement discovery 문제 설명
+
+<!-- codex-turn:phone-rejoin-discovery-gap-explanation -->
+
+- 날짜: 2026-09-03
+- 브랜치: Billing `develop`
+- Jira: `TMI-120` 참고. Jira 변경은 수행하지 않았다.
+- 작업 목표: 재가입 replacement 계약 공백이 발생한 이유를 제품 흐름 중심으로 설명한다.
+- 설명 결론: 기존 restart는 같은 Learning Core 사용자 기록에서 기존 mockExamId를 조회할 수 있다는 전제로 설계됐다. 탈퇴·재가입하면 새 userId에는 그 기록이 없지만 Billing은 보안상 기존 mockExamId exact match를 계속 요구하므로, 새 계정이 모르는 값을 먼저 제출해야 하는 순환 의존이 생긴다.
+- 유지할 경계: Billing이 아무 요청이나 기존 group에 자동 연결하지 않는 fail-closed 검사는 필요하다. 해결은 검사를 제거하는 것이 아니라 Billing이 승인한 phone-rejoin continuation context로 기존 group 정보를 안전하게 전달하는 것이다.
+- 변경 파일: `docs/codex/WORKLOG.md`만 설명 기록으로 갱신했다. 코드·계약·Jira는 변경하지 않았다.
+- 테스트 결과: 설명 작업이므로 Gradle 테스트는 실행하지 않았다. 문서 형식만 확인한다.
+- 예상 밖 diff: 없음.
+- 다음 작업: 사용자가 계약 설계를 진행하면 discovery API와 context 검증 항목의 선택지를 제시한다.
+
+## 2026-09-03 — PHONE_REJOIN 인증·승인 오류 구분 설명
+
+<!-- codex-turn:phone-rejoin-authn-authorization-distinction -->
+
+- 날짜: 2026-09-03
+- 브랜치: Billing `develop`
+- Jira: `TMI-120` 참고. Jira 변경은 수행하지 않았다.
+- 작업 목표: 재가입 replacement 실패가 사용자 인증 오류인지 구분한다.
+- 설명 결론: 새 계정의 로그인/JWT 인증은 정상이다. 과거 Learning Core 기록을 연결하지 않아 기존 attemptGroupId/mockExamId를 알 수 없고, Billing의 기존-group exact match 승인 조건을 충족하지 못해 발생하는 authorization/contract state conflict다.
+- 유지할 경계: 과거 학습 기록을 새 계정에 전부 이전하지 않는다. Billing이 승인한 제한적 continuation context로 중단 AttemptGroup만 연결해야 한다.
+- 변경 파일: `docs/codex/WORKLOG.md`만 설명 기록으로 갱신했다. 코드·계약·Jira는 변경하지 않았다.
+- 테스트 결과: 설명 작업이므로 Gradle 테스트는 실행하지 않았다. 문서 형식만 확인한다.
+- 예상 밖 diff: 없음.
+- 다음 작업: continuation contract 선택지를 확정하고 ADR/PLAN을 보정한다.
+
+## 2026-09-03 — PHONE_REJOIN continuation discovery와 명시적 replacement 구현
+
+<!-- codex-turn:phone-rejoin-continuation-implementation -->
+
+- 날짜: 2026-09-03
+- 브랜치: Billing `develop`
+- Jira: `TMI-120` 관련 보정. Jira 조회·본문·댓글·상태는 변경하지 않았다.
+- 작업 목표: 새 userId의 Learning Core가 과거 Session/mockExamId를 몰라 phone replacement가 reserve 전 STATE_CONFLICT로 막히는 계약 공백을 해소한다.
+- 변경 동작: Learning Core 전용 `POST /internal/v1/reservations/continuations/phone`은 target userId만 strict decode한다. current owner transition이 PHONE_REJOIN이고 Claim/link/group이 일치하며 group이 OPEN/RETAKE_AVAILABLE이면 Billing authoritative continuationReason/id, attemptGroupId, mockExamId를 200으로 반환하고 대상 없음은 204다.
+- owner epoch: owner CAS와 같은 update에서 `BillingSubjectLink.ownerTransitionReason`, `ownerTransitionId`를 기록한다. transition ID는 검증된 Identity owner eventId이며 다음 CAS에서 교체돼 과거 context가 자동 무효화된다. raw phone이나 source user 연결은 추가하지 않는다.
+- reserve 계약: 기존 3-field body 또는 phone context를 포함한 6-field body만 허용한다. continuationReason/id/expectedAttemptGroupId는 all-or-none이며 current link transition, existing group/mock을 Transaction에서 다시 검증한다. 불일치와 INITIAL context는 `RESERVATION_STATE_CONFLICT`다.
+- 응답·멱등성: phone reserve와 status에 optional reason/id를 저장·반환하며 group/mock은 request echo 대신 existing AttemptGroup 값을 사용한다. 일반 request/response에는 optional field가 없고 기존 base canonical digest byte 형식을 그대로 유지해 배포 전 command retry가 충돌하지 않는다.
+- 무료권 불변식: 새 Claim·Grant·allocation·consumption을 만들거나 unit을 복원하지 않는다. source Session·답안·결과 owner도 변경하지 않고 target의 새 Session만 기존 group에 연결한다.
+- 보안: local/test에서 continuation route는 owner-rebind flag가 켜진 경우 Learning Core role만 접근하고 Identity role은 거절한다. Lattice 환경은 외부 service auth policy에 같은 환경 Learning Core task role의 exact POST route를 추가해야 한다.
+- 변경 파일: reservation continuation service/policy/DTO/controller/decoder, reserve command/hash/entity/snapshot/status, BillingSubjectLink owner CAS, SecurityConfig, 관련 unit/MVC/Mongo integration tests, ADR-003, PLAN-006, 통합 계약, CONTRACT_DECISIONS, AGENTS, CURRENT_STATE와 WORKLOG.
+- 테스트 결과: 신규·핵심 MVC/security/decoder/policy/service/hash 테스트는 `BUILD SUCCESSFUL`. 최종 `./gradlew clean test`는 136개 중 비-Docker 132개 통과, Docker daemon 미가동으로 Testcontainers 기반 4개 integration class가 initialization failure다. 새 Mongo 테스트는 작성·컴파일됐으나 실제 replica-set 실행이 남았다. `git diff --check`를 최종 확인한다.
+- 유지·변경한 외부 계약: 기존 reserve 3-field request와 일반 response/idempotency는 유지한다. 새 continuation 조회 route와 phone reserve의 optional 3-field echo, phone response/status optional 2-field가 추가됐다.
+- 위험·미확인: Learning Core strict response reader와 신규 discovery 호출, 일반 unexpected REPLACEMENT fail-closed, 실제 Lattice IAM route policy는 이 저장소에서 구현하지 않았다. consumer-first 배포와 staging E2E가 필요하다.
+- 예상 밖 diff: 없음. 앞선 같은 대화의 분석 기록 문서 변경을 보존했으며 Identity/Learning Core 코드, AWS, Jira, git commit/push는 변경하지 않았다.
+- 다음 작업: Docker 환경에서 전체 integration test를 통과시키고 Learning Core 계약/구현을 reader-first로 보정한 뒤 Lattice staging 순서 역전·응답 유실 E2E를 수행한다.
+
+## 2026-09-03 — phone reserve continuation 재검증 설명
+
+<!-- codex-turn:phone-reserve-continuation-validation-explanation -->
+
+- 날짜: 2026-09-03
+- 브랜치: Billing `develop`
+- Jira: `TMI-120` 참고. Jira 변경은 수행하지 않았다.
+- 작업 목표: reserve의 continuation 세 field all-or-none 및 Billing 재검증 의미를 설명한다.
+- 설명 결론: 세 field는 승계 종류, current owner transition 식별자, 기대 group을 하나의 승인 context로 구성한다. discovery와 reserve 사이의 owner/group 상태 변경이나 값 섞임을 막기 위해 일부만 받지 않고 Billing current state와 다시 비교한다.
+- 성공 의미: exact PHONE_REJOIN context와 기존 mockExamId가 모두 일치할 때만 같은 consumption의 REPLACEMENT로 분류하며, 새 권리나 과거 Session 데이터 이전을 뜻하지 않는다.
+- 변경 파일: `docs/codex/WORKLOG.md`만 설명 기록으로 갱신했다. 코드·계약·Jira는 변경하지 않았다.
+- 테스트 결과: 설명 작업이므로 Gradle 테스트는 재실행하지 않았고 문서 형식만 확인한다.
+- 예상 밖 diff: 없음.
+- 다음 작업: Learning Core reader-first 구현에서 discovery 응답 저장·reserve echo·unexpected replacement fail-closed를 적용한다.
+
+## 2026-09-03 — Learning Core phone continuation 구현 인계 정리
+
+<!-- codex-turn:learning-core-phone-continuation-handoff -->
+
+- 날짜: 2026-09-03
+- 브랜치: Billing `develop`
+- Jira: `TMI-120` 관련 Billing 계약 인계. Jira 변경은 수행하지 않았다.
+- 작업 목표: Billing에 추가된 phone continuation discovery와 명시적 replacement 계약을 Learning Core 구현자가 바로 적용할 수 있게 정리한다.
+- 핵심 인계: target userId에 기존 Session이 없을 때만 Billing phone continuation을 먼저 조회한다. 204면 정상 INITIAL 흐름, 200이면 반환 context와 기존 mock/group을 saga에 보존하고 새 target examId로 6-field reserve를 호출한다.
+- 응답 검증: phone context를 보냈다면 REPLACEMENT, PHONE_REJOIN reason/id, group/mock exact match만 허용한다. INITIAL 예상 중 context 없는 REPLACEMENT와 phone field 불일치는 fail-closed하고 생성된 Reservation을 cancel로 보상한다.
+- 데이터 경계: source Session·답안·upload·grading·summary·결과를 조회·복사·owner rewrite하지 않는다. 새 target Session만 기존 AttemptGroup에 연결하고 기존 consumption을 재사용한다.
+- transport/배포: continuation 조회에는 idempotency key가 없고 reserve에는 기존 lowercase UUID v4 key를 유지한다. Billing 응답/status optional field를 먼저 허용하는 reader-first decoder를 배포한 뒤 publisher/caller를 켠다. Lattice policy에 Learning Core role의 exact continuation POST route를 추가한다.
+- 변경 파일: `docs/codex/WORKLOG.md`만 인계 기록으로 갱신했다. 애플리케이션·계약·Jira는 변경하지 않았다.
+- 테스트 결과: 문서 정리 작업이므로 Gradle 테스트를 재실행하지 않았고 `git diff --check`만 확인한다.
+- 예상 밖 diff: 없음.
+- 다음 작업: Learning Core 저장소에서 saga/outbox, strict decoder, cancel compensation, duplicate/response-loss/E2E 테스트를 구현한다.
+
+## 2026-09-03 — phone continuation 변경 Git/PR 명령 확인
+
+<!-- codex-turn:phone-continuation-git-pr-commands -->
+
+- 날짜: 2026-09-03
+- 브랜치: Billing `develop`
+- Jira: `TMI-120` 관련 후속. Jira 변경은 수행하지 않았다.
+- 작업 목표: 현재 변경을 안전하게 feature branch로 커밋·push하고 develop PR로 머지하는 명령을 안내한다.
+- 확인 결과: local `develop` HEAD `9239a62`는 `origin/develop`과 동일하며 작업 트리에 phone continuation 관련 변경만 존재한다. `main`은 오래된 `e0694f9`이므로 PR base는 `develop`이어야 한다.
+- 권장 branch: `fix/TMI-120-phone-continuation`.
+- 변경 파일: Git 상태 확인 기록을 위해 `docs/codex/WORKLOG.md`만 추가 갱신했다. 원격·branch·commit·push·PR은 변경하지 않았다.
+- 테스트 결과: 코드 변경 없이 Git 상태만 확인했으므로 테스트를 재실행하지 않았다.
+- 예상 밖 diff: 없음.
+- 다음 작업: 사용자가 안내 명령으로 branch 생성, staged diff 확인, commit, push, PR check와 develop merge를 수행한다.

@@ -19,6 +19,8 @@ public class BillingSubjectLink {
     private Instant retentionExpiresAt;
     private Long ownerVersion;
     private Instant ownerUpdatedAt;
+    private String ownerTransitionReason;
+    private String ownerTransitionId;
 
     protected BillingSubjectLink() {
     }
@@ -91,6 +93,14 @@ public class BillingSubjectLink {
 
     public Instant getOwnerUpdatedAt() {
         return ownerUpdatedAt == null ? createdAt : ownerUpdatedAt;
+    }
+
+    public String getOwnerTransitionReason() {
+        return ownerTransitionReason;
+    }
+
+    public String getOwnerTransitionId() {
+        return ownerTransitionId;
     }
 
     @Override

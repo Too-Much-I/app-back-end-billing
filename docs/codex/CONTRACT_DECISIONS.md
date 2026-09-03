@@ -468,6 +468,8 @@ A는 캠페인별 비용과 악용을 통제하지만 운영 catalog가 복잡�
 - active `RESERVED` 또는 PROCESSING command가 있으면 document를 rewrite하지 않고 confirm/cancel/5분 expiry 종료까지 retryable PENDING으로 처리한다.
 - phone 재가입은 AttemptGroup이 없거나 `OPEN`/`RETAKE_AVAILABLE`일 때만 owner를 이전한다. `GRADING`은 terminal 판정까지 503 pending, `COMPLETED`는 owner와 fence를 변경하지 않는 성공 NOOP다.
 - phone target의 재응시는 기존 consumption·attemptGroupId·mockExamId를 유지하지만 source Session을 이전하지 않는다. target의 새 key·새 examId로 replacement Session을 처음부터 만든다.
+- Learning Core에 이전 Session이 없는 phone target은 `POST /internal/v1/reservations/continuations/phone`으로 Billing authoritative attemptGroupId/mockExamId와 `PHONE_REJOIN` context를 먼저 조회한다. 적용 가능한 context가 없으면 204다.
+- phone reserve는 `continuationReason`, `continuationId`, `expectedAttemptGroupId` 세 field를 모두 echo해야 한다. Billing은 current owner epoch와 exact group/mock을 다시 검증하고 성공 응답·status에 reason/id를 포함한다. 일반 unexpected REPLACEMENT는 Learning Core가 계속 fail-closed한다.
 - rebind 전에 생성된 exact AttemptGroup/Session의 authenticated Learning Core status event는 subject/group/session fencing을 통과할 때 GRADING·terminal 수렴 목적으로만 legacy source를 한시 허용한다.
 - legacy source는 신규 reserve·replacement·다른 Session 또는 사용자 actor 권한으로 사용할 수 없다.
 - source owner 연결은 관련 Session terminal 또는 승인된 retry window 종료 후 삭제하며 어떤 경우에도 Claim 3년 retention을 넘기지 않는다.

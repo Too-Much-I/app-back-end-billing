@@ -13,6 +13,10 @@ public class Reservation {
         REPLACEMENT
     }
 
+    public enum ContinuationReason {
+        PHONE_REJOIN
+    }
+
     public enum Status {
         RESERVED,
         CONFIRMED,
@@ -32,6 +36,8 @@ public class Reservation {
     private String attemptGroupId;
     private String proposedSessionId;
     private String mockExamId;
+    private ContinuationReason continuationReason;
+    private String continuationId;
     private Instant createdAt;
     private Instant expiresAt;
     private Instant terminalAt;
@@ -50,6 +56,8 @@ public class Reservation {
             String attemptGroupId,
             String proposedSessionId,
             String mockExamId,
+            ContinuationReason continuationReason,
+            String continuationId,
             Instant createdAt,
             Instant expiresAt
     ) {
@@ -64,6 +72,8 @@ public class Reservation {
         this.attemptGroupId = attemptGroupId;
         this.proposedSessionId = proposedSessionId;
         this.mockExamId = mockExamId;
+        this.continuationReason = continuationReason;
+        this.continuationId = continuationId;
         this.createdAt = createdAt;
         this.expiresAt = expiresAt;
         this.version = 1;
@@ -79,12 +89,34 @@ public class Reservation {
             String attemptGroupId,
             String proposedSessionId,
             String mockExamId,
+            ContinuationReason continuationReason,
+            String continuationId,
             Instant createdAt,
             Instant expiresAt
     ) {
         return new Reservation(
                 reservationId, subjectRefId, operationId, payloadHash, reservationKind,
-                attemptGroupId, proposedSessionId, mockExamId, createdAt, expiresAt
+                attemptGroupId, proposedSessionId, mockExamId,
+                continuationReason, continuationId, createdAt, expiresAt
+        );
+    }
+
+    public static Reservation reserved(
+            String reservationId,
+            String subjectRefId,
+            String operationId,
+            String payloadHash,
+            Kind reservationKind,
+            String attemptGroupId,
+            String proposedSessionId,
+            String mockExamId,
+            Instant createdAt,
+            Instant expiresAt
+    ) {
+        return reserved(
+                reservationId, subjectRefId, operationId, payloadHash, reservationKind,
+                attemptGroupId, proposedSessionId, mockExamId, null, null,
+                createdAt, expiresAt
         );
     }
 
@@ -126,6 +158,14 @@ public class Reservation {
 
     public String getMockExamId() {
         return mockExamId;
+    }
+
+    public ContinuationReason getContinuationReason() {
+        return continuationReason;
+    }
+
+    public String getContinuationId() {
+        return continuationId;
     }
 
     public Instant getExpiresAt() {
