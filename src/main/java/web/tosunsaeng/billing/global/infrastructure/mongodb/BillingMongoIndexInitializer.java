@@ -21,7 +21,7 @@ import web.tosunsaeng.billing.global.config.mongodb.BillingMongoProperties;
 @Order(Ordered.HIGHEST_PRECEDENCE + 1)
 public class BillingMongoIndexInitializer implements ApplicationRunner {
 
-    public static final int SCHEMA_VERSION = 3;
+    public static final int SCHEMA_VERSION = 4;
     public static final String INBOX_COLLECTION = "inbound_event_inbox";
     public static final String ELIGIBILITY_COLLECTION = "trial_eligibility";
     public static final String BENEFIT_COLLECTION = "benefit_definitions";
@@ -35,6 +35,8 @@ public class BillingMongoIndexInitializer implements ApplicationRunner {
     public static final String COMMAND_COLLECTION = "idempotency_commands";
     public static final String ATTEMPT_GROUP_COLLECTION = "attempt_groups";
     public static final String ATTEMPT_SESSION_COLLECTION = "attempt_sessions";
+    public static final String OWNER_REBIND_INBOX_COLLECTION = "owner_rebind_inbox";
+    public static final String SUBJECT_OWNER_REBIND_COLLECTION = "subject_owner_rebinds";
 
     private final MongoTemplate mongoTemplate;
     private final BillingMongoProperties properties;
@@ -68,7 +70,10 @@ public class BillingMongoIndexInitializer implements ApplicationRunner {
         ensureCollection(COMMAND_COLLECTION);
         ensureCollection(ATTEMPT_GROUP_COLLECTION);
         ensureCollection(ATTEMPT_SESSION_COLLECTION);
+        ensureCollection(OWNER_REBIND_INBOX_COLLECTION);
+        ensureCollection(SUBJECT_OWNER_REBIND_COLLECTION);
         validateNoLegacyBenefitReferences();
+        validateOwnerVersionData();
 
         Document identityRevisionFilter = new Document("producer", "identity")
                 .append("consumerScopeId", new Document("$exists", true))
@@ -280,6 +285,51 @@ public class BillingMongoIndexInitializer implements ApplicationRunner {
                 null,
                 null
         ));
+        ensureIndex(OWNER_REBIND_INBOX_COLLECTION, new ExpectedIndex(
+                "ux_owner_rebind_inbox_event_id",
+                new Document("eventId", 1),
+                true,
+                null,
+                null
+        ));
+        ensureIndex(OWNER_REBIND_INBOX_COLLECTION, new ExpectedIndex(
+                "ttl_owner_rebind_inbox_purge_at",
+                new Document("purgeAt", 1),
+                false,
+                0L,
+                null
+        ));
+        ensureIndex(SUBJECT_OWNER_REBIND_COLLECTION, new ExpectedIndex(
+                "ux_owner_rebind_event_subject",
+                new Document("eventId", 1).append("subjectRefId", 1),
+                true,
+                null,
+                null
+        ));
+        ensureIndex(SUBJECT_OWNER_REBIND_COLLECTION, new ExpectedIndex(
+                "ix_owner_rebind_subject_fence",
+                new Document("subjectRefId", 1)
+                        .append("attemptGroupId", 1)
+                        .append("sessionId", 1)
+                        .append("legacyFenceExpiresAt", 1),
+                false,
+                null,
+                null
+        ));
+        ensureIndex(SUBJECT_OWNER_REBIND_COLLECTION, new ExpectedIndex(
+                "ix_owner_rebind_cleanup_due",
+                new Document("cleanupState", 1).append("cleanupDueAt", 1),
+                false,
+                null,
+                null
+        ));
+        ensureIndex(SUBJECT_OWNER_REBIND_COLLECTION, new ExpectedIndex(
+                "ttl_owner_rebind_purge_at",
+                new Document("purgeAt", 1),
+                false,
+                0L,
+                null
+        ));
     }
 
     private void ensureCollection(String collectionName) {
@@ -292,6 +342,26 @@ public class BillingMongoIndexInitializer implements ApplicationRunner {
         validateNoLegacyBenefitReference(CLAIM_COLLECTION, "benefitType");
         validateNoLegacyBenefitReference(ALIAS_COLLECTION, "benefitType");
         validateNoLegacyBenefitReference(GRANT_COLLECTION, "grantType");
+    }
+
+    private void validateOwnerVersionData() {
+        for (Document link : mongoTemplate.getCollection(SUBJECT_LINK_COLLECTION)
+                .find()
+                .projection(new Document("ownerVersion", 1).append("ownerUpdatedAt", 1))) {
+            Object version = link.get("ownerVersion");
+            Object updatedAt = link.get("ownerUpdatedAt");
+            if (version == null && updatedAt == null) {
+                continue;
+            }
+            if (!(version instanceof Number number)
+                    || number.longValue() < 1
+                    || number.doubleValue() != number.longValue()
+                    || !(updatedAt instanceof java.util.Date)) {
+                throw new IllegalStateException(
+                        "Legacy owner version data requires an approved v4 migration."
+                );
+            }
+        }
     }
 
     private void validateNoLegacyBenefitReference(

@@ -62,7 +62,7 @@ class AttemptGroupEventMongoIntegrationTest {
         registry.add("spring.data.mongodb.uri", MONGO::getReplicaSetUrl);
         registry.add("billing.mongodb.initialize-indexes", () -> "true");
         registry.add("billing.mongodb.require-transactions", () -> "true");
-        registry.add("billing.mongodb.schema-version", () -> "3");
+        registry.add("billing.mongodb.schema-version", () -> "4");
         registry.add("billing.trial-eligibility.expected-consumer-scope-id",
                 () -> "opaque-scope-v1");
         registry.add("billing.attempt-group-events.enabled", () -> "true");

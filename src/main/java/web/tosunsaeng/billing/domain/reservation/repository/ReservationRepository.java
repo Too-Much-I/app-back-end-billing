@@ -40,6 +40,16 @@ public class ReservationRepository {
         return Optional.ofNullable(mongoTemplate.findById(reservationId, Reservation.class));
     }
 
+    public List<Reservation> findActiveBySubjects(List<String> subjectRefIds) {
+        if (subjectRefIds.isEmpty()) {
+            return List.of();
+        }
+        Query query = Query.query(Criteria.where("subjectRefId").in(subjectRefIds)
+                .and("status").is(Reservation.Status.RESERVED)
+                .and("activeGuard").is(true));
+        return mongoTemplate.find(query, Reservation.class);
+    }
+
     public Optional<Reservation> transitionReserved(
             String reservationId,
             long expectedVersion,

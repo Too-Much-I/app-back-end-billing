@@ -24,6 +24,8 @@ import web.tosunsaeng.billing.domain.attempt.repository.AttemptGroupRepository;
 import web.tosunsaeng.billing.domain.attempt.repository.AttemptSessionRepository;
 import web.tosunsaeng.billing.domain.entitlement.trial.domain.entity.BillingSubjectLink;
 import web.tosunsaeng.billing.domain.entitlement.trial.repository.BillingSubjectLinkRepository;
+import web.tosunsaeng.billing.domain.ownerrebind.domain.entity.SubjectOwnerRebind;
+import web.tosunsaeng.billing.domain.ownerrebind.repository.SubjectOwnerRebindRepository;
 import web.tosunsaeng.billing.global.exception.InternalApiException;
 import web.tosunsaeng.billing.global.infrastructure.mongodb.MongoTransactionExecutor;
 import web.tosunsaeng.billing.global.observability.TraceCorrelation;
@@ -39,6 +41,7 @@ public class AttemptGroupEventService {
     private final AttemptGroupRepository groupRepository;
     private final AttemptSessionRepository sessionRepository;
     private final BillingSubjectLinkRepository subjectLinkRepository;
+    private final SubjectOwnerRebindRepository ownerRebindRepository;
     private final MongoTransactionExecutor transactionExecutor;
     private final AttemptGroupEventMetrics metrics;
     private final TraceCorrelation traceCorrelation;
@@ -49,6 +52,7 @@ public class AttemptGroupEventService {
             AttemptGroupRepository groupRepository,
             AttemptSessionRepository sessionRepository,
             BillingSubjectLinkRepository subjectLinkRepository,
+            SubjectOwnerRebindRepository ownerRebindRepository,
             MongoTransactionExecutor transactionExecutor,
             AttemptGroupEventMetrics metrics,
             TraceCorrelation traceCorrelation,
@@ -58,6 +62,7 @@ public class AttemptGroupEventService {
         this.groupRepository = groupRepository;
         this.sessionRepository = sessionRepository;
         this.subjectLinkRepository = subjectLinkRepository;
+        this.ownerRebindRepository = ownerRebindRepository;
         this.transactionExecutor = transactionExecutor;
         this.metrics = metrics;
         this.traceCorrelation = traceCorrelation;
@@ -132,8 +137,11 @@ public class AttemptGroupEventService {
                 .isPresent();
         if (activeLink) {
             BillingSubjectLink link = subjectLink.orElseThrow();
-            if (!group.getTrialClaimId().equals(link.getTrialClaimId())
-                    || !event.userId().equals(link.getUserId())) {
+            if (!group.getTrialClaimId().equals(link.getTrialClaimId())) {
+                throw AttemptGroupEventException.targetConflict();
+            }
+            if (!event.userId().equals(link.getUserId())
+                    && !legacySourceAuthorized(group, session, event, receivedAt)) {
                 throw AttemptGroupEventException.targetConflict();
             }
         } else if (event.targetStatus() != AttemptGroupEventTarget.COMPLETED) {
@@ -148,7 +156,28 @@ public class AttemptGroupEventService {
                 event, AttemptGroupEventDisposition.APPLIED, receivedAt
         ));
         applyTransition(group, session, event, receivedAt);
+        if (event.targetStatus() != AttemptGroupEventTarget.GRADING) {
+            ownerRebindRepository.markTerminalDue(
+                    group.getSubjectRefId(), group.getAttemptGroupId(),
+                    session.getSessionId(), event.occurredAt()
+            );
+        }
         return ProcessingResult.applied();
+    }
+
+    private boolean legacySourceAuthorized(
+            AttemptGroup group,
+            AttemptSession session,
+            AttemptGroupStatusEvent event,
+            Instant receivedAt
+    ) {
+        Optional<SubjectOwnerRebind> fence = ownerRebindRepository.findActiveFence(
+                group.getSubjectRefId(), event.userId(), group.getAttemptGroupId(),
+                session.getSessionId(), receivedAt
+        );
+        return fence.isPresent()
+                && session.getProposedAt() != null
+                && session.getProposedAt().isBefore(fence.orElseThrow().getAppliedAt());
     }
 
     private void applyTransition(

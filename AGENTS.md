@@ -55,20 +55,20 @@ Identity 또는 Learning Core 코드를 이 저장소로 복사하지 않는다.
 
 ## 현재 구현 단위
 
-현재 즉시 구현할 단위는 Jira `TMI-115`, `docs/plans/PLAN-004-benefit-definition-foundation.md`의 BenefitDefinition foundation vertical slice다.
+현재 즉시 구현할 단위는 Jira `TMI-120`, `docs/plans/PLAN-006-retained-trial-owner-rebind.md`와 `docs/adr/ADR-003-retained-trial-owner-rebind-contract.md`의 retained trial owner rebind vertical slice다.
 
 포함 범위:
 
-- `benefit_definitions` collection과 `_id=benefitCode`
-- `FREE_EXAM_ONCE` seed, active UNIT/EXAM_ATTEMPT/1-unit/policy-v1 exact validation
-- policy drift 자동 수정 금지와 startup fail-fast
-- TrialClaim·TrialCandidateAlias·EntitlementGrant의 `benefitCode` reference 통일
-- Mongo schema v3와 alias/grant index key 보정, legacy v2 data fail-fast
-- BenefitCatalog 기반 최초 reserve lazy Claim·Grant 발급
-- definition 누락·inactive·Grant 불일치의 부분 지급 없는 503 fail-closed
-- replica-set Testcontainers 기반 seed·index·transaction·lifecycle 회귀 검증
+- phone `TrialOwnerRebindApproved`와 Guest `UserMerged` v1 lifecycle별 strict decoder
+- `owner_rebind_inbox`, `subject_owner_rebinds`와 Mongo schema v4 exact index
+- `BillingSubjectLink.ownerVersion/ownerUpdatedAt` reader-first source→target CAS
+- phone revision/state/candidate-to-Claim prerequisite와 Guest 100 subject all-or-nothing
+- active Reservation/PROCESSING의 `503 OWNER_REBIND_PENDING`
+- pre-rebind exact AttemptGroup/Session legacy-source fence와 terminal 종료
+- 최대 1시간 cleanup worker, 24시간 overdue 경보와 privacy-safe log/metric/trace
+- replica-set Testcontainers 기반 legacy version, transaction, duplicate와 동시성 회귀 검증
 
-이 구현 단위에서는 `PREMIUM_SUBSCRIPTION`, `SubscriptionEntitlement`, Store lifecycle, 구독 Reservation 분기, eager TrialClaim, public 상품 API, AttemptGroup 상태 event, owner rebind와 타 서비스·AWS 변경을 추가하지 않는다. PLAN-004 완료만으로 production caller를 활성화하지 않고 후속 상태 event·Learning Core saga·Lattice staging E2E gate를 유지한다.
+이 구현 단위에서는 새 Claim·Grant·allocation·consumption, historical backfill, privileged repair route, Identity durable fan-out, Learning Core owner migration/source deny, 실제 AWS resource와 결제·구독·coupon을 추가하지 않는다. TMI-120 완료만으로 production owner rebind를 활성화하지 않고 타 서비스 consumer와 Lattice staging 순서 역전 E2E gate를 유지한다.
 
 ## 핵심 불변식
 
@@ -90,8 +90,11 @@ Identity 또는 Learning Core 코드를 이 저장소로 복사하지 않는다.
 - 장애 시 reservation과 Learning Core Session을 reconciliation하여 중복 Session이나 이중 차감을 만들지 않는다.
 - Apple/Google 구매는 클라이언트 주장만 신뢰하지 않고 서버에서 검증한다.
 - Identity eligibility event를 수신하는 것만으로 TrialClaim, grant 또는 balance를 만들지 않는다. 최초 reserve Transaction에서 현재 binding과 기존 Claim을 확인해 지급과 Reservation을 원자적으로 처리한다.
+- owner rebind는 새 Claim·Grant·allocation·consumption을 만들지 않고 stable `subjectRefId`의 current `BillingSubjectLink.userId`만 source→target CAS로 변경한다.
+- active Reservation 또는 PROCESSING reserve command가 있으면 owner를 rewrite하지 않고 503 pending으로 재시도시킨다.
+- rebind 이전 exact AttemptGroup/Session의 source status event만 bounded fence 안에서 상태 전진에 허용하고 신규 reserve·replacement·다른 Session 권한으로 사용하지 않는다.
 
-상세 상품·사용권 계약과 미확정 선택지는 이 저장소의 `docs/codex/CONTRACT_DECISIONS.md`를 단일 기준으로 사용한다. 서비스 간 전체 흐름은 `docs/contracts/BILLING_SERVICE_INTEGRATION_CONTRACT.md`, 내부 API와 Mongo 계약은 `docs/adr/ADR-001-free-trial-internal-api-and-mongo-contract.md`, Lattice·SigV4·환경 이관 계약은 `docs/adr/ADR-002-vpc-lattice-ecs-sigv4-and-environment-migration.md`, 현재 구현 순서는 `docs/plans/PLAN-004-benefit-definition-foundation.md`를 따른다. 통합 안내서와 세부 ADR이 충돌하면 ADR을 따르며, 확정된 계약을 임의로 재해석하지 말고 작업을 중단해 보고한다.
+상세 상품·사용권 계약과 미확정 선택지는 이 저장소의 `docs/codex/CONTRACT_DECISIONS.md`를 단일 기준으로 사용한다. 서비스 간 전체 흐름은 `docs/contracts/BILLING_SERVICE_INTEGRATION_CONTRACT.md`, 내부 API와 Mongo 계약은 `docs/adr/ADR-001-free-trial-internal-api-and-mongo-contract.md`, Lattice·SigV4·환경 이관 계약은 `docs/adr/ADR-002-vpc-lattice-ecs-sigv4-and-environment-migration.md`, owner rebind 계약은 `docs/adr/ADR-003-retained-trial-owner-rebind-contract.md`, 현재 구현 순서는 `docs/plans/PLAN-006-retained-trial-owner-rebind.md`를 따른다. 통합 안내서와 세부 ADR이 충돌하면 ADR을 따르며, 확정된 계약을 임의로 재해석하지 말고 작업을 중단해 보고한다.
 
 과거 Learning Core 문서는 역사적 참고 자료일 뿐이며, 앞으로 Billing 관련 결정과 작업기록은 이 저장소의 `docs`에만 추가한다.
 
@@ -99,13 +102,14 @@ Identity 또는 Learning Core 코드를 이 저장소로 복사하지 않는다.
 
 - 내부 eligibility namespace는 `/internal/v1/eligibility/{kind}/...` 형식을 사용한다.
 - 현재 Trial event endpoint는 `/internal/v1/eligibility/trial/events`다.
+- phone owner rebind endpoint는 `/internal/v1/eligibility/trial/owner/events`, Guest merge endpoint는 `/internal/v1/owners/merge/events`다.
 - URL namespace만 공통화하며 Trial, paid, coupon의 DTO·권한·멱등성·aggregate와 저장소를 하나로 합치지 않는다.
 - Identity가 이미 발행하는 wire event type과 schema v1 필드명을 임의로 변경하지 않는다.
 - internal API는 앱용 `BaseResponse` wrapper를 사용하지 않고 승인된 internal DTO 또는 body 없는 204를 그대로 반환한다.
 - request/response body 상한은 16 KiB이며 redirect를 허용하지 않는다.
 - strict decode 전에 payload를 저장하지 않고 raw JSON 전문을 로그에 남기지 않는다.
 - duplicate JSON field, trailing token, scalar coercion, unknown field와 잘못된 UUID casing을 거절한다.
-- `producer=identity`, `schemaVersion=1`, 승인된 event type과 환경 설정의 expected `consumerScopeId`가 exact match해야 한다.
+- wire에 해당 field가 있는 Trial/phone contract는 `producer=identity`, `schemaVersion=1`, 승인된 event type과 환경 설정의 expected `consumerScopeId`가 exact match해야 한다. Guest `UserMerged` v1은 기존 5개 field 외 값을 추가하지 않고 endpoint와 principal로 producer 의미를 고정한다.
 - canonical digest는 검증·정규화된 canonical JSON의 SHA-256으로 계산하며 멱등성 비교에만 사용한다.
 - 같은 `eventId`와 같은 digest는 duplicate no-op, 같은 `eventId`와 다른 digest는 conflict다.
 - 다른 `eventId`가 같은 producer·scope·user·revision을 주장하면 conflict다.
@@ -133,7 +137,7 @@ PLAN-002 Reservation을 구현할 때 다음 계약을 유지한다.
 - 예외적으로 인증된 Identity eligibility event와 인증된 Learning Core internal route는 각 서비스가 확정한 lowercase canonical UUID `userId`를 body로 전달한다. 다른 principal, public path, query parameter 또는 임의 identity header의 userId는 신뢰하지 않는다.
 - 향후 사용자 API를 추가할 때는 Identity만 사용자 토큰을 발급하며 Billing은 issuer, audience, signature, expiry를 검증한다.
 - 현재 내부 workload API는 VPC Lattice `AWS_IAM`, ECS task role과 SigV4를 사용한다. 별도 shared secret, API key 또는 workload JWT를 임의로 추가하지 않는다.
-- Identity task role은 Trial eligibility event route만, Learning Core task role은 Reservation·status·AttemptGroup route만 호출할 수 있도록 최소 권한을 적용한다.
+- Identity task role은 Trial eligibility와 승인된 owner rebind event route만, Learning Core task role은 Reservation·status·AttemptGroup route만 호출할 수 있도록 최소 권한을 적용한다.
 - repair route는 일반 workload role과 분리된 운영 role만 허용한다.
 - unsigned 요청, 다른 환경 role, 권한 없는 route와 direct task 우회는 거절한다.
 - local/test에서는 실제 AWS credential이나 Lattice를 호출하지 않고 명시적인 test principal 또는 adapter로 workload 경계를 검증한다.
@@ -163,6 +167,8 @@ PLAN-002 Reservation을 구현할 때 다음 계약을 유지한다.
 - `Reservation` audit document는 Mongo TTL index로 삭제하지 않는다. `expiresAt`을 기준으로 `RESERVED`만 명시적으로 `EXPIRED` 처리한다.
 - TTL 또는 expiry는 `CONFIRMED` consumption을 취소하거나 grant를 복구하지 않는다.
 - 동시 요청과 응답 유실에서도 같은 operation은 하나의 Claim, grant, Reservation과 consumption으로 수렴해야 한다.
+- Mongo schema v4의 owner collection은 `owner_rebind_inbox`, `subject_owner_rebinds`이며 legacy missing `ownerVersion`은 logical 1로 읽고 첫 CAS에서 explicit version 2로 수렴한다.
+- owner rebind inbox는 120일 멱등성용이며 raw payload와 source/target/subject/Claim을 저장하지 않는다. legacy fence의 source/group/session 연결은 terminal 또는 hard cap 뒤 cleanup한다.
 
 ## 테스트 규칙
 
@@ -174,6 +180,7 @@ PLAN-002 Reservation을 구현할 때 다음 계약을 유지한다.
 - workload route는 허용 role 성공뿐 아니라 unsigned, wrong role, wrong route와 direct bypass 실패도 테스트한다.
 - PLAN-001은 duplicate field·unknown field·coercion·property/candidate 순서·whitespace·oversize와 expected scope mismatch contract test를 포함한다.
 - Mongo 통합 테스트는 duplicate event, same revision conflict, stale/gap, unique-index race, transient transaction retry와 unknown commit 결과 수렴을 검증한다.
+- PLAN-006은 legacy missing ownerVersion CAS, exact duplicate/concurrent owner event, active Reservation rollback, exact/expired Session fence, terminal cleanup과 식별자 비로깅을 검증한다.
 
 ## 코드 변경 규칙
 

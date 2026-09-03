@@ -17,6 +17,8 @@ public class BillingSubjectLink {
     private boolean active;
     private Instant createdAt;
     private Instant retentionExpiresAt;
+    private Long ownerVersion;
+    private Instant ownerUpdatedAt;
 
     protected BillingSubjectLink() {
     }
@@ -37,6 +39,8 @@ public class BillingSubjectLink {
         this.active = true;
         this.createdAt = createdAt;
         this.retentionExpiresAt = retentionExpiresAt;
+        this.ownerVersion = 1L;
+        this.ownerUpdatedAt = createdAt;
     }
 
     public static BillingSubjectLink active(
@@ -75,6 +79,18 @@ public class BillingSubjectLink {
 
     public Instant getRetentionExpiresAt() {
         return retentionExpiresAt;
+    }
+
+    public long getOwnerVersion() {
+        return ownerVersion == null ? 1L : ownerVersion;
+    }
+
+    public boolean hasExplicitOwnerVersion() {
+        return ownerVersion != null;
+    }
+
+    public Instant getOwnerUpdatedAt() {
+        return ownerUpdatedAt == null ? createdAt : ownerUpdatedAt;
     }
 
     @Override

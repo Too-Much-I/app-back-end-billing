@@ -28,6 +28,11 @@ import web.tosunsaeng.billing.domain.reservation.application.ReservationLifecycl
 import web.tosunsaeng.billing.domain.reservation.application.ReservePayloadHasher;
 import web.tosunsaeng.billing.domain.reservation.application.ReserveService;
 import web.tosunsaeng.billing.domain.reservation.converter.ReservationConverter;
+import web.tosunsaeng.billing.domain.ownerrebind.api.PhoneOwnerRebindEventDecoder;
+import web.tosunsaeng.billing.domain.ownerrebind.api.UserMergedEventDecoder;
+import web.tosunsaeng.billing.domain.ownerrebind.application.OwnerRebindMetrics;
+import web.tosunsaeng.billing.domain.ownerrebind.application.OwnerRebindService;
+import web.tosunsaeng.billing.domain.ownerrebind.application.OwnerRebindTracing;
 import web.tosunsaeng.billing.global.observability.TraceCorrelation;
 
 @WebMvcTest
@@ -84,6 +89,21 @@ class SecurityConfigTest {
     @MockitoBean
     private ReservationConverter reservationConverter;
 
+    @MockitoBean
+    private PhoneOwnerRebindEventDecoder phoneOwnerRebindEventDecoder;
+
+    @MockitoBean
+    private UserMergedEventDecoder userMergedEventDecoder;
+
+    @MockitoBean
+    private OwnerRebindService ownerRebindService;
+
+    @MockitoBean
+    private OwnerRebindTracing ownerRebindTracing;
+
+    @MockitoBean
+    private OwnerRebindMetrics ownerRebindMetrics;
+
     @Test
     void unconfiguredEndpointIsDenied() throws Exception {
         mockMvc.perform(get("/"))
@@ -109,6 +129,18 @@ class SecurityConfigTest {
     @Test
     void internalAttemptGroupEndpointIsDeniedByDefault() throws Exception {
         mockMvc.perform(post("/internal/v1/attempt-group-events")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void internalOwnerRebindEndpointsAreDeniedByDefault() throws Exception {
+        mockMvc.perform(post("/internal/v1/eligibility/trial/owner/events")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/internal/v1/owners/merge/events")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isForbidden());

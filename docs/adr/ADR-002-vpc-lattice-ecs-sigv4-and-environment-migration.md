@@ -228,7 +228,7 @@ Lattice Billing service에 route/method/principal을 동시에 제한하는 reso
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "IdentityEligibilityEventsOnly",
+      "Sid": "IdentityEligibilityAndOwnerEventsOnly",
       "Effect": "Allow",
       "Principal": {
         "AWS": "${identity_task_role_arn}"
@@ -238,7 +238,11 @@ Lattice Billing service에 route/method/principal을 동시에 제한하는 reso
       "Condition": {
         "StringEquals": {
           "vpc-lattice-svcs:RequestMethod": "POST",
-          "vpc-lattice-svcs:RequestPath": "/internal/v1/eligibility/trial/events"
+          "vpc-lattice-svcs:RequestPath": [
+            "/internal/v1/eligibility/trial/events",
+            "/internal/v1/eligibility/trial/owner/events",
+            "/internal/v1/owners/merge/events"
+          ]
         }
       }
     },
@@ -272,6 +276,7 @@ Lattice Billing service에 route/method/principal을 동시에 제한하는 reso
 정책 규칙은 다음과 같다.
 
 - `Principal: "*"`, account root principal, organization-wide principal을 사용하지 않는다.
+- action은 `vpc-lattice-svcs:Invoke`만 사용하고 `Action: "*"`, `Resource: "*"`와 불필요한 `vpc-lattice-svcs:InvokeWithServiceNetworkContext`를 추가하지 않는다.
 - service network 수준에 broad allow policy를 두지 않고 Billing service policy를 route 권한의 단일 기준으로 둔다.
 - 같은 role의 STS session은 IAM이 role principal로 평가하도록 role ARN을 principal로 사용한다.
 - 정책 배포 전 IAM Access Analyzer·policy validation과 staging positive/negative 호출로 action, resource ARN format과 Lattice condition key를 검증한다.

@@ -7,7 +7,7 @@ public class BillingMongoProperties {
 
     private boolean initializeIndexes;
     private boolean requireTransactions;
-    private int schemaVersion = 3;
+    private int schemaVersion = 4;
 
     public boolean isInitializeIndexes() {
         return initializeIndexes;

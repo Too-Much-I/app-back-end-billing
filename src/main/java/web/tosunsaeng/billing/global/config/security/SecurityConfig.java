@@ -13,6 +13,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import web.tosunsaeng.billing.domain.eligibility.trial.config.TrialEligibilityProperties;
 import web.tosunsaeng.billing.domain.attempt.config.AttemptGroupEventProperties;
 import web.tosunsaeng.billing.domain.reservation.config.ReservationProperties;
+import web.tosunsaeng.billing.domain.ownerrebind.config.OwnerRebindProperties;
 import web.tosunsaeng.billing.global.config.mongodb.BillingMongoProperties;
 
 @Configuration
@@ -21,6 +22,7 @@ import web.tosunsaeng.billing.global.config.mongodb.BillingMongoProperties;
         AttemptGroupEventProperties.class,
         TrialEligibilityProperties.class,
         ReservationProperties.class,
+        OwnerRebindProperties.class,
         BillingMongoProperties.class
 })
 public class SecurityConfig {
@@ -31,12 +33,14 @@ public class SecurityConfig {
             InternalIngressProperties ingressProperties,
             AttemptGroupEventProperties attemptGroupEventProperties,
             TrialEligibilityProperties trialEligibilityProperties,
+            OwnerRebindProperties ownerRebindProperties,
             BillingMongoProperties mongoProperties,
             Environment environment
     ) throws Exception {
         validateConfiguration(
                 ingressProperties, attemptGroupEventProperties,
-                trialEligibilityProperties, mongoProperties, environment
+                trialEligibilityProperties, ownerRebindProperties,
+                mongoProperties, environment
         );
         return http
                 .csrf(csrf -> csrf.disable())
@@ -52,6 +56,13 @@ public class SecurityConfig {
                                 HttpMethod.POST,
                                 "/internal/v1/eligibility/trial/events"
                         ).hasRole("IDENTITY_WORKLOAD");
+                        if (ownerRebindProperties.isEnabled()) {
+                            authorize.requestMatchers(
+                                    HttpMethod.POST,
+                                    "/internal/v1/eligibility/trial/owner/events",
+                                    "/internal/v1/owners/merge/events"
+                            ).hasRole("IDENTITY_WORKLOAD");
+                        }
                         authorize.requestMatchers(
                                 HttpMethod.POST,
                                 "/internal/v1/reservations",
@@ -71,6 +82,13 @@ public class SecurityConfig {
                                 HttpMethod.POST,
                                 "/internal/v1/eligibility/trial/events"
                         ).permitAll();
+                        if (ownerRebindProperties.isEnabled()) {
+                            authorize.requestMatchers(
+                                    HttpMethod.POST,
+                                    "/internal/v1/eligibility/trial/owner/events",
+                                    "/internal/v1/owners/merge/events"
+                            ).permitAll();
+                        }
                         if (attemptGroupEventProperties.isEnabled()) {
                             authorize.requestMatchers(
                                     HttpMethod.POST,
@@ -94,6 +112,7 @@ public class SecurityConfig {
             InternalIngressProperties ingress,
             AttemptGroupEventProperties attemptGroupEvents,
             TrialEligibilityProperties eligibility,
+            OwnerRebindProperties ownerRebind,
             BillingMongoProperties mongo,
             Environment environment
     ) {
@@ -109,6 +128,23 @@ public class SecurityConfig {
                 && (attemptGroupEvents.getMaxFutureSkew() == null
                 || attemptGroupEvents.getMaxFutureSkew().isNegative())) {
             throw new IllegalStateException("AttemptGroup future clock skew must be non-negative.");
+        }
+        if ((ownerRebind.isEnabled() || ownerRebind.isCleanupEnabled())
+                && (ownerRebind.getMaxFutureSkew() == null
+                || ownerRebind.getMaxFutureSkew().isNegative()
+                || ownerRebind.getInboxRetention() == null
+                || ownerRebind.getInboxRetention().isNegative()
+                || ownerRebind.getInboxRetention().isZero()
+                || ownerRebind.getLegacyFenceRetention() == null
+                || ownerRebind.getLegacyFenceRetention().isNegative()
+                || ownerRebind.getLegacyFenceRetention().isZero()
+                || ownerRebind.getCleanupScanInterval() == null
+                || ownerRebind.getCleanupScanInterval().isNegative()
+                || ownerRebind.getCleanupScanInterval().isZero()
+                || ownerRebind.getCleanupScanInterval().compareTo(java.time.Duration.ofHours(1)) > 0
+                || ownerRebind.getCleanupBatchSize() < 1
+                || ownerRebind.getMaxSubjectsPerEvent() != 100)) {
+            throw new IllegalStateException("Owner rebind configuration is invalid.");
         }
         if (ingress.getMode() == InternalIngressProperties.Mode.LATTICE_AWS_IAM) {
             boolean validEnvironment = "production".equals(ingress.getEnvironment())
