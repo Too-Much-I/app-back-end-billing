@@ -1,6 +1,7 @@
 package web.tosunsaeng.billing.domain.attempt.repository;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
@@ -25,6 +26,14 @@ public class AttemptGroupRepository {
         Query query = Query.query(Criteria.where("subjectRefId").is(subjectRefId)
                 .and("openGuard").is(true));
         return Optional.ofNullable(mongoTemplate.findOne(query, AttemptGroup.class));
+    }
+
+    public List<AttemptGroup> findByClaimIds(List<String> trialClaimIds) {
+        if (trialClaimIds.isEmpty()) {
+            return List.of();
+        }
+        Query query = Query.query(Criteria.where("trialClaimId").in(trialClaimIds));
+        return mongoTemplate.find(query, AttemptGroup.class);
     }
 
     public AttemptGroup insert(AttemptGroup group) {

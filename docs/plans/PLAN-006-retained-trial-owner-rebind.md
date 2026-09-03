@@ -13,7 +13,7 @@
 2. 새 `TrialClaim`, Grant, allocation 또는 consumption을 만들지 않고 stable `subjectRefId`의 현재 owner mapping만 source→target으로 변경한다.
 3. Identity의 현재 `UserMerged` v1은 Guest→기존 Member merge 전용이므로 phone 재가입에 재사용하지 않고 별도 승인 event를 사용한다.
 4. 진행 중 `RESERVED`/PROCESSING command는 이전하지 않고 최대 5분 lifecycle 종료까지 retry하며, 이미 시작된 AttemptGroup은 이전 Session event를 잃지 않도록 fencing한다.
-5. Billing 구현만으로 Learning Core 시험 소유권이 바뀌지는 않으므로 양 서비스 consumer와 staging 순서 역전 E2E 완료 전 production flag를 켜지 않는다.
+5. `UserMerged`만 Billing·Learning Core 양쪽 consumer가 처리한다. phone 재가입은 Billing-only이며 미완료 group의 정상 `REPLACEMENT` 응답으로 target의 새 Session을 만들고 과거 Session·결과는 이전하지 않는다.
 
 ## 2. 사용자가 반드시 읽어야 하는 내용
 
@@ -45,6 +45,7 @@ Identity가 source→target lifecycle 관계를 승인
 → BillingSubjectLink owner를 target으로 CAS 변경
 → Claim·Grant·ledger·Reservation·AttemptGroup의 subjectRefId는 유지
 → target이 미사용권 또는 same-consumption 재응시 사용
+→ 재응시는 기존 Session 이전 없이 target의 새 examId로 처음부터 시작
 ```
 
 변하지 않는 값:
@@ -53,7 +54,7 @@ Identity가 source→target lifecycle 관계를 승인
 - `subjectRefId`
 - Grant total/available/held/consumed unit
 - 기존 ledger와 `consumptionLedgerEventId`
-- `attemptGroupId`, `mockExamId`와 기존 Session 연결
+- `attemptGroupId`, `mockExamId`와 기존 source Session 기록
 
 따라서 owner rebind는 무료권 재지급이나 consumption 복원이 아니다.
 
@@ -89,13 +90,13 @@ Identity가 source account가 더 이상 active actor가 아니고 target이 새
 
 - 단순한 candidate 일치와 Identity가 승인한 계정 승계를 구분한다.
 - 전화번호 재할당 사용자를 과거 계정 소유자로 추측할 위험이 가장 작다.
-- Billing과 Learning Core가 같은 source→target 관계를 수신할 수 있다.
+- Billing이 phone당 무료권과 AttemptGroup 상태를 authoritative하게 판정할 수 있다.
 - eventId 기반 재처리·감사·서비스 간 E2E가 명확하다.
 
 단점:
 
 - Identity producer/outbox와 소비자별 delivery 상태가 추가된다.
-- Billing만 수정해서 끝나지 않고 Learning Core consumer 계약도 필요하다.
+- target replacement 생성 시 Learning Core가 Billing 응답의 기존 group을 받아들이는 계약 검증이 필요하다.
 - consumer-first 배포와 producer activation 순서를 지켜야 한다.
 
 #### B. Billing이 VERIFIED/REVOKED projection과 candidate로 lazy 추론
@@ -253,19 +254,17 @@ source userId는 기존 pre-rebind active Session의 terminal 수렴과 duplicat
 
 현재 Identity UserMerged outbox는 단일 publisher endpoint와 단일 delivery 상태를 갖는다. 같은 event를 Billing에도 보내려면 단순히 endpoint를 Billing로 바꾸면 안 된다.
 
-확정 방식은 immutable event core 하나와 `(eventId, consumer)` unique delivery record다. consumer allowlist는 `BILLING`, `LEARNING_CORE`이며 Identity lifecycle Transaction에서 event core와 두 delivery를 원자 저장한다.
+확정 방식은 immutable event core 하나와 `(eventId, consumer)` unique delivery record다. `UserMerged` consumer allowlist는 `BILLING`, `LEARNING_CORE`, `TrialOwnerRebindApproved`는 `BILLING`이며 Identity lifecycle Transaction에서 core와 lifecycle별 필수 delivery를 원자 저장한다.
 
 각 delivery는 status, attempt, nextAttemptAt, lease, published/dead-letter 상태와 publisher feature flag를 독립 관리한다. Learning Core 성공과 Billing 실패를 하나의 `PUBLISHED` 값으로 덮지 않고 동기 순차 POST나 consumer별 full payload 복제를 사용하지 않는다.
 
 ### 4.2 Learning Core에는 현재 UserMerged consumer가 없다
 
-2026-09-01 코드 검색 기준 Learning Core에는 `UserMerged`, `sourceUserId`, `targetUserId` consumer 구현이 없다. Billing owner link만 바꾸면 다음 문제가 남는다.
+2026-09-01 코드 검색 기준 Learning Core에는 `UserMerged`, `sourceUserId`, `targetUserId` consumer 구현이 없다. 실제 계정 통합인 `UserMerged`에는 source deny와 기존 시험 ownership migration이 필요하다.
 
-- Learning Core 시험·Session은 source 소유 상태다.
-- target의 REPLACEMENT 요청이 기존 AttemptGroup에 연결되지 않는다.
-- source로 이미 생성된 AttemptGroup outbox와 Billing current owner의 userId가 다를 수 있다.
+phone 재가입은 이 consumer를 사용하지 않는다. source의 기존 시험·Session은 그대로 두고, target reserve에 대해 Billing이 반환한 기존 attemptGroupId의 `REPLACEMENT`를 Learning Core가 받아 target 명의 새 Session을 생성해야 한다. source로 이미 생성된 AttemptGroup status outbox는 Billing legacy fence로만 수렴한다.
 
-따라서 Billing PLAN-006 구현 완료는 production owner rebind 활성화 완료를 뜻하지 않는다. Learning Core ownership migration·source deny marker와 cross-service E2E가 별도 선행 gate다.
+따라서 Billing PLAN-006 구현 완료는 production owner rebind 활성화 완료를 뜻하지 않는다. Learning Core `UserMerged` migration/source deny와 phone replacement Session E2E가 별도 선행 gate다.
 
 ### 4.3 phone 재할당과 과거 시험 정보
 
@@ -298,6 +297,7 @@ owner sequence/revision이 wire에 없다면 Billing current-link CAS와 event i
 - source→target/current-owner 상태 전이표
 - active Claim과 unexpired subject link 검증
 - phone rejoin의 source inactive·target verified·candidate-to-Claim 일치 검증
+- phone AttemptGroup 없음/OPEN/RETAKE_AVAILABLE owner 이전, GRADING pending, COMPLETED NOOP 판정
 - active Reservation/command pending 판정
 - `BillingSubjectLink.userId` expected-owner CAS와 owner version
 - late pre-rebind AttemptGroup event용 bounded legacy-source fencing
@@ -312,7 +312,8 @@ owner sequence/revision이 wire에 없다면 Billing current-link CAS와 event i
 ### 5.2 이번 PLAN에서 제외
 
 - Identity merge/rejoin producer·outbox·fan-out 코드
-- Learning Core UserMerged/rejoin consumer와 실제 시험 데이터 migration
+- Learning Core `UserMerged` consumer와 실제 계정 통합 범위의 시험 데이터 migration
+- phone source Session·답안·결과 migration 또는 phone owner event route
 - 앱 공개 API와 사용자 직접 Billing 호출
 - 새로운 Claim, Grant, allocation 또는 balance 생성
 - 기존 ledger event rewrite 또는 consumption 복원
@@ -324,7 +325,7 @@ owner sequence/revision이 wire에 없다면 Billing current-link CAS와 event i
 
 ## 6. 승인된 wire 계약
 
-다음 exact event·route·pending response는 2026-09-02 승인됐다. 구체적인 delivery, IAM, Mongo schema v4와 legacy cleanup 실행 계약은 `ADR-003-retained-trial-owner-rebind-contract.md`를 따른다.
+다음 exact event·route·pending response는 2026-09-02 승인됐고 phone 상태별 처리와 destination은 2026-09-03 보정됐다. 구체적인 delivery, IAM, Mongo schema v4와 legacy cleanup 실행 계약은 `ADR-003-retained-trial-owner-rebind-contract.md`를 따른다.
 
 ### 6.1 Guest→Member merge
 
@@ -417,7 +418,7 @@ current link owner = source
 
 - `APPLIED`: 하나 이상의 current subject link가 source→target으로 이전됨
 - `DUPLICATE`: exact event가 이미 같은 결과로 commit됨
-- `NOOP`: source가 보유한 retained 무료 Claim이 없어 변경할 것이 없음
+- `NOOP`: source가 보유한 retained 무료 Claim이 없거나 phone AttemptGroup이 `COMPLETED`라 변경하지 않음
 - `PENDING`: active Reservation/command 또는 선행 eligibility가 아직 수렴하지 않음
 - `CONFLICT`: current owner, event relation 또는 digest가 모순됨
 - `STALE`: 승인된 predecessor가 이미 적용돼 event가 더 이상 current owner에 해당하지 않음
@@ -445,6 +446,17 @@ current link owner = source
 - `AttemptGroup`, `AttemptSession`
 
 `BillingSubjectLink`의 current `userId`와 owner version만 변경한다. 기존 `IdempotencyCommand.userId`와 response snapshot은 audit/idempotency 의미를 보존하기 위해 rewrite하지 않는다.
+
+phone 재가입 상태표:
+
+| AttemptGroup | 처리 |
+| --- | --- |
+| 없음 | 미사용 owner 이전 |
+| `OPEN`, `RETAKE_AVAILABLE` | same-consumption replacement 권리를 target으로 이전 |
+| `GRADING` | 503 pending 후 재판정 |
+| `COMPLETED` | owner/fence 변경 없는 NOOP 204 |
+
+replacement는 source Session을 target으로 rewrite하지 않는다. target의 새 key·새 examId로 같은 group·mockExamId 아래 처음부터 시작한다.
 
 ## 8. Mongo 설계 초안
 
@@ -501,11 +513,12 @@ legacyFenceUntil?, purgeAt
 2. source current active/unexpired subject link 조회
 3. event kind별 prerequisite 확인
 4. active Reservation와 PROCESSING/active command 확인
-5. current owner와 ownerVersion fencing
-6. `BillingSubjectLink` source→target CAS update
-7. pre-rebind active group/session이 있으면 bounded legacy-source fence 기록
-8. rebind record disposition과 processed timestamp 저장
-9. commit 확인 뒤에만 204 반환
+5. phone AttemptGroup 상태 판정과 COMPLETED NOOP/GRADING pending 분기
+6. current owner와 ownerVersion fencing
+7. `BillingSubjectLink` source→target CAS update
+8. pre-rebind active group/session이 있으면 bounded legacy-source fence 기록
+9. rebind record disposition과 processed timestamp 저장
+10. commit 확인 뒤에만 204 반환
 
 다음은 같은 Transaction에서 만들거나 변경하지 않는다.
 
@@ -627,9 +640,13 @@ domain/ownerrebind/
 - active RESERVED/command이면 no write + retryable PENDING
 - cancel/expiry 뒤 retry가 한 번만 APPLIED
 - confirm/rebind race가 stable subject 하나로 수렴
+- phone 이력 없음·OPEN·RETAKE_AVAILABLE이면 owner 이전
+- phone GRADING이면 no write + retryable PENDING
+- phone COMPLETED이면 owner·Claim·Grant·consumption·fence 불변 NOOP, replay 204
 - pre-rebind exact source Session GRADING/terminal event 허용
 - source의 새 reserve/다른 Session event 거절
 - target REPLACEMENT가 같은 consumption/mockExamId를 사용
+- target REPLACEMENT는 source Session 기록을 이전하지 않고 새 examId로 시작
 - COMPLETED group을 re-open하거나 새 free unit을 만들지 않음
 
 ### 13.4 replica-set Testcontainers
@@ -665,15 +682,17 @@ domain/ownerrebind/
 10. unit/MVC/security/replica-set integration test 완료 — 테스트 코드 구현, local Docker 실행 검증 중
 11. ADR-001·통합 계약·CONTRACT_DECISIONS·runbook 갱신 — TMI-120 구현 상태 반영 완료
 12. Billing consumer flag off 배포
-13. Identity consumer별 durable delivery와 Learning Core owner consumer 구현
-14. staging에서 순서 역전·응답 유실·auth failure E2E
-15. consumer readiness 확인 뒤 Identity producer, Billing, Learning Core flag 순차 canary
+13. Identity event별 durable delivery와 Learning Core `UserMerged` consumer/phone replacement 처리 구현
+14. staging에서 순서 역전·응답 유실·auth failure·phone replacement E2E
+15. consumer readiness 확인 뒤 Identity producer, Billing, Learning Core 관련 flag 순차 canary
 
 ## 15. 완료 조건
 
 - 승인된 source→target event가 새 무료권 없이 current owner mapping 하나로 수렴한다.
 - `claimedAt + 3년`, Claim ID, subjectRefId, Grant 수량과 consumption ledger가 변하지 않는다.
-- 미사용권과 승인된 same-consumption retake만 target이 이어받는다.
+- 미사용권과 OPEN/RETAKE_AVAILABLE same-consumption replacement만 target이 이어받는다.
+- COMPLETED phone history는 owner/fence를 바꾸지 않고 과거 시험·답안·피드백을 target에 연결하지 않는다.
+- phone replacement는 기존 Session을 이전하지 않고 target의 새 examId로 처음부터 시작한다.
 - active Reservation/command를 rewrite하지 않고 lifecycle 종료 뒤 재시도한다.
 - 중복, 응답 유실, concurrent event와 unknown commit에서 이중 transfer가 없다.
 - rebind 전 exact source Session의 terminal event가 유실되지 않고 source 신규 authorization은 차단된다.
@@ -688,12 +707,12 @@ domain/ownerrebind/
 
 1. schema/index preflight와 backup 확인
 2. Billing reader/consumer와 flag off 배포
-3. Learning Core reader/consumer와 source deny/ownership migration flag off 배포
-4. Identity consumer별 outbox/fan-out writer 배포, publisher off
-5. staging positive/negative와 event ordering E2E
+3. Learning Core `UserMerged` consumer와 phone replacement 처리 flag off 배포
+4. Identity event별 outbox/delivery writer 배포, publisher off
+5. staging positive/negative, event ordering과 phone replacement E2E
 6. Identity publisher idle/canary
 7. Billing owner rebind canary
-8. Learning Core migration canary
+8. Learning Core `UserMerged` migration과 phone replacement canary
 9. metric·dead-letter·pending age 확인 뒤 확대
 
 ### 롤백
@@ -719,8 +738,8 @@ domain/ownerrebind/
 ### 아직 외부 후속 계획인 내용
 
 - Identity의 phone 재가입 전용 event producer
-- Learning Core owner migration과 source deny marker
-- Identity의 Billing/Learning Core durable fan-out
+- Learning Core `UserMerged` owner migration과 source deny marker
+- Identity의 event별 durable delivery (`UserMerged`: Billing/LC, phone: Billing-only)
 - 실제 Lattice/IAM/SG와 cross-service staging E2E 뒤 production flag 활성화
 
 ### PLAN의 분석·권장
@@ -736,6 +755,6 @@ domain/ownerrebind/
 
 - 제목: `[Billing] Retained trial owner rebind consumer 및 Transaction 구현`
 - 포함: 승인 event consumer, strict decode/digest, owner CAS, active Reservation pending, legacy Session fencing, schema/index, replica-set/security/trace test
-- 제외: Identity producer/fan-out, Learning Core ownership migration, AWS resource 생성, production flag 활성화, 결제·구독·coupon
+- 제외: Identity producer/delivery, Learning Core `UserMerged` ownership migration, AWS resource 생성, production flag 활성화, 결제·구독·coupon
 - 상태: `해야 할 일`, resolution 없음
 - 선행 조건: 승인 wire를 consumer별 delivery·IAM·legacy cleanup 값으로 구체화한 ADR-003 승인 — 완료

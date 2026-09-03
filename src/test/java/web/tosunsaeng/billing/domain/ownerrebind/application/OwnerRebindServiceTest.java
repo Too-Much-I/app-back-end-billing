@@ -226,25 +226,100 @@ class OwnerRebindServiceTest {
 
     @Test
     void phoneRejoinRequiresVerifiedCandidateToMatchRetainedClaim() {
-        when(subjectLinkRepository.findActiveByOwnerAndScope(SOURCE, SCOPE, NOW, 101))
-                .thenReturn(List.of(link));
-        arrangeClaim();
-        TrialEligibility source = eligibility(2, TrialEligibilityState.REVOKED, null);
-        TrialEligibility target = eligibility(1, TrialEligibilityState.VERIFIED, candidates());
-        when(eligibilityRepository.findByScopeAndUser(SCOPE, SOURCE))
-                .thenReturn(Optional.of(source));
-        when(eligibilityRepository.findByScopeAndUser(SCOPE, TARGET))
-                .thenReturn(Optional.of(target));
-        when(aliasRepository.findActiveByClaim(
-                CLAIM, BenefitDefinition.FREE_EXAM_ONCE, NOW
-        )).thenReturn(List.of(TrialCandidateAlias.active(
-                "alias-1", BenefitDefinition.FREE_EXAM_ONCE, "v1",
-                "candidate-value", CLAIM, NOW.minusSeconds(60), NOW.plusSeconds(3600)
-        )));
+        arrangePhoneReady();
         when(subjectLinkRepository.rebindOwner(link, TARGET, NOW)).thenReturn(Optional.of(link));
 
         assertThat(service.process(phoneCommand(6, 2, 1)))
                 .isEqualTo(OwnerRebindOutcome.APPLIED);
+    }
+
+    @Test
+    void phoneRejoinWithOpenAttemptMovesOwnerForSameGroupReplacement() {
+        arrangePhoneReady();
+        AttemptGroup group = AttemptGroup.open(
+                "group-open", SUBJECT, CLAIM, "ledger-consumed", "mock-1",
+                "session-old", NOW.minusSeconds(120)
+        );
+        when(groupRepository.findByClaimIds(List.of(CLAIM))).thenReturn(List.of(group));
+        when(groupRepository.findNonTerminalBySubject(SUBJECT)).thenReturn(Optional.of(group));
+        when(subjectLinkRepository.rebindOwner(link, TARGET, NOW)).thenReturn(Optional.of(link));
+
+        assertThat(service.process(phoneCommand(10, 2, 1)))
+                .isEqualTo(OwnerRebindOutcome.APPLIED);
+
+        verify(subjectLinkRepository).rebindOwner(link, TARGET, NOW);
+    }
+
+    @Test
+    void phoneRejoinWithRetakeAvailableMovesOwnerWithoutNewConsumption() {
+        arrangePhoneReady();
+        AttemptGroup group = AttemptGroup.projection(
+                "group-retake", SUBJECT, CLAIM, "ledger-consumed", "mock-1",
+                AttemptGroup.Status.RETAKE_AVAILABLE, NOW.minusSeconds(120)
+        );
+        when(groupRepository.findByClaimIds(List.of(CLAIM))).thenReturn(List.of(group));
+        when(subjectLinkRepository.rebindOwner(link, TARGET, NOW)).thenReturn(Optional.of(link));
+
+        assertThat(service.process(phoneCommand(11, 2, 1)))
+                .isEqualTo(OwnerRebindOutcome.APPLIED);
+
+        verify(subjectLinkRepository).rebindOwner(link, TARGET, NOW);
+    }
+
+    @Test
+    void phoneRejoinWaitsWhileAttemptIsGrading() {
+        arrangePhoneReady();
+        AttemptGroup group = AttemptGroup.projection(
+                "group-grading", SUBJECT, CLAIM, "ledger-consumed", "mock-1",
+                AttemptGroup.Status.GRADING, NOW.minusSeconds(120)
+        );
+        when(groupRepository.findByClaimIds(List.of(CLAIM))).thenReturn(List.of(group));
+
+        assertThatThrownBy(() -> service.process(phoneCommand(12, 2, 1)))
+                .isInstanceOf(InternalApiException.class)
+                .satisfies(exception -> {
+                    InternalApiException api = (InternalApiException) exception;
+                    assertThat(api.code()).isEqualTo("OWNER_REBIND_PENDING");
+                    assertThat(api.retryAfterSeconds()).isEqualTo(5);
+                });
+
+        verify(subjectLinkRepository, never()).rebindOwner(any(), any(), any());
+        verify(rebindRepository, never()).insert(any());
+        verify(inboxRepository, never()).insert(any());
+    }
+
+    @Test
+    void phoneRejoinWithCompletedAttemptIsSuccessfulNoop() {
+        arrangePhoneReady();
+        AttemptGroup group = AttemptGroup.projection(
+                "group-completed", SUBJECT, CLAIM, "ledger-consumed", "mock-1",
+                AttemptGroup.Status.COMPLETED, NOW.minusSeconds(120)
+        );
+        when(groupRepository.findByClaimIds(List.of(CLAIM))).thenReturn(List.of(group));
+
+        assertThat(service.process(phoneCommand(13, 2, 1)))
+                .isEqualTo(OwnerRebindOutcome.NOOP);
+
+        verify(subjectLinkRepository, never()).rebindOwner(any(), any(), any());
+        verify(rebindRepository, never()).insert(any());
+        ArgumentCaptor<OwnerRebindInbox> inbox = ArgumentCaptor.forClass(OwnerRebindInbox.class);
+        verify(inboxRepository).insert(inbox.capture());
+        assertThat(inbox.getValue().getDisposition()).isEqualTo(OwnerRebindDisposition.NOOP);
+        assertThat(inbox.getValue().getAffectedSubjectCount()).isZero();
+    }
+
+    @Test
+    void completedAttemptNoopReplayIsDuplicate() {
+        OwnerRebindCommand command = phoneCommand(14, 2, 1);
+        OwnerRebindInbox existing = OwnerRebindInbox.processed(
+                command, OwnerRebindDisposition.NOOP, 0,
+                NOW.minusSeconds(1), NOW.plusSeconds(3600)
+        );
+        when(inboxRepository.findByEventId(command.eventId())).thenReturn(Optional.of(existing));
+
+        assertThat(service.process(command)).isEqualTo(OwnerRebindOutcome.DUPLICATE);
+
+        verify(subjectLinkRepository, never()).rebindOwner(any(), any(), any());
     }
 
     @Test
@@ -279,6 +354,24 @@ class OwnerRebindServiceTest {
         when(claimRepository.findById(CLAIM)).thenReturn(Optional.of(TrialClaim.active(
                 CLAIM, BenefitDefinition.FREE_EXAM_ONCE, SUBJECT, "event-source",
                 NOW.minusSeconds(60), NOW.plusSeconds(3600)
+        )));
+    }
+
+    private void arrangePhoneReady() {
+        when(subjectLinkRepository.findActiveByOwnerAndScope(SOURCE, SCOPE, NOW, 101))
+                .thenReturn(List.of(link));
+        arrangeClaim();
+        TrialEligibility source = eligibility(2, TrialEligibilityState.REVOKED, null);
+        TrialEligibility target = eligibility(1, TrialEligibilityState.VERIFIED, candidates());
+        when(eligibilityRepository.findByScopeAndUser(SCOPE, SOURCE))
+                .thenReturn(Optional.of(source));
+        when(eligibilityRepository.findByScopeAndUser(SCOPE, TARGET))
+                .thenReturn(Optional.of(target));
+        when(aliasRepository.findActiveByClaim(
+                CLAIM, BenefitDefinition.FREE_EXAM_ONCE, NOW
+        )).thenReturn(List.of(TrialCandidateAlias.active(
+                "alias-1", BenefitDefinition.FREE_EXAM_ONCE, "v1",
+                "candidate-value", CLAIM, NOW.minusSeconds(60), NOW.plusSeconds(3600)
         )));
     }
 

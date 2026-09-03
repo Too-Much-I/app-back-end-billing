@@ -160,11 +160,14 @@ Billing은 검증된 event를 canonical JSON으로 정규화하고 SHA-256 diges
 
 ### 5.6 owner rebind delivery·IAM·cleanup
 
-- Identity는 immutable owner-rebind event core와 `(eventId, consumer)` unique delivery를 사용한다. required consumer는 `BILLING`, `LEARNING_CORE`다.
-- event core와 두 delivery는 Identity lifecycle Transaction에서 원자 저장하고 delivery별 lease·retry·dead-letter·published와 feature flag를 독립 관리한다.
+- Identity는 immutable owner-rebind event core와 `(eventId, consumer)` unique delivery를 사용한다. `UserMerged` required consumer는 `BILLING`, `LEARNING_CORE`, `TrialOwnerRebindApproved`는 `BILLING`뿐이다.
+- event core와 lifecycle별 필수 delivery는 Identity lifecycle Transaction에서 원자 저장하고 delivery별 lease·retry·dead-letter·published와 feature flag를 독립 관리한다.
 - phone 재가입은 `TrialOwnerRebindApproved`를 `POST /internal/v1/eligibility/trial/owner/events`, Guest merge `UserMerged` v1은 `POST /internal/v1/owners/merge/events`로 전달한다.
+- phone event는 Learning Core에 전달하지 않는다. Identity→Billing은 Lattice SigV4, Identity→Learning Core `UserMerged`는 기존 workload JWT를 유지한다.
 - Billing Lattice auth policy는 Identity task role의 `vpc-lattice-svcs:Invoke`, POST와 위 route 및 기존 `/internal/v1/eligibility/trial/events`만 허용한다.
 - active Reservation/processing/prerequisite pending은 503 `OWNER_REBIND_PENDING`과 승인된 delta-seconds `Retry-After`로 재시도한다.
+- phone AttemptGroup 없음/OPEN/RETAKE_AVAILABLE은 owner 이전, GRADING은 pending, COMPLETED는 owner/fence 불변 NOOP다.
+- target 재응시는 기존 group·consumption·mockExamId를 재사용하되 source Session을 이전하지 않고 새 examId로 처음부터 시작한다.
 - related Session terminal 뒤 24시간 안에 legacy sourceUserId를 unset한다. terminal 미수렴 hard upper bound는 `min(rebindAppliedAt+120일, TrialClaim.retentionExpiresAt)`이다.
 - hard cap 뒤 late source event는 자동 owner authorization에 사용하지 않고 privileged reconciliation 대상으로 분류한다.
 
@@ -428,9 +431,9 @@ Identity producer나 Learning Core 시험 생성 gate를 Billing consumer보다 
 - Identity의 phone eligibility outbox·publisher는 구현돼 있다.
 - Billing의 Trial eligibility consumer, FREE_EXAM_ONCE BenefitDefinition/Claim·Grant, Reservation lifecycle와 AttemptGroup status consumer는 구현돼 있다.
 - Billing TMI-120 브랜치에는 schema v4 reader-first owner CAS, phone/Guest strict consumer, active Reservation pending, exact legacy Session fence와 개인정보 cleanup worker가 구현돼 있다. production owner rebind flag는 기본 false다.
-- Learning Core의 Billing reserve saga와 AttemptGroup status publisher는 구현돼 있으나 owner migration/source deny consumer는 별도 후속 작업이다.
+- Learning Core의 Billing reserve saga와 AttemptGroup status publisher는 구현돼 있다. `UserMerged` owner migration/source deny와 phone target의 기존 group replacement 수용은 별도 후속 검증 대상이다.
 - VPC Lattice, Billing ECS service와 실제 IAM/SG 리소스는 아직 없다.
-- Identity consumer별 owner event durable delivery, Learning Core owner consumer와 staging 순서 역전 E2E가 끝나기 전에는 production owner rebind를 활성화하지 않는다.
+- Identity event별 owner delivery, Learning Core `UserMerged` consumer와 phone replacement staging E2E가 끝나기 전에는 production owner rebind를 활성화하지 않는다.
 - Apple/Google 결제, paid credit, pass, coupon과 환불은 무료 MVP 후속이다.
 
 ## 15. 연동 점검 체크리스트

@@ -27,6 +27,12 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 import web.tosunsaeng.billing.domain.benefit.domain.entity.BenefitDefinition;
+import web.tosunsaeng.billing.domain.attempt.domain.entity.AttemptGroup;
+import web.tosunsaeng.billing.domain.eligibility.trial.domain.entity.TrialEligibility;
+import web.tosunsaeng.billing.domain.eligibility.trial.domain.entity.TrialEligibilityCandidate;
+import web.tosunsaeng.billing.domain.eligibility.trial.domain.entity.TrialEligibilityEvent;
+import web.tosunsaeng.billing.domain.eligibility.trial.domain.enums.TrialEligibilityEventType;
+import web.tosunsaeng.billing.domain.entitlement.trial.domain.entity.TrialCandidateAlias;
 import web.tosunsaeng.billing.domain.entitlement.trial.domain.entity.TrialClaim;
 import web.tosunsaeng.billing.domain.ownerrebind.application.OwnerRebindOutcome;
 import web.tosunsaeng.billing.domain.ownerrebind.application.OwnerRebindService;
@@ -76,6 +82,10 @@ class OwnerRebindMongoIntegrationTest {
         mongoTemplate.getCollection("reservations").deleteMany(new Document());
         mongoTemplate.getCollection("entitlement_grants").deleteMany(new Document());
         mongoTemplate.getCollection("entitlement_ledger").deleteMany(new Document());
+        mongoTemplate.getCollection("trial_eligibility").deleteMany(new Document());
+        mongoTemplate.getCollection("trial_candidate_aliases").deleteMany(new Document());
+        mongoTemplate.getCollection("attempt_groups").deleteMany(new Document());
+        mongoTemplate.getCollection("attempt_sessions").deleteMany(new Document());
         executor = Executors.newFixedThreadPool(2);
     }
 
@@ -165,6 +175,74 @@ class OwnerRebindMongoIntegrationTest {
                 .countDocuments(new Document("eventId", command.eventId()))).isZero();
     }
 
+    @Test
+    void phoneRejoinOpenAttemptMovesOnlyOwnerAndKeepsSameGroup() {
+        Instant now = Instant.now();
+        insertClaimAndLegacyLink(now);
+        insertPhonePrerequisites(now);
+        mongoTemplate.insert(AttemptGroup.open(
+                "attempt-group-open", SUBJECT, CLAIM, "consumption-ledger",
+                "mock-exam", "old-session", now.minusSeconds(60)
+        ));
+        Document groupBefore = mongoTemplate.getCollection("attempt_groups")
+                .find(new Document("_id", "attempt-group-open")).first();
+
+        OwnerRebindCommand command = phoneCommand(4);
+        assertThat(service.process(command)).isEqualTo(OwnerRebindOutcome.APPLIED);
+        assertThat(service.process(command)).isEqualTo(OwnerRebindOutcome.DUPLICATE);
+
+        Document link = mongoTemplate.getCollection("billing_subject_links")
+                .find(new Document("_id", SUBJECT)).first();
+        assertThat(link).isNotNull();
+        assertThat(link.getString("userId")).isEqualTo(TARGET);
+        assertThat(mongoTemplate.getCollection("attempt_groups")
+                .find(new Document("_id", "attempt-group-open")).first()).isEqualTo(groupBefore);
+    }
+
+    @Test
+    void phoneRejoinCompletedAttemptCommitsNoopWithoutChangingEntitlement() {
+        Instant now = Instant.now();
+        insertClaimAndLegacyLink(now);
+        insertPhonePrerequisites(now);
+        mongoTemplate.insert(AttemptGroup.projection(
+                "attempt-group-completed", SUBJECT, CLAIM, "consumption-ledger",
+                "mock-exam", AttemptGroup.Status.COMPLETED, now.minusSeconds(60)
+        ));
+        mongoTemplate.getCollection("entitlement_grants").insertOne(
+                new Document("_id", "grant-sentinel").append("consumedUnits", 1)
+        );
+        mongoTemplate.getCollection("entitlement_ledger").insertOne(
+                new Document("_id", "ledger-sentinel").append("eventType", "CONSUMED")
+        );
+        Document claimBefore = mongoTemplate.getCollection("trial_claims")
+                .find(new Document("_id", CLAIM)).first();
+        Document groupBefore = mongoTemplate.getCollection("attempt_groups")
+                .find(new Document("_id", "attempt-group-completed")).first();
+
+        OwnerRebindCommand command = phoneCommand(5);
+        assertThat(service.process(command)).isEqualTo(OwnerRebindOutcome.NOOP);
+        assertThat(service.process(command)).isEqualTo(OwnerRebindOutcome.DUPLICATE);
+
+        Document link = mongoTemplate.getCollection("billing_subject_links")
+                .find(new Document("_id", SUBJECT)).first();
+        assertThat(link).isNotNull();
+        assertThat(link.getString("userId")).isEqualTo(SOURCE);
+        assertThat(link).doesNotContainKey("ownerVersion");
+        assertThat(mongoTemplate.getCollection("trial_claims")
+                .find(new Document("_id", CLAIM)).first()).isEqualTo(claimBefore);
+        assertThat(mongoTemplate.getCollection("attempt_groups")
+                .find(new Document("_id", "attempt-group-completed")).first())
+                .isEqualTo(groupBefore);
+        assertThat(mongoTemplate.getCollection("entitlement_grants").countDocuments()).isEqualTo(1);
+        assertThat(mongoTemplate.getCollection("entitlement_ledger").countDocuments()).isEqualTo(1);
+        assertThat(mongoTemplate.getCollection("subject_owner_rebinds").countDocuments()).isZero();
+        Document inbox = mongoTemplate.getCollection("owner_rebind_inbox")
+                .find(new Document("eventId", command.eventId())).first();
+        assertThat(inbox).isNotNull();
+        assertThat(inbox.getString("disposition")).isEqualTo("NOOP");
+        assertThat(inbox.getInteger("affectedSubjectCount")).isZero();
+    }
+
     private void insertClaimAndLegacyLink(Instant now) {
         mongoTemplate.insert(TrialClaim.active(
                 CLAIM, BenefitDefinition.FREE_EXAM_ONCE, SUBJECT, "source-event",
@@ -181,6 +259,44 @@ class OwnerRebindMongoIntegrationTest {
                 .append("retentionExpiresAt", java.util.Date.from(now.plusSeconds(3600))));
     }
 
+    private void insertPhonePrerequisites(Instant now) {
+        TrialEligibilityEvent sourceEvent = new TrialEligibilityEvent(
+                "00000000-0000-4000-8000-000000000101",
+                TrialEligibilityEventType.REVOKED,
+                1,
+                "identity",
+                now.minusSeconds(30),
+                SCOPE,
+                SOURCE,
+                null,
+                now.minusSeconds(30),
+                2,
+                List.of(),
+                "source-digest"
+        );
+        TrialEligibilityEvent targetEvent = new TrialEligibilityEvent(
+                "00000000-0000-4000-8000-000000000102",
+                TrialEligibilityEventType.VERIFIED,
+                1,
+                "identity",
+                now.minusSeconds(20),
+                SCOPE,
+                TARGET,
+                now.minusSeconds(20),
+                null,
+                1,
+                List.of(new TrialEligibilityCandidate("v1", "candidate-value")),
+                "target-digest"
+        );
+        mongoTemplate.insert(TrialEligibility.applied(null, sourceEvent, now.minusSeconds(30)));
+        mongoTemplate.insert(TrialEligibility.applied(null, targetEvent, now.minusSeconds(20)));
+        mongoTemplate.insert(TrialCandidateAlias.active(
+                "alias-phone-rejoin", BenefitDefinition.FREE_EXAM_ONCE,
+                "v1", "candidate-value", CLAIM,
+                now.minusSeconds(60), now.plusSeconds(3600)
+        ));
+    }
+
     private static OwnerRebindCommand command(int suffix) {
         return new OwnerRebindCommand(
                 "00000000-0000-4000-8000-%012d".formatted(suffix),
@@ -193,6 +309,21 @@ class OwnerRebindMongoIntegrationTest {
                 null,
                 null,
                 "digest-" + suffix
+        );
+    }
+
+    private static OwnerRebindCommand phoneCommand(int suffix) {
+        return new OwnerRebindCommand(
+                "00000000-0000-4000-8000-%012d".formatted(suffix),
+                OwnerRebindEventKind.PHONE_REJOIN,
+                1,
+                Instant.now().minusSeconds(1),
+                SOURCE,
+                TARGET,
+                SCOPE,
+                2L,
+                1L,
+                "phone-digest-" + suffix
         );
     }
 

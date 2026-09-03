@@ -2495,3 +2495,123 @@
 - 위험·미확인: Identity 실제 collection/index 이름, transition row 분류와 phone rejoin lifecycle service의 정확한 Transaction 위치는 Identity 저장소 계획/ADR에서 코드 근거와 함께 확정해야 한다. Billing Mongo Testcontainers 재검증과 Learning Core consumer 구현 전에는 publisher를 활성화할 수 없다.
 - 예상 밖 diff: 없으며 Identity/Learning Core 코드, Jira, AWS와 git 상태를 변경하지 않았다.
 - 다음 작업: Identity 저장소에서 reader-first migration과 lifecycle별 core/delivery/publisher 구현 계획서를 작성하고 사용자 승인 후 별도 Jira를 생성한다.
+## 2026-09-03 — PHONE_REJOIN 과거 학습 이력 이전 정책 충돌 진단
+
+<!-- codex-turn:phone-rejoin-learning-history-policy-diagnosis -->
+
+- 날짜: 2026-09-03
+- 브랜치: Billing `develop`
+- Jira: `TMI-120` 참고. Jira 조회·댓글·본문·상태 변경은 수행하지 않았다.
+- 작업 목표: Stage 7 보정 요청의 “phone proof는 학습 데이터 소유권 증명이 아니다” 정책과 현재 Billing 구현·ADR/PLAN이 충돌하는지 확인한다.
+- 확인한 구현: `OwnerRebindService.processOnce`는 phone/Guest 구분 없이 active Reservation/PROCESSING 확인 후 `createFenceIfRequired`와 owner CAS를 실행한다. fence 조회는 `AttemptGroupRepository.findNonTerminalBySubject`의 `openGuard=true` 조건에 한정된다.
+- 진단 결과: Billing은 시험·답안·피드백을 직접 복사하지 않지만 `PHONE_REJOIN`에서도 entitlement owner를 target으로 이전한다. 기존 ADR-003/PLAN-006은 Learning Core phone route와 시험/Session ownership migration까지 전제하므로 전체 설계는 과거 학습 데이터가 새 계정에 연결될 수 있는 방향이며 새 정책과 충돌한다.
+- 필요한 보정: `TrialOwnerRebindApproved`는 Billing-only delivery로 제한하고, phone rejoin subject에 terminal/nonterminal 구분 없이 AttemptGroup이 하나라도 존재하면 owner CAS와 fence 없이 inbox `NOOP`, `affectedSubjectCount=0`, HTTP 204로 수렴해야 한다. `USER_MERGED`는 기존 owner 이전과 active Session fence를 유지한다.
+- 유지할 계약: phone 이력 NOOP에서도 새 Claim·Grant·allocation·consumption 생성, unit 복원, ledger 수정과 Claim 재개방을 금지한다. strict decoder, event ID/digest 멱등성, active Reservation/PROCESSING 503 pending과 두 inbound route는 유지한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`만 진단 기록으로 갱신했다. 애플리케이션·ADR·PLAN·통합 계약·Identity/Learning Core·Jira는 변경하지 않았다.
+- 테스트 결과: 분석과 기록만 수행해 Gradle 테스트는 실행하지 않았다. 현재 코드와 계약 문서를 `rg`/직접 확인했다.
+- 위험·미확인: 현재 상태로 publisher를 활성화하면 Billing owner와 Learning Core owner가 불일치하거나 기존 phone migration 전제에 따라 과거 학습 기록이 새 계정에 노출될 수 있다. 관련 feature flag는 보정과 staging E2E 전까지 off를 유지해야 한다.
+- 예상 밖 diff: 작업 시작 시 worktree는 clean이었으며 진단 기록 두 파일 외 변경은 만들지 않았다.
+- 다음 작업: 승인된 Stage 7 정책으로 ADR-003, PLAN-006, CONTRACT_DECISIONS, 통합 계약과 AGENTS 기준을 정합화하고 Billing service/repository/회귀 테스트를 보정한다.
+## 2026-09-03 — 중단 무료시험의 탈퇴·재가입 동작 확인
+
+<!-- codex-turn:phone-rejoin-interrupted-exam-behavior -->
+
+- 날짜: 2026-09-03
+- 브랜치: Billing `develop`
+- Jira: `TMI-120` 참고. Jira 변경은 수행하지 않았다.
+- 작업 목표: 무료시험 중단 후 같은 AttemptGroup 재응시가 가능한 상태에서 탈퇴·동일 전화번호 재가입 시 새 계정이 시험을 계속할 수 있는지 확인한다.
+- 확인한 구현: `ReserveService`는 active Claim owner가 요청 userId와 같아야 하고, 같은 subject의 OPEN/RETAKE_AVAILABLE group이면 `REPLACEMENT`로 기존 attemptGroupId를 재사용하며 추가 allocation을 hold하지 않는다.
+- 현재 미보정 동작: `PHONE_REJOIN`이 owner link를 target으로 이전하므로 새 계정은 같은 group을 이어갈 수 있는 방향이다. 이는 새 무료권 지급이 아니라 기존 consumption/AttemptGroup 승계다.
+- Stage 7 보정 후 동작: AttemptGroup이 하나라도 있으면 phone rejoin이 owner 이전 없는 `NOOP`이므로 새 계정은 기존 group을 이어갈 수 없고 새 Claim/Grant도 받을 수 없다. 전화번호당 1회와 과거 학습 데이터 격리를 우선하는 명시적 결과다.
+- 경계 조건: Session commit/confirm 전에 종료되어 AttemptGroup이 생성되지 않았다면 active Reservation/PROCESSING 해소 후 미사용 owner 이전 대상이 될 수 있다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`만 분석 기록으로 갱신했다. 애플리케이션·계약·Jira는 변경하지 않았다.
+- 테스트 결과: 코드 분석만 수행해 Gradle 테스트는 실행하지 않았다.
+- 위험·미확인: 사용자가 “중단된 시험만 재가입 계정에서 계속”을 원한다면 any-history NOOP 정책과 충돌하므로 별도의 제한적 소유권 증명·Learning Core 연동 계약이 필요하다.
+- 예상 밖 diff: 없음. 기존 진단 기록 변경을 보존했다.
+- 다음 작업: 중단 시험도 차단하는 strict NOOP 정책을 유지할지, exact nonterminal attempt에 한한 별도 승계 정책을 설계할지 제품 결정을 확인한다.
+## 2026-09-03 — 중단 무료시험 제한적 승계 방향 검토
+
+<!-- codex-turn:limited-interrupted-attempt-rejoin-policy -->
+
+- 날짜: 2026-09-03
+- 브랜치: Billing `develop`
+- Jira: `TMI-120` 참고. Jira 변경은 수행하지 않았다.
+- 작업 목표: 완료하지 않은 무료시험은 탈퇴·동일 전화번호 재가입 뒤에도 이어볼 수 있어야 한다는 사용자 방향을 현재 any-history NOOP 정책과 비교한다.
+- 분석 결과: AttemptGroup 존재만으로 전부 NOOP 처리하면 실제로 완료하지 않은 OPEN/RETAKE_AVAILABLE 사용 건도 영구 차단하므로 제품 의도보다 강하다. 상태별로 미사용, 재개 가능, 처리 중, 완료를 구분하는 편이 적절하다.
+- 권장 상태표: 이력 없음은 미사용 owner 이전, OPEN/RETAKE_AVAILABLE은 새 차감 없이 exact AttemptGroup 제한 승계, GRADING은 terminal 판정까지 503 pending, COMPLETED는 owner/fence 변경 없는 성공 NOOP다.
+- 불변식: 새 TrialClaim·Grant·allocation·consumption을 만들지 않고 unit을 복원하지 않는다. 동일 attemptGroupId/mockExamId/consumption을 유지하며 완료된 시험·답안·피드백은 phone proof만으로 이전하지 않는다.
+- cross-service 영향: Billing owner만 이전하면 Learning Core owner와 달라지므로 resumable exact group만 대상으로 하는 별도 Learning Core migration event 또는 동등한 제한적 권한 계약이 필요하다. 기존 phone event를 Learning Core에 포괄 전달하는 방식은 과거 기록 노출 위험 때문에 부적절하다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`만 검토 기록으로 갱신했다. 코드·ADR·PLAN·Jira는 변경하지 않았다.
+- 테스트 결과: 정책 분석만 수행해 Gradle 테스트는 실행하지 않았다. `git diff --check`로 문서 형식을 확인한다.
+- 위험·미확인: OPEN과 RETAKE_AVAILABLE을 모두 “미완료”로 인정할지, GRADING 결과가 실패해 RETAKE_AVAILABLE이 된 경우 승계를 허용할지 최종 계약 승인이 필요하다.
+- 예상 밖 diff: 없음. 앞선 진단 기록을 보존했다.
+- 다음 작업: 상태표와 Billing→Learning Core exact-group 전달 구조를 확정한 뒤 ADR-003/PLAN-006 및 TMI-120 완료 조건을 보정한다.
+## 2026-09-03 — 재가입 기록 격리와 중단 시험 예외 확인
+
+<!-- codex-turn:rejoin-history-isolation-resume-exception-confirmation -->
+
+- 날짜: 2026-09-03
+- 브랜치: Billing `develop`
+- Jira: `TMI-120` 참고. Jira 변경은 수행하지 않았다.
+- 작업 목표: 탈퇴·재가입 후 과거 기록은 연동하지 않되 중단된 무료시험의 동일 AttemptGroup만 이어보게 한다는 정책 이해를 확인한다.
+- 확인한 방향: 완료된 과거 시험·답안·피드백은 새 userId로 이전하지 않는다. OPEN/RETAKE_AVAILABLE인 exact 무료 AttemptGroup만 새 차감 없이 제한 승계한다.
+- 기술적 정정: Billing AttemptGroup 자체에는 userId가 없으므로 Billing은 stable subjectRefId의 `BillingSubjectLink.userId`를 CAS 변경한다. Learning Core가 보유한 exact AttemptGroup/Session current owner는 별도 제한 이벤트로 변경해야 한다.
+- 상태 경계: GRADING은 판정 완료까지 pending, COMPLETED는 성공 NOOP다. 새 Claim·Grant·allocation·consumption 생성과 unit 복원은 금지한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`만 정책 설명 기록으로 갱신했다. 코드·ADR·PLAN·Jira는 변경하지 않았다.
+- 테스트 결과: 설명·기록 작업으로 Gradle 테스트는 실행하지 않았다. `git diff --check`로 문서 형식을 확인한다.
+- 위험·미확인: exact-group Learning Core 전달 event, 양 서비스 전환 순서와 중간 pending/failure 수렴 계약은 ADR 보정에서 확정해야 한다.
+- 예상 밖 diff: 없음. 기존 Stage 7 진단 기록을 보존했다.
+- 다음 작업: 사용자가 이 상태표를 최종 승인하면 ADR-003/PLAN-006과 구현 계획을 먼저 정합화한다.
+## 2026-09-03 — AttemptGroup과 시험 Session 의미 설명·범위 정정
+
+<!-- codex-turn:attempt-group-exam-session-meaning-correction -->
+
+- 날짜: 2026-09-03
+- 브랜치: Billing `develop`
+- Jira: `TMI-120` 참고. Jira 변경은 수행하지 않았다.
+- 작업 목표: 앞선 `AttemptGroup/Session owner` 표현에서 Session이 무엇인지 설명하고 기존 restart 계약에 맞게 승계 범위를 정정한다.
+- 확인한 계약: `sessionId`는 Learning Core의 현재 `examId`인 한 번의 시험 실행 식별자다. `AttemptGroup`은 최초 consumption과 replacement Session을 묶으며 mockExamId를 고정한다.
+- restart 동작: 앱 종료 뒤 기존 Session을 이어풀지 않고 `ABANDONED_RESTARTED`로 닫은 뒤 새 key·새 examId(Session)로 처음부터 시작한다. 결과·upload·grading Job·summary는 새 Session에 복사하지 않는다.
+- 정정: 재가입 시 기본적으로 이전해야 하는 것은 exact nonterminal AttemptGroup을 계속 사용할 권리다. 기존 중단 Session의 owner와 답안/결과를 target으로 옮길 필요는 없고, target 명의의 새 replacement Session을 같은 group에 연결하는 방식이 기존 계약과 일치한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`만 설명 기록으로 갱신했다. 코드·ADR·PLAN·Jira는 변경하지 않았다.
+- 테스트 결과: 계약·코드 분석만 수행해 Gradle 테스트는 실행하지 않았다. `git diff --check`로 문서 형식을 확인한다.
+- 위험·미확인: 사용자가 마지막 문제 위치와 임시 답안까지 그대로 재개하길 원하면 현재 restart 계약을 변경하고 exact Session 데이터 이전 범위를 별도로 승인해야 한다.
+- 예상 밖 diff: 없음. 앞선 분석 기록을 보존했다.
+- 다음 작업: “같은 group에서 새 시험을 처음부터 시작”과 “기존 Session 진행 위치 그대로 재개” 중 제품 의도를 명확히 한 뒤 Stage 7 계약을 보정한다.
+
+## 2026-09-03 — PHONE_REJOIN 미완료 AttemptGroup 제한 승계 구현
+
+<!-- codex-turn:phone-rejoin-resumable-group-implementation -->
+
+- 날짜: 2026-09-03
+- 브랜치: Billing `develop`
+- Jira: `TMI-120` 관련 보정. 사용자 요청으로 코드·계약을 수정했으며 Jira 조회·본문·댓글·상태는 변경하지 않았다.
+- 작업 목표: 탈퇴·동일 phone 재가입 시 완료된 과거 시험은 연결하지 않고, 미완료 무료시험은 기존 consumption·AttemptGroup을 재사용해 target의 새 Session으로 처음부터 재응시할 수 있게 한다.
+- 변경 파일: `OwnerRebindService`, `AttemptGroupRepository`, owner rebind unit/MVC/Mongo integration test, `AGENTS.md`, ADR-003, PLAN-006, `CONTRACT_DECISIONS.md`, 통합 계약, `CURRENT_STATE.md`, `WORKLOG.md`.
+- 변경 동작: phone prerequisite와 active Reservation/PROCESSING 확인 뒤 existing Claim의 AttemptGroup을 indexed `trialClaimId`로 조회한다. 이력 없음·OPEN·RETAKE_AVAILABLE은 owner CAS APPLIED, GRADING은 503 `OWNER_REBIND_PENDING`, COMPLETED는 owner/fence 변경 없이 inbox NOOP/affectedSubjectCount=0과 HTTP 204다.
+- replacement 의미: 새 Claim·Grant·allocation·consumption이나 unit 복원을 만들지 않는다. target reserve는 기존 attemptGroupId·mockExamId를 재사용하고 source Session을 이전하지 않은 채 새 key·새 examId로 처음부터 시작한다.
+- cross-service 계약: `UserMerged`만 Billing/LC delivery를 생성하고 Identity→Learning Core 기존 workload JWT를 유지한다. `TrialOwnerRebindApproved`는 Identity→Billing Lattice SigV4 delivery만 생성하며 Learning Core phone route와 과거 Session/결과 migration 전제를 제거했다.
+- 테스트 추가: phone OPEN/RETAKE_AVAILABLE APPLIED, GRADING pending/no-write, COMPLETED NOOP/no-fence, NOOP replay, MVC 204 replay와 Mongo Transaction에서 OPEN group 불변·COMPLETED Claim/Grant/ledger/group 불변을 검증한다.
+- 테스트 결과: service/MVC target test는 `BUILD SUCCESSFUL`; `compileTestJava` 성공. 최종 `./gradlew clean test`는 123개 중 비-Docker 119개가 통과했고 Docker daemon 미가동으로 기존 3개와 `OwnerRebindMongoIntegrationTest` 등 Testcontainers 4개가 initialization failure다. `git diff --check`는 통과했다.
+- 유지한 외부 계약: 두 Billing inbound route, strict decoder/wire payload, eventId/digest 멱등성, 204/400/409/422/503 mapping, active Reservation/PROCESSING pending, Claim 3년 보존과 immutable ledger를 유지했다.
+- 위험·미확인: 새 Mongo integration assertion은 작성·컴파일됐으나 Docker에서 실제 실행되지 않았다. Learning Core가 Billing REPLACEMENT 응답의 기존 group을 target 새 Session에 연결하고 source Session을 이전하지 않는지 별도 저장소 구현·staging E2E가 필요하다.
+- 배포 전 확인: Docker replica-set 전체 test, Identity event별 delivery, Learning Core UserMerged consumer/phone replacement, Lattice IAM/SG와 중복·역순·응답 유실·인증 실패 E2E가 모두 통과할 때까지 owner rebind flag를 off로 유지한다.
+- 예상 밖 diff: 없음. 작업 시작 전 존재한 이번 대화의 CURRENT_STATE/WORKLOG 진단 기록만 보존했고 Identity/Learning Core 코드, AWS, Jira, git commit/push는 변경하지 않았다.
+- 다음 작업: Docker 환경에서 전체 Testcontainers suite를 통과시킨 뒤, Identity와 Learning Core에 수정된 destination/replacement 계약을 전달하고 각 저장소 구현 계획을 보정한다.
+
+## 2026-09-03 — PR 생성 안내 미표시 원인 확인
+
+<!-- codex-turn:pr-prompt-missing-diagnosis -->
+
+- 날짜: 2026-09-03
+- 브랜치: Billing `develop`
+- Jira: `TMI-120` 참고. Jira 변경은 수행하지 않았다.
+- 작업 목표: 사용자가 push했다고 인식했지만 GitHub에 PR 생성 안내가 보이지 않는 원인을 local/remote branch 상태로 확인한다.
+- 확인 결과: fetch 후에도 local `develop` HEAD `804d4eb`은 `origin/develop`보다 1 commit 앞서 있다. 원격 feature branch는 생성되지 않았고 해당 commit은 원격 develop에도 없다.
+- 원인: commit이 PR source용 feature branch가 아니라 local develop에 직접 생성됐다. 동일 branch 안의 commit은 develop→develop PR을 만들 수 없고, 실제 push도 원격 추적 상태상 성공하지 않았다.
+- 권장 복구: 현재 commit에서 새 `fix/TMI-120-phone-rejoin-policy` branch를 만들어 commit을 보존하고, local develop pointer를 `origin/develop`로 돌린 뒤 새 branch를 push한다. GitHub PR base는 오래된 main이 아니라 develop으로 명시한다.
+- 변경 파일: 진단 기록을 위한 `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`만 변경했다. 애플리케이션·계약·Jira·원격 branch는 변경하지 않았다.
+- 테스트 결과: 코드 변경이 없어 Gradle 테스트는 실행하지 않았다. `git fetch --prune origin`, branch tracking, commit graph와 rev-list를 확인했다.
+- 위험·미확인: 사용자가 실행한 원래 push 명령의 오류 출력은 확인하지 못했지만 remote tracking이 갱신된 뒤에도 ahead 1이므로 commit이 origin에 없는 사실은 확정이다.
+- 예상 밖 diff: 없음. 앞선 구현 commit 뒤 이번 진단 기록 두 파일만 새로 수정됐다.
+- 다음 작업: 사용자가 직접 branch 분리·push한 뒤 base develop/head fix branch로 PR을 생성한다.

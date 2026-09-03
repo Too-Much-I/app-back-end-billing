@@ -93,6 +93,23 @@ class OwnerRebindEventControllerTest {
     }
 
     @Test
+    void phoneHistoryNoopAndReplayRemainNoContent() throws Exception {
+        when(phoneDecoder.decode(any())).thenReturn(command(OwnerRebindEventKind.PHONE_REJOIN));
+        when(service.process(any()))
+                .thenReturn(OwnerRebindOutcome.NOOP)
+                .thenReturn(OwnerRebindOutcome.DUPLICATE);
+
+        for (int attempt = 0; attempt < 2; attempt++) {
+            mockMvc.perform(post(OwnerRebindEventController.PHONE_PATH)
+                            .with(user("identity").roles("IDENTITY_WORKLOAD"))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{}"))
+                    .andExpect(status().isNoContent())
+                    .andExpect(content().string(""));
+        }
+    }
+
+    @Test
     void learningCoreAndUnsignedAreDeniedBeforeDecode() throws Exception {
         mockMvc.perform(post(OwnerRebindEventController.PHONE_PATH)
                         .with(user("learning").roles("LEARNING_CORE_WORKLOAD"))
