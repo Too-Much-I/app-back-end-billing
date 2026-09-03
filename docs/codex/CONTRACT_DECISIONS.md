@@ -466,26 +466,29 @@ A는 캠페인별 비용과 악용을 통제하지만 운영 catalog가 복잡�
 - 새 TrialClaim, Grant, allocation 또는 consumption을 만들지 않는다. `trialClaimId`, `claimedAt`, `retentionExpiresAt`, `subjectRefId`, Grant unit, ledger와 AttemptGroup 식별자는 유지한다.
 - `BillingSubjectLink.userId`만 current source와 expected owner version을 조건으로 target에 CAS 이전한다.
 - active `RESERVED` 또는 PROCESSING command가 있으면 document를 rewrite하지 않고 confirm/cancel/5분 expiry 종료까지 retryable PENDING으로 처리한다.
+- phone 재가입은 AttemptGroup이 없거나 `OPEN`/`RETAKE_AVAILABLE`일 때만 owner를 이전한다. `GRADING`은 terminal 판정까지 503 pending, `COMPLETED`는 owner와 fence를 변경하지 않는 성공 NOOP다.
+- phone target의 재응시는 기존 consumption·attemptGroupId·mockExamId를 유지하지만 source Session을 이전하지 않는다. target의 새 key·새 examId로 replacement Session을 처음부터 만든다.
 - rebind 전에 생성된 exact AttemptGroup/Session의 authenticated Learning Core status event는 subject/group/session fencing을 통과할 때 GRADING·terminal 수렴 목적으로만 legacy source를 한시 허용한다.
 - legacy source는 신규 reserve·replacement·다른 Session 또는 사용자 actor 권한으로 사용할 수 없다.
 - source owner 연결은 관련 Session terminal 또는 승인된 retry window 종료 후 삭제하며 어떤 경우에도 Claim 3년 retention을 넘기지 않는다.
 - owner rebind consumer는 Identity task role의 VPC Lattice AWS_IAM·SigV4 exact route만 허용하고 production flag는 기본 비활성으로 둔다.
-- Identity consumer별 durable delivery와 Learning Core ownership migration/source deny consumer, 순서 역전 staging E2E 완료 전 production owner rebind를 활성화하지 않는다.
+- Identity event별 durable delivery, Learning Core `UserMerged` ownership migration/source deny, phone replacement staging E2E 완료 전 production owner rebind를 활성화하지 않는다.
 - phone 재가입 event type은 `TrialOwnerRebindApproved`, route는 `POST /internal/v1/eligibility/trial/owner/events`로 확정한다.
 - phone event exact field는 `eventId`, `eventType`, `schemaVersion`, `producer`, `consumerScopeId`, `occurredAt`, `sourceUserId`, `targetUserId`, `lifecycleReason`, `sourceBindingRevision`, `targetBindingRevision`이다. exact value는 `schemaVersion=1`, `producer=identity`, `lifecycleReason=PHONE_REJOIN`이다.
 - 두 binding revision은 1 이상의 integer이고 Billing projection prerequisite fencing에 사용한다. raw phone·candidate·Firebase UID·email·credential은 event에 포함하지 않는다.
 - Guest merge는 기존 `UserMerged` v1 payload를 변경하지 않고 `POST /internal/v1/owners/merge/events`로 분리한다.
 - active Reservation/PROCESSING 또는 prerequisite projection 미수렴은 `503 OWNER_REBIND_PENDING`과 delta-seconds `Retry-After`를 반환한다. Reservation은 `ceil(expiresAt-now)`를 1~300초로 clamp하고 다른 pending은 5초다.
 - temporary pending에 425, 202와 409를 사용하지 않는다. 409는 permanent event/owner conflict에만 사용한다.
-- Identity lifecycle Transaction은 immutable event core와 `(eventId, consumer)` unique delivery record 두 건을 원자 저장한다. consumer allowlist는 `BILLING`, `LEARNING_CORE`다.
-- 각 delivery는 lease·attempt·nextAttemptAt·PUBLISHED/DEAD_LETTER와 feature flag를 독립 관리한다. global PUBLISHED 하나, 동기 순차 POST와 consumer별 full payload outbox 복제를 사용하지 않는다.
+- Identity lifecycle Transaction은 immutable event core와 `(eventId, consumer)` unique delivery를 원자 저장한다. `UserMerged` consumer는 `BILLING`, `LEARNING_CORE`, `TrialOwnerRebindApproved` consumer는 `BILLING`뿐이다.
+- 각 delivery는 lease·attempt·nextAttemptAt·PUBLISHED/DEAD_LETTER와 feature flag를 독립 관리한다. global PUBLISHED 하나, 동기 순차 POST와 consumer별 full payload outbox 복제를 사용하지 않는다. phone event의 Learning Core delivery나 route는 만들지 않는다.
+- Identity→Billing owner event는 VPC Lattice SigV4를 사용하고 Identity→Learning Core `UserMerged`는 기존 workload JWT를 유지한다.
 - VPC Lattice exact IAM action은 `vpc-lattice-svcs:Invoke`다. caller policy는 환경별 exact service ARN만, service auth policy는 exact Identity task role Principal·POST·승인 route만 허용한다.
 - `Action:*`, `Resource:*`, wildcard/account-root Principal, production↔staging 교차 ARN과 불필요한 `InvokeWithServiceNetworkContext`를 허용하지 않는다.
 - pre-rebind Session terminal 뒤 daily cleanup이 24시간 안에 legacy sourceUserId를 unset한다. terminal 미수렴 hard upper bound는 `min(rebindAppliedAt+120일, Claim retentionExpiresAt)`이다.
 - 120일은 Learning Core dead-letter retention 90일 + 30일 safety buffer이며 Billing inbox retention과 같다. hard cap 뒤 late source event는 자동 authorization이 아니라 privileged reconciliation 대상이다.
 - eventId/digest/outcome 비식별 멱등성 기록과 source/target user 연결 cleanup은 분리한다.
 
-구체적인 Billing schema v4/CAS, Identity existing outbox reader-first migration, Learning Core owner route와 privileged reconciliation runbook은 2026-09-02 승인된 `docs/adr/ADR-003-retained-trial-owner-rebind-contract.md`를 기술 기준으로 사용한다. ADR-003은 승인된 fan-out·IAM·cleanup 값을 바꾸지 않는다.
+구체적인 Billing schema v4/CAS, Identity existing outbox reader-first migration, Learning Core `UserMerged` route·phone replacement와 privileged reconciliation runbook은 2026-09-03 보정된 `docs/adr/ADR-003-retained-trial-owner-rebind-contract.md`를 기술 기준으로 사용한다.
 
 ## 5. 확정 상태와 후속 승인 순서
 

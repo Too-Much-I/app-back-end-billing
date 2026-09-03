@@ -1,8 +1,24 @@
 # Billing Service 현재 상태
 
-- 최종 갱신일: 2026-09-02
-- 현재 브랜치: `feat/TMI-120-trial-owner-rebind-consumer`
+- 최종 갱신일: 2026-09-03
+- 현재 브랜치: `develop`
 - Jira: `TMI-115` Billing 구현과 Learning Core `TMI-116` saga가 각각 `develop`에 merge 완료. Billing AttemptGroup event consumer `TMI-117`은 완료됐고 owner rebind `TMI-120` Billing 구현과 검증을 진행 중이다.
+
+## 2026-09-03 PHONE_REJOIN 상태별 제한 승계 보정
+
+- `TrialOwnerRebindApproved`는 Billing-only delivery이며 phone proof만으로 완료된 과거 시험·답안·피드백을 Learning Core에서 이전하지 않는다. `UserMerged`만 Billing·Learning Core 양쪽에 전달한다.
+- Billing은 active Reservation/PROCESSING 확인 뒤 Claim의 AttemptGroup 전체 상태를 조회한다. 이력 없음·`OPEN`·`RETAKE_AVAILABLE`은 owner CAS `APPLIED`, `GRADING`은 503 pending, `COMPLETED`는 owner/fence 불변 `NOOP` 204다.
+- phone target의 재응시는 새 무료권이 아니다. 기존 consumption·attemptGroupId·mockExamId를 `REPLACEMENT`로 재사용하면서 source Session을 이전하지 않고 target의 새 key·새 examId로 처음부터 시작한다.
+- `OwnerRebindService`, indexed claim 기반 AttemptGroup 조회, 상태별 unit/MVC 회귀 테스트와 replica-set Mongo integration test를 보정했다. Claim·Grant·ledger·AttemptGroup은 변경하지 않는다.
+- ADR-003, PLAN-006, 통합 계약, CONTRACT_DECISIONS와 AGENTS를 같은 delivery·상태·Session 정책으로 갱신했다. Identity/Learning Core 코드와 Jira는 변경하지 않았다.
+- 상태별 unit/MVC 테스트는 성공했다. `./gradlew clean test`는 123개 중 비-Docker 119개가 통과했고 Docker daemon 미가동으로 Testcontainers 4개가 initialization failure다. production flag는 계속 off다.
+
+## 2026-09-03 PR 생성 안내가 보이지 않는 원인
+
+- 최신 fetch 기준 HEAD `804d4eb`은 로컬 `develop`에 직접 commit됐고 `origin/develop`보다 1 commit 앞서 있어 아직 원격에 반영되지 않았다.
+- PR은 source와 base가 서로 다른 원격 branch여야 한다. 현재 commit을 `develop`에 직접 push하면 `develop`을 base로 한 PR source branch가 없으므로 GitHub의 Compare & pull request 안내가 나타나지 않는다.
+- 안전한 정리 순서는 현재 commit에서 새 `fix/TMI-120-phone-rejoin-policy` branch를 만든 뒤 local develop pointer를 `origin/develop`로 복원하고 새 branch를 push하여 base `develop` PR을 만드는 것이다.
+- repository의 `main`은 `develop`보다 오래된 상태이므로 PR base를 GitHub 기본값에 맡기지 말고 `develop`으로 명시해야 한다.
 
 ## 2026-09-02 TMI-120 Billing owner rebind 구현
 
@@ -12,24 +28,24 @@
 - owner 이전 전 active exact Session에는 120일/Claim retention 상한 fence를 만들고 AttemptGroup status consumer가 이전 source event를 그 Session의 상태 전진에만 허용한다. terminal 시 즉시 fence를 종료한다.
 - 최대 1시간 cleanup worker는 due source/group/session 연결을 unset하고 24시간 초과를 저카디널리티 경보로 기록한다. 로그와 span에는 source/target/subject/Claim/Session/payload/digest를 넣지 않는다.
 - lifecycle decoder, MVC/security, service, AttemptGroup fence, cleanup과 실제 HTTP W3C trace 테스트가 통과했다. replica-set Mongo 통합 테스트도 작성했으나 현재 local Docker daemon 미가동으로 실행 검증이 남아 있다.
-- production owner rebind와 cleanup flag는 기본 false다. Identity durable fan-out, Learning Core owner consumer, 실제 Lattice/IAM/SG와 staging 순서 역전 E2E 전에는 활성화하지 않는다.
+- production owner rebind와 cleanup flag는 기본 false다. Identity event별 delivery, Learning Core `UserMerged` consumer/phone replacement, 실제 Lattice/IAM/SG와 staging E2E 전에는 활성화하지 않는다.
 
 ## 2026-09-02 TMI-120 이후 작업 순서
 
 - 즉시 다음 작업은 Docker daemon이 가능한 환경에서 `./gradlew clean test`를 다시 실행해 owner rebind를 포함한 replica-set Testcontainers 4개를 검증하고, 실패가 있으면 수정하는 것이다.
 - 전체 테스트와 최종 diff 검토가 통과하면 사용자 승인 후 Jira TMI-120을 완료 처리한다. commit·push·PR은 사용자가 수행한다.
-- 다음 cross-service 구현은 Identity consumer별 durable fan-out이다. `UserMerged`와 phone rejoin event를 Billing/Learning Core delivery로 독립 저장·retry하고 Billing 두 route로 발행한다.
-- 그다음 Learning Core에 lifecycle별 owner consumer, source actor deny marker, 시험/Session current owner 이전과 target 기준 terminal event 재발행을 구현한다.
+- 다음 cross-service 구현은 Identity event별 durable delivery다. `UserMerged`는 Billing/Learning Core, phone rejoin은 Billing delivery만 독립 저장·retry한다.
+- 그다음 Learning Core에 `UserMerged` owner consumer/source deny와 phone target의 기존 group replacement Session 처리를 구현한다.
 - 마지막으로 schema v4 migration, Lattice IAM/SG, 두 서비스 flag를 staging에 적용해 Identity/Billing/Learning Core 순서 역전·중복·응답 유실 E2E를 통과한 뒤에만 production canary를 진행한다.
 
 ## 2026-09-02 Identity durable owner-event fan-out 인계 내용
 
 - 현재 Identity `UserMergedOutbox`는 immutable event 값과 단일 delivery 상태가 같은 document에 있고 `UserMergedPublisher`도 endpoint 하나만 처리한다. 이를 기존 row reader-first 호환을 유지하면서 event core와 `(eventId, consumer)` delivery로 분리해야 한다.
-- 신규 Guest merge부터 같은 lifecycle Mongo Transaction에서 기존 `UserMerged` core와 `BILLING`, `LEARNING_CORE` delivery 두 건을 원자 저장한다. phone 재가입은 별도 `TrialOwnerRebindApproved` core/schema와 동일한 두 consumer delivery를 만든다.
+- 신규 Guest merge부터 같은 lifecycle Mongo Transaction에서 기존 `UserMerged` core와 `BILLING`, `LEARNING_CORE` delivery 두 건을 원자 저장한다. phone 재가입은 별도 `TrialOwnerRebindApproved` core와 `BILLING` delivery 한 건만 만든다.
 - delivery는 payload를 복제하지 않고 core를 참조하며 status, attempt, nextAttemptAt, lease, failure, published/dead-letter/cleanup 시각을 consumer별로 독립 관리한다. 한 consumer의 성공·실패가 다른 consumer delivery 상태를 바꾸면 안 된다.
-- Billing route는 Guest `/internal/v1/owners/merge/events`, phone `/internal/v1/eligibility/trial/owner/events`다. Learning Core route는 Guest `/internal/v1/owners/merge/events`, phone `/internal/v1/owners/trial/rebind/events`다.
-- transport는 `ap-northeast-2`, service `vpc-lattice-svcs` SigV4와 Identity ECS application task role을 사용한다. 204는 published, 503/429/timeout/5xx는 same event retry, 400/409/422는 dead-letter, 401/403은 해당 consumer circuit 중지, 3xx는 redirect 없이 격리한다.
-- 기존 merge event historical backfill은 하지 않고, capture와 두 consumer 준비·staging E2E 전 publisher flag는 기본 false로 유지한다. Billing TMI-120 replica-set 검증과 Learning Core owner consumer가 끝나기 전 production delivery를 켜면 안 된다.
+- Billing route는 Guest `/internal/v1/owners/merge/events`, phone `/internal/v1/eligibility/trial/owner/events`다. Learning Core route는 Guest `/internal/v1/owners/merge/events`뿐이며 phone route는 없다.
+- Identity→Billing은 서울 리전 Lattice SigV4, Identity→Learning Core `UserMerged`는 기존 workload JWT를 유지한다. consumer별 retry/dead-letter/circuit은 독립 관리한다.
+- 기존 merge event historical backfill은 하지 않고, consumer 준비·staging E2E 전 publisher flag는 기본 false로 유지한다.
 
 ## 2026-09-02 ADR-003 retained trial owner rebind 계약 초안 작성
 
@@ -37,13 +53,13 @@
 - Billing Mongo schema v4는 `owner_rebind_inbox`, `subject_owner_rebinds`, `BillingSubjectLink.ownerVersion/ownerUpdatedAt`을 사용한다. v3 missing ownerVersion은 logical 1로 reader-first 처리하고 첫 CAS에서 version 2로 수렴하며 자동 bulk rewrite/drop은 금지한다.
 - phone prerequisite는 source/target revision lower를 503 pending, exact state 불일치를 conflict, higher revision의 반대 상태를 superseded STALE로 판정한다. Guest merge는 source active retained link 최대 100건을 한 Transaction에서 all-or-nothing 이전한다.
 - exact pre-rebind group/session status만 legacy source로 허용하고 terminal 또는 `min(appliedAt+120일, Claim retentionExpiresAt)`에 논리 종료한다. 최대 1시간 간격 worker가 24시간 안에 source link를 unset하며 TTL은 safety net으로만 사용한다.
-- Identity 기존 `user_merged_outbox` reader-first core/delivery 전환, Learning Core phone route `/internal/v1/owners/trial/rebind/events`, target owner terminal status 재발행과 privileged reconciliation runbook을 포함했다.
+- Identity 기존 `user_merged_outbox` reader-first core/delivery 전환을 포함했다. 당시 포함했던 Learning Core phone route 전제는 2026-09-03 보정으로 제거됐고 정상 replacement Session 흐름으로 대체됐다.
 - PLAN-006, CONTRACT_DECISIONS와 통합 계약에서 ADR-003을 owner rebind 단일 기술 기준으로 연결했다. Jira 내용·상태, 애플리케이션 코드, Identity/Learning Core 코드와 AWS resource는 변경하지 않았다.
 - 남은 gate는 ADR-003 검토 승인이다. 승인 뒤 TMI-120 Billing schema/consumer 구현을 시작하며 타 서비스 consumer와 staging 순서 역전 E2E 전 production flag는 off다.
 
 ## 2026-09-02 ADR-003 승인과 Jira TMI-120 갱신
 
-- 사용자가 ADR-003 전체와 schema v4 collection 이름, Guest merge 100 subject 상한, 최대 1시간 cleanup worker, Learning Core phone route, historical backfill/privileged mutation route 제외를 승인했다.
+- 사용자가 ADR-003 전체와 schema v4 collection 이름, Guest merge 100 subject 상한, 최대 1시간 cleanup worker, historical backfill/privileged mutation route 제외를 승인했다. 당시 Learning Core phone route 승인은 2026-09-03 보정으로 폐기됐다.
 - ADR-003 상태를 승인으로, PLAN-006 상태를 ADR 승인·TMI-120 구현 대기로 갱신했다. Billing 구현 시작에 필요한 계약 선택은 더 남아 있지 않다.
 - Jira TMI-120의 기존 목표·wire·fan-out·IAM·cleanup·완료 조건은 보존하고 ADR-003 승인 기술 기준을 description에 추가했다. 상태 `해야 할 일`, Medium, 담당자 없음과 Resolution 없음은 유지했다.
 - 다음 작업은 TMI-120 Billing schema v4, lifecycle별 strict decoder, owner CAS, legacy fence와 cleanup worker 구현이다. Identity/Learning Core consumer와 실제 AWS/staging E2E는 여전히 별도 작업과 production activation gate다.
@@ -65,17 +81,17 @@
 ## 2026-09-02 ADR-003 작성 전 사용자 추가 결정 필요 여부
 
 - 제품·보안·보존 수준의 필수 사용자 결정은 더 없다. event/route/schema, pending response, fan-out, IAM, owner CAS, active Reservation, legacy fencing과 24시간/120일 cleanup이 모두 확정됐다.
-- ADR-003의 남은 collection/index 이름, schema v4 ownerVersion backfill, exact CAS query, reader-first delivery migration, Learning Core internal owner route, cleanup scheduler와 metric은 승인 정책 안의 기술 설계로 Codex 권장안을 작성할 수 있다.
+- ADR-003의 남은 collection/index 이름, schema v4 ownerVersion backfill, exact CAS query, reader-first delivery migration, Learning Core `UserMerged` route와 phone replacement, cleanup scheduler와 metric은 승인 정책 안의 기술 설계로 Codex 권장안을 작성할 수 있다.
 - 보수적 기본값은 TMI-120에서 privileged HTTP repair route를 만들지 않는 것이다. 120일 hard cap 뒤 event는 자동 authorization하지 않고 alert·운영 review·원본 event 증적 확인을 거쳐 별도 future repair ADR로 처리한다.
 - Billing은 production 미활성 전제를 유지한다. schema v4 startup preflight에서 legacy data/index가 예상과 다르면 자동 rewrite/drop하지 않고 fail-fast하며 별도 migration 승인을 요구한다.
-- Identity merge 성공은 downstream 두 consumer의 즉시 성공을 기다리지 않는 existing transactional outbox semantics를 유지한다. 필수 delivery 두 건은 독립 retry/dead-letter되고 production flag는 양 consumer readiness 전까지 off다.
+- Identity merge 성공은 downstream 두 consumer의 즉시 성공을 기다리지 않는 existing transactional outbox semantics를 유지한다. `UserMerged` 두 delivery는 독립 retry/dead-letter되고 phone은 Billing delivery만 둔다.
 - 따라서 사용자가 별도 운영 repair endpoint나 historical backfill을 현재 범위에 포함하길 원하지 않는 한 추가 질문 없이 ADR-003 초안을 작성할 수 있다.
 
 ## 2026-09-02 TMI-120 구현 전 마지막 ADR gate 확인
 
 - 제품 정책, exact event/route/schema, 503/Retry-After, durable fan-out, Lattice IAM action과 legacy cleanup SLA는 모두 승인돼 선택지는 남지 않았다.
 - 그러나 통합 계약은 구체적인 `UserMerged` consumer wire를 별도 ADR 확정 전 임의 구현하지 못하게 하고 현재 저장소에는 ADR-001·ADR-002만 있다. 따라서 바로 코드가 아니라 ADR-003 owner rebind contract를 먼저 작성해야 한다.
-- ADR-003은 승인값을 재선택하지 않고 Billing owner-rebind inbox/record collection·index·schema v4 migration, ownerVersion backfill/CAS, cleanup worker와 privileged reconciliation, Identity existing outbox reader-first delivery migration, Learning Core exact owner route를 실행 가능한 계약으로 고정한다.
+- ADR-003은 Billing owner-rebind inbox/record collection·index·schema v4 migration, ownerVersion backfill/CAS, cleanup worker와 privileged reconciliation, Identity existing outbox reader-first delivery migration, Learning Core `UserMerged` route와 phone replacement를 실행 가능한 계약으로 고정한다.
 - ADR-003 승인 뒤 TMI-120 Billing reader-first consumer 구현을 시작할 수 있다. Identity fan-out과 Learning Core owner consumer는 별도 저장소/Jira 구현이며 Billing feature flag와 production activation gate는 계속 닫아 둔다.
 - 이번 확인은 분석·기록만 수행했고 애플리케이션·Jira·승인 계약을 변경하지 않았다.
 

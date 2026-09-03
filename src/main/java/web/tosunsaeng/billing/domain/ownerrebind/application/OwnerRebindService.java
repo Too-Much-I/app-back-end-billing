@@ -3,8 +3,10 @@ package web.tosunsaeng.billing.domain.ownerrebind.application;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -195,6 +197,13 @@ public class OwnerRebindService {
             throw OwnerRebindException.pending(5);
         }
 
+        if (command.isPhoneRejoin()) {
+            ProcessingResult historyResult = classifyPhoneAttemptHistory(command, links, now);
+            if (historyResult != null) {
+                return historyResult;
+            }
+        }
+
         for (BillingSubjectLink link : links) {
             createFenceIfRequired(command, link, now);
             subjectLinkRepository.rebindOwner(link, command.targetUserId(), now)
@@ -202,6 +211,44 @@ public class OwnerRebindService {
         }
         save(command, OwnerRebindDisposition.APPLIED, links.size(), now);
         return ProcessingResult.success(OwnerRebindOutcome.APPLIED);
+    }
+
+    private ProcessingResult classifyPhoneAttemptHistory(
+            OwnerRebindCommand command,
+            List<BillingSubjectLink> links,
+            Instant now
+    ) {
+        Map<String, BillingSubjectLink> linksByClaim = new HashMap<>();
+        for (BillingSubjectLink link : links) {
+            if (linksByClaim.put(link.getTrialClaimId(), link) != null) {
+                metrics.recordInvariantViolation("phone_attempt_history");
+                return saveConflict(command, now);
+            }
+        }
+
+        List<AttemptGroup> groups = groupRepository.findByClaimIds(
+                links.stream().map(BillingSubjectLink::getTrialClaimId).toList()
+        );
+        Set<String> seenClaims = new HashSet<>();
+        for (AttemptGroup group : groups) {
+            BillingSubjectLink link = linksByClaim.get(group.getTrialClaimId());
+            if (link == null
+                    || !link.getSubjectRefId().equals(group.getSubjectRefId())
+                    || !seenClaims.add(group.getTrialClaimId())
+                    || group.getStatus() == null) {
+                metrics.recordInvariantViolation("phone_attempt_history");
+                return saveConflict(command, now);
+            }
+        }
+
+        if (groups.stream().anyMatch(group -> group.getStatus() == AttemptGroup.Status.GRADING)) {
+            throw OwnerRebindException.pending(5);
+        }
+        if (groups.stream().anyMatch(group -> group.getStatus() == AttemptGroup.Status.COMPLETED)) {
+            save(command, OwnerRebindDisposition.NOOP, 0, now);
+            return ProcessingResult.success(OwnerRebindOutcome.NOOP);
+        }
+        return null;
     }
 
     private PhonePrerequisite validatePhonePrerequisite(

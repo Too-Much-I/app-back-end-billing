@@ -1,6 +1,6 @@
 # ADR-003: Retained trial owner rebind 계약
 
-- 상태: 승인 — C14·PLAN-006·TMI-120의 owner rebind 구현 기술 기준
+- 상태: 승인 — 2026-09-03 phone 재가입의 미완료 AttemptGroup 제한 승계 정책 반영
 - 작성일: 2026-09-02
 - 대상 릴리스: 결제 제외 `FREE_EXAM_ONCE` owner rebind vertical slice
 - Jira: `TMI-120` — `[Billing] Retained trial owner rebind consumer 및 Transaction 구현`
@@ -12,7 +12,7 @@
 2. phone 재가입 `TrialOwnerRebindApproved`와 Guest merge `UserMerged`는 서로 다른 strict decoder·route를 사용하고 검증 뒤 내부 `OwnerRebindCommand`로만 수렴한다.
 3. Billing Mongo schema는 v4로 올리며 `owner_rebind_inbox`, `subject_owner_rebinds`와 `BillingSubjectLink.ownerVersion`을 추가하되 legacy v3 document를 자동 bulk rewrite하지 않는다.
 4. active Reservation/PROCESSING은 503 pending으로 미루고, rebind 전에 생성된 exact Session status만 legacy source fencing으로 terminal 수렴까지 한시 허용한다.
-5. Identity consumer별 durable fan-out, Learning Core owner migration/source deny와 순서 역전 staging E2E가 끝나기 전에는 Billing production owner-rebind flag를 활성화하지 않는다.
+5. `UserMerged`만 Billing·Learning Core 양쪽에 전달하고 `TrialOwnerRebindApproved`는 Billing에만 전달한다. phone 재가입 target은 정상 reserve에서 기존 group을 `REPLACEMENT`로 승인받아 새 Session을 만들며 과거 Session·결과를 이전받지 않는다.
 
 ## 2. 사용자가 반드시 읽어야 하는 내용
 
@@ -46,17 +46,26 @@
 
 두 endpoint는 각자 exact field 집합을 strict decode한다. 하나의 generic JSON DTO로 받은 뒤 `reason`만 보고 의미를 추측하지 않는다. decoder를 통과한 뒤에만 공통 application command로 변환한다.
 
-### 2.3 Billing만 배포해도 기능은 열리지 않는다
+### 2.3 lifecycle별 전달과 Learning Core 연동이 다르다
 
-Billing owner mapping만 target으로 변경하고 Learning Core가 source 소유 시험을 그대로 유지하면 target의 재응시와 기존 Session event가 서로 어긋난다.
+`UserMerged`는 실제 계정 통합이므로 Identity가 Billing과 Learning Core에 각각 durable 전달한다. Learning Core는 이 event에서 source deny와 계정 소유 시험의 migration을 수행한다.
+
+`TrialOwnerRebindApproved`는 동일 phone 재가입의 무료시험 권리 판정용이며 Billing에만 전달한다. phone proof는 완료된 시험·답안·피드백의 소유권 증명이 아니다. Billing이 미사용 또는 재개 가능한 group의 owner link를 target으로 변경한 뒤 target의 정상 시험 생성 요청에서 다음처럼 수렴한다.
+
+```text
+target reserve
+→ Billing: REPLACEMENT + 기존 attemptGroupId/mockExamId
+→ Learning Core: source의 기존 Session은 유지/abandoned
+→ target userId로 새 examId(Session)를 처음부터 생성
+```
 
 production 활성화에는 다음이 모두 필요하다.
 
 1. Billing 두 consumer route와 feature flag off 배포
-2. Learning Core 두 owner event consumer, source actor deny와 ownership migration 배포
-3. Identity event core + `BILLING`/`LEARNING_CORE` delivery fan-out과 SigV4 배포
-4. production/staging exact IAM policy와 direct bypass 차단
-5. staging에서 두 서비스 delivery 순서를 뒤집은 E2E
+2. Learning Core `UserMerged` consumer와 phone replacement Session 처리 배포
+3. Identity event별 durable delivery 배포: `UserMerged`는 Billing/LC, phone은 Billing-only
+4. Identity→Billing Lattice SigV4와 Identity→Learning Core 기존 workload JWT 권한 검증
+5. staging에서 중복·역순·응답 유실·인증 실패와 phone replacement E2E
 6. consumer readiness 확인 뒤 producer와 publisher flag 단계적 활성화
 
 ### 2.4 legacy source 허용은 사용자 권한 승계가 아니다
@@ -73,13 +82,15 @@ source user에게 신규 reserve, replacement, 다른 Session, status 조회 또
 
 ## 3. 사용자 승인 사항
 
-2026-09-02 사용자가 ADR-003 전체와 다음 기술 기본값을 승인했다.
+2026-09-02 최초 ADR과 2026-09-03 phone 재가입 보정을 사용자가 승인했다.
 
 1. Mongo schema v4 collection은 `owner_rebind_inbox`, `subject_owner_rebinds`를 사용한다.
 2. Guest merge 한 event의 retained subject 처리 상한은 100건이다.
 3. cleanup worker는 최대 1시간 간격으로 실행해 승인된 24시간 SLA를 지킨다.
-4. Learning Core phone rejoin route는 `POST /internal/v1/owners/trial/rebind/events`다.
+4. Learning Core phone rejoin route는 만들지 않는다. `TrialOwnerRebindApproved`는 Billing-only다.
 5. TMI-120에는 historical backfill과 privileged mutation HTTP route를 포함하지 않는다.
+6. phone AttemptGroup 상태는 없음/`OPEN`/`RETAKE_AVAILABLE`이면 owner 이전, `GRADING`이면 503 pending, `COMPLETED`이면 성공 NOOP다.
+7. phone 재가입 target은 기존 group의 새 replacement Session을 처음부터 만들며 source Session·답안·결과를 이전하지 않는다.
 
 따라서 Billing TMI-120 구현을 시작하는 데 필요한 계약 결정은 남아 있지 않다. Identity와 Learning Core 구현은 각 저장소의 별도 계획·Jira 승인이 필요하다.
 
@@ -207,6 +218,20 @@ phone event는 current `trial_eligibility` projection과 retained Claim alias를
 6. candidate가 Claim과 일치하지 않으면 권리를 추측해 옮기지 않고 409 `OWNER_REBIND_CONFLICT`다.
 
 source account inactive 여부는 Identity가 `TrialOwnerRebindApproved`를 발행했다는 lifecycle 승인 의미로 신뢰하되, Billing은 eligibility와 candidate-to-Claim 관계를 독립적으로 재검증한다.
+
+#### 4.3.1 phone AttemptGroup 상태 판정
+
+active Reservation/PROCESSING 확인 뒤 phone subject의 기존 AttemptGroup을 상태와 무관하게 조회한다.
+
+| 상태 | Billing 처리 | target의 후속 동작 |
+| --- | --- | --- |
+| 없음 | owner CAS `APPLIED` | 미사용 무료권으로 `INITIAL` 시작 |
+| `OPEN` | owner CAS `APPLIED` | 같은 group·mockExamId의 새 `REPLACEMENT` Session |
+| `RETAKE_AVAILABLE` | owner CAS `APPLIED` | 같은 group·mockExamId의 새 `REPLACEMENT` Session |
+| `GRADING` | owner 변경 없이 503 pending | terminal 판정 뒤 같은 event 재시도 |
+| `COMPLETED` | owner/fence 변경 없이 inbox `NOOP`, 204 | 새 무료권·과거 결과 접근 없음 |
+
+`OPEN`의 pre-rebind exact Session에서 늦게 도착하는 status event는 기존 bounded fence로 Billing projection 전진에만 사용할 수 있다. fence는 Learning Core Session 데이터 migration이 아니다. target replacement가 시작되면 기존 Session은 abandoned fencing되고 target 명의의 새 Session을 생성한다.
 
 ### 4.4 Guest merge prerequisite와 범위
 
@@ -362,6 +387,7 @@ strict decode + canonical digest (Transaction 밖, raw payload 비저장)
 → lifecycle prerequisite 확인
 → source active/unexpired link와 current owner 확인
 → 관련 Reservation/PROCESSING 확인
+→ phone AttemptGroup 상태 판정
 → exact owner/version CAS
 → pre-rebind active group/session fence 저장
 → inbox disposition 저장
@@ -417,46 +443,48 @@ TTL은 worker 실패 시 safety net일 뿐 authorization이나 24시간 SLA를 �
 
 ### 4.11 Identity durable fan-out migration
 
-Identity는 immutable event core 하나와 consumer별 delivery를 분리한다.
+Identity는 immutable event core 하나와 event별 consumer delivery를 분리한다.
 
 ```text
-owner event core
-├─ delivery(eventId, BILLING)
-└─ delivery(eventId, LEARNING_CORE)
+UserMerged core
+├─ delivery(eventId, BILLING)       # Lattice SigV4
+└─ delivery(eventId, LEARNING_CORE) # 기존 workload JWT
+
+TrialOwnerRebindApproved core
+└─ delivery(eventId, BILLING)       # Lattice SigV4
 ```
 
-- consumer allowlist는 `BILLING`, `LEARNING_CORE`다.
-- event core와 delivery 두 건은 Identity lifecycle Mongo Transaction에서 원자 저장한다.
+- `UserMerged` consumer allowlist는 `BILLING`, `LEARNING_CORE`, phone event allowlist는 `BILLING`이다.
+- event core와 해당 lifecycle의 필수 delivery는 Identity lifecycle Mongo Transaction에서 원자 저장한다.
 - `(eventId, consumer)`는 unique다.
 - delivery별 status, attemptCount, nextAttemptAt, lease owner/expiry, published/dead-letter time, cleanup time과 feature flag를 독립 관리한다.
 - global `PUBLISHED`, consumer별 full event payload 복제와 동기 순차 POST를 사용하지 않는다.
 
 기존 `user_merged_outbox`는 transition 동안 immutable `UserMerged` event core로 읽는다. 기존 embedded delivery status는 Learning Core legacy publisher가 reader-first로 호환하되, 신규 event부터 별도 `BILLING`/`LEARNING_CORE` delivery 두 건을 생성한다. Billing으로 historical merge event를 자동 backfill하지 않는다.
 
-cutover preflight에서 transition 규칙으로 안전하게 분류되지 않는 legacy row 또는 동일 event의 모순 delivery를 발견하면 publisher를 켜지 않고 별도 migration 승인을 받는다. phone rejoin은 별도 event core/delivery schema를 사용하되, 두 lifecycle을 성급한 generic domain 하나로 합치지 않는다.
+cutover preflight에서 transition 규칙으로 안전하게 분류되지 않는 legacy row 또는 동일 event의 모순 delivery를 발견하면 publisher를 켜지 않고 별도 migration 승인을 받는다. phone rejoin은 Billing delivery만 생성하고 Learning Core delivery를 생성하지 않는다.
 
 ### 4.12 Learning Core owner consumer 계약
 
-Identity는 consumer별로 다음 route에 전달한다.
+Identity가 Learning Core로 보내는 owner lifecycle은 실제 계정 통합 `UserMerged`뿐이다.
 
 | lifecycle | Learning Core route |
 | --- | --- |
 | Guest merge | `POST /internal/v1/owners/merge/events` |
-| phone 재가입 | `POST /internal/v1/owners/trial/rebind/events` |
+| phone 재가입 | 전달 없음 |
 
-Learning Core는 lifecycle별 strict decoder 뒤 한 local Transaction에서 event inbox, source actor deny marker와 시험/Session current ownership migration을 처리한다. 기존 Session·AttemptGroup 정체성과 결과는 새로 만들지 않는다.
+Learning Core는 `UserMerged` strict decoder 뒤 한 local Transaction에서 event inbox, source actor deny marker와 실제 계정 통합 범위의 ownership migration을 처리한다.
 
-이미 source userId로 저장된 status outbox는 Billing의 bounded fence 안에서 수렴시킬 수 있다. Learning Core ownership migration 뒤 필요하면 target userId와 새 eventId로 current terminal status를 재발행하며, old source eventId를 payload만 바꿔 재사용하지 않는다.
+phone 재가입에서는 과거 시험·Session owner를 일괄 migration하지 않는다. target의 정상 reserve가 `REPLACEMENT`와 기존 attemptGroupId를 반환하면 새 target Session을 생성하고 source Session은 그대로 terminal/abandoned 처리한다. 이미 source userId로 저장된 status outbox는 Billing bounded fence 안에서만 수렴한다.
 
-두 route의 실제 구현·저장 schema와 Learning Core Jira는 Learning Core 저장소가 소유한다. 이 ADR은 cross-service wire와 activation gate만 고정한다.
+Learning Core `UserMerged` route 구현·저장 schema와 phone replacement 처리는 Learning Core 저장소가 소유한다. 이 ADR은 cross-service wire와 activation gate만 고정한다.
 
 ### 4.13 Lattice IAM
 
-exact action은 `vpc-lattice-svcs:Invoke`다.
+Identity→Billing exact action은 `vpc-lattice-svcs:Invoke`다. Identity→Learning Core `UserMerged`는 기존 workload JWT transport를 유지하며 이 ADR이 SigV4로 바꾸지 않는다.
 
-- caller identity policy는 환경별 exact Billing 또는 Learning Core Lattice service ARN만 허용한다.
+- Lattice caller identity policy는 환경별 exact Billing service ARN만 허용한다.
 - Billing service auth policy는 같은 환경 exact Identity application task role Principal, POST와 두 승인 route만 허용한다.
-- Learning Core service auth policy도 same principal과 위 owner route만 허용한다.
 - `Action:*`, `Resource:*`, wildcard/account-root principal, production↔staging 교차 ARN을 금지한다.
 - 불필요한 `vpc-lattice-svcs:InvokeWithServiceNetworkContext`를 추가하지 않는다.
 - task execution role과 GitHub OIDC deploy role에는 application invoke 권한을 주지 않는다.
@@ -507,9 +535,9 @@ TMI-120 브랜치에서 `BillingMongoIndexInitializer.SCHEMA_VERSION=4`, owner r
 
 현재 Identity `UserMergedOutbox`는 event core와 단일 delivery 상태가 같은 document에 결합돼 있고 publisher는 단일 endpoint 구조다. reader-first delivery 분리는 Identity 별도 코드/Jira가 필요하며 Billing 구현에서 Identity collection을 직접 수정하지 않는다.
 
-### 5.3 Learning Core owner consumer는 별도 구현이다
+### 5.3 Learning Core lifecycle별 처리가 다르다
 
-Billing fence는 늦은 status event 유실을 제한적으로 막을 뿐 Learning Core 시험 ownership을 target으로 바꾸지 않는다. Learning Core consumer 없이 production flag를 켜면 target 재응시와 source deny가 완성되지 않는다.
+`UserMerged`는 Learning Core owner consumer와 source deny 구현이 별도로 필요하다. phone 재가입은 별도 owner event를 소비하지 않으며, target의 정상 reserve가 기존 attemptGroupId의 `REPLACEMENT`를 반환할 때 source Session을 이전하지 않고 target 명의 새 Session을 생성해야 한다. 이 replacement E2E 없이 phone production flag를 켜면 안 된다.
 
 ### 5.4 hard cap 이후 자동 복구 route가 없다
 
@@ -517,9 +545,9 @@ TMI-120에는 privileged HTTP repair route를 만들지 않는다. hard cap 이�
 
 운영 절차:
 
-1. Identity event core와 두 delivery 상태 확인
-2. Learning Core owner inbox/outbox와 current ownership 확인
-3. Learning Core migration이 완료됐다면 target owner로 새 eventId terminal status 재발행
+1. Identity event core와 lifecycle별 expected delivery 상태 확인: phone은 Billing 1건, UserMerged는 Billing/LC 2건
+2. UserMerged면 Learning Core owner inbox/outbox와 current ownership을 확인하고, phone이면 Billing group 상태와 source Session outbox를 확인
+3. UserMerged migration 또는 phone replacement가 완료됐다면 current actor 기준 새 eventId terminal status를 재발행
 4. old source event replay 또는 Billing direct DB update로 우회하지 않음
 5. 위 방식으로 수렴할 수 없으면 별도 repair ADR, 운영 role과 audit 계약 승인 후 mutation 수행
 
@@ -538,9 +566,9 @@ TMI-120에는 privileged HTTP repair route를 만들지 않는다. hard cap 이�
 7. cleanup worker, metric, trace와 privacy-safe log
 8. unit·replica-set Testcontainers·security/transport contract test
 9. ADR-001·통합 계약·운영 문서 갱신
-10. Identity/Learning Core 별도 consumer 작업과 staging E2E
+10. Identity event별 delivery, Learning Core `UserMerged` consumer와 phone replacement staging E2E
 
-TMI-120은 1~9의 Billing 범위만 구현한다. Identity, Learning Core와 실제 AWS resource 변경은 이 저장소의 구현 범위가 아니다.
+TMI-120은 1~9의 Billing 범위만 구현한다. Identity, Learning Core와 실제 AWS resource 변경은 이 저장소의 구현 범위가 아니다. phone replacement는 기존 Billing reserve wire를 유지하며 Learning Core 코드 검증은 별도 저장소에서 수행한다.
 
 ## 7. 상세 부록
 
@@ -566,6 +594,9 @@ TMI-120은 1~9의 Billing 범위만 구현한다. Identity, Learning Core와 실
 - target candidate-to-Claim mismatch conflict
 - Guest multi-link all-or-nothing과 100건 상한
 - active Reservation/PROCESSING pending 후 terminal retry
+- phone AttemptGroup 없음/OPEN/RETAKE_AVAILABLE APPLIED
+- phone GRADING 503 pending 후 RETAKE_AVAILABLE/COMPLETED 재판정
+- phone COMPLETED owner/fence 불변 NOOP와 duplicate 204
 - owner rebind와 reserve/confirm/expiry concurrency
 - duplicate-key, transient Transaction과 unknown commit result 수렴
 
@@ -588,11 +619,11 @@ TMI-120은 1~9의 Billing 범위만 구현한다. Identity, Learning Core와 실
 ### B. staging E2E 순서 역전 시나리오
 
 1. Billing이 먼저 owner rebind를 적용하고 source status event가 나중에 도착
-2. Learning Core가 먼저 ownership을 이전하고 Billing owner event가 나중에 도착
-3. 두 consumer 중 하나만 503 pending 후 retry
+2. UserMerged에서 Learning Core가 먼저 ownership을 이전하고 Billing owner event가 나중에 도착
+3. UserMerged 두 consumer 중 하나만 실패하거나 503 pending 후 독립 retry
 4. Billing 204 응답 유실 뒤 same event replay
 5. rebind와 5분 Reservation expiry 동시 실행
-6. source terminal event와 target 재발행 event 순서 역전
+6. phone OPEN owner 이전 뒤 source terminal event와 target replacement reserve 순서 역전
 7. chain A→B→C delivery 순서 역전과 stale predecessor
 8. hard cap 경계의 source event 거절과 운영 alert
 
@@ -604,10 +635,10 @@ TMI-120은 1~9의 Billing 범위만 구현한다. Identity, Learning Core와 실
 
 ```text
 Billing reader/schema/index, flag off
-→ Learning Core consumer, flag off
-→ Identity delivery writer/publisher, flag off
-→ staging IAM negative + order-reversal E2E
-→ Billing/LC consumer flag
+→ Learning Core UserMerged consumer와 phone replacement reader, flag off
+→ Identity event별 delivery writer/publisher, flag off
+→ staging auth negative + order-reversal/replacement E2E
+→ Billing/LC 관련 flag
 → Identity producer/publisher canary
 → pending/dead-letter/cleanup age 관찰 후 확대
 ```
