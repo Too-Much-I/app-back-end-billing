@@ -1,13 +1,13 @@
 # Billing 계약 결정서
 
 - 최초 작성일: 2026-08-24
-- 상태: 결제 구현 deferred, 무료 TrialClaim·C3-D VPC Lattice workload 인증·C14 owner rebind 정책 승인
-- Jira: owner rebind `TMI-120` 생성, Billing 구현·검증 진행 중
+- 상태: 결제 개발 재개, Apple·Google one-time fixed-term 상품·RevenueCat 표준 연동·무료권 보존·C1-A/C2-A·C9-S1~S8 승인; 실제 Store/RevenueCat 값·가격과 exact DTO/Mongo ADR 작성 대기
+- Jira: 무료/owner lifecycle 관련 `TMI-120` 구현은 병합 완료; 결제 ADR·PLAN·Jira 생성 대기
 - 문서 역할: Billing 구현 전 계약의 단일 기준
 
 이 문서에서 `권장`은 아직 승인되지 않은 후속 제안이다. `확정` 또는 아래 승인 요약에 포함된 항목은 구현 계약이다.
 
-## 0. 일정 변경 — 결제 구현 연기
+## 0. 과거 일정 기록 — 2026-08-24 결제 구현 연기
 
 - 2026-08-24 사용자 결정으로 Apple/Google 결제, credit/pass, coupon, 환불 구현은 후속 릴리스로 연기한다.
 - 기존 상품·결제 계약은 삭제하지 않고 동결하며 재개 시 이 문서를 기준으로 이어간다.
@@ -16,11 +16,21 @@
 - Store, credit, pass, coupon과 환불 코드는 현재 최소 범위에 포함하지 않는다.
 - Learning Core 임시 소유와 Identity 소유는 채택하지 않는다.
 
+### 0A. 2026-09-05 결제 개발 재개 — 최신 결정
+
+- 사용자는 1차 개발 범위에 Apple App Store·Google Play 결제를 포함하기로 했다. 위 2026-08-24 결제 연기는 역사적 일정 기록이며 현재 결제 개발을 차단하지 않는다.
+- 유료 상품은 자동 갱신형 월 구독이 아니라 결제 검증 뒤 정해진 기간 동안 모의고사를 무제한 사용하는 fixed-term access 상품이다. 기간은 `1일`, `3일`, `7일`, `14일`, `30일`이다.
+- 활성 유료 기간에는 유료 권리를 먼저 사용하고 `FREE_EXAM_ONCE` Claim·Grant·available unit은 변경하지 않는다. 유료 기간 종료 뒤 무료권이 아직 미사용이면 그대로 사용할 수 있다.
+- 기존 `CREDIT_5`, `CREDIT_10`, `CREDIT_100`, `UNLIMITED_3D`, first-purchase credit bonus, check-in 연장과 C10 credit 만료 결정은 현재 결제 구현 계약에서 제외한 역사적 초안이다. 별도 사용자 승인 없이는 구현하지 않는다.
+- C9의 Store 상품 매핑·account binding·RevenueCat 검증 데이터·복원은 C9-S1, 앱 API/auth는 C1-A/C2-A, entitlement lifecycle·환불·webhook·reconciliation·보존과 ADR-004 세부 연동 선택은 아래 C9-S2~S8로 확정했다.
+- 2026-09-07 사용자는 RevenueCat을 Apple/Google 결제 연동 계층으로 채택했다. 결제 편의성을 얻기 위해 RevenueCat 표준 SDK가 transaction completion을 맡기며, Billing은 RevenueCat Authorization+HMAC webhook과 인증된 API의 Store transaction만 정규화한다. RevenueCat Entitlement는 fixed-term 권리 source로 사용하지 않는다.
+- 실제 Store product ID, 판매 국가·가격, public hostname/ALB inventory, RevenueCat Offering/Package·secret/API quota, exact public DTO·Mongo index와 staging 측정 뒤 운영 조정값은 구현 ADR/출시 준비에서 별도로 확정한다.
+
 ## 1. 이미 확정된 계약
 
-다음 항목은 기존 논의에서 확정됐으며, 제품 정책이 바뀌지 않는 한 다시 선택하지 않는다.
+다음 항목은 기존 논의에서 확정됐다. 단, credit/pass 관련 항목은 최신 0A에 의해 역사적 초안으로 대체됐으며 현재 구현 근거로 사용하지 않는다.
 
-- Billing은 상품, Apple/Google 결제 검증·원장, credit/pass/free entitlement, `TrialClaim`, `Reservation`, 보상을 소유한다.
+- Billing은 상품, RevenueCat을 통해 검증된 Apple/Google 결제의 원장, credit/pass/free entitlement, `TrialClaim`, `Reservation`, 보상을 소유한다.
 - Identity는 계정과 사용자 토큰 발급, Learning Core는 시험 Session·문제·채점·결과를 소유한다.
 - 모의고사 1회는 10 credits이며 credit는 음수가 아닌 정수다.
 - 상품 초안은 `CREDIT_5`, `CREDIT_10`, `CREDIT_100`, `UNLIMITED_3D`다.
@@ -31,7 +41,7 @@
 - 결제 채널은 Apple App Store와 Google Play만 사용하며 웹 결제는 현재 범위가 아니다.
 - balance 단일 값이 아니라 출처·만료·환불 연결을 보존하는 ledger/grant가 진실 공급원이다.
 - 시험 시작은 `reserve → Learning Core Session commit → confirm` 순서이며 `RESERVED` TTL은 5분이다. 확정된 consumption은 이 TTL로 만료되지 않는다.
-- confirm/cancel과 provider notification 처리는 멱등이어야 하고 동일 provider event/payment는 unique해야 한다.
+- confirm/cancel과 RevenueCat webhook 처리는 멱등이어야 하고 동일 RevenueCat event/Store transaction은 unique해야 한다.
 - 앱 종료 뒤 기존 시험을 이어풀지 않고 새 key·새 examId로 처음부터 시작한다. 이전 결과·파일·Job은 승계하지 않는다.
 - 하나의 최초 consumption에 `AttemptGroup`을 연결하고 완료 전 restart는 같은 group에서 추가 차감 없이 허용하는 R3 정책을 사용한다. mockExamId는 group 동안 고정한다.
 
@@ -70,21 +80,32 @@
 - `BenefitDefinition`은 공통 혜택 종류·정책 catalog다. stable `benefitCode`, 표시 이름, one-time/subscription 유형, 소비 방식과 policy version을 소유한다. 최초 코드는 `FREE_EXAM_ONCE`이며 `PREMIUM_SUBSCRIPTION`은 후속 구독 계약용 식별자로 예약한다.
 - `TrialClaim`은 `(verified-phone candidate, FREE_EXAM_ONCE)`의 3년 중복 수급 방지 전용이며 일반 상품 catalog나 소비 이력으로 사용하지 않는다.
 - `EntitlementGrant`는 subject가 실제로 보유한 one-time 혜택 instance/batch다. 무료 MVP에서는 `FREE_EXAM_ONCE` 1 unit이며 allocation과 ledger로 available·held·consumed를 관리한다.
-- `SubscriptionEntitlement`는 후속 유료 구독의 subject별 기간형 권리다. 수량 차감 대신 상태와 시작·종료 시각으로 authorization하며 plan, Store 검증, renewal, cancel, expiry와 grace 정책은 구독 구현 전에 별도 승인한다.
+- `SubscriptionEntitlement`는 subject별 fixed-term paid 권리다. 수량 차감 대신 `SCHEDULED/ACTIVE/EXPIRED/REVOKED`와 시작·종료 시각으로 authorization하며 현재 상품은 자동 갱신하지 않는다. 상세 계약은 C9-S2를 따른다.
 - `Reservation`은 무료 Grant와 활성 SubscriptionEntitlement 모두에 사용하는 공통 시험 시작 승인·멱등성 경계다. INITIAL/REPLACEMENT attempt 관계와 GRANT/SUBSCRIPTION authorization source는 서로 다른 축으로 모델링한다.
 - `AttemptGroup`은 최초 시험 사용 건과 same-consumption replacement Session을 연결하며 entitlement 종류와 무관하게 결과 생성 lifecycle을 추적한다.
 - 실제 지급·hold·release·consume 감사 이력은 append-only `EntitlementLedger`가 소유한다. TrialClaim이나 mutable Grant projection을 이력 원장으로 대체하지 않는다.
 - 이 구조 승인은 현재 무료 MVP의 lazy TrialClaim/Grant 생성, `reserve → Session commit → confirm`과 Mongo wire/schema를 즉시 변경하지 않는다. 현재 코드에 없는 BenefitDefinition foundation은 별도 vertical slice로, SubscriptionEntitlement와 구독 resolver는 결제 재개 시 별도 계약·계획으로 구현한다.
-- 과거 credit/pass 상품 초안은 역사적·동결 상태로 유지하며, 사용자 선호는 credit balance보다 단순 premium subscription이다. 실제 기존 credit 계약을 폐기하고 구독 계약으로 대체하는 결정은 Store plan·가격·갱신 정책 승인 시 확정한다.
-- 2026-08-28 사용자 결정으로 현재 업데이트에는 `FREE_EXAM_ONCE` BenefitDefinition foundation만 구현한다. `PREMIUM_SUBSCRIPTION`, SubscriptionEntitlement, Store/renewal과 구독 authorization 분기는 다음 제품 업데이트까지 구현하지 않는다.
+- 과거 credit/pass 상품 초안은 2026-09-05의 0A·C9-S1에 의해 현재 결제 범위에서 제외됐다. 현재 유료 방향은 credit balance가 아니라 1·3·7·14·30일 fixed-term unlimited entitlement다.
+- 2026-08-28에는 `FREE_EXAM_ONCE` BenefitDefinition foundation만 구현했으며, 그 당시의 `PREMIUM_SUBSCRIPTION`·Store 구현 연기는 2026-09-05 결제 개발 재개 결정으로 종료됐다. paid benefit은 `PREMIUM_SUBSCRIPTION`, 기간형 권리는 `SubscriptionEntitlement`로 사용하고 exact field·Mongo schema/index는 결제 ADR에서 확정한다.
 
 ## 2. 무료 최소 계약 선택지 검토 기록
 
 ### C1. 앱이 Billing 사용자 API를 호출하는 경로
 
-무료 최소 릴리스 결정: 사용자 Billing API를 만들지 않고 결제 단계까지 C1을 보류한다 — 확정.
+#### C1-R1. 무료 사용권 public reader 선행 — 2026-09-07 승인·구현
 
-#### A. 앱이 Billing을 직접 호출 — 결제 단계 장기 권장
+- 사용자 요청으로 결제와 독립적인 [PLAN-007](../plans/PLAN-007-public-free-entitlement-query.md)을 작성했다. 이 계획의 exact URL은 `GET /api/v1/entitlements`, scope는 `billing:read`, actor는 검증된 사용자 JWT sub다. Guest/MEMBER 모두 본인 조회를 허용한다.
+- 공개 envelope는 `isSuccess/code/message/result`. benefit별 수량·newAttempt·hasInProgress·retake·usageState와 current-owned group 목록을 분리한다. grant 미생성이라도 current VERIFIED/retained Claim 부재가 증명되면 신규 예상 수량 1이며 조회로 지급하지 않는다.
+- 미수신 eligibility·미해결 owner 연결은 200 PENDING/null, 저장소·불변식 실패는 503 result=null이다. 같은 전화번호 retained 사용 완료는 0이며 재가입으로 초기화하지 않는다.
+- 이 조회 한 개에 한해 기존 무료-only public Billing 없음 전제를 확장한다. 별도 public connector/ALB exact allowlist와 사용자 JWT chain을 준비하고 internal Lattice AWS_IAM·SigV4/DTO는 유지한다. 결제 route 전체를 미리 열지 않는다.
+- Identity account_type PR #39 병합과 Billing audience/read 발급은 별개다. Billing OFF 배포 → Identity aud/read 후속 → staging → reader ON → 앱 순서다. paid scope/SDK/collection은 포함하지 않는다.
+- paid `/api/v1/payments/entitlement`는 별도 후속 조회다. ADR-004의 direct DTO 초안과 이번 public envelope 차이는 결제 구현 전에 검토하며 이번 계획으로 paid wire를 변경하지 않는다.
+- 사용자가 보완 계획의 구현을 승인해 reader·JWT·포트 격리·durable attribution을 구현했다. Jira·실제 migration·production 활성화는 수행하지 않았으며 별도 승인/gate가 필요하다. [OpenAPI](../openapi/free-entitlements.yaml), [배포·이관](../runbooks/PLAN-007-public-reader-rollout.md)을 따른다.
+- 2026-09-07 검토 보완: PLAN-007 §8.2~8.5에 command TTL 독립적인 sessionOwnerEpoch 증빙·쓰기 Transaction CAS·legacy 이관 gate를 추가했다. PHONE_REJOIN과 실제 USER_MERGED의 의미를 구분하며 기존 source Session을 새 owner의 epoch로 덮어쓰지 않는다. Guest ELIGIBILITY_UNKNOWN은 실제 처리 job이 있다는 뜻이 아니므로 프론트 안내를 '사용 가능 여부를 확인할 수 없습니다'로 구분한다. Identity 9.2의 aud/read 발급 인계는 그대로 유지한다.
+
+무료 최소 릴리스에서 보류했던 결정을 2026-09-05 결제 재개 시 C1-A로 확정했다. 앱은 상품·구매 동기화·현재 유료 권리 조회를 Billing public API로 직접 호출하고, 시험 생성·Reservation은 계속 Learning Core→Billing internal Lattice 경로를 사용한다.
+
+#### A. 앱이 Billing을 직접 호출 — 확정
 
 - 상품 조회, 결제 확인, 잔액/사용권 조회, check-in, coupon은 앱 → Billing이다.
 - 시험 reserve/confirm/cancel만 Learning Core → Billing 내부 API다.
@@ -114,9 +135,9 @@
 
 ### C2. 사용자 Access Token의 Billing audience
 
-무료 최소 릴리스 결정: Billing 사용자 API를 노출하지 않으므로 사용자 token의 Billing audience 추가를 결제 단계까지 보류한다 — 확정.
+무료 최소 릴리스에서 보류했던 결정을 2026-09-05 결제 재개 시 C2-A로 확정했다.
 
-#### A. 기존 앱 토큰에 `tosunsaeng-billing` audience를 추가 — 결제 단계 장기 권장
+#### A. 기존 앱 토큰에 `tosunsaeng-billing` audience를 추가 — 확정
 
 - Identity가 한 Access Token의 `aud` 배열에 기존 Learning Core audience와 Billing audience를 넣는다.
 - 각 서비스는 자기 audience만 필수 검증한다.
@@ -124,6 +145,15 @@
 장점: 앱은 토큰 하나만 관리하고 기존 Learning Core audience도 유지한다.
 
 단점: 한 토큰의 사용 범위가 두 resource server로 넓어지며 Identity 변경이 필요하다.
+
+확정 검증 profile:
+
+- Identity의 기존 RS256 Access Token과 환경별 exact issuer/JWKS/key rotation을 재사용한다.
+- `aud` 배열은 기존 `tosunsaeng-learning-core`와 신규 `tosunsaeng-billing`을 포함하고 각 resource server는 자기 audience를 필수 검증한다.
+- Billing은 `sub`의 lowercase canonical UUID, signature, issuer, audience, `iat`, `exp`, `jti`와 최대 60초 clock skew를 검증한다.
+- public Billing route는 최소 `billing:read`, `billing:purchase` scope로 분리한다. 정확한 route-scope matrix는 public API ADR에서 고정한다.
+- userId를 request body/path/query/header에서 받거나 신뢰하지 않고 검증된 JWT `sub`만 actor로 사용한다.
+- Billing reader를 먼저 배포한 뒤 Identity가 다중 audience·scope token을 발급하고, 기존 Learning Core audience와 scope를 제거하지 않는다.
 
 #### B. Billing 전용 Access Token 또는 token exchange
 
@@ -241,7 +271,7 @@
 #### A. 서버 자동 선택 — 무료 최소 릴리스 확정
 
 - 현재는 `FREE_EXAM_ONCE`만 선택한다.
-- unlimited → free once → promotional → paid 전체 순서는 결제 단계까지 보류한다.
+- 2026-09-05 결제 계약부터 서버는 `ACTIVE PREMIUM_SUBSCRIPTION → FREE_EXAM_ONCE` 순서로 자동 선택한다. 유료 기간에는 무료 Claim·Grant·unit을 변경하지 않는다.
 
 장점: Request 계약이 작고 클라이언트가 entitlement identifier를 조작할 수 없다.
 
@@ -328,11 +358,135 @@ promotional credit끼리는 만료 임박순, paid credit끼리는 오래된 gra
 
 단점: Learning Core와 Billing에 실제 tracing propagation·MDC/log 연동, outbox trace context와 dead-letter 운영 기능이 필요하다. 같은 Session의 모순 terminal event가 producer에서 생성되면 revision 없는 Billing은 어느 것이 제품상 정답인지 판정할 수 없으므로 producer terminal 단일성 보장이 필수다.
 
-## 3. 결제 구현 전에 확정할 계약
+## 3. 결제 계약과 구현 전 세부 입력
 
 ### C9. Store 상품·가격·사용자 연결
 
-#### A. 모든 상품을 재구매 가능한 consumable/one-time product로 매핑 — 권장
+#### C9-S1. Store one-time fixed-term 상품 + RevenueCat + opaque account binding — 확정
+
+상품과 내부 catalog:
+
+- Billing 내부 offer code는 `PREMIUM_1D`, `PREMIUM_3D`, `PREMIUM_7D`, `PREMIUM_14D`, `PREMIUM_30D`다.
+- 다섯 offer는 동일한 무제한 premium benefit을 각각 1·3·7·14·30일 동안 부여한다. 앱이 보낸 가격·기간·표시 이름을 권리 지급 근거로 신뢰하지 않는다.
+- Apple은 offer별 재구매 가능한 `Consumable In-App Purchase`, Google은 offer별 재구매 가능한 consumable `one-time product`를 사용한다.
+- 앱의 Store purchase, 상품 노출과 transaction completion은 RevenueCat 표준 SDK·Offering/Package를 사용한다. RevenueCat은 결제 연동·검증 데이터 공급 계층이며 Billing entitlement를 소유하지 않는다.
+- 각 Store의 5개 provider product ID는 환경별 Billing catalog 설정에서 내부 offer code로 exact mapping한다. 실제 product ID, 판매 국가와 가격은 Store Console 생성·출시 승인 때 확정하며 소스 코드에 운영값을 하드코딩하지 않는다.
+- Store 상품 자체의 subscription period나 expiry를 권리 기간으로 사용하지 않는다. 검증된 product ID가 매핑된 Billing catalog의 24·72·168·336·720시간을 권위 있는 duration으로 사용한다.
+
+사용자 연결:
+
+- 구매는 Identity가 `billing:purchase`를 발급한 `ACTIVE MEMBER`만 허용한다. Guest는 인증된 상품·현재 권리 조회용 `billing:read`까지만 받을 수 있으며 Guest purchase와 paid `UserMerged` migration은 현재 범위에 없다.
+- Billing은 로그인한 canonical user에 연결되는 비개인 `purchaseAccountRefId`를 사용자·환경별 stable 값으로 하나 발급한다. wire 형식은 Apple `appAccountToken`에 사용할 수 있는 lowercase UUID v4로 고정하고 Google obfuscated account identifier에도 같은 opaque 값을 사용한다.
+- RevenueCat custom App User ID에도 `purchaseAccountRefId`를 사용한다. 익명 상태 구매를 허용하지 않고, RevenueCat alias/restore 결과만으로 Billing의 purchase owner나 entitlement를 다른 토선생 계정으로 이전하지 않는다.
+- Billing만 `purchaseAccountRefId`와 current canonical user의 연결을 소유한다. raw phone, email, device ID와 Store account ID를 연결 식별자로 사용하지 않고 실제 userId를 Store parameter에 직접 전달하지 않는다.
+- Store transaction의 account reference가 현재 인증 사용자에게 발급된 값과 exact match한 경우에만 권리를 연결한다. 다른 앱 계정, 같은 device, 같은 phone 또는 같은 Apple/Google 계정이라는 이유만으로 유료 권리를 이전하지 않는다.
+- 같은 canonical user의 여러 device와 재로그인은 stable reference를 재사용한다. 보안상 회전하면 새 reference만 신규 purchase에 사용하고 이전 reference는 과거 transaction 검증·환불용 inactive alias로만 보존한다.
+- phone 재가입 proof로 유료 구매·이용권을 자동 이전하지 않는다. 향후 Guest purchase를 허용하려면 paid `UserMerged` migration을 별도 계약·Jira로 먼저 승인한다.
+
+검증·멱등성과 복원:
+
+- 앱의 구매 성공 callback은 지급 증거가 아니다. Billing이 RevenueCat HMAC webhook 또는 인증된 RevenueCat API로 store, app/package, environment, product ID, Store transaction ID, purchase state와 account reference를 확인한 뒤에만 entitlement를 만든다.
+- provider transaction ID 또는 purchase token과 provider event ID를 unique/idempotency 경계로 사용한다. client retry, server notification과 reconciliation이 같은 구매를 발견해도 purchase·entitlement는 하나로 수렴해야 한다.
+- 이미 Billing에 반영된 활성 권리는 같은 토선생 계정 로그인 뒤 Billing current entitlement 조회로 복원한다.
+- Store 결제 후 Billing 반영 전에 앱이 종료된 경우 RevenueCat webhook retry와 주기적 API reconciliation이 같은 Store transaction 검증 경계로 수렴한다. Store/RevenueCat 원문 payload를 entitlement ledger나 일반 로그에 복제하지 않는다.
+- RevenueCat 표준 SDK가 Apple transaction finish와 Google consumable completion을 담당한다. Billing 반영보다 Store completion이 먼저일 수 있으므로 local `PENDING`, webhook inbox와 reconciliation으로 수렴하며, Billing 반영 전 client callback을 근거로 fail-open하지 않는다. 이 항목은 2026-09-07 이전의 `Billing commit 후 finish/consume` 계약을 supersede한다.
+
+장점:
+
+- 상품 의미가 정해진 기간 이용과 맞고, Store 식별자와 Billing 내부 duration을 서버에서 통제하므로 client 위변조를 차단한다.
+- 비개인 account reference로 다른 앱 계정 오귀속을 막고 device 변경·callback 유실에도 Billing 원장과 Store 재검증으로 복원할 수 있다.
+- provider별 adapter는 달라도 내부 purchase·entitlement model은 같은 offer code와 duration으로 정규화할 수 있다.
+
+단점:
+
+- 두 Store 모두 one-time product라 exact 기간을 Billing catalog에서 동일하게 계산할 수 있고 Google prepaid의 14일 미지원·달력 1개월 차이를 피한다.
+- consumable purchase는 Store subscription expiry/restore에 의존할 수 없으므로 Billing ledger가 권리 복원의 source of truth가 되고, 미완료 transaction·notification·provider 조회 수렴을 provider별로 구현해야 한다.
+
+#### C9-S2. fixed-term entitlement lifecycle과 무료권 우선순위 — 확정
+
+- 공통 paid benefit은 `PREMIUM_SUBSCRIPTION`으로 유지하고 다섯 offer가 서로 다른 duration의 `SubscriptionEntitlement`를 만든다. 이름은 Store 자동 갱신을 뜻하지 않으며 `autoRenew=false` fixed-term 권리다.
+- 권리는 provider purchase가 `VERIFIED`로 검증됐을 때만 생성한다. authorization은 Billing local Transaction commit 뒤 시작한다.
+- 기준 `startsAt`은 provider가 증명한 purchase 시각이다. 두 Store 모두 검증된 product ID의 Billing catalog duration으로 `endsAt`을 계산한다.
+- 1·3·7·14·30일은 각각 24·72·168·336·720시간의 UTC duration이다. KST 자정이나 달력 월말로 재계산하지 않는다.
+- active 권리가 없으면 `startsAt=provider start`, active 또는 scheduled paid timeline이 있으면 `startsAt=max(provider start,current paid timeline endsAt)`로 이어 붙이고 `endsAt=startsAt+duration`으로 만든다. 구매별 entitlement와 immutable purchase 연결을 유지해 기존 기간을 덮어쓰지 않는다.
+- active 또는 scheduled entitlement가 refund/revoke되면 그 purchase의 slot만 timeline에서 제거한다. 뒤의 VERIFIED entitlement는 기존 sequence와 각 duration을 유지한 채 `max(refundConfirmedAt, 앞선 유효 entitlement endsAt)`부터 즉시 앞으로 재배치하고, 원래 schedule과 모든 조정은 append-only ledger로 감사 가능해야 한다.
+- entitlement 상태는 최소 `SCHEDULED`, `ACTIVE`, `EXPIRED`, `REVOKED`를 사용하고 provider purchase의 `PENDING`, `VERIFIED`, `REFUND_REVIEW`, `REFUNDED`, `REVOKED`와 분리한다. 자동갱신용 grace/account-hold/cancel-scheduled 상태는 현재 범위에 만들지 않는다.
+- Reservation resolver는 현재 시각에 ACTIVE paid entitlement를 먼저 선택하고 authorization source를 `SUBSCRIPTION`으로 기록한다. paid 사용은 unit을 차감하지 않되 Reservation·AttemptGroup usage audit를 남긴다.
+- paid가 ACTIVE가 아니면 기존 `FREE_EXAM_ONCE` resolver를 사용한다. paid 기간 중 TrialClaim·무료 Grant·available unit·claimedAt을 생성·소비·갱신하지 않으므로 종료 뒤 미사용 무료권을 그대로 사용할 수 있다.
+- client가 entitlement, startsAt, endsAt, state 또는 무료권 우선순위를 선택하지 않는다.
+
+#### C9-S3. refund·revoke·chargeback — 확정
+
+- 실제 금전 환불과 chargeback 판단은 Apple/Google의 최종 상태를 source of truth로 사용한다. 앱 callback이나 client가 보낸 refund 주장을 신뢰하지 않는다.
+- client의 환불 신청 주장만으로 상태를 변경하지 않는다. provider-authenticated refund review/consumption request처럼 신뢰 가능한 사전 신호가 있으면 `REFUND_REVIEW`로 두고 신규 INITIAL·replacement를 일시 중지하며 provider 최종 결과로 해제 또는 확정한다.
+- 검증된 refund/revoke는 원 purchase와 entitlement에 append-only reversal을 연결하고 해당 paid source의 새 INITIAL Reservation을 즉시 차단한다. purchase·ledger·usage history를 삭제하거나 과거 상태로 덮어쓰지 않는다.
+- refund/revoke 시점의 AttemptGroup 상태별 처리는 다음과 같다. `RESERVED`는 cancel/expiry·Session compensation으로 종료하고, `OPEN`은 access-revoked terminal로 전환해 추가 답안·제출·채점·replacement를 차단하며, `RETAKE_AVAILABLE`은 replacement를 차단한다. 이미 제출돼 `GRADING`이면 채점·Summary를 terminal까지 수렴시키고 `COMPLETED` history는 삭제하지 않는다.
+- refund와 reserve/Session commit/confirm race는 refund Transaction이 관찰한 상태와 CAS로 선형화한다. refund가 먼저 commit되면 이후 confirm은 stable revoked error로 거절하고 Learning Core가 생성된 Session을 access-revoked로 보상한다. confirm 또는 GRADING이 먼저 commit됐더라도 refund 뒤 `OPEN` replacement를 계속 허용하지 않는다.
+- Billing 신규 reserve 차단만으로 기존 Learning Core Session을 막을 수 없으므로 Billing은 durable access-revocation event를 발행하고 Learning Core는 exact AttemptGroup/Session projection으로 답안·제출·채점·replacement를 fail-closed한다. event 이름·wire·route는 payment ADR에서 고정한다.
+- Store가 환불을 확정하기 전에 이미 완료된 디지털 서비스는 회수할 수 없다. provider가 지원하면 최소 consumption evidence를 전송하고 `REFUNDED_AFTER_USE` 저카디널리티 운영 지표로 반복 악용을 관찰하되 사용자 식별자를 metric label이나 일반 로그에 넣지 않는다.
+- refund 뒤 ACTIVE paid 권리와 진행 가능한 paid AttemptGroup이 없으면 다음 신규 시험은 보존된 `FREE_EXAM_ONCE`가 있을 때 기존 무료 resolver를 사용할 수 있다. 기존 refunded AttemptGroup을 무료권으로 자동 재결속하지 않는다.
+- fixed-term 상품에는 잔여 시간 비례 cash refund나 Billing 자체 negative balance를 만들지 않는다. Store가 승인한 전체 transaction refund/revoke를 반영하며 부분 환불·수동 보상은 별도 운영 ADR 전까지 자동화하지 않는다.
+
+#### C9-S4. RevenueCat client sync + Authorization/HMAC webhook — 확정
+
+- 결제 직후 앱은 인증된 Billing purchase-sync API를 호출해 즉시 활성화를 요청한다. client body의 가격·기간·권리·userId와 구매 성공 callback은 지급 증거가 아니며, Billing은 현재 사용자의 `purchaseAccountRefId`로 RevenueCat API를 조회한다.
+- Apple App Store Server Notifications와 Google RTDN은 RevenueCat에 연결하고, Billing은 환경별 RevenueCat Authorization+HMAC webhook을 공통 provider ingress로 수신한다.
+- webhook은 `X-RevenueCat-Webhook-Signature`의 raw body HMAC-SHA256과 timestamp replay window를 검증한다. event ID inbox를 durable commit한 뒤 200을 반환하고 실제 purchase 반영은 event ID·Store transaction unique로 멱등하게 처리한다.
+- RevenueCat webhook은 at-least-once이며 자동 retry가 종료될 수 있으므로 duplicate, 순서 역전과 client sync/webhook/reconciliation 경합을 하나의 purchase·entitlement로 수렴한다.
+- RevenueCat 표준 SDK가 transaction completion을 담당한다. Store 결제 완료 후 Billing 반영이 지연되면 권리를 임의 활성화하지 않고 `PENDING`으로 노출하며 webhook retry와 API reconciliation으로 복구한다.
+- raw receipt, signed transaction/JWS, purchase token, Store notification과 RevenueCat webhook 전문은 일반 log·metric·ledger에 저장하지 않는다. 검증과 retry에 필요한 최소 암호화 reference와 정규화 field만 저장한다.
+
+#### C9-S5. 주기적 RevenueCat reconciliation — 확정
+
+- client sync와 RevenueCat Authorization+HMAC webhook을 주 경로로 사용하고 scheduled RevenueCat API reconciliation을 webhook 유실·지연·일시적 RevenueCat/Store 장애의 안전망으로 둔다.
+- 최소 대상은 `PENDING`, Store-completed/Billing-pending, ACTIVE, SCHEDULED와 최근 REFUNDED/REVOKED/EXPIRED purchase다. API cursor·quota와 backoff를 적용하고 전체 사용자를 매 주기 무제한 scan하지 않는다.
+- RevenueCat이 제공하는 current Store state와 local state가 다르면 기존 Store transaction business key로 같은 검증·Transaction service를 재사용하고 append-only correction/reversal을 만든다. DB document를 수동 덮어쓰거나 client에게 correction 권한을 주지 않는다.
+- 일시 오류는 bounded exponential backoff, 반복 실패는 dead-letter와 운영 경보로 격리한다. replay에서도 RevenueCat event/Store transaction key와 account binding을 변경하지 않는다.
+- 기본 주기는 `PENDING`·Store-completed/Billing-pending 5분, `ACTIVE`·`SCHEDULED` 6시간, 최근 90일 `REFUNDED`·`REVOKED`·`EXPIRED` 일 1회다. 각 scan은 기본 100건 bounded batch와 RevenueCat API cursor를 사용한다.
+- retry backoff, interval, lookback와 batch는 환경 설정값으로 두고 staging quota/failure test에서 RevenueCat API 한도를 넘으면 보수적으로 조정한다. 제품 의미와 상태별 우선순위는 바꾸지 않는다.
+
+#### C9-S6. public Billing API·internal Reservation 경계 — 확정
+
+- 앱이 직접 호출하는 public 범위와 route는 C9-S8의 상품 조회, purchase account reference 조회/발급, 구매 동기화와 current paid entitlement 조회 네 개로 확정했다. exact DTO·error code와 rate limit는 ADR-004에서 고정한다.
+- 첫 배포의 public ingress는 같은 환경의 기존 public ALB를 재사용하되 Billing 전용 hostname/path allowlist, listener rule과 별도 target group을 사용한다. listener default는 fixed reject이고 승인된 public/payment-provider route만 Billing target으로 전달한다.
+- public API는 사용자 JWT를 사용하고 `/internal/**`에는 접근할 수 없다. RevenueCat webhook은 사용자 JWT route와 분리된 HMAC-authenticated endpoint를 사용한다.
+- Learning Core만 기존 Lattice SigV4 internal Reservation·AttemptGroup route를 호출한다. 앱은 Reservation source, free balance, AttemptGroup owner와 internal repair route를 직접 선택하거나 호출하지 않는다.
+- Billing public ingress와 internal Lattice ingress는 SecurityFilterChain, principal, route permission과 security group을 분리한다. public 경로가 internal workload principal을 흉내 내거나 direct task address로 우회할 수 없어야 한다.
+- 이 결정은 ADR-002의 무료-only "Billing ALB 없음"을 payment public route에 한해 supersede한다. internal route는 계속 ALB에 노출하지 않고 Lattice AWS_IAM만 사용한다. 기존 ALB listener·certificate·SG가 exact 분리를 지원하지 않으면 임의 완화하지 않고 dedicated Billing ALB 대안을 재승인한다.
+
+#### C9-S7. payment 보존·삭제 — 확정
+
+- 정규화된 `Purchase`, `SubscriptionEntitlement`, refund/revoke와 payment ledger는 `max(provider transaction finalAt, entitlement endsAt, last reversalAt)`부터 5년 보존한다.
+- provider event inbox의 digest·disposition 멱등성 기록은 120일 보존한다. raw receipt, signed JWS, Store notification과 RevenueCat webhook 전문은 active DB·ledger·일반 로그에 저장하지 않는다.
+- RevenueCat/Store 재조회에 필요한 transaction reference는 최소 field만 암호화하여 payment lifecycle·분쟁 대응 동안 보존하되 5년 상한을 넘기지 않는다. 실제 RevenueCat API/HMAC secret, Store credential·private key와 encryption key는 Secret Manager에서 회전한다.
+- 5년 만료 후 canonical user 연결과 erasable provider lookup reference를 삭제 또는 비가역 비식별화한다. 삭제 worker는 사용자 식별자를 로그에 남기지 않고 처리 건수·성공 여부만 기록한다.
+- 재해복구 backup은 기존 운영 원칙과 같이 최대 35일 rolling 보존하며, 복구본은 현재 retention 기준 purge를 적용한 뒤 사용자 트래픽에 연결한다.
+- 이 5년 값은 현재 운영 승인값이며 관할 법령·Store 의무가 더 긴 보존을 요구하면 출시 전 계약을 갱신한다.
+
+#### C9-S8. ADR-004 RevenueCat·public API·revoke 세부 선택 — 확정
+
+- public 사용자 route는 `GET /api/v1/payments/products`, `POST /api/v1/payments/purchase-account`, `POST /api/v1/payments/sync`, `GET /api/v1/payments/entitlement`로 기능별 분리한다. JWT `sub`만 actor로 사용하고 조회는 `billing:read`, account 발급과 sync는 `billing:purchase`를 요구한다.
+- purchase account 발급은 body 없는 idempotent get-or-create로 사용자·환경별 stable lowercase UUID v4 하나에 수렴한다. purchase sync는 lowercase UUID v4 `Idempotency-Key`와 SDK의 Store/transaction identifier를 untrusted lookup hint로 받되 userId·가격·기간·receipt·purchase token을 받지 않는다.
+- sync에서 RevenueCat 검증과 local entitlement commit이 끝나면 200, 아직 RevenueCat에서 transaction을 확인할 수 없으면 `202 PENDING`과 `Retry-After`를 반환한다. 앱은 같은 key로 재시도하며 PENDING 동안 유료 권리를 추측해 열지 않는다.
+- RevenueCat webhook은 별도 Authorization header와 HMAC signing을 모두 검증한다. `X-RevenueCat-Webhook-Signature`의 timestamp·raw body HMAC-SHA256을 constant-time compare하고 5분 replay window를 적용한 뒤 최소 inbox를 durable commit하고 빠르게 200을 반환하며 실제 원장 반영은 worker가 수행한다.
+- provider payload는 required envelope/field type·size·environment·app/product/account binding을 엄격히 검증하되 RevenueCat의 forward-compatible optional unknown field는 허용한다. 인증된 unknown event type은 durable `IGNORED_UNSUPPORTED`와 경보로 200 수렴하고 malformed/auth failure는 저장·반영하지 않는다.
+- 현재 생성한 단일 RevenueCat project 아래 iOS/Android app을 두고 webhook integration을 `SANDBOX → staging`, `PRODUCTION → production`으로 filter한 두 개로 분리한다. URL, Authorization 값과 HMAC secret은 환경별로 다르게 관리하며 한 환경의 event를 다른 DB에 반영하지 않는다.
+- RevenueCat restore behavior는 original App User ID에 유지한다. ACTIVE MEMBER가 Billing 발급 `purchaseAccountRefId`로 식별된 뒤에만 구매하고 anonymous purchase, alias/restore에 의한 계정 간 자동 이전과 phone rejoin paid migration을 허용하지 않는다.
+- RevenueCat `Track new purchases from server-to-server notifications`와 자동 `Refund request handling`은 최초 출시에서 OFF다. 전자는 owner binding 없는 신규 purchase 생성을 막고, 후자는 Apple에 consumption data를 자동 제공하기 전에 별도 개인정보·운영 검토를 하기 위함이다.
+- 정상 인증 webhook은 직접 정규화·멱등 반영하고 RevenueCat REST API는 client sync, 모호한/불완전 event와 scheduled reconciliation에 사용한다. 모든 webhook마다 동기 API 재조회를 강제하지 않아 RevenueCat API 장애·quota가 전체 webhook 처리를 막지 않게 한다.
+- refund/revoke의 Learning Core 차단은 Billing refund Transaction과 같은 local outbox에 exact AttemptGroup 단위 durable event를 기록하고 VPC Lattice SigV4로 비동기 전달한다. Billing은 신규 Reservation을 즉시 차단하고 Learning Core 장애 때문에 provider refund commit을 롤백하지 않는다. exact event name·route·wire와 inbox는 ADR-004에서 작성한다.
+- Mongo collection/index/Transaction/CAS, UTC/exclusive time, raw-body 상한, timeout/backoff, error envelope/rate limit, secret rotation, observability와 purge worker는 위 정책을 바꾸지 않는 구현 세부로 ADR-004에서 exact 고정한다.
+
+#### C9-S9. ADR-004 작성 중 발견한 예외 정책 — 미확정
+
+- 기술 초안: [ADR-004](../adr/ADR-004-fixed-term-premium-payment-contract.md). C9-S1~S8 승인 정책은 유지하며 이 초안이 승인 원장을 자동으로 대체하지 않는다.
+- D1 정상 기간 만료 중 시험: 권장안은 유효기간 안에 승인된 현재 Session을 기존 시험·제출 기한 안에서 완료하도록 하고, 만료된 권리로 새 INITIAL/replacement를 만들지 않는 것이다. 환불의 OPEN 차단 정책과 구분한다. reserve/confirm의 만료 경계와 새 권리 사용 시 group 처리는 ADR §3에 함께 제안했다. 아직 승인 아님.
+- D2 Apple `REFUND_REVERSED`: 최초 출시 권장안은 durable REVIEW_REQUIRED와 경보로 격리하고 자동 기간 복구·재지급은 하지 않는 것이다. 실제 환불 취소가 확인된 사용자에게는 별도 승인된 복구 절차가 필요하며 영구적인 권리 거절 정책이 아니다. 아직 승인 아님.
+- SDK transaction/order ID 매핑, Store account identifier 변환, consumed 구매 환불 fixture, 누락 거래 복구와 LC 제출/환불 경합은 사용자 선택 대신 기술 gate로 검증한다.
+
+아래 C9-A/B/C는 2026-08-24 credit/3일 pass 초안의 역사적 비교 기록이다. C9-A의 Store one-time 유형은 2026-09-07 C9-S1에 fixed-term 5개 상품으로 다시 승인됐지만 credit/3일 pass 중심의 나머지 설명은 현재 구현 선택이 아니다.
+
+#### C9-A-legacy. 모든 상품을 재구매 가능한 consumable/one-time product로 매핑 — Store 유형 재채택, 세부는 역사적
 
 - credit pack과 3일 pass는 모두 반복 구매 가능해야 한다.
 - 앱은 Apple `appAccountToken`, Google의 obfuscated account identifier에 서버가 발급한 비개인 식별값을 사용한다.
@@ -342,13 +496,13 @@ promotional credit끼리는 만료 임박순, paid credit끼리는 오래된 gra
 
 단점: restore와 미소비 transaction 처리, store별 consumable semantics를 각각 구현해야 한다.
 
-#### B. 3일 pass를 subscription으로 구성
+#### C9-B-legacy. 3일 pass를 subscription으로 구성
 
 장점: 자동 갱신 상품으로 확장하기 쉽다.
 
 단점: 현재 1회성 72시간·별도 pass 보존·미사용 환불 계약과 맞지 않고 해지/갱신 정책이 추가된다.
 
-#### C. 클라이언트가 SKU·가격·userId를 최종 결정
+#### C9-C-legacy. 클라이언트가 SKU·가격·userId를 최종 결정
 
 장점: 서버 catalog가 작다.
 
@@ -356,7 +510,7 @@ promotional credit끼리는 만료 임박순, paid credit끼리는 오래된 gra
 
 실제 Apple/Google product ID, 판매 국가, 가격 tier는 출시 전 별도 승인한다.
 
-### C10. Credit 만료
+### C10. Credit 만료 — 역사적 초안, 현재 fixed-term 범위에 미적용
 
 #### A. paid credit는 정책 승인 전 무기한, promotion은 grant별 만료 — 권장
 
@@ -378,7 +532,7 @@ promotional credit끼리는 만료 임박순, paid credit끼리는 오래된 gra
 
 최종 기간은 법무·회계·스토어 정책 검토 후 승인해야 한다.
 
-### C11. 환불·부분 사용·chargeback
+### C11. 환불·부분 사용·chargeback — credit 기준 역사적 초안; fixed-term 정책은 C9-S3으로 확정
 
 #### A. 완전 미사용 purchase group만 자동 전액 환불 — 권장
 
@@ -496,7 +650,7 @@ A는 캠페인별 비용과 악용을 통제하지만 운영 catalog가 복잡�
 
 ### 무료 최소 Entitlement — 2026-08-26 승인
 
-1. C1/C2 사용자 Billing API와 audience는 결제 단계까지 보류
+1. 무료-only 단계에서는 C1/C2 사용자 Billing API와 audience를 보류했으나 2026-09-05 결제 계약에서 C1-A/C2-A로 확정
 2. Identity eligibility event inbox·revision high-water·fail-closed
 3. 첫 reserve Transaction에서 TrialClaim·무료 grant·Reservation 생성
 4. C3-D VPC Lattice + ECS task role + SigV4 + AWS_IAM, 기존 Identity·Learning Core inbound LB 유지
@@ -512,12 +666,19 @@ A는 캠페인별 비용과 악용을 통제하지만 운영 catalog가 복잡�
 
 ### 후속 — 결제 파이프라인 계약
 
-1. C9-A 재구매 가능한 store 상품과 account binding
-2. C10-A paid 무기한·promotion별 만료를 임시 정책으로 채택
-3. C11-A 완전 미사용만 자동 환불
+1. C9-S1 Apple/Google consumable one-time fixed-term 상품, 다섯 내부 offer, opaque account binding과 Billing 검증·복원 — 확정
+2. C1-A/C2-A 앱→Billing public API, 다중 audience RS256 Access Token과 최소 scope — 확정
+3. C9-S2 provider purchase start, Billing catalog의 24시간 단위 fixed duration, timeline stacking, paid-first/free-preserve resolver — 확정
+4. C9-S3 provider-confirmed refund 뒤 RESERVED/OPEN/RETAKE_AVAILABLE 차단, GRADING 완료 수렴, COMPLETED history 보존과 durable Learning Core revoke — 확정
+5. C9-S4 RevenueCat 표준 SDK client sync + Authorization/HMAC webhook, Store transaction 검증과 Billing pending 복구 — 확정
+6. C9-S5 RevenueCat API 기반 상태별 5분/6시간/일 1회 periodic reconciliation, 100건 bounded batch와 append-only correction — 확정
+7. C9-S6 기존 public ALB의 Billing 전용 host/path+target group, RevenueCat webhook·internal Lattice route의 인증 및 ingress 분리 — 확정
+8. C9-S7 정규화 payment/ledger 5년, event inbox 120일, backup 35일과 raw payload 비저장 — 확정
+9. C9-S8 resource별 public API, sync 202 PENDING, Authorization+HMAC fast inbox ack, 환경별 webhook, original owner restore, S2S/refund 자동 처리 OFF, webhook direct apply와 durable Learning Core revoke — 확정
+10. 실제 Store product ID·판매 국가·가격, RevenueCat Offering/Package·secret, exact DTO·Mongo index와 staging quota 기반 운영 조정값 — 출시/ADR 입력 대기
 
 ### 후속 — 보상 계약
 
 1. C12-A Billing check-in과 campaign별 coupon 정책
 
-무료 최소 Entitlement의 도메인·Security·Reservation·ledger 구현과 Lattice greenfield 배포 설계를 시작할 수 있다. C13의 보존기간, 물리 purge SLA, backup 수명과 restore 절차는 모두 확정됐다. 단, Billing production 배포는 별도 staging cluster와 분리된 환경을 준비하고 C3-D negative/smoke/E2E gate를 통과한 뒤에만 한다. 결제 C9~C11과 보상 C12는 후속 기능 구현 전에 별도 승인한다.
+무료 최소 Entitlement의 도메인·Security·Reservation·ledger 구현과 Lattice greenfield 배포 설계를 시작할 수 있다. C13의 보존기간, 물리 purge SLA, backup 수명과 restore 절차는 모두 확정됐다. 단, Billing production 배포는 별도 staging cluster와 분리된 환경을 준비하고 C3-D negative/smoke/E2E gate를 통과한 뒤에만 한다. 결제의 제품·account binding·public auth·lifecycle·환불·RevenueCat webhook·reconciliation·보존·ADR-004 세부 선택은 C1-A/C2-A와 C9-S1~S8로 확정됐으며, 실제 Store/RevenueCat 값·가격과 exact DTO/Mongo 설계는 ADR·구현 계획에서 추가 고정한다. 보상 C12는 후속 기능 구현 전에 별도 승인한다.

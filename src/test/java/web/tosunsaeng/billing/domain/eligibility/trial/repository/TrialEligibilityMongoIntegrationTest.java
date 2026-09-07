@@ -139,7 +139,7 @@ class TrialEligibilityMongoIntegrationTest {
             );
             BillingMongoProperties properties = new BillingMongoProperties();
             properties.setInitializeIndexes(true);
-            properties.setSchemaVersion(3);
+            properties.setSchemaVersion(4);
             BillingMongoIndexInitializer initializer = new BillingMongoIndexInitializer(
                     isolated, properties
             );
@@ -170,7 +170,7 @@ class TrialEligibilityMongoIntegrationTest {
             );
             BillingMongoProperties properties = new BillingMongoProperties();
             properties.setInitializeIndexes(true);
-            properties.setSchemaVersion(3);
+            properties.setSchemaVersion(4);
             BillingMongoIndexInitializer initializer = new BillingMongoIndexInitializer(
                     isolated, properties
             );
@@ -213,7 +213,7 @@ class TrialEligibilityMongoIntegrationTest {
             );
             BillingMongoProperties properties = new BillingMongoProperties();
             properties.setInitializeIndexes(true);
-            properties.setSchemaVersion(3);
+            properties.setSchemaVersion(4);
             BillingMongoIndexInitializer initializer = new BillingMongoIndexInitializer(
                     isolated, properties
             );

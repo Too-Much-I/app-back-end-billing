@@ -18,7 +18,7 @@
 Billing Service가 소유하는 기능은 다음과 같다.
 
 - 상품과 서버 기준 가격
-- Apple App Store 및 Google Play 결제 검증과 결제·취소·환불 원장
+- RevenueCat을 통한 Apple App Store·Google Play 결제 검증 데이터 수신과 결제·취소·환불 원장
 - 유료·프로모션 credit ledger와 unlimited pass
 - 검증된 휴대전화 기준 무료 1회 `TrialClaim`
 - 시험 생성 전 entitlement `Reservation`, 확정, 취소, 만료
@@ -36,7 +36,7 @@ Identity 또는 Learning Core 코드를 이 저장소로 복사하지 않는다.
 
 ## 현재 제품 범위
 
-현재 우선 범위는 verified-phone candidate 기준 무료 모의고사 1회를 위한 최소 Entitlement다.
+verified-phone candidate 기준 무료 모의고사 1회 Entitlement와 owner lifecycle의 핵심 애플리케이션 구현은 완료됐다. 다음 제품 범위는 자동 갱신 없는 fixed-term premium 결제로 승인됐으며, exact ADR·구현 계획과 Jira를 먼저 확정한 뒤 vertical slice로 구현한다.
 
 - Identity `PhoneEligibilityBindingVerified`/`PhoneEligibilityBindingRevoked` event consumer
 - event inbox, revision high-water와 `trial_eligibility` current projection
@@ -44,18 +44,30 @@ Identity 또는 Learning Core 코드를 이 저장소로 복사하지 않는다.
 - 시험 시작 전 Reservation reserve, confirm, cancel, status와 5분 expiry
 - AttemptGroup consumption 연결과 Learning Core reconciliation
 - Mongo transaction, unique index, 멱등성, 관측성과 운영 복구
+- Apple Consumable In-App Purchase·Google consumable one-time product와 RevenueCat 표준 SDK·Offering 연동
+- `PREMIUM_1D`, `PREMIUM_3D`, `PREMIUM_7D`, `PREMIUM_14D`, `PREMIUM_30D`와 기간형 `SubscriptionEntitlement`
+- 앱이 직접 호출하는 Billing public API와 Identity JWT의 `tosunsaeng-billing` audience
+- ACTIVE paid-first/free-preserve Reservation resolver
+- client sync, RevenueCat Authorization+HMAC webhook·REST API reconciliation과 표준 SDK transaction completion
+- refund/revoke의 append-only reversal과 신규 시험 차단
+- ACTIVE MEMBER 전용 구매, 사용자·환경별 stable `purchaseAccountRefId`
+- 기존 public ALB의 Billing 전용 host/path allowlist·별도 target group과 internal Lattice 분리
+- refund 시 entitlement timeline reflow, OPEN/RETAKE_AVAILABLE 차단·GRADING 완료·COMPLETED 보존
+- 정규화 payment/ledger 5년, provider event inbox 120일과 35일 rolling backup
 
 다음 기능은 후속 단계이며 명시적인 구현 요청과 선행 계약 승인 없이 추가하지 않는다.
 
-- Apple/Google 결제 adapter와 notification
-- paid credit와 unlimited pass
+- paid credit pack, fixed-unit exam pass와 자동 갱신 subscription
 - coupon, 출석과 추천인 보상
-- 환불과 chargeback
-- 앱이 직접 호출하는 Billing 사용자 API와 Billing 사용자 JWT audience
+- 부분 환불, 수동 보상과 Billing 자체 negative balance
 
 ## 현재 구현 단위
 
-현재 즉시 구현할 단위는 Jira `TMI-120`, `docs/plans/PLAN-006-retained-trial-owner-rebind.md`와 `docs/adr/ADR-003-retained-trial-owner-rebind-contract.md`의 retained trial owner rebind vertical slice다.
+retained trial owner rebind vertical slice는 Jira `TMI-120`, `docs/plans/PLAN-006-retained-trial-owner-rebind.md`와 `docs/adr/ADR-003-retained-trial-owner-rebind-contract.md`에 구현됐다. `docs/plans/PLAN-007-public-free-entitlement-query.md`의 무료 사용권 public reader는 사용자 승인 후 구현·로컬 테스트를 완료했으며 기본 OFF다. 배포·legacy coverage는 `docs/runbooks/PLAN-007-public-reader-rollout.md`를 따른다. 결제 기술 초안은 `docs/adr/ADR-004-fixed-term-premium-payment-contract.md`에 작성됐지만 별도 후속 트랙이다. 제품 정책과 C9-S8의 9개 선택은 승인됐고 정상 기간 만료(D1)와 환불 취소(D2)는 미확정이며, 결제 PLAN은 이후 번호로 작성한다. 결제 application code·schema v5는 아직 구현하지 않았다.
+
+무료 reader는 `GET /api/v1/entitlements`, Identity 사용자 JWT `tosunsaeng-billing` audience와 `billing:read`, 검증된 `sub`를 사용한다. Guest/MEMBER 모두 본인 조회만 허용하고 account_type만으로 phone eligibility를 추론하지 않는다. Grant가 없는 신규 VERIFIED 대상은 retained Claim 부재가 확인될 때만 예상 신규 수량을 표시하며 조회에서 발급·hold·소비·owner 변경을 하지 않는다. 연동 불명은 PENDING/null, 저장소 실패는 503으로 분리한다. public 전용 envelope와 ALB connector는 internal Lattice/SigV4와 격리하고 기존 internal DTO를 변경하지 않는다. Identity account_type PR #39 병합은 Billing audience·billing:read 발급 완료가 아니며 별도 후속과 staging 검증 전 reader flag는 OFF다.
+
+PLAN-007 §8 구현: 세션 귀속은 기본 7일 command TTL에 의존하지 않는다. link의 sessionOwnerEpoch/sessionBindingVersion과 Reservation·AttemptSession의 epoch snapshot을 기존 reserve/confirm/owner rebind Transaction에서 기록한다. PHONE_REJOIN 실제 이전만 epoch를 증가시키고 USER_MERGED는 보존한다. GET은 이를 읽기만 하며, legacy 증빙 불명은 별도 bounded migration·활성화 gate로 해결하고 command 소실을 무기한 PENDING으로 숨기지 않는다. 증빙 없는 legacy confirm은 drain/expire 또는 승인 이관 후 처리한다. epoch writer를 증빙 없는 구버전으로 무조건 rollback하지 않는다. projection 없는 Guest의 PENDING은 '사용 가능 여부를 확인할 수 없음'이며 실제 job 처리나 곧 완료를 뜻하지 않는다.
 
 포함 범위:
 
@@ -69,7 +81,7 @@ Identity 또는 Learning Core 코드를 이 저장소로 복사하지 않는다.
 - 최대 1시간 cleanup worker, 24시간 overdue 경보와 privacy-safe log/metric/trace
 - replica-set Testcontainers 기반 legacy version, transaction, duplicate와 동시성 회귀 검증
 
-이 구현 단위에서는 새 Claim·Grant·allocation·consumption, historical backfill, privileged repair route, Identity durable fan-out, Learning Core `UserMerged` owner migration/source deny, 실제 AWS resource와 결제·구독·coupon을 추가하지 않는다. phone 재가입은 Learning Core owner event를 만들지 않고 Billing continuation discovery와 exact reserve echo로 승인된 기존 AttemptGroup에 새 replacement Session을 생성한다. TMI-120 완료만으로 production owner rebind를 활성화하지 않고 타 서비스 consumer와 staging E2E gate를 유지한다.
+결제 ADR·PLAN 승인 전에는 RevenueCat adapter, public payment endpoint, Purchase·SubscriptionEntitlement collection/index와 webhook receiver를 구현하지 않는다. 결제 구현은 기존 TrialClaim·무료 Grant·owner rebind를 변경하거나 새 무료권을 지급하지 않으며 coupon·credit·자동 갱신을 포함하지 않는다. phone 재가입은 Learning Core owner event를 만들지 않고 Billing continuation discovery와 exact reserve echo로 승인된 기존 AttemptGroup에 새 replacement Session을 생성한다. 무료/owner 기능과 결제 기능 모두 실제 schema·AWS·RevenueCat·Store sandbox·staging E2E gate 전에는 production flag를 활성화하지 않는다.
 
 ## 핵심 불변식
 
@@ -80,7 +92,7 @@ Identity 또는 Learning Core 코드를 이 저장소로 복사하지 않는다.
 - `retentionExpiresAt` 이후 candidate alias와 사용자·source event 연결은 dedupe에서 제외하고 승인된 purge 정책에 따라 삭제한다. 그 뒤 같은 번호가 다시 verified되면 새 Claim을 허용한다.
 - TrialClaim 연결정보 purge는 매일 실행하고 logical expiry 후 24시간 안에 active DB에서 제거한다. 재해복구 backup은 최대 35일이며 복구본은 사용자 트래픽 연결 전에 expiry purge를 먼저 적용한다.
 - raw phone을 Billing에 전달하거나 저장하지 않는다.
-- 시험 1회 비용은 10 credits이며 credit는 음수가 아닌 정수다.
+- 현재 paid 상품은 credit를 차감하지 않는 fixed-term unlimited 권리다. 과거의 시험 1회 10 credits 초안은 구현하지 않는다.
 - Reservation의 `RESERVED` TTL 초기값은 5분이다. TTL은 확정된 사용을 만료시키지 않는다.
 - 시험 생성 흐름은 `reserve → Learning Core Session commit → confirm` 순서를 유지한다.
 - 공개 `POST /api/v1/exams`는 필수 lowercase UUID v4 `Idempotency-Key` header를 사용하며 Request Body 없음과 기존 성공 Response DTO를 유지한다.
@@ -89,7 +101,20 @@ Identity 또는 Learning Core 코드를 이 저장소로 복사하지 않는다.
 - confirm/cancel은 멱등이고 `CONFIRMED`를 cancel로 되돌리지 않는다.
 - Reservation allocation은 원래 grant 단위를 보존해 cancel 시 정확히 복구한다.
 - 장애 시 reservation과 Learning Core Session을 reconciliation하여 중복 Session이나 이중 차감을 만들지 않는다.
-- Apple/Google 구매는 클라이언트 주장만 신뢰하지 않고 서버에서 검증한다.
+- Apple/Google 구매는 클라이언트 주장만 신뢰하지 않는다. RevenueCat HMAC webhook 또는 Billing이 인증한 RevenueCat REST API 응답의 Store transaction만 정규화하고 entitlement 지급 근거로 사용한다.
+- 구매는 Identity가 `billing:purchase`를 발급한 ACTIVE MEMBER만 허용한다. Guest는 최대 `billing:read`만 받으며 Guest purchase·paid UserMerged migration은 현재 범위에 없다.
+- `purchaseAccountRefId`는 사용자·환경별 stable lowercase UUID v4다. 회전된 과거 값은 기존 transaction 검증·환불용 inactive alias일 뿐 신규 구매에 사용할 수 없다.
+- active/scheduled paid timeline 중간 purchase가 refund/revoke되면 해당 slot만 제거하고 뒤의 VERIFIED entitlement를 기존 sequence·duration대로 즉시 앞으로 재배치하며 원래 schedule과 조정을 ledger에 남긴다.
+- provider-confirmed refund 뒤 해당 source의 `RESERVED`, `OPEN`, `RETAKE_AVAILABLE`은 추가 사용·replacement가 불가능하다. 이미 제출된 `GRADING`만 terminal까지 수렴하고 `COMPLETED` history는 삭제하지 않는다.
+- refund가 reserve/confirm과 경합하면 Transaction/CAS commit 순서로 수렴한다. refund가 먼저면 confirm을 revoked error로 거절하고 Learning Core Session을 durable access-revocation으로 보상한다.
+- refund 신청에 대한 client 주장만 신뢰하지 않는다. RevenueCat이 Store에서 수신·검증한 review 신호는 `REFUND_REVIEW`, RevenueCat API/webhook이 제공하는 최종 Store 상태만 `REFUNDED/REVOKED` 근거다.
+- RevenueCat은 결제 연동·검증 데이터 공급 계층이며 Billing entitlement의 source of truth가 아니다. consumable을 RevenueCat Entitlement에 연결해 기간 권리를 판정하지 않고, Billing catalog·Purchase·SubscriptionEntitlement·ledger가 24·72·168·336·720시간과 stacking을 결정한다.
+- RevenueCat 표준 SDK가 Apple transaction finish와 Google consumable completion을 담당한다. Store 결제가 완료됐지만 Billing 반영이 지연되면 client callback으로 권리를 지급하지 않고 `PENDING`으로 표시하며 HMAC webhook·event ID 멱등성·REST API reconciliation으로 최종 수렴한다.
+- RevenueCat custom App User ID에는 실제 userId가 아니라 사용자·환경별 stable `purchaseAccountRefId`를 사용한다. 익명 상태 구매와 RevenueCat alias/restore에 의한 다른 토선생 계정으로의 구매·권리 자동 이전을 허용하지 않는다.
+- 결제 public route는 `GET /api/v1/payments/products`, `POST /api/v1/payments/purchase-account`, `POST /api/v1/payments/sync`, `GET /api/v1/payments/entitlement`로 분리한다. sync는 필수 lowercase UUID v4 `Idempotency-Key`와 untrusted Store transaction hint를 사용하며 미확인은 `202 PENDING`과 `Retry-After`로 fail-closed한다.
+- RevenueCat webhook은 Authorization header와 raw-body HMAC, 5분 timestamp window를 모두 검증하고 최소 inbox를 durable commit한 뒤 200을 반환해 worker가 처리한다. optional unknown field는 허용하고 인증된 unknown event type은 durable ignored disposition으로 수렴한다.
+- 같은 RevenueCat project의 webhook을 SANDBOX→staging, PRODUCTION→production으로 분리하고 URL·Authorization·HMAC secret을 환경별로 다르게 사용한다. `Track new purchases from server-to-server notifications`와 자동 `Refund request handling`은 최초 출시에서 OFF다.
+- 정상 인증 webhook은 직접 정규화·반영하고 RevenueCat API는 client sync·모호한 event·reconciliation에 사용한다. refund/revoke Learning Core 차단은 AttemptGroup별 durable outbox와 Lattice SigV4 event로 비동기 전달한다.
 - Identity eligibility event를 수신하는 것만으로 TrialClaim, grant 또는 balance를 만들지 않는다. 최초 reserve Transaction에서 현재 binding과 기존 Claim을 확인해 지급과 Reservation을 원자적으로 처리한다.
 - owner rebind는 새 Claim·Grant·allocation·consumption을 만들지 않고 stable `subjectRefId`의 current `BillingSubjectLink.userId`만 source→target CAS로 변경한다.
 - active Reservation 또는 PROCESSING reserve command가 있으면 owner를 rewrite하지 않고 503 pending으로 재시도시킨다.
@@ -97,7 +122,7 @@ Identity 또는 Learning Core 코드를 이 저장소로 복사하지 않는다.
 - phone 재가입 뒤 재응시는 Learning Core가 Billing phone continuation route에서 authoritative AttemptGroup·mockExamId와 owner-epoch context를 먼저 조회하고 exact echo한 경우에만 허용한다. 기존 consumption을 유지하고 target 명의의 새 replacement Session을 처음부터 만들며 source의 기존 Session·답안·결과는 이전하지 않는다.
 - rebind 이전 exact AttemptGroup/Session의 source status event만 bounded fence 안에서 상태 전진에 허용하고 신규 reserve·replacement·다른 Session 권한으로 사용하지 않는다.
 
-상세 상품·사용권 계약과 미확정 선택지는 이 저장소의 `docs/codex/CONTRACT_DECISIONS.md`를 단일 기준으로 사용한다. 서비스 간 전체 흐름은 `docs/contracts/BILLING_SERVICE_INTEGRATION_CONTRACT.md`, 내부 API와 Mongo 계약은 `docs/adr/ADR-001-free-trial-internal-api-and-mongo-contract.md`, Lattice·SigV4·환경 이관 계약은 `docs/adr/ADR-002-vpc-lattice-ecs-sigv4-and-environment-migration.md`, owner rebind 계약은 `docs/adr/ADR-003-retained-trial-owner-rebind-contract.md`, 현재 구현 순서는 `docs/plans/PLAN-006-retained-trial-owner-rebind.md`를 따른다. 통합 안내서와 세부 ADR이 충돌하면 ADR을 따르며, 확정된 계약을 임의로 재해석하지 말고 작업을 중단해 보고한다.
+상세 상품·사용권 계약과 미확정 선택지는 이 저장소의 `docs/codex/CONTRACT_DECISIONS.md`를 단일 기준으로 사용하고 fixed-term 결제 요약은 `docs/contracts/FIXED_TERM_PREMIUM_PAYMENT_CONTRACT.md`를 따른다. 서비스 간 전체 흐름은 `docs/contracts/BILLING_SERVICE_INTEGRATION_CONTRACT.md`, 내부 API와 Mongo 계약은 `docs/adr/ADR-001-free-trial-internal-api-and-mongo-contract.md`, Lattice·SigV4·환경 이관 계약은 `docs/adr/ADR-002-vpc-lattice-ecs-sigv4-and-environment-migration.md`, owner rebind 계약은 `docs/adr/ADR-003-retained-trial-owner-rebind-contract.md`, 현재 구현 순서는 `docs/plans/PLAN-006-retained-trial-owner-rebind.md`를 따른다. payment public ALB 결정은 ADR-002의 무료-only "Billing ALB 없음"을 public route에 한해 supersede하며 internal route는 계속 Lattice-only다. 통합 안내서와 세부 ADR이 충돌하면 최신 승인 ADR을 따르며, 확정된 계약을 임의로 재해석하지 말고 작업을 중단해 보고한다.
 
 과거 Learning Core 문서는 역사적 참고 자료일 뿐이며, 앞으로 Billing 관련 결정과 작업기록은 이 저장소의 `docs`에만 추가한다.
 
@@ -139,7 +164,8 @@ PLAN-002 Reservation을 구현할 때 다음 계약을 유지한다.
 - 실제 사용자 ID는 UUID 문자열이며 JWT `sub`에서 가져온다.
 - 클라이언트가 Request Body, Path, Query로 보낸 `userId`를 신뢰하지 않는다.
 - 예외적으로 인증된 Identity eligibility event와 인증된 Learning Core internal route는 각 서비스가 확정한 lowercase canonical UUID `userId`를 body로 전달한다. 다른 principal, public path, query parameter 또는 임의 identity header의 userId는 신뢰하지 않는다.
-- 향후 사용자 API를 추가할 때는 Identity만 사용자 토큰을 발급하며 Billing은 issuer, audience, signature, expiry를 검증한다.
+- 결제 사용자 API를 추가할 때는 Identity만 사용자 token을 발급한다. Billing은 RS256 signature, exact issuer/JWKS, `tosunsaeng-billing` audience, expiry·iat·jti, lowercase UUID `sub`, 최대 60초 clock skew와 route별 scope를 검증한다.
+- Identity는 Guest에 최대 `billing:read`, ACTIVE MEMBER에 `billing:read billing:purchase`를 발급한다. Billing은 client body/path/query/header의 account type이나 userId를 신뢰하지 않는다.
 - 현재 내부 workload API는 VPC Lattice `AWS_IAM`, ECS task role과 SigV4를 사용한다. 별도 shared secret, API key 또는 workload JWT를 임의로 추가하지 않는다.
 - Identity task role은 Trial eligibility와 승인된 Billing owner rebind event route만, Learning Core task role은 Reservation·status·AttemptGroup route만 호출할 수 있도록 최소 권한을 적용한다. `TrialOwnerRebindApproved`는 Learning Core에 전달하지 않는다.
 - repair route는 일반 workload role과 분리된 운영 role만 허용한다.
@@ -150,12 +176,14 @@ PLAN-002 Reservation을 구현할 때 다음 계약을 유지한다.
 
 ## 보안 및 개인정보 규칙
 
-- 실제 Secret, MongoDB URI, Store credential, Apple/Google receipt·token·notification 원문을 저장소에 추가하지 않는다.
+- 실제 Secret, MongoDB URI, Store/RevenueCat credential, Apple/Google receipt·token·notification 또는 RevenueCat webhook 원문을 저장소에 추가하지 않는다.
 - raw phone, token, receipt, payment instrument, 사용자 개인정보를 로그나 작업 문서에 기록하지 않는다.
 - 결제 provider 응답은 검증에 필요한 최소 정보만 정규화하여 저장하고 민감 원문을 ledger에 복제하지 않는다.
 - 환경변수 참조와 가짜 테스트 값만 저장소에 둔다.
-- 테스트에서 실제 Atlas, Apple, Google, Identity, Learning Core를 호출하지 않는다.
+- 테스트에서 실제 Atlas, Apple, Google, RevenueCat, Identity, Learning Core를 호출하지 않는다.
 - 실제 AWS role ARN, VPC·subnet·security group·Lattice 식별자를 코드나 테스트에 하드코딩하지 않는다.
+- 정규화된 Purchase·SubscriptionEntitlement·refund/revoke·payment ledger는 최종 provider transaction, entitlement 종료와 마지막 reversal 중 가장 늦은 시점부터 5년 보존한다. provider event inbox는 120일, disaster recovery backup은 최대 35일이다.
+- raw receipt·signed JWS·Store notification·RevenueCat webhook 전문은 저장하지 않는다. RevenueCat/store 재조회 reference는 최소 field만 암호화하고 최대 5년 뒤 erasable user 연결과 함께 purge한다.
 
 ## MongoDB 및 원장 규칙
 
@@ -173,6 +201,8 @@ PLAN-002 Reservation을 구현할 때 다음 계약을 유지한다.
 - 동시 요청과 응답 유실에서도 같은 operation은 하나의 Claim, grant, Reservation과 consumption으로 수렴해야 한다.
 - Mongo schema v4의 owner collection은 `owner_rebind_inbox`, `subject_owner_rebinds`이며 legacy missing `ownerVersion`은 logical 1로 읽고 첫 CAS에서 explicit version 2로 수렴한다.
 - owner rebind inbox는 120일 멱등성용이며 raw payload와 source/target/subject/Claim을 저장하지 않는다. legacy fence의 source/group/session 연결은 terminal 또는 hard cap 뒤 cleanup한다.
+- payment schema는 provider transaction/purchase token unique, provider event unique, user별 timeline sequence unique와 active/scheduled 조회 index를 명시하고 purchase·entitlement·ledger·timeline reflow를 하나의 Mongo Transaction/CAS로 수렴시킨다.
+- payment retention은 Mongo TTL만으로 business state를 삭제하지 않는다. 명시적 purge worker가 5년 만료 뒤 user/provider lookup 연결을 제거하고 처리 건수·성공 여부만 기록한다.
 
 ## 테스트 규칙
 
@@ -185,6 +215,8 @@ PLAN-002 Reservation을 구현할 때 다음 계약을 유지한다.
 - PLAN-001은 duplicate field·unknown field·coercion·property/candidate 순서·whitespace·oversize와 expected scope mismatch contract test를 포함한다.
 - Mongo 통합 테스트는 duplicate event, same revision conflict, stale/gap, unique-index race, transient transaction retry와 unknown commit 결과 수렴을 검증한다.
 - PLAN-006은 legacy missing ownerVersion CAS, exact duplicate/concurrent owner event, active Reservation rollback, phone OPEN/RETAKE_AVAILABLE 이전·GRADING pending·COMPLETED NOOP, exact/expired Session fence, terminal cleanup과 식별자 비로깅을 검증한다.
+- payment 구현은 RevenueCat event/store transaction duplicate, client retry/webhook/reconciliation 경합, 동시 timeline append, 중간 refund reflow, refund-reserve-confirm 순서 경합, OPEN/RETAKE_AVAILABLE revoke·GRADING completion, Guest purchase 거절과 paid-first/free-preserve를 검증한다.
+- RevenueCat adapter 단위 테스트는 fake API response/webhook fixture를 사용하고 실제 RevenueCat·Apple·Google·credential을 호출하지 않는다. RevenueCat+Store sandbox E2E는 배포 gate에서 별도로 수행한다.
 
 ## 코드 변경 규칙
 
@@ -272,8 +304,11 @@ Codex는 다음 작업을 직접 수행하지 않는다.
 8. TrialClaim 3년 보존과 만료 후 purge·재수급 계약이 뒤바뀌었는가
 9. Identity와 Learning Core workload role의 route 권한이 섞였는가
 10. unsigned·wrong role·direct task 접근이 허용되는가
-11. 테스트가 실제 Atlas, AWS, Store, Identity 또는 Learning Core에 의존하는가
-12. 결제·coupon·환불 등 현재 범위 밖 기능이나 관련 없는 대규모 리팩터링이 포함됐는가
+11. 테스트가 실제 Atlas, AWS, RevenueCat, Store, Identity 또는 Learning Core에 의존하는가
+12. 승인된 fixed-term 결제를 넘어 paid credit·coupon·자동 갱신·부분 환불 등 범위 밖 기능이나 관련 없는 대규모 리팩터링이 포함됐는가
 13. internal API에 앱용 `BaseResponse`를 적용하거나 userId를 URL·로그에 노출했는가
 14. `inbound_event_inbox` 120일 TTL, TrialClaim 3년 보존과 Reservation audit 보존을 같은 정책으로 취급했는가
 15. PLAN-002 구현에 confirm·cancel·expiry·reconciliation 또는 결제 기능을 섞어 vertical slice 범위를 넓혔는가
+16. Guest가 `billing:purchase`를 받거나 public ALB에서 `/internal/**`가 Billing target으로 전달되는가
+17. refund된 OPEN/RETAKE_AVAILABLE에 답안·채점·replacement가 허용되거나 GRADING/COMPLETED history가 삭제되는가
+18. raw Store/RevenueCat payload·token·credential이 로그·ledger에 남거나 payment 5년·inbox 120일·backup 35일 보존을 혼용하는가

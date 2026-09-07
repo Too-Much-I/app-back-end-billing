@@ -29,6 +29,7 @@ import web.tosunsaeng.billing.domain.entitlement.repository.EntitlementLedgerRep
 import web.tosunsaeng.billing.domain.reservation.repository.IdempotencyCommandRepository;
 import web.tosunsaeng.billing.domain.reservation.repository.ReservationAllocationRepository;
 import web.tosunsaeng.billing.domain.reservation.repository.ReservationRepository;
+import web.tosunsaeng.billing.domain.entitlement.trial.repository.BillingSubjectLinkRepository;
 
 @Service
 public class ReservationLifecycleService {
@@ -46,6 +47,7 @@ public class ReservationLifecycleService {
     private final ReservationProperties properties;
     private final ReservationLifecycleMetrics metrics;
     private final Clock clock;
+    private final BillingSubjectLinkRepository subjectLinkRepository;
 
     public ReservationLifecycleService(
             ReservationRepository reservationRepository,
@@ -58,7 +60,8 @@ public class ReservationLifecycleService {
             MongoTransactionExecutor transactionExecutor,
             ReservationProperties properties,
             ReservationLifecycleMetrics metrics,
-            Clock clock
+            Clock clock,
+            BillingSubjectLinkRepository subjectLinkRepository
     ) {
         this.reservationRepository = reservationRepository;
         this.allocationRepository = allocationRepository;
@@ -71,6 +74,7 @@ public class ReservationLifecycleService {
         this.properties = properties;
         this.metrics = metrics;
         this.clock = clock;
+        this.subjectLinkRepository = subjectLinkRepository;
     }
 
     public LifecycleResult confirm(ConfirmCommand command) {
@@ -212,6 +216,19 @@ public class ReservationLifecycleService {
             throw ReservationException.stateConflict();
         }
         AttemptSession session = requireMatchingSession(reservation);
+
+        var link = subjectLinkRepository.findBySubjectRefId(reservation.getSubjectRefId())
+                .filter(value -> value.getUserId().equals(command.userId()))
+                .orElseThrow(ReservationException::stateConflict);
+        if (reservation.getSessionOwnerEpoch() == null || session.getSessionOwnerEpoch() == null) {
+            throw ReservationException.temporarilyUnavailable();
+        }
+        if (!reservation.getSessionOwnerEpoch().equals(session.getSessionOwnerEpoch())
+                || !reservation.getSessionOwnerEpoch().equals(link.getSessionOwnerEpoch())) {
+            throw ReservationException.stateConflict();
+        }
+        subjectLinkRepository.bindSession(link, now)
+                .orElseThrow(ReservationException::temporarilyUnavailable);
 
         IdempotencyCommand lifecycleCommand = IdempotencyCommand.processingLifecycle(
                 ids.commandId(), command.userId(), command.operationId(), "CONFIRM",

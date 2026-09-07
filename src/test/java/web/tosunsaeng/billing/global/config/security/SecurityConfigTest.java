@@ -40,6 +40,12 @@ import web.tosunsaeng.billing.global.observability.TraceCorrelation;
 @Import(SecurityConfig.class)
 class SecurityConfigTest {
 
+    @MockitoBean private web.tosunsaeng.billing.domain.entitlement.application.EntitlementQueryService entitlementQueryService;
+    @MockitoBean private web.tosunsaeng.billing.domain.entitlement.application.EntitlementQueryRateLimiter entitlementQueryRateLimiter;
+    @MockitoBean private PublicApiWriter publicApiWriter;
+    @MockitoBean private io.micrometer.core.instrument.MeterRegistry meterRegistry;
+    @MockitoBean private java.time.Clock clock;
+
     @Autowired
     private MockMvc mockMvc;
 

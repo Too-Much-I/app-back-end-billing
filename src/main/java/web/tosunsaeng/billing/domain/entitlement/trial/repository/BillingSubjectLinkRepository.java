@@ -75,11 +75,17 @@ public class BillingSubjectLinkRepository {
                 Criteria.where("userId").is(current.getUserId()),
                 Criteria.where("active").is(true),
                 Criteria.where("retentionExpiresAt").gt(updatedAt),
+                Criteria.where("sessionOwnerEpoch").is(current.getSessionOwnerEpoch()),
+                Criteria.where("sessionBindingVersion").is(current.getSessionBindingVersion()),
                 version
         ));
         Update update = new Update()
                 .set("userId", targetUserId)
                 .set("ownerVersion", current.getOwnerVersion() + 1)
+                .set("sessionOwnerEpoch", "PHONE_REJOIN".equals(transitionReason)
+                        ? Math.incrementExact(current.sessionEpochForWrite()) : current.sessionEpochForWrite())
+                .set("sessionBindingVersion", current.getSessionBindingVersion() == null
+                        ? 0L : current.getSessionBindingVersion())
                 .set("ownerUpdatedAt", updatedAt)
                 .set("ownerTransitionReason", transitionReason)
                 .set("ownerTransitionId", transitionId);
@@ -93,5 +99,21 @@ public class BillingSubjectLinkRepository {
 
     public BillingSubjectLink insert(BillingSubjectLink link) {
         return mongoTemplate.insert(link);
+    }
+
+    /** Must run in the same transaction as reserve/confirm. Serializes with owner CAS. */
+    public Optional<BillingSubjectLink> bindSession(BillingSubjectLink current, Instant now) {
+        Query query = Query.query(Criteria.where("_id").is(current.getSubjectRefId())
+                .and("userId").is(current.getUserId()).and("active").is(true)
+                .and("retentionExpiresAt").gt(now)
+                .and("ownerVersion").is(current.hasExplicitOwnerVersion() ? current.getOwnerVersion() : null)
+                .and("sessionOwnerEpoch").is(current.getSessionOwnerEpoch())
+                .and("sessionBindingVersion").is(current.getSessionBindingVersion()));
+        long version = current.getSessionBindingVersion() == null ? 0 : current.getSessionBindingVersion();
+        if (version < 0) { throw new IllegalStateException("Invalid session binding version"); }
+        return Optional.ofNullable(mongoTemplate.findAndModify(query, new Update()
+                        .set("sessionOwnerEpoch", current.sessionEpochForWrite())
+                        .set("sessionBindingVersion", Math.incrementExact(version)),
+                FindAndModifyOptions.options().returnNew(true), BillingSubjectLink.class));
     }
 }

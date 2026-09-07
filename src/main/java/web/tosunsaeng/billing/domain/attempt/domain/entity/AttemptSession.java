@@ -28,6 +28,15 @@ public class AttemptSession {
     private Instant confirmedAt;
     private Instant terminalAt;
     private long version;
+    private Long sessionOwnerEpoch;
+
+    public Long getSessionOwnerEpoch() { return sessionOwnerEpoch; }
+
+    public AttemptSession withSessionOwnerEpoch(long epoch) {
+        if (epoch < 1 || sessionOwnerEpoch != null) { throw new IllegalStateException("Invalid epoch initialization"); }
+        sessionOwnerEpoch = epoch;
+        return this;
+    }
 
     protected AttemptSession() {
     }

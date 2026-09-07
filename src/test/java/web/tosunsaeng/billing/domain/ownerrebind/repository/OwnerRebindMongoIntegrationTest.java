@@ -116,6 +116,7 @@ class OwnerRebindMongoIntegrationTest {
         assertThat(link).isNotNull();
         assertThat(link.getString("userId")).isEqualTo(TARGET);
         assertThat(link.getLong("ownerVersion")).isEqualTo(2L);
+        assertThat(link.getLong("sessionOwnerEpoch")).isEqualTo(1L);
         assertThat(link.getDate("ownerUpdatedAt")).isNotNull();
         assertThat(mongoTemplate.getCollection("trial_claims")
                 .find(new Document("_id", CLAIM)).first()).isEqualTo(claimBefore);
@@ -196,6 +197,7 @@ class OwnerRebindMongoIntegrationTest {
         assertThat(link).isNotNull();
         assertThat(link.getString("userId")).isEqualTo(TARGET);
         assertThat(link.getString("ownerTransitionReason")).isEqualTo("PHONE_REJOIN");
+        assertThat(link.getLong("sessionOwnerEpoch")).isEqualTo(2L);
         assertThat(link.getString("ownerTransitionId")).isEqualTo(command.eventId());
         assertThat(mongoTemplate.getCollection("attempt_groups")
                 .find(new Document("_id", "attempt-group-open")).first()).isEqualTo(groupBefore);

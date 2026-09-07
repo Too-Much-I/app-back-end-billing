@@ -2731,3 +2731,933 @@
 - 테스트 결과: 코드 변경 없이 Git 상태만 확인했으므로 테스트를 재실행하지 않았다.
 - 예상 밖 diff: 없음.
 - 다음 작업: 사용자가 안내 명령으로 branch 생성, staged diff 확인, commit, push, PR check와 develop merge를 수행한다.
+
+## 2026-09-05 — Billing·Identity 병합 후 다음 작업 확인
+
+<!-- codex-turn:next-work-after-phone-continuation-merge -->
+
+- 날짜: 2026-09-05
+- 브랜치: Billing `develop@7138810`, `origin/develop`과 일치
+- Jira: Billing `TMI-120`, Identity `TMI-123`, 후속 Learning Core `TMI-125`. Jira 조회·댓글·상태 변경은 수행하지 않았다.
+- 작업 목표: phone continuation과 owner-event fan-out 병합 이후의 다음 구현 순서를 확인한다.
+- 확인 결과: Billing phone continuation은 PR #8, Identity durable fan-out/SigV4는 PR #38로 각각 `develop`에 병합됐다. 다음 cross-service 구현은 Learning Core `TMI-125`다.
+- 다음 구현: Billing continuation 응답 reader-first 수용, phone continuation discovery와 six-field reserve exact echo/cancel 보상, 일반 unexpected REPLACEMENT fail-closed, `UserMerged` consumer·workload JWT verifier·source deny·실제 merge ownership migration을 구현한다. phone rejoin event consumer와 과거 Session·답안·결과 이전은 만들지 않는다.
+- 테스트 결과: 코드 변경 없는 상태·문서 확인 작업이라 Gradle 테스트는 실행하지 않았다. Billing 작업 트리는 확인 시작 시 clean이었고 local `develop`과 `origin/develop`은 일치했다.
+- 유지한 계약: phone 재가입은 Billing이 승인한 기존 nonterminal group에 target의 새 Session만 연결하고 새 Claim·Grant·allocation·consumption을 만들지 않는다. Identity→Billing은 SigV4, Identity→Learning Core `UserMerged`는 workload JWT를 유지한다.
+- 위험 요소: 현재 workspace에 Learning Core 저장소가 없어 실제 `TMI-125` 구현·병합 상태를 직접 확인하지 못했다. Billing Testcontainers 4개는 Docker daemon 환경에서 전체 통과 확인이 남았다.
+- 예상 밖 변경: 없음. 이번 분석 기록을 위한 Billing CURRENT_STATE/WORKLOG 변경 외 애플리케이션·계약·Identity·AWS·Jira·Git 상태는 변경하지 않았다.
+- 다음 작업: Learning Core 저장소 접근 후 TMI-125 현재 상태를 확인하고, 미구현 범위를 계획·구현·검증한다. 그 뒤 Lattice/IAM/schema v4/staging E2E gate를 진행한다.
+
+## 2026-09-05 — Learning Core TMI-122·TMI-125 병합 구현 검토
+
+<!-- codex-turn:learning-core-tmi-122-125-post-merge-review -->
+
+- 날짜·브랜치·Jira: 2026-09-05, Billing `develop`; 읽기 대상 Learning Core `develop@8c8208b`; `TMI-122`, `TMI-125`. Jira 변경은 수행하지 않았다.
+- 작업 목표: 사용자가 구현 완료한 Learning Core phone continuation과 UserMerged consumer를 Billing·Identity 승인 계약 및 테스트 gate와 대조한다.
+- 확인 결과: Learning Core phone continuation은 PR #27 merge `6e3495e`, UserMerged는 PR #28 merge `8c8208b`에 반영됐고 local/remote develop이 일치한다. exact UserMerged route, workload JWT profile, source deny, direct owner migration, phone discovery와 six-field reserve, 새 target Session·기존 group 연결 및 기본 OFF flag의 큰 방향은 계약과 일치한다.
+- finding 1: `.github/workflows/deploy-staging.yml`은 `./gradlew clean test`만 실행한다. `build.gradle`의 `check -> mongoIntegrationTest` 연결만으로는 현재 CI에서 replica-set 테스트가 실행되지 않아 C17 required CI gate가 충족되지 않는다.
+- finding 2: `scripts/mongodb/user-merged-prepare.js` inventory/blocker는 계획서에 명시된 orphan Result/Summary와 Result/Summary owner 대 Session owner 불일치를 검사하지 않는다. legacy 이상 데이터가 있어도 apply가 진행될 수 있으므로 production migration 전에 preflight와 Node 테스트 보완이 필요하다.
+- finding 3: `PhoneContinuationResponse`는 Billing 계약상 lowercase UUID v4인 `attemptGroupId`를 opaque text로만 검사하며 테스트도 `group-existing`을 정상으로 허용한다. discovery 성공 응답 단계에서 strict UUID v4로 거절하도록 수정해야 한다.
+- 테스트: Learning Core `./gradlew clean test` Java 483개 failures/errors/skipped 0, Node migration test 6개 성공, `git diff --check` 성공. `./gradlew mongoIntegrationTest`는 Docker client provider initialization failure로 실제 테스트가 실행되지 않았다.
+- 유지한 계약: phone 재가입은 과거 source Session·답안·결과를 이전하지 않고 새 target Session만 Billing 승인 group에 연결한다. UserMerged만 학습 데이터 owner migration을 수행하며 기존 AttemptGroup outbox와 terminal creation operation snapshot은 rewrite하지 않는다.
+- 변경 파일: Billing의 `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`만 검토 기록으로 갱신했다. Learning Core·Identity 애플리케이션, Jira, AWS, Mongo 운영 데이터와 Git 이력은 변경하지 않았다.
+- 예상 밖 범위: Learning Core PR #28 구현 commit에는 UserMerged 외의 결제 범위·프론트 가이드·아키텍처 문서가 함께 포함됐다. 애플리케이션 외부 계약 변경은 확인되지 않았지만 후속 PR에서는 범위를 분리하는 것이 안전하다. Learning Core worktree의 기존 TMI-125 Jira 완료 문서 변경은 사용자 소유로 보존했다.
+- 다음 작업: 위 세 보완을 Learning Core 후속 수정으로 처리하고 Docker CI에서 replica-set 테스트를 통과시킨다. 이후에만 Mongo dry-run/apply, writer drain/backfill, workload/Lattice/IAM과 staging E2E·P99 gate로 진행한다.
+
+## 2026-09-05 — cross-service 기능 개발 완결성 재점검
+
+<!-- codex-turn:cross-service-feature-completeness-audit -->
+
+- 날짜·브랜치·Jira: 2026-09-05, Billing `develop@7138810`; 읽기 대상 Learning Core `develop@8c8208b`; `TMI-120`, `TMI-122`, `TMI-123`, `TMI-125`. Jira 변경은 수행하지 않았다.
+- 작업 목표: phone 재가입 continuation과 Guest merge의 병합 뒤 기능 개발이 실제로 부족한 부분이 없는지 정상 흐름, 실패 수렴, migration, CI 관점에서 재점검한다.
+- 결론: 핵심 사용자 정상 흐름은 구현됐지만 production-safe 완료는 아니다. Learning Core에 확정 코드 누락 2건, CI gate 누락 1건, Mongo unknown-commit 예외 수렴의 잠재 누락과 계획 대비 통합 테스트 공백이 남았다.
+- 확정 코드 누락: phone discovery의 `attemptGroupId`가 lowercase UUID v4가 아니라 opaque text로 검증되고, migration preflight가 orphan Result/Summary 및 Result/Summary owner↔Session owner 불일치를 검사하지 않는다.
+- 잠재 코드 누락: `UserOwnedTransactionExecutor`는 `UnknownTransactionCommitResult`를 mutation 재실행 대상으로 삼지 않지만 event inbox/guard를 재조회해 commit 여부로 수렴하지도 않는다. Spring이 이를 `TransactionSystemException`으로 포장하면 현재 Controller advice의 `DataAccessException` handler가 잡지 못해 500이 될 가능성이 있으므로 실제 예외 형태 기반 회귀 테스트와 503 mapping이 필요하다.
+- 검증 공백: UserMerged replica-set integration test는 현재 4개로, 계획된 failure injection rollback, non-terminal operation, concurrent duplicate/write/Callback, unknown commit 수렴 등을 모두 고정하지 못한다. staging workflow도 `clean test`만 실행해 별도 `mongoIntegrationTest`를 수행하지 않는다.
+- 테스트 결과: 이번에는 코드 변경 없는 재점검이므로 테스트를 재실행하지 않았다. 직전 검토의 Java 483개와 Node 6개 성공 결과를 유지하며, Docker daemon 부재로 Mongo integration test 미실행 상태도 그대로다.
+- 유지한 계약: phone 재가입은 과거 학습 데이터를 이전하지 않고 Billing 승인 group에 target의 새 Session만 연결한다. Guest `UserMerged`만 Session·Result·Summary를 이전하며 Claim·Grant·consumption과 기존 outbox snapshot은 변경하지 않는다.
+- 변경 파일: Billing `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`만 분석 기록으로 갱신했다. Learning Core의 기존 `CURRENT_STATE`, `WORKLOG`, `FIRST_UPDATE_PROGRESS_CHECKLIST` 변경과 애플리케이션 코드는 수정하지 않았다.
+- 예상 밖 범위: 이번 검토에서 새 애플리케이션 변경은 없었다. Learning Core worktree의 세 문서 변경은 검토 전 존재한 사용자 소유 변경으로 보존했다.
+- 다음 작업: Learning Core 후속 보정 PR에서 strict UUID, migration preflight, unknown commit 수렴·503, replica-set 회귀 테스트와 CI 실행을 한 묶음으로 완료한 뒤 staging E2E로 진행한다.
+
+## 2026-09-05 — Learning Core 보완 확인 및 결제 범위 전환 검토
+
+<!-- codex-turn:payment-scope-transition-after-learning-core-fixes -->
+
+- 날짜·브랜치·Jira: 2026-09-05, Billing `develop@7138810`; 읽기 대상 Learning Core `develop@88b46c6`; 관련 `TMI-120`, `TMI-122`, `TMI-123`, `TMI-125`. Jira 변경은 수행하지 않았다.
+- 작업 목표: 직전 Learning Core 누락 보완을 확인하고 무료시험 이후 1차 개발 범위에 결제를 포함해 다음 단계로 넘어갈 수 있는지 판정한다.
+- 확인 결과: PR #29에서 continuation attemptGroupId UUID strict 검증, migration orphan/owner mismatch 검사, unknown commit wrapper·inbox 수렴·TransactionException 503, UserMerged replica-set 회귀 확대와 staging/verify workflow의 `mongoIntegrationTest` 실행이 반영됐다. local/remote develop은 `88b46c6`에서 일치하고 worktree는 clean이다.
+- 테스트 결과: Learning Core `./gradlew clean test --no-daemon` 성공, Node migration test 7개 성공, `git diff --check` 성공. `./gradlew mongoIntegrationTest --no-daemon`은 Docker client provider initialization 단계에서 1개 initialization error로 실패해 실제 test body는 실행되지 않았다.
+- 범위 판정: 무료시험·owner lifecycle의 추가 애플리케이션 기능은 결제 개발 착수를 막지 않는다. Mongo CI와 실제 AWS/staging E2E는 production activation gate로 병행 관리하고 feature flag는 계속 OFF로 둔다.
+- 결제 방향: 기존 deferred C9~C11은 credit/one-time 상품 초안이라 단순 premium subscription 선호와 맞지 않는다. `PREMIUM_SUBSCRIPTION`, `SubscriptionEntitlement`와 Store subscription lifecycle 중심으로 계약을 교체한 뒤 구현해야 한다.
+- 변경 파일: 분석 기록을 위해 Billing `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`만 갱신했다. Billing·Learning Core·Identity 애플리케이션, AWS, Jira와 Git 이력은 변경하지 않았다.
+- 유지한 계약: 무료권은 verified-phone당 1회이며 구독 도입이 새 TrialClaim 지급이나 기존 consumption 복원을 만들면 안 된다. Store 원문·credential·사용자 개인정보를 로그나 원장에 저장하지 않는다.
+- 예상 밖 변경: 없음. Learning Core worktree는 clean이었으며 테스트 산출물 외 source diff가 없다.
+- 다음 작업: 구독 상품·권리·API/auth·Store lifecycle·환불·resolver 정책의 선택지를 확정하고 기존 deferred/credit 문서를 supersede한 결제 ADR와 구현 계획을 작성한다.
+
+## 2026-09-05 — 기간제 무제한 결제 상품 선택지 설명 준비
+
+<!-- codex-turn:fixed-term-unlimited-payment-options -->
+
+- 날짜·브랜치: 2026-09-05, Billing `develop@7138810`. Jira 변경은 수행하지 않았다.
+- 작업 목표: 사용자가 확정 입력한 1·3·7·14·30일 무제한 상품과 무료권 보존을 기준으로 Store mapping 이후의 결제 계약 선택지와 장단점을 설명한다.
+- 사용자 확정 입력: 고정 기간 동안 무제한 사용하며 자동 갱신 요구는 제시되지 않았다. 활성 유료 권리를 무료 TrialGrant보다 먼저 사용해 무료 1회권을 보존한다.
+- 공식 Store 확인: Apple App Store Connect는 limited duration service용 `Non-Renewing Subscription`을, Google Play Billing은 자동 갱신되지 않고 동일 plan top-up으로 기간을 연장하는 prepaid subscription plan을 제공한다. Google은 1주 미만 prepaid plan도 별도 acknowledgment 시간 규칙과 함께 설명한다. 정확한 각 기간·국가·Console availability는 product 생성 시 재확인한다.
+- 권장 Store/account 안: Apple non-renewing subscription과 Google prepaid base plan을 provider adapter에서 정규화하고, Billing 내부 offer 5개로 매핑한다. Store에는 Billing 발급 비개인 opaque account ID만 전달하고 canonical user mapping과 restore 진실 공급원은 Billing ledger로 둔다.
+- 권장 API/lifecycle 안: 앱이 Billing public API를 직접 호출하고 Identity의 Billing audience JWT를 사용한다. 검증 완료 시 entitlement를 시작하며 active 재구매는 현재 endsAt 뒤로 이어 붙인다. pending/active/expired/revoked를 지원하고 auto-renew grace/account hold는 제외한다.
+- 권장 refund/notification/reconciliation 안: refund/revoke 뒤 새 시험 시작은 차단하되 confirmed AttemptGroup은 끝까지 수렴시킨다. client sync와 server notification을 함께 사용하고 periodic provider recheck를 safety net으로 둔다.
+- 변경 파일: Billing `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`만 분석 기록으로 갱신했다. 계약 결정서, 애플리케이션, Jira, Store Console과 AWS는 변경하지 않았다.
+- 테스트 결과: 설명·정책 분석 작업이므로 Gradle 테스트를 재실행하지 않았고 `git diff --check`만 최종 확인한다.
+- 유지한 계약: 무료권의 phone dedupe/3년 보존과 TrialClaim은 유료 결제로 변경하지 않는다. Store credential·원문 receipt/token·raw phone을 문서·로그에 기록하지 않는다.
+- 예상 밖 변경: 없음.
+- 다음 작업: 사용자가 4번 이후 선택지를 승인하면 `CONTRACT_DECISIONS`의 deferred credit/pass 초안을 fixed-term unlimited Store 계약으로 supersede하고 ADR·구현 계획을 작성한다.
+
+## 2026-09-05 — Store 상품 연결·복원 구조 설명
+
+<!-- codex-turn:store-product-account-binding-restore-explanation -->
+
+- 날짜·브랜치: 2026-09-05, Billing `develop@7138810`. Jira 변경은 수행하지 않았다.
+- 작업 목표: 결제 선택지 4번인 Apple/Google 상품 등록, 내부 offer mapping, 사용자 account binding과 기기 변경 복원을 실제 구매 흐름으로 설명한다.
+- 핵심 설명: Store에는 provider별 product/base plan을 등록하고 Billing catalog는 그 식별자를 `PREMIUM_1D/3D/7D/14D/30D`와 duration에 매핑한다. 앱이 보낸 가격·일수는 신뢰하지 않고 서버가 Store transaction을 검증한 뒤 catalog 값으로만 권리를 만든다.
+- account binding: Billing이 발급한 비개인 purchase account reference를 Apple `appAccountToken`과 Google obfuscated account identifier에 넣어 canonical user와 연결한다. raw userId·phone·email·device ID를 Store 결속 기준으로 사용하지 않는다.
+- restore: 이미 Billing에 반영된 권리는 로그인 후 Billing current entitlement 조회로 복원하고, 결제는 됐지만 앱→Billing 전달 전에 종료된 경우 앱의 Store purchase query와 server notification/reconciliation으로 재검증한다. phone 재가입 증명만으로 유료 권리를 이전하지 않는다.
+- 재구매: provider transaction unique로 중복 지급을 막고 active entitlement가 있으면 새 기간을 `max(now,currentEndsAt)` 뒤에 붙인다. 클라이언트가 임의 duration·startsAt·endsAt을 정하지 않는다.
+- 변경 파일: 설명 기록을 위한 `docs/codex/WORKLOG.md`만 갱신했다. 계약 결정서·애플리케이션·Store Console·Jira는 변경하지 않았다.
+- 테스트 결과: 코드 변경이 없는 설명 작업이라 테스트는 재실행하지 않았다. 문서 diff 형식만 확인한다.
+- 예상 밖 변경: 없음.
+- 다음 작업: Store native fixed-term mapping과 account binding/restore 안을 사용자 승인하면 fixed-term entitlement schema, product catalog와 purchase sync API 선택으로 넘어간다.
+
+## 2026-09-05 — C9 fixed-term Store/account binding 계약 확정
+
+<!-- codex-turn:approve-c9-fixed-term-store-account-contract -->
+
+- 날짜·브랜치: 2026-09-05, Billing `develop@7138810`. Jira 변경은 수행하지 않았다.
+- 작업 목표: 사용자가 승인한 4번 권장안을 결제 계약 단일 기준에 반영한다.
+- 결정: Apple Non-Renewing Subscription, Google prepaid subscription base plan을 Billing `PREMIUM_1D/3D/7D/14D/30D`에 exact mapping한다. 실제 provider ID·판매 국가·가격과 5개 기간 Console 지원은 출시 준비에서 확인하며 임의 consumable fallback은 금지한다.
+- account binding: Billing 발급 lowercase UUID v4 `purchaseAccountRefId`를 Apple `appAccountToken`과 Google obfuscated account identifier에 사용하고 current canonical user와 내부 매핑한다. phone/email/device/raw userId는 Store 결속 값으로 사용하지 않는다.
+- 검증·복원: server-verified product/account/purchase만 entitlement를 만들고 provider transaction/event unique로 중복을 수렴한다. Billing 원장 조회, client Store purchase query, server notification과 reconciliation을 복원 경로로 사용하며 phone rejoin은 유료 권리 이전 증거가 아니다.
+- supersede: 2026-08-24 credit/3일 pass C9-A와 C10 credit 만료는 역사적 초안으로 표시했다. public API/auth·lifecycle·환불·notification·reconciliation은 아직 승인하지 않았다.
+- 변경 파일: `docs/codex/CONTRACT_DECISIONS.md`, `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 문서 계약 변경이므로 Gradle 테스트는 실행하지 않았고 `git diff --check`와 계약 문구 충돌 검색을 수행한다.
+- 유지한 계약: 무료권 phone dedupe/3년 보존, 무료권 보존, Store 원문·credential·개인정보 비로깅, server verification·provider unique 불변식을 유지한다.
+- 예상 밖 변경: 없음. 애플리케이션·Identity·Learning Core·Store Console·AWS·Jira·Git 이력은 변경하지 않았다.
+- 다음 작업: 5번 앱→Billing public API와 사용자 JWT audience 선택지를 확정한다.
+
+## 2026-09-05 — 기간제 무제한 결제 권장안 전체 승인·계약 정리
+
+<!-- codex-turn:approve-fixed-term-payment-contract -->
+
+- 날짜·브랜치: 2026-09-05, Billing `develop`. 결제 Jira는 아직 생성하지 않았고 Jira·Store Console·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: 사용자가 승인한 1·3·7·14·30일 고정 기간 무제한 상품과 C1-A/C2-A/C9-S1~S6 권장안을 결제 단일 기준으로 정리한다.
+- 제품 결정: Apple Non-Renewing Subscription, Google prepaid subscription/base plan을 `PREMIUM_1D/3D/7D/14D/30D`에 매핑한다. 자동 갱신과 credit 차감은 사용하지 않고 각 권리는 UTC 24·72·168·336·720시간의 `SubscriptionEntitlement`를 만든다.
+- 사용자·인증 결정: Billing 발급 lowercase UUID v4 `purchaseAccountRefId`로 Store purchase와 canonical user를 연결한다. 앱은 Billing public API를 직접 호출하고 Identity JWT에 `tosunsaeng-billing` audience와 `billing:read`·`billing:purchase` scope를 추가한다.
+- lifecycle 결정: verified provider start를 기준으로 기간을 시작하고 active/scheduled timeline이 있으면 뒤에 이어 붙인다. ACTIVE paid를 무료권보다 먼저 사용하며 TrialClaim·무료 Grant·unit은 변경하지 않는다.
+- 환불·복구 결정: verified refund/revoke는 append-only reversal과 신규 INITIAL 차단으로 반영하고 confirmed AttemptGroup은 완료시킨다. client sync, Apple Notification V2, Google RTDN·backend acknowledge와 periodic reconciliation은 provider transaction/event unique로 하나의 결과에 수렴한다.
+- 변경 파일: `AGENTS.md`, `docs/codex/CONTRACT_DECISIONS.md`, `docs/contracts/FIXED_TERM_PREMIUM_PAYMENT_CONTRACT.md`, `docs/contracts/BILLING_SERVICE_INTEGRATION_CONTRACT.md`, `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 애플리케이션 코드 변경이 없는 계약 문서 작업이므로 Gradle 테스트는 실행하지 않았다. `git diff --check`, 계약 충돌 검색과 변경 범위 확인을 수행한다.
+- 유지한 계약: 무료권 phone dedupe·3년 보존, paid-first/free-preserve, server verification, provider unique, append-only 원장, raw Store 원문·credential·개인정보 비로깅, phone proof 유료권 이전 금지를 유지한다.
+- 미확정·위험: 실제 Store product/basePlan ID·가격·판매 국가·기간 지원/review, exact public API DTO와 Mongo index, payment 법정 보존기간, reconciliation 주기·lookback·batch·quota는 ADR 또는 출시 준비에서 정해야 한다.
+- 예상 밖 변경: 없음. 애플리케이션 코드, Identity·Learning Core, provider 설정과 배포 파일은 변경하지 않았다.
+- 다음 작업: 결제 ADR에서 public API·Mongo·provider adapter·보존·운영 계약을 고정하고 이를 vertical slice 구현 계획과 Jira 완료 조건으로 나눈다.
+
+## 2026-09-05 — Store 식별자와 Billing 사용자 연결 역할 설명
+
+<!-- codex-turn:explain-store-account-binding-boundary -->
+
+- 날짜·브랜치: 2026-09-05, Billing `develop`. Jira·Store Console·Git 이력은 변경하지 않았다.
+- 작업 목표: Store 값으로 유료 권리 owner를 직접 연결하지 않고 Billing 발급 `purchaseAccountRefId`를 사용하는 이유를 설명한다.
+- 정리: product/basePlan ID는 상품 판정, provider transaction ID/purchase token은 구매 검증과 중복 방지에 사용한다. Store 계정은 토선생 사용자와 1:1이 아니므로 entitlement owner의 진실 공급원으로 사용하지 않는다.
+- 연결 계약: 인증된 토선생 사용자에게 발급한 opaque UUID를 Apple `appAccountToken`과 Google obfuscated account identifier로 전달하고, 서버 검증 시 exact match해야 권리를 연결한다. 같은 Store 계정·기기·phone만으로 owner를 이전하지 않는다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 설명 문서만 변경했으므로 Gradle 테스트는 실행하지 않았고 `git diff --check`로 형식을 확인한다.
+- 유지한 계약: Store server verification, provider transaction unique, 개인정보 최소화와 phone rejoin 유료권 이전 금지를 유지한다.
+- 위험·미확인: provider별 exact account-reference validation field와 복원 오류 계약은 결제 ADR에서 고정해야 한다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 서비스는 변경하지 않았다.
+- 다음 작업: 결제 ADR에서 product evidence, transaction identity와 entitlement owner binding을 서로 다른 필드·index·오류 계약으로 설계한다.
+
+## 2026-09-05 — Apple 결제 계정과 토선생 로그인 계정 구분 보정
+
+<!-- codex-turn:clarify-apple-store-account-vs-app-account -->
+
+- 날짜·브랜치: 2026-09-05, Billing `develop`. Jira·Store·Git 이력은 변경하지 않았다.
+- 작업 목표: 같은 Apple 계정이면 같은 토선생 계정으로 로그인되는지와 가족 계정 공유가 account binding의 핵심 문제인지 정확히 구분한다.
+- 결론: 토선생이 Sign in with Apple 하나만을 유일한 계정키로 강제한다면 같은 Apple 로그인은 보통 같은 토선생 계정으로 수렴할 수 있다. 그러나 현재 토선생 Identity/phone lifecycle과 App Store Media & Purchases 계정은 별도 인증 context이므로 이를 일반 전제로 사용할 수 없다.
+- 핵심 근거: Apple ID 자체를 결제 owner 식별자로 받는 것이 아니라 개발자가 `appAccountToken`으로 앱 계정 context를 transaction에 넣는다. 가족 공유는 가능한 오귀속 사례 중 하나이며 설계의 주된 근거는 provider 계정과 app 계정의 분리다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 설명 기록만 변경했으므로 Gradle 테스트는 실행하지 않았고 `git diff --check`만 수행한다.
+- 유지한 계약: `purchaseAccountRefId` exact match, provider transaction 검증과 phone rejoin 유료권 이전 금지를 유지한다.
+- 위험·미확인: 실제 앱 로그인 제공자 구성과 Sign in with Apple account-linking 정책은 Identity/API ADR에서 확인해야 한다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 시스템은 변경하지 않았다.
+- 다음 작업: 결제 ADR에서 인증된 Billing user, Store transaction과 `purchaseAccountRefId`의 생성·회전·merge 규칙을 구체화한다.
+
+## 2026-09-05 — 결제 ADR 작성 전 필수 결정사항 조사
+
+<!-- codex-turn:payment-adr-required-decisions-audit -->
+
+- 날짜·브랜치: 2026-09-05, Billing `develop`. Jira·외부 인프라·Git 이력은 변경하지 않았다.
+- 작업 목표: 승인된 fixed-term 결제 계약을 exact ADR·구현 계획으로 만들기 전에 사용자가 직접 확정해야 할 제품·비용·보존 정책을 현재 Billing·Identity 구현과 대조한다.
+- 확인 사실: Billing은 internal Lattice-only 단일 SecurityFilterChain과 Mongo schema v4 exact initializer를 사용하고 public ingress/JWT verifier/payment aggregate는 아직 없다. Identity Access Token은 현재 audience 단일 문자열과 공통 default scope를 사용하며 Guest와 MEMBER 모두 같은 issuer 경로에서 발급된다.
+- 필수 결정: public ingress, Guest 구매 허용, account reference 수명, stacked timeline 환불 재배치, payment 법정·운영 보존기간이다. 실제 Store ID·가격·판매 국가는 ADR 설정 slot만 정의하고 출시 준비 때 입력할 수 있다.
+- 권장안: 기존 public ALB에 Billing 전용 host/path allowlist와 별도 target group을 추가하고 internal은 Lattice로 유지한다. 구매는 ACTIVE MEMBER만, `purchaseAccountRefId`는 환경별 사용자당 stable UUID, 환불된 entitlement slot은 제거하고 후속 verified 기간을 즉시 앞으로 당기며 정규화 결제·ledger는 5년 보존한다.
+- 운영 기본값 제안: PENDING/unacknowledged는 5분, ACTIVE/SCHEDULED는 6시간, 최근 terminal은 일 1회 bounded batch로 reconciliation하고 실제 quota 측정 뒤 설정값으로 조정한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 조사·문서 기록만 수행했으므로 Gradle 테스트는 실행하지 않았다. 최종 문서 형식은 `git diff --check`로 확인한다.
+- 유지한 계약: fixed-term paid-first/free-preserve, Store server verification, internal Lattice SigV4와 public JWT 경계, phone rejoin 유료권 이전 금지를 유지한다.
+- 위험·미확인: 현재 ALB의 listener/certificate/host ownership과 실제 public domain, Store quota, 국내 전자상거래 보존 의무의 최종 법률 검토는 운영 입력으로 남는다.
+- 예상 밖 변경: 없음. 애플리케이션, Identity 코드와 AWS 리소스는 변경하지 않았다.
+- 다음 작업: 사용자가 다섯 권장안을 확정하면 payment ADR과 vertical-slice PLAN을 작성하고 exact API DTO·Mongo schema/index·오류·배포 순서를 고정한다.
+
+## 2026-09-05 — Fixed-term premium 전체 계약 사용자 설명
+
+<!-- codex-turn:explain-fixed-term-payment-contract -->
+
+- 날짜·브랜치: 2026-09-05, Billing `develop`. Jira·Store Console·Git 이력은 변경하지 않았다.
+- 작업 목표: 사용자가 첨부한 fixed-term premium 계약을 제품 흐름, 객체 역할, 상태 전이, 환불·복구와 미확정 구현값으로 나눠 이해하기 쉽게 설명한다.
+- 핵심 해석: Store 구매를 Billing이 검증·원자 저장한 뒤 `SubscriptionEntitlement` 기간 동안 횟수 차감 없이 시험 시작을 승인하고, ACTIVE paid를 우선 사용해 무료 1회권을 보존한다. 무제한은 동시 시험 제약을 없애는 의미가 아니다.
+- 객체 구분: BenefitDefinition/offer는 상품 규칙, Purchase는 결제 증거, SubscriptionEntitlement는 기간 권리, ledger는 변경 감사, Reservation은 시험 시작 승인, AttemptGroup은 한 사용 건과 승인된 재응시 묶음이다.
+- 장애·환불 해석: client sync, provider notification과 reconciliation은 같은 provider transaction으로 수렴한다. refund/revoke는 기록을 삭제하지 않고 reversal을 추가해 신규 시험만 차단하며 이미 confirm된 시험은 정합성을 위해 완료한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 설명 기록만 변경했으므로 Gradle 테스트는 실행하지 않았고 `git diff --check`만 수행한다.
+- 유지한 계약: server verification, provider unique, paid-first/free-preserve, append-only ledger와 기존 AttemptGroup 정합성을 유지한다.
+- 위험·미확인: Store ID·가격·판매 국가·기간 지원, exact API/Mongo, 법정 보존기간과 reconciliation 운영값은 아직 ADR·출시 입력으로 남아 있다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 서비스는 변경하지 않았다.
+- 다음 작업: 사용자가 계약을 이해·승인한 상태에서 payment ADR과 vertical slice 구현 계획을 작성한다.
+
+## 2026-09-05 — 결제 식별자 세 가지 역할의 쉬운 설명
+
+<!-- codex-turn:explain-payment-identifiers-simply -->
+
+- 날짜·브랜치: 2026-09-05, Billing `develop`. Jira·외부 시스템·Git 이력은 변경하지 않았다.
+- 작업 목표: `productId/basePlanId`, `transactionId/purchaseToken`, `purchaseAccountRefId`의 차이를 비기술적인 표현으로 설명한다.
+- 정리: 각각 상품표, 영수증 번호, 받는 토선생 회원 번호에 대응하며 세 값이 함께 있어야 상품 종류·중복 결제 반영·권리 소유자를 독립적으로 검증할 수 있다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 설명 기록만 변경했으므로 Gradle 테스트는 실행하지 않았고 `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: Store 서버 검증, provider transaction unique와 opaque account binding을 유지한다.
+- 위험·미확인: 없음. exact wire field와 index는 결제 ADR에서 확정한다.
+- 예상 밖 변경: 없음. 애플리케이션 코드는 변경하지 않았다.
+- 다음 작업: 결제 ADR에서 세 식별자의 source of truth, 저장 형태와 unique index를 고정한다.
+
+## 2026-09-05 — 결제 ADR 필수 결정사항 최종 정리
+
+<!-- codex-turn:payment-adr-required-decisions-final -->
+
+- 날짜·브랜치: 2026-09-05, Billing `develop`. Jira·AWS·Store·Git 이력은 변경하지 않았다.
+- 작업 목표: payment ADR과 PLAN 생성 직전에 사용자 승인이 필요한 사항을 최종 정리한다.
+- 확인 결과: 제품 기간·Store 유형·paid-first/free-preserve·기본 환불·notification 정책은 승인 완료됐다. 남은 사용자 결정은 public ingress, Guest 구매 여부, account reference 수명, stacked refund timeline, payment 보존기간이며 reconciliation 수치는 운영 기본값으로 승인 가능하다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 코드 변경이 없는 조사 작업이라 Gradle 테스트는 실행하지 않았고 `git diff --check`가 성공했다.
+- 유지한 계약: internal Lattice, public JWT, provider 검증·멱등성, 무료권 보존과 개인정보 최소화를 유지한다.
+- 위험·미확인: 기존 ALB의 정확한 공유 가능 여부와 도메인/certificate, Store quota와 보존기간의 최종 법률 검토는 배포 입력으로 확인해야 한다.
+- 예상 밖 변경: 없음. Billing·Identity 애플리케이션 코드는 변경하지 않았다.
+- 다음 작업: 사용자 승인 후 ADR과 vertical-slice PLAN을 작성한다.
+
+## 2026-09-06 — 환불 뒤 진행 중 시험 이탈·replacement 정책 설명
+
+<!-- codex-turn:refund-inflight-attempt-replacement-policy -->
+
+- 날짜·브랜치: 2026-09-06, Billing `develop`. Jira·Store·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: 환불 뒤 이미 진행 중이던 시험에서 사용자가 나갔을 때 replacement와 새 INITIAL 시험의 허용 경계를 설명한다.
+- 결정 해석: 환불 전 confirm된 AttemptGroup은 완료와 같은 group/mock의 새 replacement Session까지 허용한다. group 완료 뒤 신규 INITIAL은 revoked paid로 승인하지 않고 미사용 무료권이 있으면 무료로, 없으면 402로 거절한다.
+- 추가 발견: refund가 reserve와 Session commit/confirm 사이에 도착하는 race의 선형화 지점은 기존 계약에 충분히 고정되지 않았다. reserve commit 전후를 경계로 하고 기존 Reservation은 5분 내 confirm/cancel/expiry 수렴, 이후 신규 reserve 차단을 권장한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 분석·설명 기록만 변경했으므로 Gradle 테스트는 실행하지 않았고 `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: 기존 AttemptGroup 정합성, replacement 무추가차감, paid refund 뒤 신규 사용 차단과 무료권 보존을 유지한다.
+- 위험·미확인: refund/reserve/confirm 동시성의 exact CAS·event ordering과 committed Session 판정은 payment ADR에서 확정해야 한다.
+- 예상 밖 변경: 없음. 애플리케이션 코드는 변경하지 않았다.
+- 다음 작업: payment ADR에서 reserve commit을 authorization 선형화 지점으로 확정할지 사용자 승인을 받은 뒤 상태 전이와 회귀 테스트를 설계한다.
+
+## 2026-09-06 — 환불 뒤 replacement 허용의 악용 위험 재검토
+
+<!-- codex-turn:refund-after-start-abuse-policy-review -->
+
+- 날짜·브랜치: 2026-09-06, Billing `develop`. Jira·Store·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: 시험 Session 생성 뒤 환불받고 같은 AttemptGroup replacement로 사실상 무료 응시할 수 있는지 검토한다.
+- 확인 결과: 기존 "confirm된 AttemptGroup은 replacement까지 허용" 문구는 실제 악용 경로를 만든다. provider-confirmed refund 뒤 신규 INITIAL만 막는 것으로는 이미 발급된 Learning Core Session과 replacement를 차단할 수 없다.
+- 권장 정책: refund 확정 시 OPEN/RETAKE_AVAILABLE 진행과 replacement를 차단하고 GRADING만 terminal 수렴, COMPLETED history는 보존한다. 환불 요청 자체는 신뢰하지 않고 provider 검증 뒤 적용하며 무료권은 자동 소비·복원하지 않는다.
+- 필요한 계약: Billing refund 상태를 Learning Core에 durable하게 투영해 답안 제출·채점·replacement를 fail-closed해야 한다. provider 승인 전에 완료된 디지털 서비스는 회수할 수 없으므로 지원 가능한 Store consumption evidence와 반복 refund-after-use 운영 탐지가 필요하다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 분석·정책 검토 기록만 변경했으므로 Gradle 테스트는 실행하지 않았고 `git diff --check`로 형식을 확인한다.
+- 유지한 계약: Store 최종 상태를 환불 source of truth로 사용하고 append-only reversal, 무료권 보존, 완료 history 비삭제를 유지한다.
+- 위험·미확인: Apple/Google별 consumption/void evidence API의 exact contract와 Learning Core revoke event wire, refund-reserve-submit 동시성은 ADR에서 확정해야 한다.
+- 예상 밖 변경: 없음. 애플리케이션 코드는 변경하지 않았다.
+- 다음 작업: 사용자가 상태별 strict revoke 권장안을 승인하면 기존 C9-S3·fixed-term 요약을 보정하고 ADR의 refund state table과 cross-service 차단 계약을 작성한다.
+
+## 2026-09-06 — Fixed-term premium 권장안 전체 최종 확정
+
+<!-- codex-turn:finalize-fixed-term-payment-decisions -->
+
+- 날짜·브랜치: 2026-09-06, Billing `develop`. 결제 Jira는 아직 생성하지 않았고 AWS·Store·Git 이력은 변경하지 않았다.
+- 작업 목표: 공개 ingress, 구매 자격, account reference, stacked refund timeline, 보존, reconciliation과 refund abuse 보정을 지금까지 논의한 결제 최종 계약으로 통합한다.
+- 확정 인프라·인증: 기존 public ALB에 Billing 전용 host/path allowlist와 별도 target group을 사용하고 internal은 Lattice-only로 유지한다. Guest는 `billing:read`, ACTIVE MEMBER만 `billing:purchase`를 받는다.
+- 확정 소유·timeline: 사용자·환경별 stable lowercase UUID v4 `purchaseAccountRefId`를 사용한다. 중간 refund/revoke slot은 제거하고 후속 VERIFIED entitlement를 기존 sequence·duration대로 즉시 앞으로 재배치하며 모든 조정을 ledger에 남긴다.
+- 확정 refund: provider 최종 검증 뒤 RESERVED를 종료하고 OPEN·RETAKE_AVAILABLE의 진행과 replacement를 차단한다. GRADING만 terminal 수렴시키고 COMPLETED history는 보존한다. Billing→Learning Core durable access-revocation이 실제 답안·제출·채점 차단을 담당한다.
+- 확정 보존·운영: 정규화 payment/ledger 5년, event inbox 120일, backup 35일이다. reconciliation은 PENDING/unacknowledged 5분, ACTIVE/SCHEDULED 6시간, 최근 90일 terminal 일 1회와 기본 100건 batch다.
+- 변경 파일: `AGENTS.md`, `docs/codex/CONTRACT_DECISIONS.md`, `docs/contracts/FIXED_TERM_PREMIUM_PAYMENT_CONTRACT.md`, `docs/contracts/BILLING_SERVICE_INTEGRATION_CONTRACT.md`, `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 애플리케이션 코드 변경이 없는 계약 문서 정합화 작업이므로 Gradle 테스트는 실행하지 않았다. `git diff --check`와 계약 충돌 검색을 수행한다.
+- 유지한 계약: 1·3·7·14·30일 fixed-term, Store server verification, paid-first/free-preserve, append-only 원장, raw Store payload 비저장과 phone rejoin 유료권 이전 금지를 유지한다.
+- 위험·미확인: 실제 ALB listener/certificate/SG, Store ID·가격·판매국가·기간 지원, exact revoke event/API DTO/Mongo index와 관할 법령의 5년 초과 의무는 ADR·출시 gate에서 확인해야 한다.
+- 예상 밖 변경: 없음. Billing·Identity·Learning Core 애플리케이션과 외부 시스템은 변경하지 않았다.
+- 다음 작업: ADR-004에서 exact public API·Mongo schema/index·provider adapter·refund event wire와 배포 migration을 고정하고 PLAN-007에서 vertical slice와 테스트 gate를 나눈다.
+
+## 2026-09-06 — 결제 외부 신청·Console 준비사항 정리
+
+<!-- codex-turn:payment-external-enrollment-checklist -->
+
+- 날짜·브랜치: 2026-09-06, Billing `develop`. Jira·Apple/Google/AWS Console·Git 이력은 변경하지 않았다.
+- 작업 목표: Store product/basePlan ID처럼 사용자가 외부 권한으로 신청·생성·승인해야 하는 항목과 코드가 자동 처리하는 값을 구분한다.
+- Apple 준비: Developer/App Store Connect 권한, 유료 앱 계약·세금·은행, app/bundle, Non-Renewing Subscription 5개와 가격·국가·metadata, IAP server key, Notification V2 URL과 sandbox tester가 필요하다.
+- Google 준비: Play developer·merchant profile, app/package, subscription+prepaid base plan 5개, 가격·국가, Android Publisher API service account 최소 권한, RTDN Pub/Sub와 license tester/internal track이 필요하다.
+- AWS·보안 준비: public DNS/ACM/ALB rule·target group·SG, provider callback과 환경별 Secrets Manager 등록이 필요하다. 실제 private key·credential은 문서·채팅·Jira·Git에 기록하지 않는다.
+- 구분: `purchaseAccountRefId`는 Billing, transaction ID/purchase token은 Store가 자동 발급한다. JWT audience/scope, API/Mongo/refund event는 개발 범위이고 product ID·가격·판매 국가·계약/review 정보는 사용자 또는 Console 권한자의 외부 작업이다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 외부 준비사항 분석과 문서 기록만 수행했으므로 Gradle 테스트는 실행하지 않았고 `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: fixed-term 5개 상품, 환경 분리, Secret 비저장, ACTIVE MEMBER purchase와 provider server verification을 유지한다.
+- 위험·미확인: 현재 Apple/Google 유료 계약·merchant profile·app record·Cloud project·기존 ALB/certificate 준비 여부는 실제 Console inventory 전까지 미확인이다.
+- 예상 밖 변경: 없음. 애플리케이션과 외부 리소스는 변경하지 않았다.
+- 다음 작업: ADR-004에서 product/basePlan naming slot과 external prerequisite gate를 고정한 뒤 사용자가 sandbox Console 값을 준비한다.
+
+## 2026-09-07 — Apple 결제 외부 준비 착수
+
+<!-- codex-turn:apple-payment-external-setup-start -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. Apple Console·Jira·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: fixed-term premium 결제의 외부 준비를 Apple부터 진행하기 위한 선행 조건과 순서를 확정한다.
+- 확인 결과: 저장소에는 Apple Developer Program, App Store Connect 앱, Paid Applications Agreement·세금·은행 정보의 실제 완료 상태가 기록되어 있지 않다. 따라서 product ID 생성 전에 이 세 상태를 먼저 확인해야 한다.
+- 진행 순서: 계정·계약 확인 → Non-Renewing Subscription의 실제 1·3·7·14·30일 지원 여부 확인 → ADR-004 naming/mapping 확정 → product/가격/국가/metadata 생성 → server key·Notification V2·sandbox tester 구성 순서다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 애플리케이션 코드 변경이 없는 준비사항 기록이므로 Gradle 테스트는 실행하지 않았다. `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: Apple Non-Renewing Subscription 우선안, Store server verification, 실제 credential 비저장, ACTIVE MEMBER purchase와 다섯 내부 offer를 유지한다.
+- 위험·미확인: Apple Console이 다섯 exact 기간을 모두 지원하는지와 계정·계약·app record의 현재 상태가 미확인이다. 미지원 기간이 있으면 product ID 생성 전에 Store mapping을 재검토해야 한다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 Apple 리소스는 변경하지 않았다.
+- 다음 작업: 사용자에게 기존 Apple Developer Program 및 App Store Connect 앱 등록 여부를 확인받고 Console 선행 조건부터 점검한다.
+
+## 2026-09-07 — 기존 App Store 배포로 Apple 선행 조건 일부 확인
+
+<!-- codex-turn:apple-existing-app-readiness -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. Apple Console·Jira·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: 기존 App Store 배포가 결제 준비 항목 중 무엇을 충족하는지 구분한다.
+- 확인 결과: 이미 App Store에 배포된 앱이면 Developer Program과 App Store Connect app/bundle record는 존재한다고 볼 수 있다. 그러나 무료 앱 배포만으로 Paid Applications Agreement, 세금과 은행 정보의 활성 상태까지 보장되지는 않는다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 설명·상태 기록만 변경했으므로 Gradle 테스트는 실행하지 않았고 `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: product ID 생성 전 Store 기간 지원과 naming을 확인하며 실제 credential은 저장소에 기록하지 않는다.
+- 위험·미확인: App Store Connect의 유료 앱 계약·세금·은행 상태와 Non-Renewing Subscription의 exact 기간 지원은 아직 확인되지 않았다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 Apple 외부 리소스는 변경하지 않았다.
+- 다음 작업: App Store Connect의 Agreements/Tax/Banking 상태를 확인한 뒤 상품 기간 지원을 점검한다.
+
+## 2026-09-07 — Apple 유료 계약·세금·은행 공식 절차 확인
+
+<!-- codex-turn:apple-paid-agreement-tax-banking-guide -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. Apple Console·Jira·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: 사용자가 아직 수행하지 않은 Apple Paid Apps Agreement, 세금 정보와 은행 정보 등록 방법을 Apple 공식 안내 기준으로 정리한다.
+- 확인 결과: Paid Apps Agreement는 Account Holder만 `Business > Agreements`에서 동의할 수 있고 동의 후 취소할 수 없다. 세금·은행 정보는 Account Holder/Admin/Finance가 입력할 수 있으나 은행 변경은 Account Holder 승인이 필요할 수 있다.
+- 한국 세금 입력: 모든 개발자에게 미국 세금 양식이 필요하고 미국 외 계정에는 W-8 계열 질문 흐름이 제시된다. 한국 기반 개발자는 사업자등록번호+최근 90일 이내 영문 사업자등록증명 또는 비영리 고유번호+최근 90일 이내 영문 증명이 추가 요구된다.
+- 은행 입력: Paid Apps Agreement와 필수 tax form 제출이 선행되며 법적 주체와 동일한 계좌의 국가/은행 식별정보/계좌번호/통화/명의자 정보를 등록한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 외부 절차 조사와 문서 기록만 수행했으므로 Gradle 테스트는 실행하지 않았고 `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: 실제 금융·세금·credential 정보는 채팅·Jira·Git에 남기지 않고 사용자가 App Store Connect에 직접 입력한다.
+- 위험·미확인: Apple 계정의 법적 주체가 개인/법인 중 무엇인지, 사업자등록번호와 영문 증명 보유 여부, 실제 Console의 현재 계약 상태는 확인되지 않았다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 Apple 리소스는 변경하지 않았다.
+- 다음 작업: 사용자가 Account Holder 권한과 한국 사업자 서류 준비 여부를 확인한 뒤 Paid Apps Agreement를 직접 검토·동의한다.
+
+## 2026-09-07 — App Store Connect Agreements 메뉴 미노출 안내
+
+<!-- codex-turn:apple-agreements-menu-troubleshooting -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. Apple Console·Jira·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: App Store Connect에서 Agreements 메뉴가 보이지 않는 상황의 경로와 우선 확인사항을 설명한다.
+- 확인 결과: Paid Apps Agreement는 `Business > Agreements`에 위치한다. 메뉴 미노출 시 현재 계정 role과 선택된 developer team을 먼저 확인하며 계약 체결은 Account Holder만 가능하다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 설명·기록만 변경했으므로 Gradle 테스트는 실행하지 않았고 `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: 상품 생성 전 Paid Apps Agreement·tax·banking 준비와 credential 비저장을 유지한다.
+- 위험·미확인: 사용자가 현재 보고 있는 App Store Connect 화면, 계정 role과 선택된 팀은 아직 확인되지 않았다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 Apple 외부 리소스는 변경하지 않았다.
+- 다음 작업: 화면에 `Business`가 있는지, 현재 계정 role이 Account Holder인지 확인한다.
+
+## 2026-09-07 — Apple 한국어 계약 메뉴명 확인
+
+<!-- codex-turn:apple-korean-agreement-labels -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. Apple Console·Jira·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: 한국어 App Store Connect를 사용하는 사용자에게 영문 `Agreements`의 실제 한국어 메뉴명을 안내한다.
+- 확인 결과: Apple 한국어 공식 도움말의 경로는 `비즈니스 > 계약 > 유료 앱 > 약관 보기 및 동의하기`이며 마지막에 `동의`를 선택한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 공식 도움말 확인과 문서 기록만 수행했으므로 Gradle 테스트는 실행하지 않았고 `git diff --check`로 형식을 확인한다.
+- 유지한 계약: 계약 동의는 계정 소유자가 직접 검토하며 실제 계정·세금·은행 정보는 저장소나 채팅에 기록하지 않는다.
+- 위험·미확인: 실제 사용자 화면에서 `계약` 탭과 `유료 앱` 행이 노출되는지는 아직 확인되지 않았다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 Apple 외부 리소스는 변경하지 않았다.
+- 다음 작업: 사용자가 `계약` 탭에서 `유료 앱` 행의 상태를 확인한다.
+
+## 2026-09-07 — Apple 이름 확인 문서 안내
+
+<!-- codex-turn:apple-legal-name-verification-document -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. Apple Console·Jira·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: Paid Apps 진행 중 표시된 한국어 `이름 확인 문서` 요구의 의미와 안전한 제출 기준을 설명한다.
+- 확인 결과: 이는 Apple 계정의 법적 이름과 공식 문서의 이름을 확인하는 단계다. 개인사업자는 사업자등록증/사업자등록증명, 법인은 사업자등록증명 또는 법인등기사항증명서처럼 법적 이름과 발급기관이 명확한 최신 문서를 우선한다.
+- 언어 구분: 이 업로드에서 `문서 언어: 한국어`를 선택했다면 한국어 원문을 제출한다. 이후 한국 tax form이 요구하는 최근 90일 이내 영문 사업자등록증명은 별도 요구사항이다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 공식 Apple 조직 확인 안내 검토와 기록만 수행했으므로 Gradle 테스트는 실행하지 않았고 `git diff --check`로 형식을 확인한다.
+- 유지한 계약: 세금·사업자·계정 문서는 채팅·Jira·Git에 올리지 않고 Apple 화면에 사용자가 직접 제출한다.
+- 위험·미확인: 현재 Apple 계정이 개인/개인사업자/법인 중 무엇인지와 화면에 표시된 확인 대상 이름이 확인되지 않아 한 문서를 단정할 수 없다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 Apple 외부 리소스는 변경하지 않았다.
+- 다음 작업: 화면의 확인 대상 이름과 계정 유형을 기준으로 업로드할 문서를 선택한다.
+
+## 2026-09-07 — Apple 주소 확인 문서 안내
+
+<!-- codex-turn:apple-legal-address-verification-document -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. Apple Console·Jira·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: Paid Apps 법적 주체 확인 중 표시된 `주소 확인 문서`의 선택과 일치 조건을 설명한다.
+- 확인 결과: 현재 사업장/본점 주소가 정확히 적힌 사업자등록증·사업자등록증명 또는 법인등기사항증명서를 사용한다. 이름 확인에 쓴 문서가 주소까지 포함하고 입력값과 일치하면 동일 문서를 다시 사용할 수 있다.
+- 불일치 처리: 문서 파일을 수정하지 않고 Apple 입력 주소를 공식 문서 표기와 맞추거나 사업자/법인 주소 변경을 먼저 처리한다. 이전 주소 문서와 임의 가림·편집본은 사용하지 않는다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 외부 서류 안내와 기록만 변경했으므로 Gradle 테스트는 실행하지 않았고 `git diff --check`로 형식을 확인한다.
+- 유지한 계약: 개인·사업자 문서는 채팅·Jira·Git에 올리지 않고 Apple 검증 화면에 사용자가 직접 제출한다.
+- 위험·미확인: 사용자가 Apple에 입력한 주소와 공식 문서 주소가 실제로 일치하는지는 확인하지 않았다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 Apple 외부 리소스는 변경하지 않았다.
+- 다음 작업: 입력 주소와 제출 문서의 전체 주소를 대조한 뒤 사용자가 직접 업로드한다.
+
+## 2026-09-07 — Apple 디지털 서비스법 심사 대기 확인
+
+<!-- codex-turn:apple-dsa-compliance-review-pending -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. Apple Console·Jira·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: Apple Business 규정 준수의 디지털 서비스법 상태가 `심사 중`일 때 필요한 후속 조치를 설명한다.
+- 확인 결과: 27개 국가/지역 대상 정보가 2026-09-07에 갱신되고 `심사 중`이므로 제출은 완료됐으며 Apple 검토를 기다리는 단계다. 추가 요청 전에는 재제출하지 않는다.
+- 운영 확인: Account Holder 이메일과 Business 규정 준수 화면에서 `조치 필요`, 추가 문서 요청 또는 거절 상태로 바뀌는지만 확인한다. 다른 tax/banking 메뉴가 열려 있다면 민감정보는 사용자가 직접 입력해 병행할 수 있다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 외부 상태 해석과 기록만 변경했으므로 Gradle 테스트는 실행하지 않았고 `git diff --check`로 형식을 확인한다.
+- 유지한 계약: Apple 외부 심사를 코드 완료로 간주하지 않고 product 생성 전제와 별도 gate로 관리한다.
+- 위험·미확인: Apple의 실제 승인 시점과 추가 자료 요청 여부는 통제할 수 없다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 Apple 외부 리소스는 변경하지 않았다.
+- 다음 작업: DSA 심사와 병행해 Paid Apps의 tax/banking 입력 가능 여부를 확인하고, 승인 후 상품 기간 지원을 점검한다.
+
+## 2026-09-07 — Google 출시 심사 중 결제 준비 병행 범위 확인
+
+<!-- codex-turn:google-payment-setup-during-app-review -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. Google Console·Jira·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: Google 앱이 최종 출시 심사 중인 상태에서 결제 준비를 미리 진행할 수 있는지 구분한다.
+- 확인 결과: 앱 release 심사와 별개로 merchant/payment profile, Cloud project/API/service account, RTDN Pub/Sub, license tester와 internal test 준비를 병행할 수 있다. 실제 production 판매는 앱 승인, 결제 프로필 검증과 상품 활성 상태가 모두 충족돼야 한다.
+- ID 생성 gate: `subscriptionId/basePlanId`는 naming과 1·3·7·14·30일 prepaid 지원 여부를 ADR-004/Play Console에서 확인한 뒤 생성하며 현재 임의 생성하지 않는다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 외부 준비 범위 설명과 문서 기록만 수행했으므로 Gradle 테스트는 실행하지 않았고 `git diff --check`로 형식을 확인한다.
+- 유지한 계약: Google prepaid subscription 우선안, provider server verification, 실제 credential 비저장과 production gate를 유지한다.
+- 위험·미확인: 사용자가 말한 최종 심사가 앱 release review인지 개발자/merchant verification인지, 현재 payment profile과 Play Billing artifact 준비 상태는 확인되지 않았다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 Google 외부 리소스는 변경하지 않았다.
+- 다음 작업: Google 심사 유형을 확인하고 Play Console의 수익 창출 설정에서 결제 프로필 상태와 prepaid 기간 선택지를 점검한다.
+
+## 2026-09-07 — Google prepaid 기간 제약 확인과 상품 생성 보류
+
+<!-- codex-turn:google-prepaid-duration-contract-gap -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. Google Console·Jira·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: Google 결제 설정 경로와 fixed-term 다섯 기간의 실제 prepaid 지원 여부를 공식 한국어 문서로 확인한다.
+- 확인 결과: Google 선불 기본 요금제는 1일, 3일, 1주, 4주, 1개월, 2/3/4/6/8개월, 1년을 제공하며 2주/14일은 없다. 1개월도 고정 720시간인 내부 30일과 expiry 의미가 다를 수 있다.
+- 계약 영향: `PREMIUM_14D` exact mapping이 불가능해졌고 `PREMIUM_30D`도 의미 확인이 필요하다. 승인된 자동 fallback 금지에 따라 subscription/basePlan ID 생성과 ADR-004 확정을 재승인 전까지 보류한다.
+- 계속 가능한 준비: `설정 > 결제 프로필` 등록, Cloud project/API/service account, RTDN Pub/Sub, license tester와 internal test 기반 준비는 병행 가능하다.
+- 변경 파일: `docs/contracts/FIXED_TERM_PREMIUM_PAYMENT_CONTRACT.md`, `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 공식 Store 문서 조사와 계약 위험 기록만 수행했으므로 Gradle 테스트는 실행하지 않았고 `git diff --check`로 형식을 확인한다.
+- 유지한 계약: provider ID 불변성, Store 서버 검증, 자동 fallback 금지, actual credential 비저장과 ACTIVE MEMBER 구매를 유지한다.
+- 위험·미확인: Google 14일 처리 방식과 30일을 달력 1개월로 바꿀지 여부가 미확정이며 Apple exact 기간 전략과 함께 교차 Store 재검토가 필요하다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 Google 리소스는 변경하지 않았다.
+- 다음 작업: 결제 프로필 준비를 진행하면서 Google 상품 구성을 혼합 상품형/기간 변경/14일 제외 중 재승인한다.
+
+## 2026-09-07 — 과거 one-time 결정과 현재 Store 유형 재확인
+
+<!-- codex-turn:audit-one-time-vs-provider-native-payment-decision -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. Jira·Store·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: 사용자가 기억한 일회성 결제 결정과 현재 문서의 Google prepaid 계약이 왜 다른지 시간순으로 확인한다.
+- 확인 결과: 2026-08-24 C9-A에는 모든 상품을 consumable/one-time product로 매핑하는 역사적 권장안이 있었다. 2026-09-05 사용자의 단순 구독제 선호와 C9-S1 승인으로 Apple Non-Renewing Subscription·Google prepaid subscription이 이를 명시적으로 supersede했다.
+- 용어 구분: 현재 제품도 구매 건마다 한 번만 결제하고 자동 갱신되지 않지만, 이것은 결제 동작이며 Store의 `one-time product` 상품 유형과 동일한 의미가 아니다.
+- 현재 영향: Google의 14일 prepaid 미지원과 1개월/고정 30일 차이 때문에 C9-S1 재검토가 필요하다. one-time 유형을 다시 선택하려면 사용자의 새 승인을 받아 계약을 보정한다.
+- 변경 파일: `docs/contracts/FIXED_TERM_PREMIUM_PAYMENT_CONTRACT.md`, `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 계약 이력 감사와 문서 명확화만 수행했으므로 Gradle 테스트는 실행하지 않았고 `git diff --check`로 형식을 확인한다.
+- 유지한 계약: 새 승인 전 자동 fallback하지 않고 product/basePlan ID 생성을 보류하며 무료권 보존·provider 검증·멱등 원장은 유지한다.
+- 위험·미확인: 사용자가 말한 `일회성`이 사용자 과금 동작인지 Store 상품 유형인지 당시 의도는 대화 문구만으로 완전히 단정할 수 없다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 Store 리소스는 변경하지 않았다.
+- 다음 작업: Google 상품을 one-time product로 되돌릴지 사용자가 명시적으로 확정하면 C9-S1과 후속 ADR 범위를 수정한다.
+
+## 2026-09-07 — Apple·Google consumable one-time fixed-term 상품 최종 승인
+
+<!-- codex-turn:approve-both-stores-one-time-fixed-term-products -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. 결제 Jira는 아직 생성하지 않았고 Apple/Google Console·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: 사용자의 명시적 승인에 따라 Apple과 Google의 fixed-term 상품을 모두 재구매 가능한 일회성 Store 상품으로 통일하고 승인 계약을 정합화한다.
+- 확정 Store 유형: Apple은 offer별 Consumable In-App Purchase 5개, Google은 offer별 consumable one-time product 5개를 사용한다. provider subscription/basePlan과 Store expiry를 사용하지 않는다.
+- 기간·stacking: verified product ID를 Billing `PREMIUM_1D/3D/7D/14D/30D`와 exact mapping하고 Billing catalog가 24·72·168·336·720시간을 부여한다. 재구매는 기존 verified paid timeline 뒤에 이어 붙인다.
+- 완료·복원: Purchase·SubscriptionEntitlement·ledger Transaction commit 뒤 Apple client는 finish, Google backend는 consume한다. consumable Store restore를 과거 권리 source로 사용하지 않고 Billing ledger/current entitlement가 복원을 담당하며 미완료 transaction은 같은 provider key로 다시 sync한다.
+- 유지한 정책: ACTIVE MEMBER purchase, stable `purchaseAccountRefId`, provider server verification, transaction unique, paid-first/free-preserve, refund state table, timeline reflow, 5년/120일/35일 보존과 public ALB/internal Lattice 분리를 유지한다.
+- 변경 파일: `AGENTS.md`, `docs/codex/CONTRACT_DECISIONS.md`, `docs/contracts/FIXED_TERM_PREMIUM_PAYMENT_CONTRACT.md`, `docs/contracts/BILLING_SERVICE_INTEGRATION_CONTRACT.md`, `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 애플리케이션 코드가 아닌 계약 문서 변경이므로 Gradle 테스트는 실행하지 않았다. `git diff --check`와 active contract의 subscription/basePlan/acknowledge 충돌 검색을 수행한다.
+- 위험·미확인: finish/consume 완료 뒤 provider refund/revoke 조회와 notification coverage, exact product ID naming, 가격·판매 국가·review metadata와 API/Mongo schema는 ADR-004에서 고정해야 한다.
+- 예상 밖 변경: 없음. 애플리케이션 코드, Identity·Learning Core, Store Console, Jira, AWS와 Git 이력은 변경하지 않았다.
+- 다음 작업: ADR-004에서 one-time purchase sync/verify/finish/consume, provider event/reconciliation, exact public DTO와 Mongo index를 확정하고 PLAN-007을 작성한다.
+
+## 2026-09-07 — 양 Store one-time 변경 영향 설명
+
+<!-- codex-turn:explain-both-stores-one-time-change-impact -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. Jira·Store·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: Apple/Google provider-native subscription에서 consumable one-time product로 변경하며 달라진 책임과 유지되는 제품 정책을 설명한다.
+- 설명 요약: Store는 product·가격·transaction·refund 증명을 담당하고 Billing은 product ID mapping, 24·72·168·336·720시간, timeline stacking과 current entitlement 복원을 담당한다. Google basePlan/expiry/acknowledge는 product ID/카탈로그 기간/backend consume으로 대체된다.
+- 유지 범위: ACTIVE MEMBER, purchaseAccountRefId, provider verification·unique, paid-first/free-preserve, refund 상태표·timeline reflow, 보존과 ingress 계약은 변경하지 않았다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 설명 기록만 변경했으므로 Gradle 테스트는 실행하지 않았고 `git diff --check`로 형식을 확인한다.
+- 위험·미확인: consumable transaction의 notification/refund 재조회 범위와 finish/consume unknown result 수렴은 ADR-004에서 exact contract와 테스트로 고정해야 한다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 리소스는 변경하지 않았다.
+- 다음 작업: 실제 product ID 생성 전에 ADR-004에서 이름과 provider별 완료·복구 계약을 확정한다.
+
+## 2026-09-07 — RevenueCat 도입 적합성 검토
+
+<!-- codex-turn:assess-revenuecat-for-consumable-fixed-term-payments -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. Jira·Store·RevenueCat·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: Apple·Google consumable one-time fixed-term 상품에 RevenueCat을 도입할 때 줄어드는 구현과 Billing에 남는 책임을 공식 계약 기준으로 구분한다.
+- 확인 결과: RevenueCat은 Store별 구매 SDK, Offering/Paywall, webhook과 분석을 통합하지만 consumable의 지급·사용·만료는 관리하지 않는다. RevenueCat Entitlement에 consumable을 연결하면 만료 없는 unlock으로 표현되므로 24·72·168·336·720시간 권리의 authoritative source로 사용할 수 없다.
+- 계약 영향: 토선생의 product mapping, timeline stacking, 무료권 보존, Reservation, refund/revoke 차단, append-only ledger와 reconciliation은 Billing에 남는다. 표준 SDK가 transaction completion을 기본 수행하므로 현재 `Billing commit 후 finish/consume` 순서를 유지하려면 app-completed/observer 방식이 필요하고, RevenueCat 완료를 채택하려면 ADR-004에서 실패·복구 계약을 재승인해야 한다.
+- 보안·계정: 도입 시 RevenueCat App User ID에는 raw userId가 아니라 stable `purchaseAccountRefId`를 사용하고 구매 전 identified login을 강제한다. anonymous alias와 기본 restore transfer가 토선생 owner 정책을 우회하지 않도록 transfer behavior를 별도 확정해야 한다.
+- 운영: webhook HMAC/raw-body verification, event ID 멱등성, 최대 5회 retry 이후 reconciliation이 필요하다. one-time refund coverage를 위해 Store Platform Server Notifications 설정도 없어지지 않는다.
+- 비용: 2026-09-07 공개 Pro 가격은 월 tracked revenue 2,500 USD까지 무료, 이후 1%다. 정확한 one-time 과금 산정은 도입 시 최신 약관으로 재확인한다.
+- 결론: 현재는 직접 Store 연동과 Billing 검증을 기본 권장한다. 원격 Paywall·A/B 테스트·통합 분석의 가치가 추가 비용과 vendor dependency를 넘는 시점에 RevenueCat을 Billing 대체가 아닌 Store adapter/event source로 재검토한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 공식 RevenueCat 문서 조사와 작업 기록만 변경했으므로 Gradle 테스트는 실행하지 않았다. `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: 양 Store consumable one-time product, Billing catalog duration, ACTIVE MEMBER, stable `purchaseAccountRefId`, provider 검증·unique, paid-first/free-preserve, refund timeline과 보존 정책은 변경하지 않았다.
+- 위험·미확인: RevenueCat을 실제 채택할 경우 standard SDK 대 app-completed 모드, restore transfer, webhook/API source of truth, 장애 시 구매 완료 UX와 one-time 매출 비용 산정은 ADR-004 전에 사용자 승인이 필요하다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 리소스는 변경하지 않았다.
+- 다음 작업: RevenueCat 미도입을 유지하면 기존 ADR-004를 직접 Store adapter 기준으로 작성하고, 도입하려면 먼저 별도 선택 계약을 확정한다.
+
+## 2026-09-07 — RevenueCat 도입 편익 설명
+
+<!-- codex-turn:explain-revenuecat-adoption-benefits -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. Jira·Store·RevenueCat·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: RevenueCat을 실제 사용했을 때 토선생 팀이 얻는 구체적인 개발·운영·성장 편익을 설명한다.
+- 설명 요약: 모바일은 Apple/Google별 상품 조회·구매·오류·복원 처리를 공통 SDK와 Offering으로 줄이고, 운영은 Paywall·상품 노출 원격 변경과 통합 매출/전환 화면을 얻으며, 서버는 서로 다른 Store notification을 공통 RevenueCat webhook으로 받을 수 있다.
+- 한계: 이는 반복적인 Store 연동 plumbing을 줄이는 효과다. consumable 기간 계산, stacking, 무료권 보존, Reservation, 환불 차단, ledger와 webhook 누락 복구는 계속 Billing 책임이다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 설명 기록만 변경했으므로 Gradle 테스트는 실행하지 않았고 `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: 양 Store consumable one-time 상품과 현재 Billing 권리·환불 계약을 변경하지 않았다.
+- 위험·미확인: 실제 절감 폭은 모바일의 기존 IAP 구현 정도, Paywall 실험 필요성과 RevenueCat standard/app-completed 선택에 따라 달라진다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 리소스는 변경하지 않았다.
+- 다음 작업: RevenueCat 도입 여부를 확정한 뒤 ADR-004의 provider adapter와 transaction completion 순서를 해당 방식으로 고정한다.
+
+## 2026-09-07 — RevenueCat 결제 연동 채택
+
+<!-- codex-turn:approve-revenuecat-payment-integration -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. 결제 Jira는 아직 생성하지 않았고 RevenueCat·Store Console·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: 사용자의 명시적 승인에 따라 RevenueCat을 Apple/Google fixed-term 결제의 표준 연동 계층으로 확정하고 기존 직접 Store 완료 계약을 정합화한다.
+- 확정 구조: 앱은 RevenueCat 표준 SDK·Offering/Package로 consumable one-time product를 구매한다. RevenueCat은 Store transaction completion·정규화와 HMAC webhook/API를 제공하고 Billing은 기간형 entitlement·stacking·무료권·Reservation·refund ledger의 source of truth를 유지한다.
+- 완료 순서 변경: RevenueCat 표준 SDK가 Apple finish와 Google consumable completion을 담당하며 기존 `Billing commit 후 finish/consume` 순서를 supersede한다. Store 완료 후 Billing 반영이 늦으면 callback으로 fail-open하지 않고 `PENDING`에서 webhook/API reconciliation으로 수렴한다.
+- 사용자 연결: RevenueCat custom App User ID에는 stable `purchaseAccountRefId`를 사용한다. 익명 구매와 RevenueCat alias/restore만을 근거로 한 다른 토선생 계정으로의 purchase·entitlement 자동 이전을 금지한다.
+- 이벤트·복구: Store notifications는 RevenueCat에 연결하고 Billing은 환경별 raw-body HMAC webhook을 수신한다. RevenueCat event ID와 Store transaction ID를 멱등 경계로 사용하고 webhook retry 종료에 대비해 scheduled RevenueCat API reconciliation을 유지한다.
+- 권리 경계: consumable RevenueCat Entitlement는 만료 없이 보이므로 fixed-term 권리 판정에 사용하지 않는다. Billing catalog의 24·72·168·336·720시간, timeline reflow, paid-first/free-preserve와 refund 상태표는 변경하지 않았다.
+- 변경 파일: `AGENTS.md`, `docs/codex/CONTRACT_DECISIONS.md`, `docs/contracts/FIXED_TERM_PREMIUM_PAYMENT_CONTRACT.md`, `docs/contracts/BILLING_SERVICE_INTEGRATION_CONTRACT.md`, `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 애플리케이션 코드가 아닌 계약·작업 기록만 변경했으므로 Gradle 테스트는 실행하지 않았다. `git diff --check`와 direct Store completion 충돌 검색으로 검증한다.
+- 위험·미확인: RevenueCat restore/transfer behavior의 exact 설정, webhook public route·HMAC replay window, client sync DTO, API 조회 endpoint/rate limit, environment별 project/app·Offering/Package와 Store notification 연결은 ADR-004에서 확정해야 한다.
+- 예상 밖 변경: 없음. 기존 작업 트리의 결제 계약 문서 변경 위에 RevenueCat 결정만 반영했으며 애플리케이션 코드·Identity·Learning Core·외부 리소스는 변경하지 않았다.
+- 다음 작업: ADR-004를 RevenueCat 기준으로 작성해 exact public API, webhook decoder/inbox, Mongo schema/index, reconciliation, account restore와 장애 UX를 고정한다.
+
+## 2026-09-07 — Google Play 일회성 제품 등록 절차 확인
+
+<!-- codex-turn:prepare-google-play-one-time-products-for-revenuecat -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. Google Play Console·RevenueCat·Jira·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: RevenueCat 연동 전에 Google Play에 fixed-term 상품 5개를 등록하기 위한 최신 Console 객체 모델, 입력값과 순서를 확인한다.
+- 확인 결과: Google 최신 일회성 제품은 제품마다 하나 이상의 구매 옵션이 필수다. 토선생은 Store 기간을 사용하지 않으므로 `대여`가 아니라 `구입` 옵션을 사용하고, Billing catalog가 24·72·168·336·720시간을 부여한다.
+- 권장 식별자: product ID `premium_1d`, `premium_3d`, `premium_7d`, `premium_14d`, `premium_30d`; 각 product의 purchase option ID `standard`. 실제 생성 전 사용자 승인값으로 고정해야 하며 삭제된 product ID는 재사용할 수 없다.
+- 초기 설정: 사용자 표시 이름/설명, 세금·규정 준수, 구매 옵션 `구입`, 디지털 `서비스`, 단일 수량, 지역별 가격·판매 국가를 설정하고 구매 옵션을 활성화한다. 선주문·할인·다중 수량은 범위 밖이다.
+- RevenueCat 후속: Google app package와 service credential을 연결한 뒤 제품을 import하고 Offering/Package에 연결한다. consumable을 RevenueCat Entitlement에 연결해 기간 권리를 판정하지 않는다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 공식 Google/RevenueCat 문서 확인과 작업 기록만 변경했으므로 Gradle 테스트는 실행하지 않았다. `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: 양 Store consumable one-time, RevenueCat 표준 연동, Billing catalog duration·ledger·무료권·환불 계약을 변경하지 않았다.
+- 위험·미확인: 사용자의 Play Console에 최신 객체 모델/EAP가 노출되는지, 실제 package name, 5개 가격·판매 국가·세금 분류와 product ID 최종 승인은 아직 확인되지 않았다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 리소스는 변경하지 않았다.
+- 다음 작업: product ID·가격을 사용자 승인한 뒤 Play Console에서 5개 제품/구매 옵션을 만들고 RevenueCat에 import한다.
+
+## 2026-09-07 — Google Play 결제 프로필 생성 안내
+
+<!-- codex-turn:guide-google-play-payments-profile-creation -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. Google Payments·Play Console·RevenueCat·Jira·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: 사용자가 Google Play 일회성 제품 생성 전에 요구받은 결제 프로필을 안전하게 만들 수 있도록 입력 항목과 주의사항을 설명한다.
+- 확인 결과: 경로는 `설정 > 결제 프로필`이며 프로필 국가, 법적 이름·주소, 기본 연락처, 공개 판매자 웹사이트·카테고리·지원 이메일·카드 명세서 표시명을 입력한다. 국가는 생성 후 변경할 수 없고 거래 은행 계좌 국가와 같아야 한다.
+- 입력 기준: 개인/사업자·조직 유형과 법적 정보는 Play 개발자 계정, 공식 사업자/주소 문서, 세금 정보와 은행 예금주에 일치시킨다. 사업자명은 고객 영수증에, 공개 판매자 정보와 명세서명은 구매자에게 표시될 수 있다.
+- 후속 절차: 프로필 제출 뒤 세금 정보, 은행 계좌 등록·인증과 Google이 요구하는 판매자 신원 확인을 완료해야 실제 판매대금 수취가 가능하다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 공식 Google 문서 확인과 작업 기록만 변경했으므로 Gradle 테스트는 실행하지 않았다. `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: Google consumable one-time product, RevenueCat 연동과 credential/개인정보 비저장 경계를 변경하지 않았다.
+- 위험·미확인: 사용자의 개발자 계정 유형, 기존 payments profile, 실제 법적 주체·공식 주소·은행 국가와 현재 화면의 추가 검증 요구는 확인하지 않았다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 리소스는 변경하지 않았다.
+- 다음 작업: 사용자가 민감정보를 공유하지 않은 채 현재 화면의 필드명이나 오류 문구를 알려주면 해당 입력 기준을 확인하고, 제출 후 세금·은행 설정으로 진행한다.
+
+## 2026-09-07 — Google Play 결제 프로필 생성 후 상품 생성 차단 확인
+
+<!-- codex-turn:check-google-play-product-creation-after-payments-profile -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. Google Payments·Play Console·RevenueCat·Jira·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: 사용자가 첨부한 결제 프로필 화면을 확인하고 아직 일회성 제품을 만들 수 없는 원인과 다음 조치를 안내한다.
+- 확인 결과: 결제 프로필은 연결된 것으로 보이며 수입 0원·거래 없음은 정상 초기 상태다. 정산 은행 계좌 미등록과 15% 수수료 프로그램 미등록은 상품 메뉴 잠김의 직접 원인으로 단정할 수 없다.
+- 다음 조치: 현재 Play artifact에 Billing 기능이 없으면 모바일 앱에 기술 스택별 RevenueCat SDK를 설치하고 Billing permission이 포함된 새 AAB를 내부 테스트 트랙에 업로드한다. Play 처리가 끝난 뒤 `Play를 통한 수익 창출 > 제품 > 일회성 제품`을 다시 확인한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 화면 분석과 작업 기록만 변경했으므로 Gradle 테스트는 실행하지 않았다. `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: Google consumable one-time product 5개, RevenueCat 표준 SDK, Billing의 기간·무료권·원장 source-of-truth 경계를 변경하지 않았다.
+- 위험·미확인: 모바일 앱 기술 스택, 현재 업로드 artifact의 Billing permission, Play Console 차단 문구와 앱/계정 검증 상태는 아직 확인되지 않았다.
+- 예상 밖 변경: 없음. 애플리케이션 코드, 외부 Console과 기존 사용자 변경은 건드리지 않았다.
+- 다음 작업: 앱 기술 스택을 확인해 RevenueCat SDK 설치와 내부 테스트 AAB 업로드를 진행한 뒤 제품 5개를 생성한다.
+
+## 2026-09-07 — Google Payments 판매자 계정 차단 문구 보정
+
+<!-- codex-turn:clarify-google-payments-merchant-account-blocker -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. Google Payments·Play Console·RevenueCat·Jira·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: 일회성 제품 페이지에 표시된 `Google Payments 판매자 계정을 설정해야 함` 문구를 기준으로 직접 차단 원인과 다음 확인 순서를 보정한다.
+- 확인 결과: 정확한 문구가 확인됐으므로 현재 직접 차단 원인은 Billing permission 추정이 아니라 Play 개발자 계정에 판매자 계정 설정 완료·연결이 아직 반영되지 않은 상태다. 결제 프로필 생성과 판매자 계정의 Play 연결/검증 완료를 구분해야 한다.
+- 안내 내용: 결제 프로필의 미완료 경고·인증 상태, 상품 페이지의 판매자 계정 연결 동작, 동일 Google/Play 개발자 계정 여부와 신규 설정 반영 지연을 확인한다. 은행 계좌는 정산을 위해 등록하되 해당 문구의 유일한 원인으로 단정하지 않는다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 외부 Console 문구 분석과 작업 기록만 변경했으므로 Gradle 테스트는 실행하지 않았다. `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: Google consumable one-time 제품과 RevenueCat/Billing 책임 경계는 변경하지 않았다.
+- 위험·미확인: Google이 현재 요구하는 정확한 미완료 필드와 판매자 계정 검토 상태는 Console 상세 화면을 보기 전에는 특정할 수 없다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 계정 상태는 변경하지 않았다.
+- 다음 작업: 판매자 계정 설정/검증 상태 화면을 확인해 누락 항목을 완료한 뒤 제품 페이지 접근을 재시도한다.
+
+## 2026-09-07 — RevenueCat 계정 준비와 백엔드 병행 순서 확정
+
+<!-- codex-turn:sequence-revenuecat-account-and-backend-development -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. RevenueCat·Store Console·Jira·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: Google 정산 계좌 인증 대기 중 RevenueCat 계정을 먼저 만들어야 하는지와 백엔드 개발 가능 범위를 정리한다.
+- 결론: RevenueCat 계정·project와 iOS/Android app 등록은 지금 진행하는 것이 좋지만 Store 제품이나 credential이 없어도 Billing backend의 provider abstraction, 원장·entitlement·webhook contract와 fake 기반 테스트는 개발할 수 있다.
+- 보안·환경: 조직 이메일/MFA와 최소 권한을 사용한다. 실제 key·credential은 Git·채팅에 공유하지 않고, 별도 staging RevenueCat project는 별도 bundle/package가 존재할 때 ADR-004에서 확정한다.
+- 계약 경계: consumable을 RevenueCat Entitlement에 연결하지 않고 custom App User ID에는 `purchaseAccountRefId`를 사용한다. Store 연결·제품 import·webhook 활성화는 exact ADR·PLAN 승인 후 수행한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 개발 순서와 작업 기록만 변경했으므로 Gradle 테스트는 실행하지 않았다. `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: RevenueCat은 연동 계층이고 Billing이 기간·stacking·무료권·Reservation·refund ledger의 source of truth라는 경계를 유지한다.
+- 위험·미확인: 실제 iOS bundle ID, Android package name, staging 전용 앱 식별자, RevenueCat restore behavior·webhook 인증/API 계약은 ADR-004에서 확정해야 한다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 계정 상태는 변경하지 않았다.
+- 다음 작업: RevenueCat 계정/project/app을 안전하게 생성하고, 병행해서 ADR-004와 PLAN-007을 작성·승인한 뒤 payment vertical slice 구현을 시작한다.
+
+## 2026-09-07 — RevenueCat 프로젝트 생성 확인과 다음 설정 안내
+
+<!-- codex-turn:confirm-revenuecat-project-and-next-setup -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. 사용자가 RevenueCat account/project를 생성했으며 Codex는 RevenueCat·Store·Jira·AWS·Git 상태를 변경하지 않았다.
+- 작업 목표: 생성된 RevenueCat project 이후 지금 필요한 최소 Console 설정과 백엔드 전환 시점을 정리한다.
+- 확인 결과: 공유 URL은 account-scoped이고 별도 브라우저 세션은 로그인 화면으로 이동해 project 내부를 읽지 못했다. 비밀번호·MFA·credential을 요청하거나 입력하지 않았다.
+- 안내 내용: `Apps & providers`에서 실제 Android package name의 Google Play app을 먼저 등록한다. Store service credential, 제품 import, Offering/Package와 webhook은 판매자 계정·상품 및 ADR-004 준비 뒤 연결하며 consumable RevenueCat Entitlement는 만들지 않는다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 외부 설정 순서와 작업 기록만 변경했으므로 Gradle 테스트는 실행하지 않았다. `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: custom App User ID=`purchaseAccountRefId`, 익명 구매 금지, Billing source-of-truth와 실제 secret 비저장 원칙을 유지한다.
+- 위험·미확인: 실제 project app 구성, Android package name, iOS bundle ID와 RevenueCat credential/restore 설정은 아직 확인되지 않았다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 서비스 설정은 변경하지 않았다.
+- 다음 작업: RevenueCat Google Play app을 추가한 뒤 ADR-004를 작성해 exact public API, webhook/API adapter, Mongo schema/index와 실패 복구 계약을 승인한다.
+
+## 2026-09-07 — RevenueCat iOS 앱과 In-App Purchase Key 설정 안내
+
+<!-- codex-turn:guide-revenuecat-ios-app-iap-key-setup -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. RevenueCat·App Store Connect·Jira·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: RevenueCat의 New App Store app 화면에 필요한 Bundle ID, URL scheme, `.p8` key, Key/Issuer ID, Small Business와 legacy shared secret 입력 기준을 설명한다.
+- 입력 기준: 앱 이름은 내부 표시명, Bundle ID는 Xcode/App Store Connect exact 값이다. Paywall preview URL scheme은 선택이며 앱 등록 없이 임의 값을 넣지 않는다.
+- Apple credential: App Store Connect `Users and Access > Integrations > In-App Purchase`의 전용 key를 생성해 `.p8`를 RevenueCat에 직접 업로드하고 표시된 Key ID·Issuer ID를 입력한다. 일반 API/APNs key와 혼용하지 않는다.
+- 보안: `.p8`와 shared secret은 Git·채팅·Jira·문서에 기록하지 않고 secret manager에 보관한다. 이 작업에서는 credential을 열람·복사·저장하지 않았다.
+- 선택 항목: Small Business 날짜는 실제 효력 발생일만 입력하고, legacy shared secret은 StoreKit 1 또는 지원 iOS 범위상 필요한 경우에만 구성한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 문서 안내만 변경했으므로 Gradle 테스트는 실행하지 않았다. `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: RevenueCat 표준 SDK와 Billing 권리 원장 경계, consumable one-time 제품 정책은 변경하지 않았다.
+- 위험·미확인: 실제 Bundle ID, iOS deployment target, StoreKit mode, Apple key 생성 권한과 Small Business 승인 상태는 사용자 계정/App 프로젝트에서 확인해야 한다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 Console 상태는 변경하지 않았다.
+- 다음 작업: 정확한 Bundle ID를 확인하고 Apple In-App Purchase Key를 생성·업로드해 iOS app 등록을 완료한 뒤 ADR-004를 작성한다.
+
+## 2026-09-07 — RevenueCat App Store API·notification 설정 분류
+
+<!-- codex-turn:classify-revenuecat-apple-api-notification-settings -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. RevenueCat·App Store Connect·Jira·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: RevenueCat iOS app의 추가 설정에서 App Store Connect API key, Apple notification, 환불·구독 옵션과 public identifier의 용도를 구분한다.
+- key 구분: `AuthKey_*.p8`는 product import·가격 metadata용 App Store Connect API key이고 `SubscriptionKey_*.p8`는 transaction 검증용 In-App Purchase key다. 둘을 별도 생성·보관·업로드하며 실제 credential을 기록하지 않는다.
+- notification 방향: Apple Server Notification v2는 RevenueCat으로 보내고 Billing은 RevenueCat webhook을 받는다. Apple raw notification forwarding URL은 현재 비워둬 중복 ingress를 만들지 않는다.
+- 보류 설정: S2S-only 신규 구매 추적과 refund request handling은 account binding·개인정보·멱등 계약을 ADR-004에서 확정하기 전 OFF다. Retention Messaging과 Subscription Offer key는 consumable one-time 범위 밖이다.
+- 식별자: 모바일 Public SDK key는 공개 설정값이지만 server secret과 구분한다. `app...` REST API Identifier는 RevenueCat app resource ID일 뿐 SDK key나 product ID가 아니다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 설정 분류와 작업 기록만 변경했으므로 Gradle 테스트는 실행하지 않았다. `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: RevenueCat이 Store 연동 계층이고 Billing이 권리·환불 원장의 source of truth라는 경계와 익명 구매 금지를 유지한다.
+- 위험·미확인: App Store Connect API key의 실제 role/access 범위, notification v2 URL 반영과 RevenueCat webhook HMAC/API reconciliation은 ADR-004 및 sandbox에서 검증해야 한다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 설정은 변경하지 않았다.
+- 다음 작업: API key를 최소 권한으로 연결하고 Apple notification v2를 RevenueCat으로 설정하되 나머지 보류 기능은 끈 상태에서 ADR-004를 작성한다.
+
+## 2026-09-07 — Apple Server Notification URL 등록 위치 확인
+
+<!-- codex-turn:confirm-apple-server-notification-url-registration -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. RevenueCat·App Store Connect·Jira·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: RevenueCat Apple Server Notification URL을 어디에 등록하는지와 forwarding URL과의 차이를 확인한다.
+- 안내 내용: RevenueCat의 수신 URL을 App Store Connect 토선생 앱의 `앱 정보 > App Store 서버 알림` production·sandbox 항목에 Version 2로 등록한다. forwarding URL은 사용하지 않고 Billing 직접 URL도 Apple에 등록하지 않는다.
+- 상태 해석: 저장 직후 `No notifications received`는 오류가 아니며 sandbox 또는 production Store event가 RevenueCat에 도착한 뒤 수신 상태가 갱신된다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 설정 확인과 작업 기록만 변경했으므로 Gradle 테스트는 실행하지 않았다. `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: `Apple → RevenueCat → Billing webhook` 단일 ingress 방향을 유지한다.
+- 위험·미확인: 실제 URL 저장 성공과 sandbox event 수신은 외부 Console과 StoreKit 테스트에서 확인해야 한다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 설정은 변경하지 않았다.
+- 다음 작업: production·sandbox v2 URL을 저장하고 이후 StoreKit sandbox 구매/환불 이벤트로 수신 상태를 검증한다.
+
+## 2026-09-07 — Apple Server Notification URL 등록 완료 범위 확인
+
+<!-- codex-turn:clarify-scope-after-apple-notification-url-setup -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. 사용자가 App Store Connect에 RevenueCat Apple Server Notification URL을 등록했으며 Codex는 외부 설정을 변경하지 않았다.
+- 작업 목표: URL 등록으로 완료된 범위와 전체 Apple/RevenueCat 결제 연동의 남은 작업을 구분한다.
+- 완료 범위: Apple Server Notification v2의 목적지가 RevenueCat으로 설정됐다. 이벤트가 없을 때 RevenueCat의 `No notifications received` 표시는 정상이다.
+- 남은 범위: exact Bundle ID 확인, In-App Purchase key와 App Store Connect API key 연결 여부 확인, Apple 상품 생성·RevenueCat import/Offering, 모바일 SDK 식별 구매, Billing webhook/API reconciliation·원장 구현과 sandbox E2E가 남는다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 상태 설명과 작업 기록만 변경했으므로 Gradle 테스트는 실행하지 않았다. `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: Apple→RevenueCat→Billing webhook 방향과 Billing source-of-truth를 유지한다.
+- 위험·미확인: 실제 notification 설정 저장값, 두 Apple key 연결 여부와 sandbox event 수신은 아직 증명되지 않았다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 Git 이력은 변경하지 않았다.
+- 다음 작업: RevenueCat iOS app 설정의 필수 key 상태를 확인하고, Apple 상품을 기다리는 동안 ADR-004와 PLAN-007을 작성한다.
+
+## 2026-09-07 — RevenueCat Google Play 연동 필요성 확인
+
+<!-- codex-turn:confirm-google-play-revenuecat-setup-required -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. RevenueCat·Google Play·Jira·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: Apple RevenueCat 설정 뒤 Google Play 연동도 필요한지와 현재 가능한 범위를 확인한다.
+- 결론: 양 Store 출시 범위이므로 동일 RevenueCat project에 Google Play app을 별도로 추가해야 한다. Apple 설정은 Google package/service credential/RTDN을 대신하지 않는다.
+- 현재 가능: exact Android package name으로 app 등록, Google service account와 최소 권한 credential 준비, RevenueCat 안내에 따른 RTDN 목적지 준비를 진행할 수 있다.
+- 승인 후 가능: Google 판매자 계정 접근이 열린 뒤 consumable one-time product 5개를 생성·활성화하고 RevenueCat에 import해 Offering/Package에 연결한다.
+- 보안: Google service account JSON과 key는 Git·문서·Jira·채팅에 기록하지 않고 RevenueCat에 직접 업로드하며 secret manager에만 보관한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 설정 순서와 작업 기록만 변경했으므로 Gradle 테스트는 실행하지 않았다. `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: Apple/Google 양쪽 consumable one-time 제품, RevenueCat 연동 계층과 Billing source-of-truth를 유지한다.
+- 위험·미확인: 실제 Android package name, Google credential 권한과 RTDN topic/subscription 구성은 Console 안내 및 ADR-004에서 exact 확인해야 한다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 설정은 변경하지 않았다.
+- 다음 작업: RevenueCat `Apps & providers`에서 Google Play app을 추가하고 service credential 단계의 실제 화면을 기준으로 안전하게 설정한다.
+
+## 2026-09-07 — Android package name 생성 시점 확인
+
+<!-- codex-turn:clarify-android-package-name-before-release -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. 첨부 Play Console 화면을 분석했으며 외부 출시·RevenueCat·Jira·AWS·Git 상태는 변경하지 않았다.
+- 작업 목표: RevenueCat Google app에 넣는 package name이 실제 Play 출시 후 생기는 값인지 확인한다.
+- 확인 결과: package name은 Android build의 `applicationId`로 출시 전에 이미 정해진다. 첨부 화면은 AAB 생성·검토 전송이 완료된 단계이므로 현재 앱에도 package name이 존재하며 이를 얻기 위해 공개 게시할 필요가 없다.
+- 확인 기준: Android app module의 `defaultConfig.applicationId`가 authoritative하고 Play Console 앱 URL/상세정보 값과 exact match해야 한다. `namespace`가 별도이면 이를 잘못 사용하지 않는다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 화면·설정 설명과 작업 기록만 변경했으므로 Gradle 테스트는 실행하지 않았다. `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: 실제 package name만 RevenueCat Google app identifier로 사용하고 임의의 값 또는 출시 상태로 identity를 결정하지 않는다.
+- 위험·미확인: 모바일 저장소가 현재 workspace에 없어 실제 `applicationId` 값 자체는 확인하지 못했다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 Console 상태는 변경하지 않았다.
+- 다음 작업: 모바일 source 또는 Play Console에서 exact package name을 확인해 RevenueCat Google Play app을 등록한다.
+
+## 2026-09-07 — RevenueCat Google service account credential 절차 확인
+
+<!-- codex-turn:guide-revenuecat-google-service-account-credentials -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. RevenueCat 공식 문서를 확인했으며 Google Cloud·Play Console·RevenueCat·Jira·AWS·Git 상태는 변경하지 않았다.
+- 작업 목표: RevenueCat Google app이 요구하는 Service Account Credentials JSON의 생성 위치, API/role과 Play app 권한을 exact하게 안내한다.
+- Cloud 설정: 전용 service account를 만들고 Android Publisher, Play Developer Reporting, Pub/Sub API를 활성화하며 `Pub/Sub Editor`, `Monitoring Viewer` role을 부여한다. service account의 JSON key를 생성한다.
+- Play 권한: service account email을 `사용자 및 권한`에 초대하고 토선생 앱을 추가한 뒤 app info read-only, financial/order view, order/subscription manage, store presence manage 네 account permission을 부여한다.
+- RevenueCat: JSON을 Google app의 Service account credentials에 직접 업로드하고 validator를 실행한다. Google permission 전파에는 공식 안내상 최대 36시간이 걸릴 수 있다.
+- 보안: 기존 Firebase/backend key를 재사용하지 않고 JSON private key를 Git·문서·Jira·채팅에 기록하지 않는다. 이 작업에서 실제 credential을 생성·열람·저장하지 않았다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 공식 문서 확인과 작업 기록만 변경했으므로 Gradle 테스트는 실행하지 않았다. `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: Google purchase validation/RTDN은 RevenueCat 연동 계층을 사용하고 Billing이 entitlement/ledger source of truth인 경계를 유지한다.
+- 위험·미확인: 사용할 Google Cloud project, service account 실제 상태와 Play Console 한국어 권한명은 계정 화면에서 확인해야 하며 RTDN exact topic 설정은 다음 단계다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 리소스는 변경하지 않았다.
+- 다음 작업: 전용 service account와 JSON을 생성하고 Play 권한을 부여해 RevenueCat validator가 `Valid credentials`가 되는지 확인한다.
+
+## 2026-09-07 — Google Cloud service account IAM 역할 위치 안내
+
+<!-- codex-turn:locate-google-cloud-service-account-roles -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. Google Cloud·Play Console·RevenueCat·Jira·AWS·Git 상태는 변경하지 않았다.
+- 작업 목표: RevenueCat service account의 `Pub/Sub Editor`, `Monitoring Viewer` 역할을 어느 Console에서 부여하는지 안내한다.
+- 안내 내용: Google Cloud의 대상 project를 선택한 뒤 `IAM 및 관리자 > IAM`에서 service account principal을 편집하고 역할 두 개를 추가한다. 이는 Play Console의 app/account permission과 별도다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 설정 위치와 작업 기록만 변경했으므로 Gradle 테스트는 실행하지 않았다. `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: RevenueCat 공식 credential role과 최소 Play 권한을 구분해 유지한다.
+- 위험·미확인: 사용자 Google 계정에 project IAM 수정 권한이 없으면 Project Owner/IAM 관리자 승인이 필요하다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 리소스는 변경하지 않았다.
+- 다음 작업: service account 행에 두 역할을 저장한 뒤 JSON key 생성과 Play Console 초대를 진행한다.
+
+## 2026-09-07 — Google service account JSON key 생성 안내
+
+<!-- codex-turn:create-google-service-account-json-key -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. 사용자가 Google Cloud 역할 부여를 완료했으며 Codex는 Cloud·Play·RevenueCat·Jira·AWS·Git 상태를 변경하지 않았다.
+- 작업 목표: RevenueCat에 업로드할 Google service account credential JSON의 생성 경로와 안전한 취급을 안내한다.
+- 안내 내용: Google Cloud `IAM 및 관리자 > 서비스 계정`에서 전용 계정을 선택하고 `키 > 키 추가 > 새 키 만들기 > JSON`으로 생성한다. 다운로드된 파일을 RevenueCat Google app의 credential field에 직접 업로드한다.
+- 보안: JSON은 private key이므로 내용을 공유·기록하지 않고 secret manager에만 보관한다. 이 작업에서 실제 key를 생성·열람·저장하지 않았다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 설정 안내와 작업 기록만 변경했으므로 Gradle 테스트는 실행하지 않았다. `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: 전용 service account, 최소 Cloud/Play 권한과 credential 비저장 원칙을 유지한다.
+- 위험·미확인: 조직 정책이 user-managed service account key 생성을 차단하면 Google Cloud 조직 관리자의 정책 변경 또는 승인된 대체 절차가 필요하다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 리소스는 변경하지 않았다.
+- 다음 작업: JSON을 RevenueCat에 업로드한 뒤 Play Console app/account permission을 부여하고 credential validation을 실행한다.
+
+## 2026-09-07 — Play Console RevenueCat 서비스 계정 권한 선택 확인
+
+<!-- codex-turn:confirm-play-console-revenuecat-permissions -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. 사용자가 Play Console 서비스 계정 초대 화면을 공유했으며 실제 principal/credential은 작업 기록에 남기지 않았다. 외부 상태와 Git 이력은 변경하지 않았다.
+- 작업 목표: 한국어 Play Console UI에서 RevenueCat service account에 부여할 exact 최소 권한과 제외 권한을 식별한다.
+- 선택 권한: 앱 정보/일괄 보고서 읽기, 재무 데이터·주문·취소 설문 보기, 주문·구독 관리, 앱 정보 관리 네 항목이다. `앱 정보 관리` 설명의 인앱 상품 관리가 RevenueCat 문서의 `Manage store presence`에 대응한다.
+- 제외 권한: 관리자, 앱 초안, 출시/테스트, Play Games, 리뷰, 정책, 딥 링크와 Android 개발자 인증은 부여하지 않는다. App access에는 토선생 앱을 추가한다.
+- 만료: 지속적인 server validation을 위한 machine principal이므로 access expiry는 기본적으로 설정하지 않고 JSON key rotation/revocation으로 관리한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 권한 화면 분석과 작업 기록만 변경했으므로 Gradle 테스트는 실행하지 않았다. `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: RevenueCat 공식 네 Play permission과 최소 권한·credential 비저장 원칙을 유지한다.
+- 위험·미확인: 권한 저장 후 Google 전파와 RevenueCat validator 결과는 최대 36시간 동안 pending일 수 있다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 권한은 Codex가 변경하지 않았다.
+- 다음 작업: 네 권한과 토선생 app access로 초대를 완료하고 RevenueCat credential validator를 실행한다.
+
+## 2026-09-07 — RevenueCat Google credential validation 대기 상태 진단
+
+<!-- codex-turn:diagnose-revenuecat-google-credential-validation-pending -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. RevenueCat·Google Cloud·Play Console·Jira·AWS·Git 상태는 변경하지 않았다.
+- 작업 목표: JSON 업로드 후 표시된 `File saved`와 `credentials need attention / unable to validate`의 의미와 대응 순서를 설명한다.
+- 진단: JSON 파일 저장은 성공했지만 RevenueCat의 Google API endpoint/permission 검증이 아직 실패한 상태다. 신규 credential과 permission은 공식 안내상 최대 36시간 전파될 수 있다.
+- 점검: service account enabled, Play 사용자 active, 토선생 app access와 네 권한, Android Publisher/Developer Reporting/Pub/Sub API, Pub/Sub Editor/Monitoring Viewer와 signed AAB를 확인한다.
+- 대응: 설정 직후에는 key를 재생성하지 않고 전파를 기다려 재검증한다. 36시간 이후에도 실패하면 RevenueCat 상세 validator 결과를 확인하고 필요한 설정만 수정한 뒤 JSON 재업로드로 validation을 다시 실행한다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 외부 validator 상태 분석과 작업 기록만 변경했으므로 Gradle 테스트는 실행하지 않았다. `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: credential 최소 권한·비저장 원칙과 실제 Google 호출 없는 로컬 테스트 경계를 유지한다.
+- 위험·미확인: generic 메시지만으로 실패 endpoint를 특정할 수 없고 Google Payments 판매자 계정/monetization API 상태의 영향도 실제 validator detail로 확인해야 한다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 credential은 변경하지 않았다.
+- 다음 작업: 필수 설정 체크리스트를 확인하고 최대 36시간 뒤 RevenueCat validator를 재실행하며, 계속 실패하면 상세 오류를 확인한다.
+
+## 2026-09-07 — ADR-004 결제 기술 계약 확정 의제 재검토
+
+<!-- codex-turn:identify-adr-004-payment-decisions -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. RevenueCat 공식 webhook 문서와 현재 fixed-term 계약을 검토했으며 RevenueCat·Store·Jira·AWS·Git 상태는 변경하지 않았다.
+- 작업 목표: Store/RevenueCat 계정 준비 후 ADR-004에서 사용자가 확정해야 할 선택과 출시 입력을 구분한다.
+- 재확정 불필요: 양 Store consumable one-time 제품 5개, exact hour duration, ACTIVE MEMBER, `purchaseAccountRefId`, paid-first/free-preserve, stacking/refund state table과 보존 정책은 이미 승인됐다.
+- 승인 대상: public route/DTO, sync hint·idempotency, webhook Authorization+HMAC와 durable ack, sandbox/production webhook 분리, restore/transfer/anonymous behavior, S2S-only purchase tracking, refund auto handling, webhook direct apply/API reconciliation 및 Learning Core durable revoke delivery다.
+- 공식 확인: RevenueCat은 optional Authorization header와 HMAC signing을 함께 제공한다. HMAC은 `X-RevenueCat-Webhook-Signature`의 timestamp와 raw body로 검증하고 retry마다 재서명되므로 5분 replay tolerance를 적용할 수 있다.
+- 기술 작성 대상: Mongo payment collection/index/Transaction/CAS, UTC time, payload limit, unknown provider field/event 처리, timeout/backoff, retention purge와 observability는 승인된 정책을 exact schema로 구체화한다.
+- 출시 입력: 실제 product ID/가격/국가, public hostname/ALB/certificate, Store review, RevenueCat secret/quota와 sandbox account는 후속 config/E2E 값이며 ADR·fake 기반 구현을 막지 않는다.
+- 변경 파일: `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 계약·공식 문서 분석과 작업 기록만 변경했으므로 Gradle 테스트는 실행하지 않았다. `git diff --check`로 문서 형식을 확인한다.
+- 유지한 계약: RevenueCat은 연동 계층, Billing은 entitlement/ledger source of truth이며 client callback으로 fail-open하지 않는 기존 결정은 유지했다.
+- 위험·미확인: RevenueCat REST API exact version/endpoint, 실제 webhook raw payload fixture, public infrastructure inventory와 Learning Core consumer wire는 ADR 작성 중 코드/문서 근거로 추가 확인해야 한다.
+- 예상 밖 변경: 없음. 애플리케이션 코드와 외부 시스템은 변경하지 않았다.
+- 다음 작업: 사용자가 권장안 9개를 승인하거나 예외를 선택하면 ADR-004를 exact API·Mongo·RevenueCat contract로 작성한다.
+
+## 2026-09-07 — ADR-004 권장 선택 9개 승인 반영
+
+<!-- codex-turn:approve-adr-004-recommended-payment-decisions -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. Jira·RevenueCat·Store·AWS·Git 이력은 변경하지 않았다.
+- 작업 목표: 사용자가 승인한 ADR-004 권장 선택 9개를 Billing 단일 기준 계약과 통합 안내서에 반영한다.
+- 확정 내용: resource별 public API, UUID idempotent sync와 202 PENDING, Authorization+HMAC 5분/durable inbox fast ack, environment-filtered webhook 두 개, original owner restore·anonymous 금지, S2S-only tracking/refund auto handling OFF, webhook direct apply+API reconciliation과 per-AttemptGroup durable revoke event다.
+- 변경 파일: `AGENTS.md`, `docs/codex/CONTRACT_DECISIONS.md`, `docs/contracts/FIXED_TERM_PREMIUM_PAYMENT_CONTRACT.md`, `docs/contracts/BILLING_SERVICE_INTEGRATION_CONTRACT.md`, `docs/codex/CURRENT_STATE.md`, `docs/codex/WORKLOG.md`.
+- 테스트 결과: 계약 문서만 변경했으므로 Gradle 테스트는 실행하지 않았다. `git diff --check`와 승인/미확정 표현 검색으로 검증한다.
+- 유지한 계약: 양 Store consumable five-offer, Billing duration/source-of-truth, paid-first/free-preserve, refund 상태표와 보존 정책은 변경하지 않았다.
+- 위험·미확인: exact DTO/error/rate limit, Mongo schema/index, RevenueCat REST API version/endpoint, webhook raw fixture와 Learning Core revoke wire는 ADR-004 작성에서 고정해야 한다.
+- 예상 밖 변경: 없음. 애플리케이션 코드, Jira와 외부 리소스는 변경하지 않았다.
+- 다음 작업: 사용자의 작성 요청을 받으면 `docs/adr/ADR-004-...md`를 생성해 승인 결정을 구현 가능한 기술 계약으로 구체화한다.
+
+## 2026-09-07 — ADR-004 RevenueCat fixed-term 결제 기술 초안 작성
+
+<!-- codex-turn:write-adr-004-fixed-term-payment-contract -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. 결제 Jira는 없음. 기존 미커밋 변경을 보존하고 commit/push·Jira·Console·배포는 수행하지 않았다.
+- 작업 목표: 사용자 작성 요청에 따라 승인된 9개 선택을 public API·RevenueCat adapter·Mongo·LC event 명세로 구체화하고 추가 정책 결정 필요 여부를 확인한다.
+- 변경 파일: 신규 `docs/adr/ADR-004-fixed-term-premium-payment-contract.md`; 안내/상태 동기화 `AGENTS.md`, `docs/codex/CONTRACT_DECISIONS.md`, `docs/contracts/FIXED_TERM_PREMIUM_PAYMENT_CONTRACT.md`, `docs/contracts/BILLING_SERVICE_INTEGRATION_CONTRACT.md`, `docs/codex/CURRENT_STATE.md`, 이 WORKLOG.
+- 작성 내용: 5줄 결론·필독·정책 선택·기술 gate를 앞에 배치하고 DTO/오류/rate limit, HMAC raw-body·durable inbox, v2 API mapping/멱등성, 계정 binding, timeline/refund Transaction, schema v5 index, 공통 시험 guard, LC revoke wire·제출 경합, worker·보존·인증·배포·테스트를 본문/부록에 작성했다.
+- 공식 조사: RC API v2 purchase 조회/Store 식별자 검색/customer purchase 목록, OpenAPI owned/refunded와 original_customer_id/string transaction identifier를 확인했다. 공식 문서 읽기만 수행했으며 실제 사용자 RC API·credential·Store 거래를 조회하지 않았다.
+- 유지한 계약: consumable one-time 5상품, 24/72/168/336/720시간, paid-first/free-preserve, 원구매자 고정, 기존 무료/phone continuation, refund 상태표와 5년/120일/35일 보존. API v2와 webhook의 다른 ID·enum을 분리했다.
+- 결정사항: D1 정상 만료 중 Session과 D2 REFUND_REVERSED는 새로 확인한 미확정 예외 정책이며 권장안을 C9-S9·ADR에 명시했다. 사용자 승인으로 오인하지 않는다. Google obfuscated ID와 raw UUID의 wire 동일성은 미검증 단정 대신 SDK gate로 정정했다.
+- 위험·미확인: G1~G8 SDK/owner/refund/review/누락 복구/LC race/Mongo migration/실제 환경 gate. 비동기 revoke를 cross-service 즉시 차단으로 표현하지 않는다. 기술 초안·상대 서버 계약·schema는 아직 미구현이다.
+- 테스트 결과: 문서 작업으로 Gradle 미실행. `git diff --check` 통과, 새 ADR의 로컬 Markdown 링크 10개와 JSON 예제 4개 문법 검사 통과.
+- 예상 밖 변경: 이번 작업은 위 Billing 문서만 수정했다. 작업 전부터 존재한 문서 수정과 결제 요약 untracked 상태를 보존했고 다른 서버 코드·설정은 수정하지 않았다.
+- 다음 작업: D1·D2 확인과 상세 ADR 검토 뒤 PLAN-007, 명시적 Jira 승인, vertical slice 구현 순으로 진행한다. 배포 전 실제 상품·credential·public/internal 경계와 Store sandbox E2E를 확인한다.
+
+## 2026-09-07 — PLAN-007 앱용 무료 사용권·이용 상태 조회 계획 작성
+
+<!-- codex-turn:plan-007-public-free-entitlement-query -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. Jira 미생성. 문서 작성만 수행했으며 commit/push·외부 배포·타 서버 변경 없음.
+- 목표: 사용자가 요청한 무료 수량·진행·재응시·완료 조회의 exact API/DTO/오류/인증·판정·배포·테스트 계획을 작성한다. 결제 구현은 제외한다.
+- 변경 파일: 신규 `docs/plans/PLAN-007-public-free-entitlement-query.md`; 안내 동기화 `AGENTS.md`, `docs/codex/CONTRACT_DECISIONS.md`, `docs/contracts/BILLING_SERVICE_INTEGRATION_CONTRACT.md`, `docs/adr/ADR-004-fixed-term-premium-payment-contract.md`, `docs/codex/CURRENT_STATE.md`, 이 WORKLOG.
+- 확인 근거: Billing reserve의 lazy Claim/Grant 발급·retained alias/owner/units·determineKind, lifecycle/phone continuation·rebind, 기존 Mongo index/transaction/security. Identity JwtAccessTokenIssuer의 단일 audience/scope/account_type과 public envelope를 읽기 확인했다.
+- 계획 결정: GET /api/v1/entitlements, public isSuccess/code/message/result, Billing audience/billing:read/sub, Guest/MEMBER read 허용. 수량과 action을 분리하고 current-owned group만 최소 공개한다. 미확인은 PENDING/null, 저장소/불변식 실패는 503이며 GET에서 지급·hold·consumption·expiry·owner mutation 금지다.
+- 유지한 계약: 기존 무료 reserve/confirm/cancel·3년 retained·재가입 제한·source 학습기록 비이전·internal Lattice/SigV4/DTO. paid reader는 별도 후속이며 payment schema v5를 선행하지 않는다.
+- 위험·미확인: 미수신 event freshness/owner job 실행 여부는 현재 projection만으로 완전 감지 불가. conservative PENDING과 LOCAL_PROJECTION 의미를 명시했다. Identity Billing aud/read 발급·실배포, public connector/ALB·JWKS·Mongo snapshot E2E는 release gate다. 기존 internal resolver에서 모호한 복수 group은 임의 허용하지 않는다.
+- 동작 변경: application code는 변경하지 않았다. PLAN-007을 무료 reader에 배정하고 결제 후속 계획 번호와 wrapper 차이 검토를 안내했다. 이전 미커밋 문서 변경과 결제 초안을 보존했다.
+- 테스트 결과: 문서 전용이므로 Gradle 미실행. 새 계획의 Markdown 링크 25개(앵커 5개 포함)와 JSON 예제 4개, whitespace 및 `git diff --check` 검사 통과. 상태표는 확인한 reserve/owner 정책과 대조했으며 실제 Billing/Identity 테스트를 이번 작업에서 실행했다고 주장하지 않는다.
+- 예상 밖 변경: 없음. Billing 계획·연결 문서·필수 작업 기록만 변경했으며 기존 WORKLOG는 수정하지 않았다.
+- 다음 작업: 사용자의 PLAN-007 구현 승인과 필요 시 Jira 승인 후 reader vertical slice 진행. Billing OFF 배포→Identity audience/read→staging→reader 활성화→프론트 순서와 기존 internal 회귀를 확인한다.
+
+## 2026-09-07 — PLAN-007 검토 보완: command TTL 독립 세션 귀속
+
+<!-- codex-turn:revise-plan-007-durable-session-attribution -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. Jira 없음. 사용자 검토 피드백에 따라 계획/기록만 보완하고 코드·타 서버·배포·Git 이력은 변경하지 않았다.
+- 목표: 정상 target confirm 뒤 command 삭제로 영구 PENDING이 되는 설계 문제를 제거하고 Guest 자격 불명 UX를 명확히 한다.
+- 코드 근거: ReservationProperties의 terminalCommandRetention 기본 7일, ReservationLifecycleService.confirmOnce의 reserve/confirm purgeAt 설정, Reservation/AttemptSession의 userId/epoch 부재, ReserveContinuationPolicy의 continuation 생략 허용, link의 최신 transition 덮어쓰기를 확인했다. 실제 배포 retention 값은 확인하지 않았다.
+- 변경 파일: `docs/plans/PLAN-007-public-free-entitlement-query.md`, `AGENTS.md`, `docs/codex/CONTRACT_DECISIONS.md`, `docs/codex/CURRENT_STATE.md`, 이 WORKLOG.
+- 보완 설계: current link의 sessionOwnerEpoch와 경쟁 제어 sessionBindingVersion, Reservation/Session의 immutable epoch snapshot. 기존 reserve/confirm/rebind Transaction에서만 기록하며 GET은 read-only를 유지한다. PHONE_REJOIN 실제 적용만 epoch 증가, USER_MERGED는 보존, source Session 재귀속 금지다.
+- migration: continuation exact positive evidence·남아 있는 command·미이전 link 근거로 별도 dry-run/bounded CAS 이관한다. 복구 불가능 legacy는 활성화 gate/503이며 command TTL 연장·현재 owner 일괄 복사·무기한 PENDING으로 해결하지 않는다. wire/수량/ledger/기존 owner 정책은 유지한다.
+- UX: ELIGIBILITY_UNKNOWN은 '사용 가능 여부를 확인할 수 없습니다', OWNER_LINK_UNRESOLVED도 실제 작업 실행을 단정하지 않는다. 실제 reservation/command 처리 대기와 bounded polling을 구분했다. Identity §9.2의 Billing aud/read·account_type·workload 분리 요청은 유지했다.
+- 테스트 계획: T25~T33에 target confirm 후 command 삭제, 반복 phone rejoin, source 잔존, continuation 없는 후속 replacement, Guest merge/duplicate/NOOP, rebind 경쟁, legacy 복구와 privacy retention을 추가했다.
+- 검증: 문서 전용으로 Gradle 미실행. 변경 계획의 로컬 링크 30개(앵커 5개 포함)·JSON 예제 4개·whitespace 및 `git diff --check` 통과.
+- 위험·미확인: 신규 metadata와 migration은 미구현이다. 기존 활성 legacy의 증빙 coverage와 old writer rollback 방지, Transaction CAS 경합 검증을 reader 활성화 전에 완료해야 한다.
+- 예상 밖 변경: 없음. 기존 미커밋 문서 변경과 과거 WORKLOG를 보존했다.
+- 다음 작업: 보완 계획의 쓰기 metadata 범위를 포함해 구현/Jira 승인 후 진행. 실제 무료 지급·LC 기록 이전·Identity 코드 변경은 이 문서 보완에 포함하지 않는다.
+
+## 2026-09-07 — PLAN-007 무료 사용권 public reader 구현
+
+<!-- codex-turn:implement-plan-007-public-reader -->
+
+- 날짜·브랜치: 2026-09-07, Billing `develop`. 사용자의 “좋아 이제 구현해줘” 승인으로 진행. Jira 없음. commit/push·배포·Identity/LC 수정은 수행하지 않았다.
+- 목표: 무료 수량·진행·재응시·완료 조회, 사용자 JWT 경계, command TTL 독립 귀속 증빙을 구현한다. 결제·RevenueCat·paid schema는 제외한다.
+- 신규 파일: domain/entitlement의 api `EntitlementQueryController`, application `EntitlementQueryService`, `FreeBenefitQueryReader`, `TrialBenefitQueryReader`, `TrialEntitlementQueryEvaluator`, `EntitlementQuerySnapshot`, `EntitlementQueryRateLimiter`, `SessionAttributionMigration`, config `EntitlementQueryProperties`, dto `EntitlementQueryResponse`, exception `EntitlementQueryException`, repository `EntitlementQueryRepository`; entitlement/trial/application `TrialEntitlementPolicy`; global security `IdentityUserJwtDecoder`, `PublicSecurityConfig`, `PublicIngressFilter`, `PublicApiWriter`; global response `PublicResponse`, Mongo `EntitlementSnapshotExecutor`.
+- 기존 writer 변경: BillingSubjectLink/Reservation/AttemptSession epoch metadata, BillingSubjectLinkRepository의 reserve/confirm binding CAS 및 rebind epoch 전이, ReserveService·ReservationLifecycleService 연결. 동일 Transaction에서 처리하며 신규 사용자 ID 사본·원장/무료권 지급 정책·internal DTO 변경은 없다.
+- 조회 동작: verified current candidates·retained Claim·current owner·Grant units·Reservation·AttemptGroup·epoch 연결을 함께 판정한다. Grant 부재 신규 자격은 1, 완료 번호는 0, 불명은 null/PENDING, 불변식/DB 실패는 503. current-owned 최소 그룹만 공개하고 전화번호 재가입의 이전 Session/답안/결과를 노출·이전하지 않는다.
+- 읽기 동작: primary/SNAPSHOT Transaction과 Mongo driver CSOT 총 2초 budget, 최대 두 번 snapshot, batch/상한+1 조회, benefit 20/subject 100/group 100/응답 64KiB 방어. GET은 Claim/Grant/ledger/command/alias/owner를 생성·변경하지 않는다. 서로 다른 benefit/unit 합산 없음, 현재 free reader만 등록한다.
+- 인증·ingress: RS256/typ/kid/exact issuer·trusted HTTPS JWKS/audience/iat/exp/nbf/jti/canonical sub, exact billing:read; Guest/MEMBER read 허용. JWKS는 redirect 금지, 5분 cache·30초 refresh 제한·64KiB/20 keys 상한, unknown kid 401/신뢰 upstream 장애 503. separate public port 기본 8083과 기존 internal port 격리, flag OFF=404, no-store·public envelope·trace header. task-local 60-token bucket/초당 1 refill/5분 비활동/10,000 entries.
+- 관측: 실제 production Controller에 INTERNAL entitlement_query span, 정상·예외 종료, service/environment/timestamp/outcome/reason/durationMs/traceId/spanId 로그·저카디널리티 metric. raw 예외 대신 안전한 분류만 span error에 기록하며 baggage 비전파를 검증했다.
+- 이관: 명시적 <=100 Session batch의 inspect/applyApprovedBatch를 제공하며 일반 startup/GET/scheduler에서 실행하지 않는다. 미이전 link 또는 exact 최신 PHONE_REJOIN continuation positive proof만 자동 CAS 이관한다. command actor/시간만으로 반복 재가입을 추측하지 않으며 추가 transition 증거가 필요한 자료는 BLOCKED다. 운영 이관은 실행하지 않았다. 기존 legacy RESERVED는 writer 배포 전 drain/expire/승인 이관 gate이며 구버전 writer rollback을 금지한다.
+- 문서 변경: PLAN-007 구현 상태, docs/openapi/free-entitlements.yaml, docs/runbooks/PLAN-007-public-reader-rollout.md, AGENTS/CONTRACT_DECISIONS/통합 계약/CURRENT_STATE와 이 WORKLOG. 기존 결제 초안·사용자 미커밋 변경과 과거 WORKLOG를 보존했다.
+- 테스트 파일: 신규 TrialEntitlementQueryEvaluatorTest, EntitlementQueryControllerTest, EntitlementQueryTraceIntegrationTest, IdentityUserJwtDecoderTest. 기존 ReserveMongoIntegrationTest에 query no-write command listener/document snapshot, command 삭제/8일 경과·반복 phone rejoin·일반 replacement·Guest merge·legacy dry-run/CAS·exact continuation/차단·상한·동시 snapshot/CAS 회귀 추가. OwnerRebindMongoIntegrationTest epoch 보존/증가 assertion 및 SecurityConfigTest 새 Controller mock 보완.
+- 추가 발견·보정: 기존 TrialEligibilityMongoIntegrationTest의 schema=3 fixture 3곳을 현재 schema v4로 수정했다(legacy schema 거절 자체 테스트는 유지). ReserveMongoIntegrationTest helper의 고정 mock-1을 실제 reserved mockExamId로 수정했다. 본래 검증하려는 index/continuation 계약에 도달하도록 고친 테스트 fixture이며 production schema/wire 변경이 아니다.
+- 테스트 실행: 처음 Docker 미실행으로 Mongo 테스트 실패, Docker Desktop 시작 승인 후 replica-set 테스트 실제 실행. 구현 중 null 수량 unboxing·Spring AuthenticationServiceException 503 직렬화·trace 테스트의 Mongo verifier fixture 문제를 보정했다. 최종 `./gradlew clean test` BUILD SUCCESSFUL, **236 tests / failures 0 / skipped 0**. OpenAPI YAML 파싱·`git diff --check` 통과. 테스트는 가짜 token/JWKS와 로컬 Testcontainers만 사용했다.
+- 유지한 계약: 무료 lazy 지급/전화번호당 1회/retained 3년, reserve→Session commit→confirm·5분 hold·ledger/consumption, owner lifecycle·source 학습기록 비이전·bounded fence, command TTL 7일, internal Lattice/SigV4/strict wire/HTTP. payment SDK·endpoint·collection/index 추가 없음.
+- 위험·배포 확인: Identity Billing aud/read 실제 발급·token 갱신, trusted JWKS 운영 회전/장애, 실제 public ALB/SG/Lattice 격리·health matcher, Mongo index explain/실제 부하, 전체 legacy coverage는 미검증 외부 gate다. flag/connector/legacy-attest 기본 false 유지. PENDING은 job 진행 또는 최신 upstream 동기화 보증이 아니다.
+- 예상 밖 변경: 위 기존 테스트 fixture 보정 외 범위 확장 없음. 시작 시 존재한 사용자 문서/결제 초안 변경은 이번 신규 코드 작업과 구분해 보존했다. 실제 store/AWS/타 서버/Jira/Git 이력 변경 없음.
+- 다음 작업: 이 diff 검토 후 사용자 commit/PR, Identity §9.2 aud/read 후속 확인, 승인된 legacy coverage와 staging/네트워크 gate 후 reader 활성화·프론트 연동. 결제는 별도 ADR-004 결정/계획을 따른다.
+
+## 2026-09-07 — 중단 후 무료 재응시 조회 응답 설명
+
+- 날짜·브랜치: 2026-09-07, develop. Jira 없음. 목표는 사용자 질문에 현재 구현 기준으로 응답 의미를 설명하는 것이다.
+- 확인 근거: TrialEntitlementQueryEvaluator의 현재 candidate/VERIFIED·owner/epoch·Session/Reservation 연결, OPEN·RETAKE_AVAILABLE 판정, active Reservation/PROCESSING 대기 조건.
+- 결론·동작: 정상 RETAKE_AVAILABLE은 availableQuantity 0, newAttempt BLOCKED, usageState INCOMPLETE, hasInProgress false, retake ALLOWED와 current-owned group ID다. 앱 종료만으로 OPEN/ACTIVE가 남는 경우 hasInProgress true일 수 있으나 추가 차감 없는 replacement 가능성과 모순되지 않는다.
+- 유지 계약: 새 무료권 복원·지급 없음, 기존 consumption/group/mock 유지·새 Session에서 처음부터 재응시, reserve 최종 판정. reader 기본 OFF와 연동 gate 유지.
+- 변경 파일: CURRENT_STATE와 이 WORKLOG만. 애플리케이션·타 서버·Git 이력·Jira 변경 없음. 예상 밖 변경 없음.
+- 검증: 코드 읽기 분석만 수행하여 Gradle은 재실행하지 않음. 문서 diff 확인. 위험·미확인: 실제 배포/LC 상태 반영 시점은 확인하지 않음; OPEN을 앱 실시간 접속으로 해석하지 않는다.
+- 다음 작업·결정사항: 앱은 신규 수량만으로 이용 불가를 표시하지 말고 retake를 별도로 확인한다. 처리 중이면 PENDING으로 표시하고 실제 시작은 기존 LC reserve 흐름을 따른다.
+
+## 2026-09-07 — 무료 재응시를 화면에서 1회 남음으로 표현
+
+- 날짜·브랜치: 2026-09-07, develop. Jira 없음. 목표: 중단 후 재응시도 사용자에게 1회 남음으로 표시하자는 의견을 기존 계약과 대조한다.
+- 근거: EntitlementQueryResponse.Benefit의 availableQuantity/newAttempt/retake/usageState/attemptGroups 분리 계약. 신규 INITIAL 수량과 추가 차감 없는 재응시는 현재 별도 필드다.
+- 결론·제안: 현재 FREE_EXAM_ONCE에서 신규 시작 또는 재응시가 ALLOWED이면 화면에 '무료 모의고사 1회 남음'으로 통합 표현할 수 있다. 내부 availableQuantity를 복원하거나 두 가능성을 더해 2개로 표시하지 않는다. GRADING·예약 처리·자격 불명은 별도 안내하며 사용 완료만 0회 의미로 표시한다.
+- 유지 계약: 기존 group/consumption 유지, 새 Session 재응시, 추가 지급 없음, reserve 최종 판정과 internal/public DTO 유지. 다른 benefit/단위/복수 source에 고정 1 규칙을 일반화하지 않는다.
+- 변경 파일·동작: CURRENT_STATE와 WORKLOG 작업 기록만 추가. 서비스·프론트·API wire·타 서버·Jira·Git 이력 변경 없음. 예상 밖 변경 없음.
+- 검증: DTO 읽기·문서 diff 확인. 분석/안내만 수행하므로 Gradle 미실행. 실제 프론트 표시 구현은 미확인이다.
+- 다음 작업·위험: 화면 통합 표시 적용 시 GRADING/PENDING을 사용 가능 1회로 확정하지 않도록 상태 우선순위를 지킨다. backend DTO 변경이 필요하면 별도 명시 계약으로 정한다.
+
+## 2026-09-07 — PLAN-007 브랜치·커밋·PR 명령 인계
+
+- 날짜·브랜치: 2026-09-07, develop. Jira 없음. 사용자 요청은 직접 실행할 Git 명령 안내다.
+- 확인: git status/branch/remote로 Billing develop의 코드·문서 미커밋 변경과 origin을 확인했다. 기존 결제 ADR-004/요약 문서도 미추적 상태로 남아 있으므로 문서 전체 staging의 포함 범위를 안내한다.
+- 제안: codex/free-entitlement-query 브랜치 생성, AGENTS.md/docs/src 명시 staging·staged diff 확인, 사용자 commit/push, develop 대상 gh pr create. 실제 실행은 사용자에게 맡긴다.
+- 변경 파일: CURRENT_STATE와 WORKLOG 기록만. 애플리케이션·Git branch/index/commit/remote/PR/Jira 변경 없음. 기존 사용자 변경 보존, 예상 밖 변경 없음.
+- 검증: Git 읽기 상태 확인 및 문서 diff 확인. 명령 안내만이므로 Gradle 재실행하지 않음. 기존 테스트 결과는 변경하지 않는다.
+- 유지 계약·다음 작업·위험: Git commit/push는 사용자 수행 규칙 유지. 기존 결제 설계 문서 포함 여부를 staged diff에서 확인한 뒤 commit하며, 결제 구현이나 배포를 수행하는 PR로 오인하지 않는다.

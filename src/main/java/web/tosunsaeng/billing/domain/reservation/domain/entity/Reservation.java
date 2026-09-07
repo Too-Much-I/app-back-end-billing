@@ -43,6 +43,15 @@ public class Reservation {
     private Instant terminalAt;
     private long version;
     private Boolean activeGuard;
+    private Long sessionOwnerEpoch;
+
+    public Long getSessionOwnerEpoch() { return sessionOwnerEpoch; }
+
+    public Reservation withSessionOwnerEpoch(long epoch) {
+        if (epoch < 1 || sessionOwnerEpoch != null) { throw new IllegalStateException("Invalid epoch initialization"); }
+        sessionOwnerEpoch = epoch;
+        return this;
+    }
 
     protected Reservation() {
     }
