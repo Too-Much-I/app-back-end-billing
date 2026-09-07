@@ -21,6 +21,8 @@ public class BillingSubjectLink {
     private Instant ownerUpdatedAt;
     private String ownerTransitionReason;
     private String ownerTransitionId;
+    private Long sessionOwnerEpoch;
+    private Long sessionBindingVersion;
 
     protected BillingSubjectLink() {
     }
@@ -42,6 +44,8 @@ public class BillingSubjectLink {
         this.createdAt = createdAt;
         this.retentionExpiresAt = retentionExpiresAt;
         this.ownerVersion = 1L;
+        this.sessionOwnerEpoch = 1L;
+        this.sessionBindingVersion = 0L;
         this.ownerUpdatedAt = createdAt;
     }
 
@@ -61,6 +65,17 @@ public class BillingSubjectLink {
 
     public String getSubjectRefId() {
         return subjectRefId;
+    }
+
+    public Long getSessionOwnerEpoch() { return sessionOwnerEpoch; }
+
+    public Long getSessionBindingVersion() { return sessionBindingVersion; }
+
+    /** Writer baseline only. Readers must not infer legacy session attribution from this. */
+    public long sessionEpochForWrite() {
+        long epoch = sessionOwnerEpoch == null ? getOwnerVersion() : sessionOwnerEpoch;
+        if (epoch < 1) { throw new IllegalStateException("Invalid session epoch"); }
+        return epoch;
     }
 
     public String getTrialClaimId() {

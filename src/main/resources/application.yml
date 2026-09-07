@@ -7,6 +7,14 @@ spring:
       auto-index-creation: false
 
 billing:
+  entitlement-query:
+    enabled: ${BILLING_ENTITLEMENT_QUERY_ENABLED:false}
+    public-connector-enabled: ${BILLING_PUBLIC_CONNECTOR_ENABLED:false}
+    public-port: ${BILLING_PUBLIC_PORT:8083}
+    issuer: ${BILLING_USER_JWT_ISSUER:}
+    jwks-uri: ${BILLING_USER_JWT_JWKS_URI:}
+    clock-skew: ${BILLING_USER_JWT_CLOCK_SKEW:60s}
+    legacy-attribution-verified: ${BILLING_LEGACY_ATTRIBUTION_VERIFIED:false}
   internal-ingress:
     mode: ${BILLING_INTERNAL_INGRESS_MODE:disabled}
     lattice-only: ${BILLING_INTERNAL_LATTICE_ONLY:false}

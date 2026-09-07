@@ -1,8 +1,295 @@
 # Billing Service 현재 상태
 
-- 최종 갱신일: 2026-09-03
+- 최종 갱신일: 2026-09-07
 - 현재 브랜치: `develop`
-- Jira: `TMI-115` Billing 구현과 Learning Core `TMI-116` saga가 각각 `develop`에 merge 완료. Billing AttemptGroup event consumer `TMI-117`은 완료됐고 owner rebind `TMI-120` Billing 구현과 검증을 진행 중이다.
+- Jira: 무료/owner lifecycle 관련 Billing `TMI-120`, Identity `TMI-123`, Learning Core `TMI-125` 구현은 각 `develop`에 병합됐다. 무료 reader PLAN-007은 승인 후 구현·로컬 검증을 완료했으며 Jira는 미생성이다. 결제 ADR-004는 초안이며 별도 결제 PLAN·Jira·코드는 아직 생성하지 않았다.
+
+## 2026-09-07 현재 우선 작업 — 무료 사용권 public reader PLAN-007
+
+- Git 인계: 현재 develop의 미커밋 변경을 새 codex/feature 브랜치로 옮겨 사용자 직접 commit/push 후 develop 대상 PR을 만드는 명령을 안내했다. 기존 미커밋 결제 설계 문서도 있으므로 docs 전체 staging 시 함께 포함됨을 구분한다. Codex는 Git 변경·PR 생성을 실행하지 않았다.
+
+- 사용자 화면 선호: 신규 무료 응시와 중단 후 허용된 재응시를 모두 '무료 모의고사 1회 남음'으로 표시하는 방향이다. 현재 FREE_EXAM_ONCE의 newAttempt/retake ALLOWED를 화면에서 통합하되 availableQuantity(새 INITIAL 수량)·ledger 의미는 유지하는 방안을 안내했다. GRADING/예약/자격 불명은 별도 상태로 표시하고 wire/앱 코드는 이번 대화에서 수정하지 않았다.
+
+- 조회 설명 확인: 중단 후 RETAKE_AVAILABLE은 신규 수량 0/newAttempt BLOCKED/usage INCOMPLETE/hasInProgress false/retake ALLOWED이며 current-owned group ID를 제공한다. 단순 앱 종료로 OPEN/ACTIVE가 남으면 hasInProgress true여도 replacement는 가능하다. 실시간 접속 의미가 아니며 reserve가 최종 판정한다. 이번 설명 요청에서는 코드 변경·테스트 재실행 없음.
+
+- [PLAN-007](../plans/PLAN-007-public-free-entitlement-query.md) 사용자 승인 후 구현했다. 결제·RevenueCat·상품·paid schema는 제외했고 Jira는 생성하지 않았다. [OpenAPI](../openapi/free-entitlements.yaml), [배포·이관 안내](../runbooks/PLAN-007-public-reader-rollout.md)를 추가했다.
+- link/session/reservation의 sessionOwnerEpoch, link sessionBindingVersion CAS를 기존 Transaction에 구현했다. 실제 PHONE_REJOIN만 epoch 증가, Guest merge는 보존하며 replay는 추가 CAS 없이 기존 결과를 반환한다. command TTL은 변경하지 않았다.
+- 조회는 explicit primary/SNAPSHOT·driver CSOT 2초 budget·최대 두 번 시도, bounded batch, 순수 free reader registry와 reserve 공통 predicate를 사용한다. GET 업무 write 없음과 command 삭제 뒤 정상 귀속을 실제 Mongo에서 검증했다.
+- legacy migration은 명시적인 <=100 Session batch의 dry-run/CAS 방식이다. 미이전 subject·exact 최신 continuation만 자동 증명하며 그 밖은 BLOCKED로 남긴다. 실제 운영 migration/coverage는 수행하지 않았다. 기존 legacy RESERVED는 writer 전환 전 drain/expire 또는 승인 이관이 필요하다.
+- API: GET `/api/v1/entitlements`, public isSuccess/code/message/result envelope, JWT sub·Billing audience·billing:read. Guest/MEMBER 모두 본인 read 허용, phone 자격은 별도 검증이다.
+- 판정: lazy Grant 부재라도 VERIFIED/retained Claim 부재면 예상 신규 수량 1. 완료 번호는 0. 신규 수량/진행/재응시/사용 완료를 분리하고 조회에서 발급·차감·예약·owner 변경을 하지 않는다.
+- 연동 불명은 200 PENDING/null, 저장소·불변식 오류는 503. source 계정의 group/Session/답안/결과를 새 계정에 공개하지 않고 승인 owner 이전 뒤에만 최소 group 재응시 상태를 표시한다.
+- Identity 로컬 JwtAccessTokenIssuer는 account_type을 발급하지만 단일 설정 audience를 유지한다. PR #39 병합은 Billing audience/read 배포 완료가 아니다. 별도 발급 후속·새 token·staging E2E가 필요하다.
+- 보안: public connector/ALB exact allowlist/JWT를 기존 internal Lattice/SigV4와 격리한다. reader flag 기본 OFF이며 Billing OFF 배포→Identity→staging→reader ON→앱 순서다.
+- 검증: `./gradlew clean test` 성공, 236 tests / 실패 0 / skip 0. Docker replica-set snapshot·command listener 무쓰기·confirm 경합·owner CAS·command 삭제·이관, JWT 로컬 JWKS·scope, 실제 public/internal 포트·production Controller INTERNAL span·baggage 미전파 테스트 포함. OpenAPI YAML 파싱과 `git diff --check` 통과.
+- 기존 테스트 fixture 두 종류도 보정했다: schema v4 initializer에 schema=3을 넘기던 테스트 3곳, mockExamId를 mock-1로 고정하던 confirmed-group helper. 운영 코드의 기존 wire·index schema는 변경하지 않았다.
+- 다음 작업: Identity aud/read 발급 인계 확인, public ALB/SG/Lattice·JWKS·legacy coverage 및 staging E2E. reader/connector 기본 OFF, 배포·Git commit/push·타 서버 수정 없음. payment ADR-004 D1·D2/별도 PLAN은 후속 트랙이다.
+
+## 2026-09-07 ADR-004 기술 초안 작성 기록
+
+- 사용자 요청으로 [ADR-004](../adr/ADR-004-fixed-term-premium-payment-contract.md)를 작성했다. 기존 제품/9개 선택은 유지하고 public DTO·오류·한도, RC webhook/API v2, 계정 binding, payment Transaction, Mongo v5 index, paid/free guard, LC durable revoke와 배포·테스트 gate를 구체화했다.
+- 작성 중 발견한 D1 정상 만료 중 현재 Session의 완료 여부, D2 Apple REFUND_REVERSED 후 복구 방식은 미확정 권장안으로 분리했다. 문서 작성 전의 '추가 제품 결정 없음' 예상과 달리 이 두 예외에는 사용자 확인이 필요하다. C9-S9에 기록했다.
+- 공식 Purchase API/OpenAPI에서 owned/refunded, original_customer_id, string store_purchase_identifier와 검색/get route를 확인했고 Customer Resources에서 환경별 사용자 구매 목록·pagination을 확인했다. 앱 SDK 식별자 일치와 consumed 환불은 sandbox 검증 전이다.
+- 신규 LC route는 `POST /internal/v1/entitlements/access/events`, event는 `AttemptGroupAccessRevoked` v1 초안이다. 실제 상대 reader·paid GRADING 실행 gate·Lattice 리소스를 배포한 것으로 간주하지 않는다.
+- Google obfuscated identifier가 raw UUID와 같은 wire 값이라는 단정을 제거하고 SDK별 변환 검증 gate로 명시했다. 원 사용자 고정·alias 자동 이전 금지는 유지한다.
+- 검증: 문서만 변경하므로 Gradle 미실행. `git diff --check`, 새 ADR의 로컬 링크 10개와 JSON 예제 4개 문법 검사를 통과했다. 기존 미커밋 문서 변경을 보존했으며 코드·Jira·외부 리소스·Git 이력은 변경하지 않았다.
+- 결제 후속 작업: D1·D2 확인과 ADR 상세 검토 뒤 별도 결제 PLAN 작성. PLAN-007은 무료 reader에 배정됐다. 실제 product ID/가격/국가·credential/hostname은 결제 출시 입력으로 준비한다.
+
+## 2026-09-07 RevenueCat 결제 연동 채택
+
+- 사용자는 Apple/Google fixed-term 결제에 RevenueCat을 사용하는 안을 승인했다. RevenueCat은 표준 모바일 SDK·Offering/Package, Store transaction 정규화, HMAC webhook과 API 조회를 제공하는 결제 연동 계층으로 사용한다.
+- 연동 편의성을 실제로 얻기 위해 RevenueCat 표준 SDK가 Apple transaction finish와 Google consumable completion을 맡는다. 기존 `Billing local commit → Apple finish/Google backend consume` 순서는 supersede됐다.
+- Store 결제 완료 후 Billing 반영이 늦어질 수 있으므로 앱 callback으로 entitlement를 열지 않는다. RevenueCat HMAC webhook 또는 인증된 API 조회로 Store transaction을 확인하고 event ID·Store transaction unique와 Mongo Transaction으로 반영하며, 그 전에는 `PENDING`으로 둔다.
+- RevenueCat custom App User ID에는 사용자·환경별 stable lowercase UUID v4 `purchaseAccountRefId`를 사용한다. 익명 구매와 RevenueCat alias/restore만을 근거로 한 토선생 계정 간 유료권 자동 이전은 허용하지 않는다.
+- RevenueCat Entitlement는 consumable을 만료 없이 표현하므로 1·3·7·14·30일 권리 source로 사용하지 않는다. Billing catalog·Purchase·SubscriptionEntitlement·ledger가 기간, stacking, 무료권 보존, Reservation과 환불 차단의 authoritative source다.
+- Apple/Google Platform Server Notifications는 RevenueCat에 연결하고 Billing은 RevenueCat webhook을 public provider ingress로 받는다. webhook retry 종료와 API 장애를 전제로 scheduled reconciliation과 운영 경보를 유지한다.
+- ADR-004에서 exact RevenueCat project/app·Offering/Package, restore/transfer behavior, webhook route/HMAC·timestamp, client sync DTO, API 조회, Mongo index와 장애 UX를 확정한 뒤 PLAN/Jira/구현으로 진행한다.
+
+## 2026-09-07 ADR-004 권장 선택 승인
+
+- 제품 정책은 재결정하지 않는다. 양 Store consumable one-time, `PREMIUM_1D/3D/7D/14D/30D`, 24·72·168·336·720시간, ACTIVE MEMBER, Billing 발급 `purchaseAccountRefId`, paid-first/free-preserve, stacking/reflow, strict refund 상태표와 5년/120일/35일 보존은 이미 승인됐다.
+- 사용자는 (1) public API 분리, (2) client sync hint/idempotency, (3) webhook 인증·fast durable ack, (4) RevenueCat sandbox/production routing, (5) anonymous/restore/transfer, (6) S2S-only 신규 구매 추적, (7) 자동 refund data handling, (8) webhook direct apply 대 API 재조회, (9) Learning Core access-revocation delivery의 권장안을 모두 승인했다.
+- 확정안은 resource별 public route, lowercase UUID v4 idempotency와 untrusted Store transaction hint, Authorization+HMAC 5분 replay window, durable inbox 후 200/async worker, 같은 RevenueCat project의 environment-filtered webhook 두 개와 secret 분리, original App User ID 유지·익명 구매 금지, S2S-only tracking/refund auto handling 초기 OFF, 인증된 webhook direct normalize+API reconciliation, per-AttemptGroup durable Lattice revoke event다.
+- exact Mongo schema/index/state machine, UTC/exclusive time, raw-body limit, retry/backoff, low-cardinality metric와 secret rotation은 승인 정책을 구현하는 기술 계약으로 ADR에서 작성한다. provider event unknown field는 RevenueCat의 forward-compatible 계약에 맞춰 허용하되 required field/type/size/event handling은 fail-closed 또는 durable ignored disposition으로 명시한다.
+- 실제 Store product ID·가격·판매 국가, public hostname/certificate/listener, Store review, RevenueCat secret/API quota와 sandbox test account는 출시 입력이며 config placeholder/fake adapter 기반 백엔드 구현을 막지 않는다.
+- RevenueCat 공식 문서는 optional Authorization header와 HMAC signing을 모두 지원하며 HMAC header는 `timestamp + raw body`의 SHA-256 서명이고 retry마다 새 timestamp/signature를 만든다고 확인했다. 5분 window는 delivery retry 간격이 아니라 각 HTTP 전송 시각 검증에만 사용한다.
+- 이 승인 선택에 기반한 ADR-004 초안을 작성했다. 후속 상태와 추가 예외 정책은 위 `ADR-004 기술 초안 작성` 절을 따른다. ADR·PLAN 승인 전에는 payment application code를 구현하지 않으며 Jira 변경은 별도 사용자 승인을 받는다.
+
+## 2026-09-07 Google Play 일회성 제품 등록 준비
+
+- Google 최신 일회성 제품 객체 모델은 `일회성 제품 → 구매 옵션 → 선택적 혜택` 구조다. 경로는 `Play를 통한 수익 창출 > 제품 > 일회성 제품 > 일회성 제품 만들기`다.
+- 토선생은 Billing이 24·72·168·336·720시간을 관리하므로 Google `대여`가 아니라 `구입` 구매 옵션을 사용한다. 각 제품에는 기본 구매 옵션 하나를 두고 수량 구매·선주문·할인 혜택은 최초 출시 범위에서 사용하지 않는다.
+- 권장 영구 product ID는 `premium_1d`, `premium_3d`, `premium_7d`, `premium_14d`, `premium_30d`이며 각 제품의 purchase option ID는 공통 `standard`를 권장한다. 실제 생성 전 사용자의 이름·가격 승인이 필요하다.
+- 이름은 `토선생 프리미엄 1일/3일/7일/14일/30일 이용권`, 설명은 정확한 시간 동안 프리미엄 모의고사를 이용하는 자동 갱신 없는 상품임을 명시한다. Google의 분류는 `서비스`, 구매 유형은 `구입`, 단일 거래 수량 옵션은 끈다.
+- 제품별 한국 가격과 판매 국가를 입력하고 구매 옵션까지 `활성`으로 만들어야 Play Billing/RevenueCat import에 노출된다. 앱 판매 국가가 제품 판매 국가를 최종 제한한다.
+- Play Console 생성 후 RevenueCat에 Google app package/service credential을 연결하고 5개 product를 import한다. RevenueCat Offering/Package에 연결하되 consumable을 RevenueCat Entitlement에는 붙이지 않는다.
+- 공식 근거: `https://support.google.com/googleplay/android-developer/answer/16430488?hl=ko`, `https://support.google.com/googleplay/android-developer/answer/14590082?hl=ko`, `https://www.revenuecat.com/docs/projects/connect-a-store`.
+
+## 2026-09-07 Google Play 결제 프로필 생성 안내
+
+- 공식 경로는 Play Console `설정 > 결제 프로필 > 결제 프로필 만들기`다. 기존 Google 결제 프로필이 선택 목록에 있으면 새로 만들기 전에 토선생 개발자 계정과 법적 주체가 동일한지 확인한다.
+- 국가/지역은 대한민국으로 선택하며 생성 후 변경할 수 없다. 결제 프로필 국가와 판매대금을 받을 거래 은행 계좌의 등록 국가가 같아야 한다.
+- 개인/사업자·조직 유형, 법적 이름, 사업자명과 주소는 Play 개발자 계정과 사업자등록증·공식 주소 문서·세금·은행 예금주 정보에 맞춘다. 사서함 주소는 허용되지 않는다.
+- 기본 연락처에는 실제로 Google 확인 요청에 응답할 대표자 또는 공식 담당자를 입력한다. 공개 판매자 정보에는 실제 운영 웹사이트, 교육/디지털 서비스에 가까운 카테고리, 모니터링하는 고객지원 이메일과 구매자가 알아볼 수 있는 명세서 표시명을 입력한다.
+- 제출 후 세금 정보, 판매대금 은행 계좌 등록·인증과 필요 시 판매자 신원 확인을 이어서 완료한다. 실제 법적 이름·주소·전화·계좌·세금 식별자는 채팅·Jira·Git에 기록하지 않는다.
+- 공식 근거: `https://support.google.com/googleplay/android-developer/answer/7161426?hl=ko`.
+
+## 2026-09-07 Google Play 결제 프로필 생성 후 상품 메뉴 확인
+
+- 첨부 화면 기준 결제 프로필은 Play Console에 연결됐고, 매출 0원·거래 없음은 아직 판매가 없다는 의미다. `지급받을 방법 > 결제 수단 추가`는 정산 은행 계좌 등록이며 상품 생성 메뉴 활성화와는 별개일 가능성이 높지만 실제 판매대금 수취 전에는 완료해야 한다.
+- 일회성 제품 메뉴가 없거나 생성할 수 없다면 현재 Play에 업로드된 app bundle이 Google Play Billing 기능을 선언했는지 먼저 확인한다. RevenueCat을 사용할 경우 모바일 앱 기술 스택에 맞는 RevenueCat SDK를 추가한 새 AAB를 내부 테스트 트랙에 업로드하고 Play의 artifact 처리가 끝난 뒤 다시 확인한다.
+- 네이티브 Android에서는 최종 merged manifest에 `com.android.vending.BILLING` permission이 있어야 한다. Flutter·React Native 등은 해당 RevenueCat 플러그인의 설치·빌드 절차를 따르므로 앱 기술 스택을 확인하기 전 dependency 구문을 고정하지 않는다.
+- artifact 처리 뒤 `Play를 통한 수익 창출 > 제품 > 일회성 제품`에서 제품 5개와 각 `구입` 구매 옵션을 생성한다. 그래도 차단되면 해당 메뉴의 정확한 안내/오류 문구를 확인해 계정 검증, 앱 상태 또는 권한 문제를 구분한다.
+- 15% 서비스 수수료 프로그램 등록은 선택 정책이며 상품 생성의 필수 선행조건으로 보지 않는다.
+- 공식 근거: `https://support.google.com/googleplay/android-developer/answer/1153481?hl=ko`, `https://www.revenuecat.com/docs/getting-started/installation/android`.
+
+### 2026-09-07 정확한 차단 문구 확인
+
+- 사용자가 확인한 문구는 `Google Payments 판매자 계정을 설정해야 이 페이지에 액세스할 수 있습니다`다. 따라서 현재 직접 차단 원인은 앱 artifact의 Billing permission이 아니라 Google Payments 판매자 계정이 아직 Play Console에서 완료·연결 상태로 인식되지 않는 것이다.
+- `설정 > 결제 프로필`에서 미완료 경고, 법적 주체·주소·판매자 정보 확인과 Google이 요구하는 인증 상태를 먼저 확인하고, 상품 페이지의 `판매자 계정 설정` 동작이 있으면 현재 Play 개발자 계정과 동일한 법적 주체의 프로필을 선택해 연결한다.
+- 첨부 화면의 은행 계좌 추가는 실제 정산을 위해 필요하지만, 표시된 차단 문구만으로 계좌 미등록이 유일한 원인이라고 단정하지 않는다. 설정을 막 끝냈다면 계정 간 반영 지연, 다른 Google 계정/개발자 계정 선택 여부와 브라우저 세션도 확인한다.
+- 판매자 계정이 완료·연결된 뒤에도 제품 생성에는 Billing 기능이 포함된 Play artifact가 필요할 수 있으므로 RevenueCat SDK/AAB 단계는 판매자 계정 차단을 해소한 다음 진행한다.
+
+## 2026-09-07 RevenueCat 계정 준비와 백엔드 선행 개발 순서
+
+- Google 정산 계좌 인증을 기다리는 동안 RevenueCat 계정과 토선생 프로젝트를 생성한다. 조직 소유 이메일과 MFA를 사용하고 팀 권한은 최소화한다.
+- 한 RevenueCat project 아래 실제 bundle ID의 iOS app과 package name의 Android app을 등록하는 것을 기본 출발점으로 한다. 별도 staging bundle/package가 실제로 존재할 때만 별도 project/app 격리를 확정하며, sandbox transaction 표시는 production entitlement 판정과 구분한다.
+- Google 제품이 아직 없어도 계정·project/app 생성은 가능하다. Store credential 연결, 제품 import, Offering/Package와 webhook 활성화는 계좌/상품 준비와 ADR-004 exact 계약 뒤에 수행한다.
+- consumable fixed-term 제품은 RevenueCat Entitlement에 연결하지 않는다. App User ID는 raw userId가 아니라 기존 `purchaseAccountRefId`를 쓰며 익명 구매는 허용하지 않는다.
+- Billing backend는 RevenueCat 계정 없이도 provider port/fake adapter, catalog, Purchase·기간형 entitlement·ledger, strict webhook contract, Mongo schema/index와 멱등/환불 테스트를 개발할 수 있다. 실제 secret과 Store 호출은 저장소·테스트에 넣지 않고 sandbox/staging gate에서만 사용한다.
+- 구현 선행조건은 RevenueCat 계정 자체가 아니라 ADR-004와 PLAN-007의 승인이다. project/app identifier, SDK/API key 구분, webhook 인증, sandbox 판정, API reconciliation과 restore/transfer behavior를 exact contract로 먼저 고정한다.
+- 사용자가 RevenueCat 계정과 토선생 project 생성을 완료했다. 공유된 account-scoped URL은 별도 브라우저 세션에서 로그인이 필요해 내부 설정은 확인하지 않았으며 credential을 요청하거나 입력하지 않았다.
+- 다음 Console 작업은 project의 `Apps & providers`에서 실제 Android package name으로 Google Play app을 추가하는 것이다. Google service credential·제품 import·Offering/Package·webhook은 아직 필수가 아니며 Store 판매자 계정/상품과 ADR-004 준비 뒤 연결한다. iOS app도 실제 bundle ID가 확정돼 있으면 같은 project에 등록할 수 있다.
+- Apple app 설정만으로 양 Store 연동이 완료되지 않는다. 동일 RevenueCat project에 Google Play app을 별도로 추가하고 package name, Google service credential과 RTDN을 구성해야 한다.
+- Google 판매자 계정/은행 인증 대기 중에도 RevenueCat Google app 등록과 service account 준비는 가능하다. 일회성 제품 5개 생성·import·Package 연결과 실제 결제 테스트는 판매자 계정 및 Play product 접근이 열린 뒤 수행한다.
+- Android package name은 Play production 출시 후 생성되는 값이 아니라 앱 build configuration의 `applicationId`로 이미 정해진 immutable Store 식별자다. AAB를 Play Console에 업로드한 현재 단계에는 이미 존재하므로 공개 게시를 진행하지 않고도 확인해 RevenueCat에 등록할 수 있다.
+- authoritative 확인 위치는 모바일 source의 Android app module `defaultConfig.applicationId`다. `namespace`와 다를 수 있으므로 namespace를 대신 입력하지 않는다. Play Console 앱 URL/앱 세부정보에 표시되는 package와 source `applicationId`가 exact match하는지도 확인한다.
+
+### RevenueCat Google service account credential 설정 기준
+
+- RevenueCat 전용 Google Cloud service account를 만들고 기존 Firebase Admin/backend credential을 재사용하지 않는다. 선택한 Cloud project에서 Android Publisher API, Play Developer Reporting API와 Pub/Sub API를 활성화한다.
+- service account의 Cloud role은 RevenueCat 공식 절차 기준 `Pub/Sub Editor`, `Monitoring Viewer`를 부여한다. 그 계정에서 JSON key를 1회 생성해 RevenueCat Google app 설정에 직접 업로드한다.
+- 두 Cloud role은 Play Console이 아니라 해당 Google Cloud project의 `IAM 및 관리자 > IAM`에서 service account principal을 편집해 부여한다. 이미 계정이 있으면 principal 행의 수정에서 `역할 추가`를 두 번 사용하고, 생성 중이면 `이 서비스 계정에 프로젝트 액세스 권한 부여` 단계에서 같은 역할을 선택한다.
+- 사용자가 RevenueCat service account에 `Pub/Sub Editor`, `Monitoring Viewer` 역할 부여를 완료했다. 다음 단계는 `IAM 및 관리자 > 서비스 계정 > 해당 계정 > 키 > 키 추가 > 새 키 만들기 > JSON`으로 user-managed private key를 생성해 RevenueCat에 직접 업로드하는 것이다.
+- JSON은 생성 즉시 한 번 다운로드되는 private credential이다. 내용을 열어 복사하거나 파일명/내용을 기록하지 않고 secret manager에 보관하며 Git·문서·Jira·채팅·일반 공유 드라이브에 저장하지 않는다. RevenueCat validator 통과 뒤에도 rotation/revocation 가능한 key inventory를 유지한다.
+- 사용자가 JSON을 RevenueCat에 업로드해 `File saved`까지 도달했으나 validator는 `Service account credentials need attention / unable to validate` 상태다. 이는 JSON 저장 실패가 아니라 Google API access 검증 미완료를 뜻한다.
+- 신규 service account·Play permission은 공식 안내상 최대 36시간 전파될 수 있으므로 즉시 key를 삭제/재생성하지 않는다. service account enabled, Play 사용자 active, 토선생 app access와 네 account permission, 세 Google API, 두 Cloud role과 AAB 업로드를 확인하고 기다린 뒤 재검증한다.
+- 36시간 뒤에도 실패하면 RevenueCat validator의 endpoint/permission별 상세 결과를 기준으로 수정하고 JSON을 다시 업로드해 검증을 트리거한다. 현재 Google Payments 판매자 설정/제품 API 접근이 진행 중인 점도 monetization endpoint 검증에 영향을 주는지 함께 확인한다.
+- Google Play Console `사용자 및 권한`에서 service account email을 사용자로 초대하고 App permissions에 토선생 앱을 추가한다. Account permissions에는 `View app information and download bulk reports (read-only)`, `View financial data, orders, and cancellation survey responses`, `Manage orders and subscriptions`, `Manage store presence` 네 권한을 부여한다.
+- 현재 Play Console 한국어 UI에서 위 네 권한은 각각 `앱 정보 보기 및 보고서 일괄 다운로드(읽기 전용)`, `재무 데이터, 주문, 취소 설문조사 응답 보기`, `주문 및 구독 관리`, `앱 정보 관리`다. 마지막 권한 설명에 가격 수정·인앱 상품 관리가 포함돼 RevenueCat 문서의 `Manage store presence`에 대응한다.
+- service account 초대에서 `관리자(모든 권한)`, 출시/테스트 트랙, 정책, 리뷰, Play Games, 딥 링크와 Android 개발자 인증 권한은 부여하지 않는다. 머신 연동이 지속돼야 하므로 Play access 만료는 기본적으로 설정하지 않고 key rotation/revocation으로 관리한다.
+- `Manage store presence`는 RevenueCat에서 Play product를 생성/수정할 때 필요하다고 공식 문서가 명시한다. 첫 출시에서는 RevenueCat의 product mutation을 사용하지 않더라도 공식 validator 통과와 향후 import/관리 계약을 위해 위 네 권한을 exact 기준으로 삼는다.
+- JSON은 private key가 포함된 secret이므로 Git·문서·Jira·채팅에 넣지 않고 RevenueCat에 직접 업로드하며 승인된 secret manager에서만 보관한다. 생성/권한 변경 후 Google 전파에는 최대 36시간이 걸릴 수 있고 RevenueCat `Valid credentials` validator로 최종 확인한다.
+- 공식 근거: `https://www.revenuecat.com/docs/service-credentials/creating-play-service-credentials`.
+
+## 2026-09-07 RevenueCat iOS app 등록 입력 기준
+
+- `App name`은 RevenueCat 내부 구분명으로 `토선생 iOS`를 권장한다. `App Bundle ID`는 Xcode target의 `PRODUCT_BUNDLE_IDENTIFIER` 및 App Store Connect 앱 정보와 exact match해야 하며 추측해서 새 값을 만들지 않는다.
+- Custom URL Scheme은 RevenueCat Paywall preview/deep link용 선택 설정이다. 현재 앱에 등록된 scheme을 확인하기 전 임의 값을 넣지 않고 최초 연동에서는 비워둘 수 있다. 사용할 경우 Xcode URL Types/Info.plist에도 같은 scheme을 등록해야 한다.
+- RevenueCat의 In-App Purchase Key는 App Store Connect의 `사용자 및 액세스(Users and Access) > 통합(Integrations) > 인앱 구입(In-App Purchase)`에서 생성한 전용 `.p8` key다. 일반 App Store Connect API key나 APNs key와 혼용하지 않는다.
+- `.p8`는 한 번만 다운로드할 수 있는 credential로 직접 RevenueCat에 업로드하고 승인된 secret manager에만 보관한다. Git·문서·Jira·채팅에 파일이나 내용을 넣지 않는다. Key ID와 Issuer ID는 App Store Connect 표시값을 exact 입력한다.
+- Apple Small Business Program 시작일은 실제 승인·효력 발생일이 있을 때만 입력하며 신청일을 임의로 넣지 않는다. 현재 미가입/심사 중이면 비워둔다.
+- App-specific shared secret은 StoreKit 1 또는 RevenueCat 안내상 지원 대상 iOS 버전 때문에 필요한 경우에만 추가한다. 새 StoreKit 2 중심 연동에서는 legacy field를 기본적으로 비워두되 실제 iOS deployment target과 SDK 구성을 ADR-004/모바일 구현 전에 확인한다.
+
+### App Store Connect API·Apple notification 추가 설정 기준
+
+- `AuthKey_*.p8` App Store Connect API key는 앞의 `SubscriptionKey_*.p8` In-App Purchase key와 다른 credential이다. 전자는 RevenueCat의 product import·가격 metadata 동기화용이고 후자는 StoreKit transaction 검증용이므로 파일과 Key ID를 혼용하지 않는다.
+- App Store Connect `Users and Access > Integrations > App Store Connect API`의 team key를 최소 필요 권한으로 생성해 RevenueCat에 직접 업로드한다. `.p8`는 1회 다운로드 credential이므로 secret manager에만 보관하고 Git·문서·Jira·채팅에 넣지 않는다.
+- Apple Server Notification v2는 Store refund/revoke를 RevenueCat이 받도록 RevenueCat 제공 URL을 App Store Connect의 production·sandbox notification URL에 설정하는 방향을 유지한다. Billing은 Apple raw notification을 직접 받지 않고 인증된 RevenueCat webhook을 받는다.
+- Apple Server Notification Forwarding URL은 현재 구조에서 비워둔다. RevenueCat과 Billing 양쪽에 Apple 원문을 중복 전달하는 별도 ingress는 ADR 승인 전 추가하지 않는다.
+- `Track new purchases from server-to-server notifications`는 SDK에서 아직 식별되지 않은 구매를 RevenueCat이 새 구매로 추적할 수 있으므로 익명 구매 금지·`purchaseAccountRefId` exact binding과 충돌할 수 있다. ADR-004에서 식별/멱등 계약을 확정하기 전에는 OFF다.
+- Refund request handling/Apple consumption data 전송은 Apple 환불 심사에 사용 데이터가 전달되는 정책·개인정보 기능이므로 자동 활성화하지 않는다. Retention Messaging API와 Subscription Offer key는 현재 consumable one-time 상품 범위 밖이다.
+- RevenueCat Public SDK key는 모바일 앱에 포함 가능한 공개 식별자이고 server secret key와 다르다. 화면의 `REST API Identifier` (`app...`)는 RevenueCat app resource 식별자이며 SDK key나 product ID로 사용하지 않는다.
+- Apple notification 설정 시 RevenueCat의 `Apple Server Notification URL`을 복사해 App Store Connect의 토선생 앱 `앱 정보 > App Store 서버 알림`에 production·sandbox URL로 등록하고 Version 2를 선택한다. `Apple Server Notification Forwarding URL`은 복사 대상이 아니며 비워둔다. 저장 직후 `No notifications received`는 실제 sandbox/production 이벤트 전까지 정상이다.
+- 사용자가 Apple Server Notification v2 URL의 App Store Connect 등록을 완료했다. 이는 Apple→RevenueCat 알림 목적지 설정 완료를 의미하며, 실제 수신 검증·Apple credential·상품 import·RevenueCat Offering 및 Billing webhook/ledger 구현 완료를 의미하지는 않는다.
+
+## 2026-09-07 RevenueCat 도입 적합성 검토
+
+- RevenueCat은 iOS·Android consumable 구매 SDK, Offerings/Packages, Paywall, 구매 이벤트 정규화, webhook과 매출 분석을 제공하므로 앱의 Store별 결제 UI·SDK 유지보수와 성장 실험은 줄일 수 있다.
+- 사용자 관점에서 가장 큰 도입 효과는 Apple·Google별 상품 조회·구매·오류·복원 UI를 공통 SDK와 Offering으로 다루고, 가격·상품 노출·Paywall 문구를 앱 심사/배포 없이 원격으로 바꾸며, 양 Store 매출·전환을 한 화면에서 보는 것이다. Store 정책/API 변경 대응도 RevenueCat SDK 업데이트로 상당 부분 흡수할 수 있다.
+- 서버 관점에서는 Apple Notification V2와 Google RTDN의 서로 다른 payload를 각각 해석하는 대신 RevenueCat webhook을 공통 ingress로 받을 수 있다. 다만 webhook 인증·멱등성·누락 reconciliation과 토선생 기간형 권리 원장은 계속 필요하므로 `결제 plumbing 감소`이지 Billing 제거가 아니다.
+- 현재 토선생 상품은 1·3·7·14·30일을 Billing catalog가 부여하는 consumable one-time product다. RevenueCat 공식 계약상 consumable을 Entitlement에 연결하면 만료 없이 영구 unlock으로 보이며, 실제 지급·소진 상태는 RevenueCat이 관리하지 않는다. 따라서 기간 계산, timeline stacking, 무료권 보존, Reservation, 환불 차단과 ledger는 계속 Billing이 authoritative하게 관리해야 한다.
+- 도입 검토 당시 표준 RevenueCat SDK가 purchase completion을 기본 수행하므로 기존 `Billing Transaction commit → Apple finish/Google consume` 순서를 유지하려면 `purchasesAreCompletedBy=.myApp` 방식이 필요하다고 확인했다. 이후 RevenueCat 채택과 함께 표준 completion 및 webhook/API reconciliation 방식이 승인됐다.
+- webhook은 빠른 수신·HMAC 검증·event ID 멱등 처리가 필요하고 최대 5회 재시도 후 중단될 수 있다. at-least-once 중복과 지연을 전제로 inbox, provider 조회와 periodic reconciliation은 여전히 필요하다. 대부분 Store의 one-time refund 전체 수신을 위해 Apple/Google Platform Server Notifications 설정도 RevenueCat 측에 계속 연결해야 한다.
+- 사용자 식별은 raw userId 대신 기존 사용자·환경별 stable lowercase UUID v4 `purchaseAccountRefId`를 RevenueCat custom App User ID로 사용하는 것이 현재 privacy/owner 계약과 맞다. 익명 ID alias/restore는 다른 토선생 계정으로 구매가 합쳐지거나 이전될 수 있으므로 구매 전 로그인 강제와 `Keep with original App User ID` 검토가 필요하다.
+- 검토 당시 기본 권장안은 직접 StoreKit/Google Play Billing 유지였으나 사용자가 출시 편의성을 우선해 RevenueCat 도입을 승인했으므로 위 `RevenueCat 결제 연동 채택` 결정이 이를 supersede한다. RevenueCat은 Billing 대체가 아닌 Store adapter/event source다.
+- 2026-09-07 공개 가격은 월 tracked revenue 2,500 USD까지 무료, 이후 tracked revenue의 1%다. 실제 one-time 매출 산정·세금·계약 조건은 가입 전 견적/약관에서 다시 확인한다.
+- 공식 근거: `https://www.revenuecat.com/docs/platform-resources/non-subscriptions`, `https://www.revenuecat.com/docs/migrating-to-revenuecat/sdk-or-not/finishing-transactions`, `https://www.revenuecat.com/docs/integrations/webhooks`, `https://www.revenuecat.com/docs/customers/identifying-customers`, `https://www.revenuecat.com/docs/projects/restore-behavior`, `https://www.revenuecat.com/pricing`.
+
+## 2026-09-07 Apple·Google 일회성 fixed-term 상품 최종 변경
+
+- 사용자가 Apple과 Google 모두 재구매 가능한 일회성 상품으로 통일하는 안을 승인했다. Apple은 offer별 Consumable In-App Purchase 5개, Google은 offer별 consumable one-time product 5개를 사용한다.
+- Store product ID는 `PREMIUM_1D/3D/7D/14D/30D`와 환경별 Billing catalog에서 exact mapping하며 권리 기간은 Store subscription expiry가 아니라 각각 24·72·168·336·720시간의 catalog duration으로 계산한다.
+- 구매는 자동 갱신되지 않는다. active/scheduled 유료 권리가 있을 때 재구매하면 기존 timeline 뒤에 새 duration을 이어 붙이며 무료권은 보존한다.
+- 이 시점에는 Billing 검증과 local commit 뒤 Apple finish/Google backend consume을 확정했으나, 2026-09-07 RevenueCat 채택으로 transaction completion은 RevenueCat 표준 SDK가 담당하는 것으로 supersede됐다. Store transaction unique로 권리를 한 번만 만드는 불변식은 유지한다.
+- consumable Store restore를 과거 권리의 source로 사용하지 않고 Billing ledger와 current entitlement API를 사용한다. Store에는 아직 완료되지 않은 transaction 복구와 provider refund/revoke 재검증 책임을 둔다.
+- Google prepaid의 14일 미지원과 달력 1개월/고정 30일 불일치는 이 변경으로 해소됐다. 실제 product ID 10개, 가격, 국가와 review metadata는 ADR-004 naming 확정 후 Console에서 생성한다.
+- 현재 책임 경계는 `Store=상품·가격·실제 결제·거래/환불`, `RevenueCat=SDK·Offering·transaction completion·검증 데이터/webhook`, `Billing=product ID→offer 매핑·정확한 기간·stacking·권리 복원·무료권 우선순위`다. Store completion 뒤 Billing 반영 지연을 webhook/API reconciliation으로 복구하는 책임이 중요하다.
+
+## 2026-09-07 Apple 결제 외부 준비 시작
+
+- Apple 준비는 상품 ID 생성 전에 Developer Program 활성화, App Store Connect 앱/bundle record 존재, Paid Applications Agreement·세금·은행 정보 완료 여부를 먼저 확인한다.
+- 사용자가 토선생 앱이 이미 App Store에 배포됐다고 확인했다. 따라서 Developer Program 가입과 App Store Connect 앱/bundle record는 준비된 것으로 본다. 단, 무료 앱 배포 이력만으로 Paid Applications Agreement·세금·은행 정보가 활성화됐다고 보지는 않으며 App Store Connect에서 별도 확인해야 한다.
+- 위 조건이 준비된 뒤 App Store Connect에 offer별 Consumable In-App Purchase 5개를 생성한다. 기간은 Apple 상품 설정이 아니라 Billing catalog에서 관리한다.
+- 실제 product ID, 가격, 판매 국가와 현지화는 아직 생성·확정하지 않았다. product ID는 생성 후 변경 제약이 있으므로 naming을 ADR-004에서 확정하기 전 임의 생성하지 않는다.
+- 첫 사용자 확인사항은 기존 Apple Developer Program과 App Store Connect 앱 등록이 이미 완료되어 있는지 여부다.
+- Apple 공식 절차상 IAP 판매에는 `Account Holder`가 `Business > Agreements > Paid Apps > View and Agree to Terms`에서 Paid Apps Agreement를 체결해야 한다. 계약 동의는 되돌릴 수 없으므로 계정의 법적 주체를 확인한 뒤 진행한다.
+- 세금 정보는 `Business > Agreements > Tax Forms`에서 등록한다. 모든 개발자는 미국 세금 양식을 완료해야 하며, 미국 외 계정은 질문에 따라 W-8BEN/W-8BEN-E/W-8ECI 등이 제시된다.
+- 한국 기반 개발자는 Apple 안내상 유효한 사업자등록번호와 최근 90일 이내 영문 사업자등록증명 또는 비영리 국세청 고유번호와 최근 90일 이내 영문 증명 서류가 추가로 요구된다. 정확한 법인/개인·영리/비영리 양식 선택은 계정 법적 주체와 세무 확인이 필요하다.
+- 은행 정보는 Paid Apps Agreement 체결과 필수 세금 양식 제출 뒤 `Business > Agreements > Bank Accounts > Add Bank Account`에서 입력한다. Apple Developer Program의 법적 주체와 계좌 명의 정보가 정확히 일치해야 한다.
+- 사용자가 App Store Connect에서 `Agreements`를 찾지 못했다. Apple 공식 경로는 `Business > Agreements`이며, `Business` 또는 그 안의 `Agreements`가 보이지 않으면 현재 로그인 계정이 Account Holder/Admin/Finance 권한인지와 여러 개발자 팀 중 토선생 앱 소유 팀을 선택했는지 먼저 확인한다. 계약 서명 자체는 Account Holder만 가능하다.
+- 한국어 App Store Connect의 공식 메뉴명은 `비즈니스 > 계약 > 유료 앱 > 약관 보기 및 동의하기`다. 영문 안내의 `Agreements`가 한국어 화면에서는 `계약`으로 표시된다.
+- Paid Apps 진행 중 `이름 확인 문서` 업로드가 표시됐다. 이는 세금 양식과 별도로 Apple 계정에 등록된 개인/법인의 법적 이름을 공식 사업자 또는 법원 문서로 증명하는 단계로 해석한다. 화면에 표시된 이름과 문서의 이름이 exact match해야 하며, 개인사업자는 사업자등록증/사업자등록증명, 법인은 사업자등록증명 또는 법인등기사항증명서처럼 발급기관과 법인명이 명확한 최신 원본을 우선 사용한다.
+- `문서 언어: 한국어`이면 한국어 원문을 제출할 수 있다는 의미로 보고 임의 영문 번역본으로 바꾸지 않는다. 다만 이후 한국 세금 정보 단계에서 요구하는 최근 90일 이내 영문 사업자등록증명은 별도 제출물이다.
+- 계정에 표시된 법적 이름이 문서와 다르거나 개인 계정인데 조직 문서를 요구하는 경우에는 임의 문서를 제출하지 않고 계정 유형/법인명 정정 또는 Apple Developer Support 확인을 우선한다.
+- 이어서 `주소 확인 문서` 업로드가 표시됐다. 입력한 주소와 동일한 현재 사업장/본점 주소가 이름 확인 문서에 함께 적혀 있다면 동일한 사업자등록증·사업자등록증명 또는 법인등기사항증명서를 주소 확인에도 사용할 수 있다. 문서의 주소가 이전 주소라면 파일을 수정하지 않고 Apple 입력 주소를 공식 문서와 맞추거나 사업자/법인 주소 변경을 먼저 완료한다.
+- 주소 문서는 상호/법인명, 전체 주소, 발급기관과 문서 전체가 식별 가능해야 하며 임의 마스킹·편집·잘린 캡처를 사용하지 않는다. 개인 주소 문서는 Apple이 화면에서 허용 유형을 명시한 경우에만 해당 공식 문서를 사용한다.
+- 사용자가 Apple 디지털 서비스법 규정 준수 정보를 제출했고 `27개의 국가 또는 지역`, 최종 업데이트 `2026-09-07`, 상태 `심사 중`임을 확인했다. 현재는 제출 완료·Apple 검토 대기 상태로 보며 추가 요청 없이 동일 문서를 수정하거나 재제출하지 않는다. Account Holder 이메일과 Business의 규정 준수 상태에서 `조치 필요` 또는 추가 자료 요청이 생기는지만 확인한다.
+- Google 앱은 현재 최종 출시 심사 대기 중이라고 사용자가 확인했다. 앱 release 심사 중에도 merchant/payment profile, RevenueCat Google app 연결에 필요한 Cloud project/API·최소 권한 service account, RTDN Pub/Sub, license tester와 internal test 준비를 병행할 수 있다.
+- Google one-time product ID도 생성 후 이름 변경 제약이 있으므로 ADR-004 naming/mapping 확정 전 임의 생성하지 않는다. 앱 승인과 merchant verification/product activation이 끝나기 전에는 production 판매 완료로 간주하지 않는다.
+- Google prepaid의 14일 미지원과 1개월 의미 차이를 확인한 뒤 사용자가 양 Store 모두 one-time으로 재승인했다. 이전 C9-S1 provider-native subscription 안은 최신 C9-S1 one-time 계약으로 supersede됐다.
+
+## 2026-09-06 기간제 무제한 결제 당시 확정 — Store 유형은 2026-09-07 supersede
+
+- 사용자는 1·3·7·14·30일 fixed-term premium 결제와 나머지 권장안을 모두 승인했다. 자동 갱신, paid credit와 fixed-unit exam pass는 현재 범위가 아니다. 기간제 unlimited Store 상품은 2026-09-07 consumable one-time으로 재승인됐다.
+- 내부 offer는 `PREMIUM_1D/3D/7D/14D/30D`, 공통 benefit은 `PREMIUM_SUBSCRIPTION`, 기간형 권리는 `SubscriptionEntitlement`다. 각 기간은 UTC 24·72·168·336·720시간으로 계산한다.
+- 당시에는 Apple Non-Renewing Subscription과 Google prepaid subscription/base plan을 승인했으나 2026-09-07 양 Store one-time product로 대체했다. Billing 발급 lowercase UUID v4 `purchaseAccountRefId`와 server verification 계약은 유지한다.
+- 앱은 Billing public API를 직접 호출한다. Identity Access Token은 기존 Learning Core audience에 `tosunsaeng-billing`을 추가하며 Billing은 RS256, exact issuer/JWKS/audience, lowercase UUID `sub`, `iat/exp/jti`, 최대 60초 skew와 `billing:read`·`billing:purchase` scope를 검증한다.
+- 같은 user가 기간을 재구매하면 `startsAt=max(providerStart,currentPaidTimelineEndsAt)`, `endsAt=startsAt+duration`으로 이어 붙인다. paid entitlement 상태는 `SCHEDULED/ACTIVE/EXPIRED/REVOKED`, purchase 상태는 `PENDING/VERIFIED/REFUNDED/REVOKED`로 분리한다.
+- Reservation resolver는 ACTIVE paid를 먼저 사용하고 무료 `TrialClaim`·Grant·unit은 변경하지 않는다. paid가 없을 때만 기존 `FREE_EXAM_ONCE`를 사용하므로 유료 기간 종료 후 미사용 무료권이 남는다.
+- provider-confirmed refund/revoke는 append-only reversal로 기록한다. `RESERVED`는 종료, `OPEN`·`RETAKE_AVAILABLE`은 접근과 replacement를 차단하고, 이미 제출된 `GRADING`만 완료하며 `COMPLETED` history는 보존한다. refund 전 confirm 여부만으로 replacement를 계속 허용하지 않는다.
+- 결제 반영은 RevenueCat 표준 SDK client sync, Authorization+HMAC webhook과 periodic RevenueCat API reconciliation이 RevenueCat event/Store transaction unique 및 같은 Transaction service로 수렴한다. 이 내용이 이전 direct Store notification·finish/consume 방식을 supersede한다.
+- 전체 승인 계약은 `docs/contracts/FIXED_TERM_PREMIUM_PAYMENT_CONTRACT.md`와 `docs/codex/CONTRACT_DECISIONS.md` C1-A/C2-A/C9-S1~S8에 기록했다. 다음 작업은 결제 ADR와 구현 계획서 작성이며 애플리케이션 코드는 아직 변경하지 않았다.
+- 구현 전 남은 입력은 실제 Store product ID, 가격·판매 국가, Store review, exact public API DTO/error/rate limit, Mongo collection/index와 staging quota 기반 운영 조정값이다.
+- 계약의 사용자 관점 요약은 "결제를 Store에서 완료하고 Billing 검증·저장이 끝나면 정해진 시간 동안 시험을 횟수 차감 없이 시작할 수 있으며, 유료 기간에는 무료 1회권이 보존된다"이다. 무제한은 동시 시험 무제한이 아니라 기존 단일 active Session/AttemptGroup 제약 안에서 기간 중 신규 시험 횟수를 unit으로 차감하지 않는다는 의미다.
+- 구현 관점의 핵심 객체는 상품 종류 `BenefitDefinition`, 판매 기간 `offer`, Store 결제 한 건 `Purchase`, 실제 시작·종료 권리 `SubscriptionEntitlement`, 변경 감사 `ledger`, 시험 시작 승인 `Reservation`, 해당 시험·재응시 묶음 `AttemptGroup`이다.
+- public ingress는 기존 public ALB의 Billing 전용 host/path rule+별도 target group, 구매는 ACTIVE MEMBER만, `purchaseAccountRefId`는 사용자·환경별 stable 값으로 확정했다. Guest는 `billing:read`만 받고 purchase와 paid merge는 현재 범위에서 제외한다.
+- stacked entitlement 중간 환불 시 해당 slot을 제거하고 뒤의 verified 기간을 즉시 앞으로 재배치한다. 정규화 결제·원장은 5년, provider event inbox는 120일, backup은 최대 35일 보존한다.
+- reconciliation 기본값은 PENDING·Store-completed/Billing-pending 5분, ACTIVE/SCHEDULED 6시간, 최근 90일 terminal 일 1회와 100건 batch다. staging RevenueCat API quota 측정 뒤 환경 설정만 보수적으로 조정할 수 있다.
+- Identity는 현재 audience 한 개와 공통 default scope를 모든 사용자 token에 넣고 Guest도 발급한다. 따라서 결제에서는 audience list reader-first 변경뿐 아니라 MEMBER token에만 `billing:purchase`, Guest에는 최대 `billing:read`만 발급하는 account-type별 scope 계약이 필요하다.
+
+## 2026-09-06 결제 출시를 위해 사용자가 외부에서 준비할 항목
+
+- Apple은 Developer Program/App Store Connect 권한, Paid Applications Agreement·세금·은행 정보, app/bundle record, 5개 Consumable In-App Purchase product ID·가격·국가·현지화/review metadata, RevenueCat Apple app 연결 credential, App Store Server Notifications→RevenueCat 연결과 sandbox tester가 필요하다.
+- Google은 Play Console 개발자·merchant/payment profile, app/package record, 5개 consumable one-time product ID·가격·국가, RevenueCat Google app 연결용 Cloud project/Play Android Developer API/service account 최소 권한, RTDN Pub/Sub→RevenueCat 연결, license tester와 internal test track이 필요하다.
+- AWS에서는 실제 public hostname, ACM certificate, 기존 ALB listener의 Billing host/path allowlist·별도 target group·SG, provider notification public route와 Store credential용 Secrets Manager 항목을 환경별로 준비해야 한다.
+- 사용자가 직접 선택하거나 승인할 business 값은 영구적으로 사용할 product ID naming, 5개 가격, 판매 국가·세금/현지화, 약관·개인정보·환불 안내와 Store review 제출 정보다. product ID는 생성 뒤 변경·재사용이 제한될 수 있으므로 ADR naming 확정 전에 임의 생성하지 않는다.
+- `purchaseAccountRefId`는 Billing이 자동 발급하고 transaction ID/purchase token은 Store가 결제 때 발급하므로 사용자가 신청하지 않는다. Identity audience/scope, API DTO, Mongo index와 refund event는 코드·ADR 작업이다.
+- `.p8`, service-account JSON, issuer/key ID 조합, private key와 notification credential은 채팅·Jira·Git에 올리지 않고 환경별 Secret Manager에 직접 등록한다.
+
+## 2026-09-06 환불 뒤 진행 중 시험 이탈·재시작 검토 기록 — 최신 strict revoke로 대체
+
+- 최초 검토에서는 confirm된 AttemptGroup의 replacement를 refund 뒤에도 허용하는 방안을 고려했으나 start→refund→exit→replacement를 통한 사실상 무료 응시 악용 때문에 채택하지 않았다.
+- 최종 확정은 provider-confirmed refund 시 `RESERVED`를 종료하고 `OPEN`과 `RETAKE_AVAILABLE`의 추가 진행·replacement를 차단하며, 이미 제출돼 `GRADING`인 Session만 처리 정합성을 위해 terminal까지 완료하고 `COMPLETED` history는 삭제하지 않는 방식이다.
+- refund와 reserve/Session commit/confirm race는 먼저 commit된 상태와 CAS로 판정한다. refund가 먼저면 confirm을 revoked error로 거절하고 Learning Core가 생성된 Session을 access-revoked로 보상한다.
+- 이 보정은 Learning Core가 refund-revoked AttemptGroup/Session을 실제로 차단할 수 있는 durable event 또는 동등한 fail-closed projection이 필요하다. Billing의 신규 reserve 차단만으로는 이미 발급된 Session의 답안 제출·채점 요청을 막을 수 없다.
+- Store가 환불을 승인하기 전에 이미 완료된 시험 가치는 기술적으로 회수할 수 없다. Apple의 지원 가능한 consumption 정보와 Google의 void/refund 관련 사용 evidence를 최소 정규화 상태로 제공하고, refunded-after-use 지표·반복 악용 운영 검토를 두되 앱 주장만으로 환불·차단하지 않는다.
+
+## 2026-09-05 Store 값과 토선생 사용자 연결 경계
+
+- Store product ID는 어떤 상품을 샀는지 판정하는 데 사용하고 provider transaction ID/purchase token은 같은 구매의 중복 반영을 막는 데 사용한다. 이 값들은 구매 증거이지 토선생 계정의 영구적인 owner 식별자가 아니다.
+- Apple/Google 계정은 토선생 계정과 1:1이라는 보장이 없다. 한 Store 계정으로 여러 토선생 계정을 사용하거나, 기기의 Store 계정을 바꾸거나, 같은 기기에서 다른 사용자가 로그인할 수 있으므로 Store 측 계정만으로 entitlement를 정하면 다른 토선생 사용자에게 권리가 붙을 수 있다.
+- 앱이 Apple ID 자체를 안정적인 사용자 ID로 받는 구조도 아니며 provider별 식별 방식과 복원 semantics가 다르다. Store 계정값에 owner를 결속하면 Apple·Google 간 동일한 소유권 규칙을 만들기 어렵고 개인정보·계정 공유 영향도 커진다.
+- 따라서 구매 시점에 로그인된 토선생 사용자에게 Billing이 발급한 opaque `purchaseAccountRefId`를 Store transaction에 함께 넣고, 검증된 transaction의 reference가 현재 사용자에게 발급된 값과 일치할 때만 entitlement를 연결한다.
+- Store 값은 상품·거래 검증에, Billing reference는 앱 사용자 소유권 검증에 각각 사용한다. phone rejoin이나 같은 Store 계정만으로 유료 권리를 이전하지 않고 `UserMerged`처럼 승인된 계정 lifecycle만 별도 migration으로 처리한다.
+- 같은 Apple 계정이면 같은 토선생 계정이라는 전제는 토선생 로그인이 Sign in with Apple만 사용하고 그 subject를 영구 1:1 계정키로 강제할 때에만 성립한다. 현재 Identity는 별도 토선생 계정과 phone lifecycle을 소유하므로 App Store의 Media & Purchases 계정과 토선생 로그인 계정을 같은 identity로 간주하지 않는다.
+- 가족의 Apple 계정 공유는 보조적인 오귀속 사례일 뿐 핵심 근거가 아니다. 더 근본적인 이유는 Apple이 앱에 Apple ID 자체를 결제 owner ID로 제공하지 않고, 앱 계정과 transaction을 연결하도록 개발자가 제공하는 `appAccountToken`을 지원한다는 점이다. 따라서 `purchaseAccountRefId`는 Store 값을 우회하는 값이 아니라 provider transaction에 토선생 계정 context를 안전하게 넣는 표준 연결값이다.
+- 쉬운 역할 구분은 `productId=상품표`, `transactionId/purchaseToken=영수증 번호`, `purchaseAccountRefId=받는 토선생 회원 번호`다. Billing은 세 값을 함께 검증해야 정확한 상품을 정확히 한 번, 정확한 사용자에게 지급할 수 있다.
+
+## 2026-09-05 결제 포함 1차 개발 범위 전환 검토
+
+- Learning Core 후속 보정은 PR #29 merge `88b46c6`으로 `develop`과 `origin/develop`에 반영됐다. phone continuation attemptGroupId lowercase UUID v4, migration orphan/owner mismatch preflight, unknown commit inbox 수렴·503 mapping, replica-set 회귀 범위와 CI task가 코드상 보완됐다.
+- 재검증에서 Learning Core `./gradlew clean test`는 성공했고 Node migration test 7개와 `git diff --check`도 성공했다. 로컬 `mongoIntegrationTest`는 Docker provider 부재로 initialization 실패했으므로 GitHub CI의 해당 required job 성공 여부와 staging E2E는 별도 production gate다.
+- 무료시험·owner lifecycle은 핵심 애플리케이션 개발 완료로 보고 결제 애플리케이션 개발을 시작할 수 있다. 단, 관련 feature flag 활성화와 production 출시는 schema migration, 실제 Lattice/IAM/SG, Mongo replica-set CI, 중복·역순·응답 유실·인증 실패 staging E2E 뒤에만 진행한다.
+- 사용자가 1차 개발 범위에 결제를 포함하려는 의사를 밝혔다. 기존 `CONTRACT_DECISIONS`의 deferred 상태와 C9~C11은 credit pack/3일 pass 초안이므로, 사용자 선호인 단순 premium subscription을 구현하기 전에 이를 subscription 계약으로 명시적으로 대체해야 한다.
+- 다음 권장 작업은 코딩이 아니라 구독 결제 계약 확정이다. plan/기간·Store product mapping, 제공 권리, 무료권과 resolver 우선순위, 앱→Billing API와 JWT audience, account binding/restore, renewal·grace·cancel·expiry, refund/revoke·notification 및 reconciliation을 확정한 뒤 별도 ADR·PLAN·Jira로 vertical slice를 나눈다.
+
+## 2026-09-05 기간제 무제한 이용권 당시 선택지 — Store 유형은 2026-09-07 supersede
+
+- 사용자가 유료 상품을 `1일`, `3일`, `7일`, `14일`, `30일` 동안 무제한 사용하는 고정 기간 상품으로 정했고, 유료 이용 중에도 전화번호당 무료 1회권은 소비하지 않고 보존하기로 했다.
+- 이 상품은 자동 갱신형 월 구독보다 fixed-term access pass에 가깝다. Apple은 limited duration용 Non-Renewing Subscription, Google은 자동 갱신되지 않고 top-up으로 연장하는 prepaid subscription plan을 공식 제공하므로 provider별 native fixed-term 유형을 우선 검토한다. 정확한 5개 기간의 Console 등록 가능 여부는 실제 상품 생성 전 각 Store에서 확인한다.
+- Store mapping 권장안은 Apple non-renewing subscription 5개 product와 Google 하나의 subscription product 아래 5개 prepaid base plan을 Billing의 5개 내부 offer code에 매핑하는 방식이다. 두 Store를 모두 consumable one-time product로 통일하는 대안은 server 구현이 단순하지만 restore와 Store 상품 의미가 약해진다. auto-renewable은 고정 기간·무자동갱신 요구와 맞지 않는다.
+- account binding은 Billing이 발급한 환경별 비개인 opaque purchase account ID를 Apple `appAccountToken`과 Google obfuscated account ID에 전달하고 canonical user와 서버에서 연결하는 안을 권장한다. raw userId·phone·email을 Store 식별자로 보내거나 device에 entitlement를 결속하지 않는다.
+- 앱 API는 앱→Billing direct public API와 Identity access JWT의 Billing audience를 권장한다. Learning Core proxy는 초기 endpoint가 적지만 결제 보안·장애·DTO 책임을 시험 서비스에 결합한다.
+- fixed-term lifecycle은 결제 검증 완료 시 시작하고, active pass 재구매는 `max(now, currentEndsAt)`부터 기간을 이어 붙이는 안을 권장한다. 자동갱신이 없으므로 grace/account-hold/cancel-scheduled 상태는 만들지 않고 pending, active, expired, revoked/refunded를 provider payment 상태와 entitlement 상태로 분리한다.
+- 당시에는 confirm된 AttemptGroup의 replacement 보존을 권장했으나 2026-09-06 악용 검토에서 폐기했다. 최신 확정은 위 strict revoke 상태표를 따르며 기존 ledger와 완료 history는 삭제하지 않고 무료 TrialClaim도 복원·소비하지 않는다.
+- activation은 client purchase sync와 server notification을 함께 사용하고, notification 누락·지연을 보완할 주기적 Store reconciliation을 둔다. client-only 또는 notification-only는 각각 환불 누락과 활성화 지연 위험이 있다.
+
+## 2026-09-05 C9 Store 상품·account binding 당시 승인 — 2026-09-07 supersede
+
+- 사용자가 4번 권장안을 승인해 `CONTRACT_DECISIONS.md`에 C9-S1 active contract로 반영했다. Apple Non-Renewing Subscription, Google prepaid subscription base plan과 Billing 내부 `PREMIUM_1D/3D/7D/14D/30D` exact mapping을 사용한다.
+- 앱의 가격·기간 주장은 신뢰하지 않고 Billing이 Store transaction과 product/base plan을 서버에서 검증한 뒤 catalog duration으로만 entitlement를 만든다. provider transaction/event unique로 client retry·notification·reconciliation 중복 지급을 차단한다.
+- Billing 발급 lowercase UUID v4 `purchaseAccountRefId`를 Apple `appAccountToken`과 Google obfuscated account identifier에 사용한다. raw userId·phone·email·device ID를 Store에 결속하지 않고 current canonical user와 Billing 내부에서만 연결한다.
+- 이미 반영된 구매는 Billing current entitlement 조회로 복원하고 전달 전 앱 종료는 Store purchase query, server notification과 reconciliation으로 수렴한다. Guest `UserMerged` 외 phone proof나 동일 device/Store account만으로 유료 권리를 다른 앱 계정에 이전하지 않는다.
+- 기존 C9-A consumable/credit, C10 credit expiry와 3일 pass 초안은 역사적 기록으로 명시했다. 이 시점에는 C1/C2 public API/auth, entitlement activation·stacking, refund/revoke, notification/ack 책임과 reconciliation이 미확정이었으나 이후 위의 "기간제 무제한 결제 계약 전체 승인"에서 모두 확정됐다.
+
+## 2026-09-05 cross-service 기능 완결성 재점검
+
+- 무료시험 phone continuation과 Guest `UserMerged`의 핵심 정상 흐름은 세 저장소에 구현·병합됐다. 그러나 production-safe 완료로 보기는 이르며 Learning Core 후속 보정과 staging gate가 남아 있다.
+- 확정 코드 누락 1: Learning Core phone continuation discovery의 `attemptGroupId`는 계약상 lowercase UUID v4인데 client decoder와 saga 최초 검증이 opaque text만 허용한다. 잘못된 Billing 200 응답을 operation snapshot 생성 전에 strict 거절하도록 보완해야 한다.
+- 확정 코드 누락 2: Learning Core `user-merged-prepare.js`는 owner UUID, active Session 중복, index와 기존 MERGED guard를 확인하지만 orphan `ExamResult`/`ExamSummary`와 Result/Summary owner↔Session owner 불일치를 검사하지 않는다. apply 전 데이터 정합성 preflight와 Node 회귀 테스트를 추가해야 한다.
+- 확정 CI 누락: `build.gradle`은 `check`에서 `mongoIntegrationTest`를 연결하지만 staging workflow가 `./gradlew clean test`만 실행한다. replica-set Mongo Transaction 검증이 required gate에서 실제 수행되도록 workflow를 보정해야 한다.
+- 잠재 기능 누락: `UserOwnedTransactionExecutor`는 `UnknownTransactionCommitResult`를 재실행하지 않는 점은 안전하지만 eventId/inbox를 재조회해 commit 여부로 수렴하지 않고 예외를 그대로 전달한다. 해당 오류가 `TransactionSystemException`으로 포장되면 Controller advice의 `DataAccessException` handler 밖에서 500이 될 가능성이 있어, 재조회 수렴과 503 mapping을 실제 예외 형태로 고정하는 테스트가 필요하다.
+- 통합 검증 범위도 계획보다 작다. 현재 UserMerged replica-set test는 4개이며 failure injection rollback, non-terminal operation, concurrent duplicate/write/Callback, unknown commit result 수렴 등의 계획 조건이 빠져 있다.
+- 일반 Java 483개와 Node migration 6개는 직전 검토에서 성공했지만 Docker daemon 부재로 `mongoIntegrationTest`는 실행되지 않았다. 위 보정과 Docker 가능한 CI 성공, 실제 Lattice/JWT·순서 역전·응답 유실 staging E2E 전에는 관련 production flag를 OFF로 유지한다.
+
+## 2026-09-05 다음 작업 재확인
+
+- 즉시 다음 구현 대상은 Learning Core `TMI-125`다. Billing phone continuation reader-first 계약을 적용하고 `UserMerged` consumer·workload JWT verifier·source deny와 실제 merge ownership migration을 구현한다.
+- phone 재가입은 Learning Core owner event를 받지 않는다. 새 target user에게 과거 Session·답안·결과를 이전하지 않고 Billing continuation discovery가 승인한 `OPEN`/`RETAKE_AVAILABLE` group에 새 examId의 replacement Session만 연결한다.
+- Billing의 신규 continuation 응답 optional field를 먼저 허용하고, target에 기존 Session이 없을 때 continuation 조회 후 200이면 six-field reserve exact echo, 204면 일반 INITIAL 흐름을 수행한다. 예상하지 못한 REPLACEMENT나 context 불일치는 fail-closed하고 Reservation을 cancel로 보상한다.
+- Learning Core 구현·병합 뒤 Docker가 가능한 환경에서 Billing Testcontainers 4개를 포함한 전체 테스트를 재실행한다.
+- 마지막 gate는 Lattice exact route/IAM·SG, schema v4 preflight, 세 서비스 feature flag OFF 배포와 staging 중복·역순·응답 유실·인증 실패 E2E다. 이 검증 전 production flag는 활성화하지 않는다.
+
+## 2026-09-05 Learning Core TMI-122·TMI-125 병합 구현 검토
+
+- Learning Core `develop`과 `origin/develop`은 PR #28 merge `8c8208b`에서 일치한다. phone continuation `TMI-122`는 PR #27, UserMerged `TMI-125`는 PR #28로 병합됐다.
+- Billing continuation 조회·6-field reserve·새 target Session 연결과 UserMerged exact route/workload JWT/source deny/owner migration의 큰 방향은 승인 계약과 일치한다. `TrialOwnerRebindApproved` Learning Core consumer와 phone 기반 과거 시험 이전은 추가되지 않았다.
+- `./gradlew clean test`는 Java 483개가 failures/errors/skipped 0으로 성공했고 Node migration test 6개와 `git diff --check`도 성공했다. `mongoIntegrationTest`는 Docker daemon 부재로 initialization 단계에서 실행되지 못했다.
+- 배포 workflow는 현재 `./gradlew clean test`만 실행하므로 `build.gradle`에서 `check`에 연결한 `mongoIntegrationTest`가 CI gate에서 실제 실행되지 않는다. workflow 또는 별도 required workflow 보정이 필요하다.
+- UserMerged Mongo 준비 script는 owner UUID·active 중복·index·기존 MERGED guard만 검사하며 계획서의 orphan Result/Summary와 Session-owner 불일치 검사를 구현하지 않았다. apply 전에 해당 preflight와 테스트를 보완해야 한다.
+- Learning Core phone discovery decoder는 `attemptGroupId`를 opaque text로 허용하지만 Billing 계약은 lowercase UUID v4다. malformed 200 response를 operation snapshot에 저장하기 전에 strict 거절하도록 decoder와 회귀 테스트를 보완해야 한다.
+- Learning Core 작업 트리에는 검토 시작 뒤 기존 TMI-125 Jira 완료 기록인 CURRENT_STATE/WORKLOG 변경이 남아 있으며 애플리케이션 파일은 clean이다. 이를 수정하거나 되돌리지 않았다.
 
 ## 2026-09-03 PHONE_REJOIN continuation discovery 구현
 

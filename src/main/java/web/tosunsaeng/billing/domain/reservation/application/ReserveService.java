@@ -44,7 +44,7 @@ import web.tosunsaeng.billing.domain.entitlement.trial.repository.TrialCandidate
 import web.tosunsaeng.billing.domain.entitlement.trial.repository.TrialClaimRepository;
 import web.tosunsaeng.billing.domain.eligibility.trial.domain.entity.TrialEligibility;
 import web.tosunsaeng.billing.domain.eligibility.trial.domain.entity.TrialEligibilityCandidate;
-import web.tosunsaeng.billing.domain.eligibility.trial.domain.enums.TrialEligibilityState;
+import web.tosunsaeng.billing.domain.entitlement.trial.application.TrialEntitlementPolicy;
 import web.tosunsaeng.billing.domain.eligibility.trial.repository.TrialEligibilityRepository;
 
 @Service
@@ -172,11 +172,12 @@ public class ReserveService {
         TrialEligibility eligibility = eligibilityRepository.findByScopeAndUser(
                         eligibilityProperties.getExpectedConsumerScopeId(), command.userId()
                 )
-                .filter(value -> value.getState() == TrialEligibilityState.VERIFIED)
-                .filter(value -> !value.getCandidates().isEmpty())
+                .filter(TrialEntitlementPolicy::verified)
                 .orElseThrow(ReservationException::entitlementInsufficient);
 
         ClaimContext claim = resolveClaim(eligibility, command.userId(), now, ids);
+        BillingSubjectLink boundLink = subjectLinkRepository.bindSession(claim.link(), now)
+                .orElseThrow(ReservationException::temporarilyUnavailable);
         Optional<AttemptGroup> existingGroup = attemptGroupRepository
                 .findNonTerminalBySubject(claim.subjectRefId());
         Reservation.Kind kind = determineKind(existingGroup, claim, command.mockExamId());
@@ -219,12 +220,12 @@ public class ReserveService {
                 command.payloadHash(), kind, attemptGroupId, command.sessionId(),
                 authoritativeMockExamId, continuationReason, command.continuationId(),
                 now, expiresAt
-        );
+        ).withSessionOwnerEpoch(boundLink.sessionEpochForWrite());
         reservationRepository.insert(reservation);
         attemptSessionRepository.insert(AttemptSession.proposed(
                 command.sessionId(), attemptGroupId, claim.subjectRefId(),
                 command.operationId(), now
-        ));
+        ).withSessionOwnerEpoch(boundLink.sessionEpochForWrite()));
 
         IdempotencyCommand.ResponseSnapshot snapshot = new IdempotencyCommand.ResponseSnapshot(
                 command.operationId(), reservation.getReservationId(), kind,
@@ -260,14 +261,14 @@ public class ReserveService {
             String claimId = claimIds.iterator().next();
             TrialClaim claim = claimRepository.findById(claimId)
                     .filter(value -> value.getState() == TrialClaim.State.ACTIVE)
-                    .filter(value -> value.getRetentionExpiresAt().isAfter(now))
+                    .filter(value -> TrialEntitlementPolicy.retained(value.getRetentionExpiresAt(), now))
                     .orElseThrow(ReservationException::temporarilyUnavailable);
             if (!benefitCode.equals(claim.getBenefitCode())) {
                 throw catalogUnavailable();
             }
             BillingSubjectLink link = subjectLinkRepository.findByClaim(claimId)
                     .filter(BillingSubjectLink::isActive)
-                    .filter(value -> value.getRetentionExpiresAt().isAfter(now))
+                    .filter(value -> TrialEntitlementPolicy.retained(value.getRetentionExpiresAt(), now))
                     .orElseThrow(ReservationException::temporarilyUnavailable);
             if (!link.getUserId().equals(userId)) {
                 throw ReservationException.entitlementInsufficient();
@@ -347,8 +348,7 @@ public class ReserveService {
         if (current.getStatus() == AttemptGroup.Status.GRADING) {
             throw ReservationException.commandProcessing();
         }
-        if (current.getStatus() != AttemptGroup.Status.OPEN
-                && current.getStatus() != AttemptGroup.Status.RETAKE_AVAILABLE) {
+        if (!TrialEntitlementPolicy.replaceable(current.getStatus())) {
             metrics.recordInvariantViolation();
             throw ReservationException.temporarilyUnavailable();
         }
@@ -395,10 +395,7 @@ public class ReserveService {
     }
 
     private static void validateGrantUnits(EntitlementGrant grant) {
-        if (grant.getAvailableUnits() < 0 || grant.getHeldUnits() < 0
-                || grant.getConsumedUnits() < 0
-                || grant.getAvailableUnits() + grant.getHeldUnits()
-                + grant.getConsumedUnits() != grant.getTotalUnits()) {
+        if (!TrialEntitlementPolicy.validUnits(grant)) {
             throw ReservationException.temporarilyUnavailable();
         }
     }
@@ -407,8 +404,7 @@ public class ReserveService {
             BenefitDefinition definition,
             EntitlementGrant grant
     ) {
-        if (!definition.getBenefitCode().equals(grant.getBenefitCode())
-                || grant.getTotalUnits() != definition.getDefaultGrantUnits()) {
+        if (!TrialEntitlementPolicy.matchesDefinition(definition, grant)) {
             throw catalogUnavailable();
         }
         validateGrantUnits(grant);

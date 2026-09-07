@@ -1,8 +1,9 @@
 # Billing 서비스 간 연동 계약
 
 - 작성일: 2026-08-27
+- 최종 갱신일: 2026-09-07
 - 대상 저장소: `app-back-end-billing`
-- 상태: 현재 승인된 무료 모의고사 Entitlement 계약의 통합 안내서
+- 상태: 무료 모의고사 Entitlement와 승인된 fixed-term premium 결제 계약의 통합 안내서
 - Jira: 없음
 
 ## 1. 문서 목적과 기준
@@ -15,18 +16,24 @@
 2. 내부 HTTP·DTO·Mongo 계약: `docs/adr/ADR-001-free-trial-internal-api-and-mongo-contract.md`
 3. VPC Lattice·SigV4·환경 격리: `docs/adr/ADR-002-vpc-lattice-ecs-sigv4-and-environment-migration.md`
 4. retained trial owner rebind: `docs/adr/ADR-003-retained-trial-owner-rebind-contract.md`
-5. 현재 owner rebind 구현 순서: `docs/plans/PLAN-006-retained-trial-owner-rebind.md`
+5. fixed-term premium 결제: `docs/contracts/FIXED_TERM_PREMIUM_PAYMENT_CONTRACT.md`
+6. 현재 owner rebind 구현 순서: `docs/plans/PLAN-006-retained-trial-owner-rebind.md`
+
+결제 public DTO·RevenueCat adapter·Mongo v5·Learning Core 접근 철회 wire는 [ADR-004 기술 초안](../adr/ADR-004-fixed-term-premium-payment-contract.md)에 작성했다. 승인된 제품 선택과 별개로 D1 정상 기간 만료와 D2 환불 취소 정책은 검토 대기이며, 초안 작성은 상대 서비스 구현·배포 완료를 의미하지 않는다.
 
 이 문서와 ADR이 충돌하면 ADR을 따른다. 계약을 변경할 때는 이 안내서만 고치지 않고 producer와 consumer의 ADR·fixture·contract test를 함께 갱신한다.
 
 ## 2. 서비스별 책임
 
+2026-09-07 승인·구현: 결제보다 먼저 [PLAN-007 무료 사용권 reader](../plans/PLAN-007-public-free-entitlement-query.md)의 `GET /api/v1/entitlements`를 사용자 JWT/Billing audience/billing:read로 제공한다. Guest·MEMBER 본인만 조회하며, 수량·진행·재응시를 구분한다. 이 API의 public `isSuccess/code/message/result` envelope는 internal DTO에 적용하지 않는다. Billing 구현·로컬 테스트는 완료했고 reader는 기본 OFF다. Identity PR #39 account_type 병합과 aud/read 후속 발급·운영 배포를 혼동하지 않는다. [배포·legacy 이관 gate](../runbooks/PLAN-007-public-reader-rollout.md) 이후 활성화한다. 아래 payments 흐름은 후속 결제 계획이고 이번 무료 조회에 함께 구현하지 않는다.
+
 | 주체 | 소유하는 것 | Billing 연동 책임 |
 | --- | --- | --- |
-| 앱 | 사용자 동작과 사용자 Access Token | 시험 시작 operation ID를 생성·보존하고 Learning Core에 같은 값으로 재시도 |
-| Identity | 계정, verified phone, 사용자 JWT | phone eligibility state event를 Billing에 전달 |
-| Learning Core | 시험 Session, 문제, 제출, 채점, 결과 | 시험 생성 전 reserve, Session commit 후 confirm, 실패 시 cancel, 결과 상태 event 전달 |
-| Billing | TrialClaim, entitlement grant·ledger, Reservation, AttemptGroup consumption projection | eligibility와 사용권을 검증하고 hold·consume·release·expiry·reconciliation 수행 |
+| 앱 | 사용자 동작과 사용자 Access Token | 시험 시작 operation ID를 보존하고 RevenueCat purchase 뒤 Billing sync를 재시도 |
+| Identity | 계정, verified phone, 사용자 JWT | phone eligibility event와 Billing audience·account-type별 scope 발급 |
+| Learning Core | 시험 Session, 문제, 제출, 채점, 결과 | reserve/confirm/cancel·상태 event와 refund access-revocation projection 적용 |
+| RevenueCat | Apple/Google purchase SDK·Offering, Store transaction 정규화와 webhook | `purchaseAccountRefId`로 구매를 연결하고 Billing에 Authorization+HMAC event/API 조회 제공 |
+| Billing | TrialClaim, paid purchase·entitlement·ledger, Reservation, AttemptGroup projection | RevenueCat에서 검증한 Store transaction으로 권리 승인·환불·expiry·reconciliation과 revoke event 수행 |
 
 Billing은 사용자 계정, phone 원문, 시험 문제, 음성, AI 채점 결과를 소유하지 않는다. Identity는 무료권을 지급하지 않고 Learning Core는 entitlement balance를 직접 계산하지 않는다.
 
@@ -37,17 +44,29 @@ flowchart LR
     APP["모바일 앱"]
     ID["Identity"]
     LC["Learning Core"]
+    ALB["Public ALB"]
     LAT["VPC Lattice AWS_IAM"]
+    RC["RevenueCat"]
+    STORE["Apple App Store / Google Play"]
     BILL["Billing"]
 
     APP -->|"회원·인증, 사용자 JWT"| ID
     APP -->|"시험 생성과 학습 API"| LC
+    APP -->|"상품·구매"| RC
+    RC --> STORE
+    STORE --> RC
+    APP -->|"구매 sync·권리 조회"| ALB
+    RC -->|"Authorization + HMAC webhook"| ALB
+    ALB -->|"Billing public/RevenueCat allowlist"| BILL
+    BILL -->|"인증된 transaction 조회"| RC
     ID -->|"SigV4: phone eligibility·owner event"| LAT
     LC -->|"SigV4: reserve·confirm·cancel·status·AttemptGroup event"| LAT
     LAT --> BILL
 ```
 
-현재 무료 MVP에는 앱이 Billing을 직접 호출하는 경로가 없다. Billing 사용자 API와 Billing 사용자 JWT audience는 결제 단계까지 보류한다.
+무료-only 단계에는 앱이 Billing을 직접 호출하지 않았으나 fixed-term 결제부터 기존 public ALB의 Billing 전용 host/path·target group을 통해 구매 sync·권리 조회를 직접 호출한다. public route는 `GET /api/v1/payments/products`, `POST /api/v1/payments/purchase-account`, `POST /api/v1/payments/sync`, `GET /api/v1/payments/entitlement`로 분리한다. 상품·구매 UI는 RevenueCat SDK·Offering을 사용하고, RevenueCat Authorization+HMAC webhook만 별도 public provider route로 허용한다. internal route는 계속 Lattice-only다.
+
+RevenueCat은 같은 project의 iOS/Android app을 사용하되 webhook integration을 SANDBOX→staging, PRODUCTION→production으로 filter하고 URL·Authorization·HMAC secret을 환경별로 분리한다. webhook은 5분 HMAC timestamp window와 raw-body 검증 뒤 durable inbox를 commit하고 200을 반환하며 worker가 처리한다. S2S-only 신규 purchase 추적과 자동 refund handling은 최초 출시에서 OFF다.
 
 Billing도 현재 계약에서는 Identity나 Learning Core를 동기 호출하지 않는다. Identity와 Learning Core가 Billing으로 push하고, Learning Core는 Billing status를 조회해 불명확한 command를 복구한다.
 
@@ -61,7 +80,7 @@ Billing도 현재 계약에서는 Identity나 Learning Core를 동기 호출하�
 - Identity role은 Trial eligibility와 승인된 owner rebind event route만 호출할 수 있다.
 - Learning Core role은 Reservation, status와 AttemptGroup event route만 호출할 수 있다.
 - unsigned 요청, 잘못된 role, 반대 환경 role, 권한 없는 route와 Billing task 직접 접근은 거절한다.
-- public ALB, shared API key, caller가 임의로 넣은 identity header 또는 사용자 Access Token forwarding을 내부 workload 인증으로 사용하지 않는다.
+- public ALB, shared API key, caller가 임의로 넣은 identity header 또는 사용자 Access Token forwarding을 내부 workload 인증으로 사용하지 않는다. public ALB는 결제 사용자/RevenueCat webhook route에만 사용하고 `/internal/**`를 Billing target으로 전달하지 않는다.
 
 ### 4.2 환경 격리
 
@@ -360,7 +379,7 @@ Billing에 저장하지 않는 값:
 - HMAC key material
 - 사용자 Access Token, SigV4 Authorization와 AWS session token
 - 시험 음성, transcript, 문제, AI/provider 결과 원문
-- Apple/Google receipt·notification 원문
+- Apple/Google receipt·notification과 RevenueCat webhook 원문
 
 Billing이 무료 MVP에 저장하는 핵심 값:
 
@@ -438,7 +457,7 @@ Identity producer나 Learning Core 시험 생성 gate를 Billing consumer보다 
 - Learning Core의 Billing reserve saga와 AttemptGroup status publisher는 구현돼 있다. `UserMerged` owner migration/source deny와 phone target의 기존 group replacement 수용은 별도 후속 검증 대상이다.
 - VPC Lattice, Billing ECS service와 실제 IAM/SG 리소스는 아직 없다.
 - Identity event별 owner delivery, Learning Core `UserMerged` consumer와 phone replacement staging E2E가 끝나기 전에는 production owner rebind를 활성화하지 않는다.
-- Apple/Google 결제, paid credit, pass, coupon과 환불은 무료 MVP 후속이다.
+- 무료/owner lifecycle 핵심 코드는 구현됐고 Apple Consumable In-App Purchase·Google consumable one-time product와 RevenueCat 표준 SDK/Authorization+HMAC webhook/API 기반 fixed-term 결제는 제품·ADR-004 선택 승인, exact ADR/PLAN 작성 대기 상태다. paid credit, fixed-unit exam pass, 자동 갱신, coupon과 부분 환불은 범위 밖이다.
 
 ## 15. 연동 점검 체크리스트
 

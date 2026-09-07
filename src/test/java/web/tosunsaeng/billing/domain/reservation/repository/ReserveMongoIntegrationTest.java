@@ -80,9 +80,208 @@ import web.tosunsaeng.billing.domain.eligibility.trial.domain.entity.TrialEligib
 import web.tosunsaeng.billing.domain.eligibility.trial.repository.TrialEligibilityRepository;
 
 @SpringBootTest
+@org.springframework.context.annotation.Import(ReserveMongoIntegrationTest.ReadCaptureConfig.class)
 @ActiveProfiles("test")
 @Testcontainers(disabledWithoutDocker = false)
 class ReserveMongoIntegrationTest {
+
+    @Autowired private web.tosunsaeng.billing.domain.entitlement.application.EntitlementQueryService entitlementQuery;
+    @Autowired private web.tosunsaeng.billing.domain.entitlement.application.SessionAttributionMigration attributionMigration;
+    @Autowired private MongoTransactionExecutor writeTransactions;
+    @Autowired private ReadCapture readCapture;
+    @Autowired private web.tosunsaeng.billing.global.infrastructure.mongodb.EntitlementSnapshotExecutor readSnapshots;
+    @Autowired private web.tosunsaeng.billing.domain.entitlement.repository.EntitlementQueryRepository queryRepository;
+
+    @org.springframework.boot.test.context.TestConfiguration
+    static class ReadCaptureConfig {
+        @org.springframework.context.annotation.Bean ReadCapture readCapture() { return new ReadCapture(); }
+        @org.springframework.context.annotation.Bean
+        org.springframework.boot.autoconfigure.mongo.MongoClientSettingsBuilderCustomizer captureCustomizer(ReadCapture capture) {
+            return settings -> settings.addCommandListener(capture);
+        }
+    }
+    static class ReadCapture implements com.mongodb.event.CommandListener {
+        volatile boolean enabled;
+        final java.util.Queue<String> names = new java.util.concurrent.ConcurrentLinkedQueue<>();
+        final java.util.Queue<String> concerns = new java.util.concurrent.ConcurrentLinkedQueue<>();
+        @Override public void commandStarted(com.mongodb.event.CommandStartedEvent event) {
+            if (enabled) {
+                names.add(event.getCommandName());
+                var readConcern = event.getCommand().getDocument("readConcern", null);
+                if (readConcern != null) { concerns.add(readConcern.getString("level").getValue()); }
+            }
+        }
+    }
+
+    @Test
+    void publicReaderLazyQuantityIsSnapshotReadOnly() {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        Map<String, List<Document>> before = databaseSnapshot();
+        readCapture.names.clear(); readCapture.concerns.clear(); readCapture.enabled = true;
+        try {
+            for (int i = 0; i < 3; i++) {
+                var benefit = entitlementQuery.query(USER_ONE).benefits().getFirst();
+                assertThat(benefit.availableQuantity()).isOne();
+                assertThat(benefit.newAttempt().name()).isEqualTo("ALLOWED");
+            }
+        } finally { readCapture.enabled = false; }
+        assertThat(databaseSnapshot()).isEqualTo(before);
+        assertThat(readCapture.names).doesNotContain("insert", "update", "delete", "findAndModify", "aggregate");
+        assertThat(readCapture.concerns).contains("snapshot");
+        assertThat(count(TrialClaim.class)).isZero();
+    }
+
+    @Test
+    void publicReaderSurvivesCommandDeletionAndRepeatedPhoneRejoin() {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        var initial = reserveService.reserve(command(USER_ONE, OP_ONE, "epoch-a", "mock-1", "hash-a"));
+        lifecycleService.confirm(confirmCommand(initial, "confirm-a"));
+        var subject = mongoTemplate.findAll(BillingSubjectLink.class).getFirst();
+        assertThat(entitlementQuery.query(USER_ONE).benefits().getFirst().hasInProgress()).isTrue();
+        applyVerified(USER_TWO, 1, "00000000-0000-4000-8000-000000000002", CANDIDATE);
+        var unresolved = entitlementQuery.query(USER_TWO).benefits().getFirst();
+        assertThat(unresolved.availableQuantity()).isNull();
+        assertThat(unresolved.attemptGroups()).isEmpty();
+        // The writer's atomic owner CAS is invoked directly here; lifecycle approval is separately covered by owner tests.
+        writeTransactions.execute(() -> subjectLinkRepository.rebindOwner(subject, USER_TWO, NOW, "PHONE_REJOIN", "transition-b").orElseThrow());
+        assertThat(entitlementQuery.query(USER_TWO).benefits().getFirst().hasInProgress()).isFalse();
+        var replacement = reserveService.reserve(command(USER_TWO, OP_TWO, "epoch-b", "mock-1", "hash-b"));
+        lifecycleService.confirm(new ConfirmCommand(OP_TWO, replacement.snapshot().reservationId(), USER_TWO, "epoch-b", NOW, "confirm-b"));
+        mongoTemplate.remove(new Query(), IdempotencyCommand.class);
+        when(clock.instant()).thenReturn(NOW.plusSeconds(8 * 86400));
+        var result = entitlementQuery.query(USER_TWO).benefits().getFirst();
+        assertThat(result.availableQuantity()).isZero();
+        assertThat(result.hasInProgress()).isTrue();
+        assertThat(result.retake().name()).isEqualTo("ALLOWED");
+        var target = subjectLinkRepository.findBySubjectRefId(subject.getSubjectRefId()).orElseThrow();
+        writeTransactions.execute(() -> subjectLinkRepository.rebindOwner(target, USER_ONE, NOW.plusSeconds(8 * 86400),
+                "PHONE_REJOIN", "transition-c").orElseThrow());
+        assertThat(entitlementQuery.query(USER_ONE).benefits().getFirst().hasInProgress()).isFalse();
+        assertThat(mongoTemplate.findById("epoch-b", AttemptSession.class).getSessionOwnerEpoch()).isEqualTo(2L);
+        assertThat(subjectLinkRepository.findBySubjectRefId(subject.getSubjectRefId()).orElseThrow().getSessionOwnerEpoch()).isEqualTo(3L);
+        assertThat(count(TrialClaim.class)).isOne(); assertThat(count(EntitlementGrant.class)).isOne();
+        assertThat(mongoTemplate.findAll(EntitlementGrant.class).getFirst().getConsumedUnits()).isOne();
+    }
+
+    @Test
+    void epochReplaysAreStableAndGuestMergePreservesSessionAttribution() {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        var input = command(USER_ONE, OP_ONE, "epoch-guest", "mock-1", "hash-1");
+        var reserved = reserveService.reserve(input);
+        reserveService.reserve(input);
+        var link = mongoTemplate.findAll(BillingSubjectLink.class).getFirst();
+        assertThat(link.getSessionBindingVersion()).isEqualTo(1L);
+        lifecycleService.confirm(confirmCommand(reserved, "confirm"));
+        lifecycleService.confirm(confirmCommand(reserved, "confirm"));
+        link = subjectLinkRepository.findBySubjectRefId(link.getSubjectRefId()).orElseThrow();
+        assertThat(link.getSessionBindingVersion()).isEqualTo(2L);
+        var current = link;
+        writeTransactions.execute(() -> subjectLinkRepository.rebindOwner(current, USER_TWO, NOW, "USER_MERGED", "merge").orElseThrow());
+        assertThat(subjectLinkRepository.findBySubjectRefId(link.getSubjectRefId()).orElseThrow().getSessionOwnerEpoch()).isOne();
+        assertThat(entitlementQuery.query(USER_TWO).benefits().getFirst().hasInProgress()).isTrue();
+    }
+
+    @Test
+    void legacyAttributionRequiresExplicitEvidenceCheckedMigration() {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        var reserved = reserveService.reserve(command(USER_ONE, OP_ONE, "legacy-session", "mock-1", "hash-1"));
+        lifecycleService.confirm(confirmCommand(reserved, "confirm"));
+        mongoTemplate.updateMulti(new Query(), new Update().unset("sessionOwnerEpoch").unset("sessionBindingVersion"), BillingSubjectLink.class);
+        mongoTemplate.updateMulti(new Query(), new Update().unset("sessionOwnerEpoch"), Reservation.class);
+        mongoTemplate.updateMulti(new Query(), new Update().unset("sessionOwnerEpoch"), AttemptSession.class);
+        mongoTemplate.remove(new Query(), IdempotencyCommand.class);
+        var before = databaseSnapshot();
+        assertThatThrownBy(() -> entitlementQuery.query(USER_ONE)).hasMessage("LEGACY_SESSION_ATTRIBUTION_MISSING");
+        assertThat(attributionMigration.inspect(List.of("legacy-session")).eligible()).isOne();
+        assertThat(databaseSnapshot()).isEqualTo(before);
+        assertThat(attributionMigration.applyApprovedBatch(List.of("legacy-session")).applied()).isOne();
+        assertThat(entitlementQuery.query(USER_ONE).benefits().getFirst().hasInProgress()).isTrue();
+        assertThat(attributionMigration.inspect(List.of("legacy-session")).alreadyCovered()).isOne();
+    }
+
+    private Map<String, List<Document>> databaseSnapshot() {
+        Map<String, List<Document>> snapshot = new java.util.TreeMap<>();
+        for (String collection : mongoTemplate.getCollectionNames()) {
+            snapshot.put(collection, mongoTemplate.getCollection(collection).find().sort(new Document("_id", 1)).into(new java.util.ArrayList<>()));
+        }
+        return snapshot;
+    }
+
+    @Test
+    void exactContinuationCanBackfillTargetButNeverRelabelUnprovenSource() {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        var initial = reserveService.reserve(command(USER_ONE, OP_ONE, "migration-source", "mock-1", "hash"));
+        lifecycleService.confirm(confirmCommand(initial, "confirm"));
+        var link = mongoTemplate.findAll(BillingSubjectLink.class).getFirst();
+        String transition = "018f6f36-2f42-4bf5-8c17-0be35de4872d";
+        writeTransactions.execute(() -> subjectLinkRepository.rebindOwner(link, USER_TWO, NOW, "PHONE_REJOIN", transition).orElseThrow());
+        applyVerified(USER_TWO, 1, "00000000-0000-4000-8000-000000000002", CANDIDATE);
+        var target = reserveService.reserve(new ReserveCommand(OP_TWO, USER_TWO, "migration-target", "mock-1",
+                Reservation.ContinuationReason.PHONE_REJOIN, transition, initial.snapshot().attemptGroupId(), "hash-target"));
+        lifecycleService.confirm(new ConfirmCommand(OP_TWO, target.snapshot().reservationId(), USER_TWO, "migration-target", NOW, "confirm-target"));
+        mongoTemplate.updateMulti(new Query(), new Update().unset("sessionOwnerEpoch"), Reservation.class);
+        mongoTemplate.updateMulti(new Query(), new Update().unset("sessionOwnerEpoch"), AttemptSession.class);
+        mongoTemplate.remove(new Query(), IdempotencyCommand.class);
+        assertThat(attributionMigration.inspect(List.of("migration-source")).blocked()).isOne();
+        assertThat(attributionMigration.inspect(List.of("migration-target")).eligible()).isOne();
+        assertThat(attributionMigration.applyApprovedBatch(List.of("migration-target")).applied()).isOne();
+        assertThat(entitlementQuery.query(USER_TWO).benefits().getFirst().hasInProgress()).isTrue();
+        assertThat(mongoTemplate.findById("migration-source", AttemptSession.class).getSessionOwnerEpoch()).isNull();
+    }
+
+    @Test
+    void ownedSubjectOverflowFailsWithoutTruncatingIntoAvailableOne() {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        for (int i = 0; i < 101; i++) {
+            subjectLinkRepository.insert(BillingSubjectLink.active("limit-subject-" + i, "limit-claim-" + i,
+                    eligibilityProperties.getExpectedConsumerScopeId(), USER_ONE, NOW, NOW.plusSeconds(3600)));
+        }
+        assertThatThrownBy(() -> entitlementQuery.query(USER_ONE)).hasMessage("LIMIT");
+        assertThat(count(TrialClaim.class)).isZero();
+    }
+
+    @Test
+    void concurrentConfirmCannotMixCollectionsInsideReadSnapshot() throws Exception {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        var reserved = reserveService.reserve(command(USER_ONE, OP_ONE, "snapshot-session", "mock-1", "hash"));
+        var firstRead = new CountDownLatch(1);
+        var confirmed = new CountDownLatch(1);
+        var reader = executor.submit(() -> readSnapshots.execute(() -> {
+            var before = queryRepository.read(USER_ONE, NOW);
+            firstRead.countDown();
+            try { assertThat(confirmed.await(1, java.util.concurrent.TimeUnit.SECONDS)).isTrue(); }
+            catch (InterruptedException e) { throw new IllegalStateException(e); }
+            var after = queryRepository.read(USER_ONE, NOW);
+            assertThat(before.grants().getFirst().getHeldUnits()).isOne();
+            assertThat(after.grants().getFirst().getHeldUnits()).isOne();
+            assertThat(after.groups()).isEmpty();
+            return true;
+        }));
+        assertThat(firstRead.await(1, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        lifecycleService.confirm(confirmCommand(reserved, "confirm"));
+        confirmed.countDown();
+        assertThat(reader.get()).isTrue();
+        assertThat(entitlementQuery.query(USER_ONE).benefits().getFirst().hasInProgress()).isTrue();
+    }
+
+    @Test
+    void sessionBindingAndOwnerCasCannotBothCommitFromSameVersion() throws Exception {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        var reserved = reserveService.reserve(command(USER_ONE, OP_ONE, "cas-session", "mock-1", "hash"));
+        lifecycleService.cancel(cancelCommand(reserved, "cancel"));
+        var link = mongoTemplate.findAll(BillingSubjectLink.class).getFirst();
+        race(() -> writeTransactions.execute(() -> subjectLinkRepository.bindSession(link, NOW)),
+                () -> writeTransactions.execute(() -> subjectLinkRepository.rebindOwner(link, USER_TWO, NOW, "PHONE_REJOIN", "transition")));
+        var after = subjectLinkRepository.findBySubjectRefId(link.getSubjectRefId()).orElseThrow();
+        if (USER_ONE.equals(after.getUserId())) {
+            assertThat(after.getSessionOwnerEpoch()).isOne();
+            assertThat(after.getSessionBindingVersion()).isEqualTo(2L);
+        } else {
+            assertThat(after.getUserId()).isEqualTo(USER_TWO);
+            assertThat(after.getSessionOwnerEpoch()).isEqualTo(2L);
+            assertThat(after.getSessionBindingVersion()).isOne();
+        }
+    }
 
     private static final Instant NOW = Instant.parse("2026-08-28T00:00:00Z");
     private static final String USER_ONE = "e8b37a41-bae6-47f1-a770-052e6c5786d4";
@@ -1111,7 +1310,7 @@ class ReserveMongoIntegrationTest {
         return new ReservationLifecycleService(
                 reservationRepository, allocationRepository, grantRepository, ledgerRepository,
                 attemptGroupRepository, attemptSessionRepository, commandRepository, executor,
-                reservationProperties, lifecycleMetrics, clock
+                reservationProperties, lifecycleMetrics, clock, subjectLinkRepository
         );
     }
 
@@ -1131,7 +1330,7 @@ class ReserveMongoIntegrationTest {
         TrialClaim claim = mongoTemplate.findAll(TrialClaim.class).getFirst();
         attemptGroupRepository.insert(AttemptGroup.projection(
                 initial.snapshot().attemptGroupId(), claim.getSubjectRefId(),
-                claim.getTrialClaimId(), "consumption-ledger-1", "mock-1",
+                claim.getTrialClaimId(), "consumption-ledger-1", initial.snapshot().mockExamId(),
                 status, NOW
         ));
     }
