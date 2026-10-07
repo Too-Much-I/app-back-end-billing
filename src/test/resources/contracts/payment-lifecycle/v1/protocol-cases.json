@@ -1,0 +1,55 @@
+{
+  "fixtureVersion": 1,
+  "synthetic": true,
+  "withdrawal": {
+    "eventId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "schemaVersion": 1,
+    "userId": "11111111-1111-4111-8111-111111111111",
+    "withdrawnAt": "2026-10-07T00:00:00Z"
+  },
+  "decoderCases": [
+    {"name":"valid","mutation":"NONE","expected":"ACCEPT"},
+    {"name":"unknown","mutation":"UNKNOWN_FIELD","expected":"INVALID_REQUEST"},
+    {"name":"duplicate","mutation":"DUPLICATE_FIELD","expected":"INVALID_REQUEST"},
+    {"name":"trailing","mutation":"TRAILING_TOKEN","expected":"INVALID_REQUEST"},
+    {"name":"coercion","mutation":"STRING_VERSION","expected":"INVALID_REQUEST"},
+    {"name":"uppercase","mutation":"UPPERCASE_ID","expected":"INVALID_REQUEST"},
+    {"name":"unsupported","mutation":"VERSION_TWO","expected":"UNSUPPORTED_CONTRACT"},
+    {"name":"missing","mutation":"MISSING_USER","expected":"INVALID_REQUEST"}
+  ],
+  "ackCases": [
+    {"name":"initial H100","mode":"BASELINE","current":null,"target":100,"snapshotH":100,"digestMatches":true,"sameGeneration":true,"expected":"APPLIED"},
+    {"name":"forged H","mode":"BASELINE","current":null,"target":101,"snapshotH":100,"digestMatches":true,"sameGeneration":true,"expected":"CONFLICT"},
+    {"name":"bad digest","mode":"BASELINE","current":null,"target":100,"snapshotH":100,"digestMatches":false,"sameGeneration":true,"expected":"CONFLICT"},
+    {"name":"same ACK","mode":"FEED","current":150,"target":150,"snapshotH":100,"digestMatches":true,"sameGeneration":true,"expected":"NOOP"},
+    {"name":"late ACK","mode":"FEED","current":150,"target":140,"snapshotH":100,"digestMatches":true,"sameGeneration":true,"expected":"NOOP"},
+    {"name":"old generation late ACK","mode":"FEED","current":150,"target":140,"snapshotH":100,"digestMatches":true,"sameGeneration":false,"expected":"RECOVERY_GENERATION_MISMATCH"},
+    {"name":"old generation advance","mode":"FEED","current":100,"target":150,"snapshotH":100,"digestMatches":true,"sameGeneration":false,"expected":"RECOVERY_GENERATION_MISMATCH"},
+    {"name":"resync new generation baseline","mode":"RESYNC","current":null,"target":100,"snapshotH":100,"digestMatches":true,"sameGeneration":true,"expected":"APPLIED"},
+    {"name":"feed before marker","mode":"FEED","current":null,"target":100,"snapshotH":100,"digestMatches":true,"sameGeneration":true,"expected":"RECOVERY_NOT_READY"}
+  ],
+  "feedCases": [
+    {"name":"partial","after":100,"target":103,"items":[101,102],"floor":0,"expected":"MORE"},
+    {"name":"complete","after":100,"target":103,"items":[101,102,103],"floor":0,"expected":"DONE"},
+    {"name":"new event beyond fixed target","after":100,"target":103,"items":[101,102,103,104],"floor":0,"expected":"INVALID_PAGE"},
+    {"name":"empty middle","after":100,"target":103,"items":[],"floor":0,"expected":"COVERAGE_GAP"},
+    {"name":"hole","after":100,"target":103,"items":[102,103],"floor":0,"expected":"COVERAGE_GAP"},
+    {"name":"expired required prefix","after":100,"target":103,"items":[],"floor":102,"expected":"REPLAY_UNAVAILABLE"},
+    {"name":"normal cleanup of applied prefix","after":100,"target":103,"items":[101,102,103],"floor":100,"expected":"DONE"},
+    {"name":"empty completed scan","after":103,"target":103,"items":[],"floor":100,"expected":"DONE"}
+  ],
+  "httpCases": [
+    {"status":204,"expected":"DELIVERED"},
+    {"status":200,"expected":"DEAD_LETTER"},
+    {"status":202,"expected":"DEAD_LETTER"},
+    {"status":302,"expected":"DEAD_LETTER"},
+    {"status":400,"expected":"DEAD_LETTER"},
+    {"status":401,"expected":"BLOCKED_AUTH"},
+    {"status":403,"expected":"BLOCKED_AUTH"},
+    {"status":408,"expected":"RETRY"},
+    {"status":413,"expected":"DEAD_LETTER"},
+    {"status":425,"expected":"RETRY"},
+    {"status":429,"expected":"RETRY"},
+    {"status":503,"expected":"RETRY"}
+  ]
+}

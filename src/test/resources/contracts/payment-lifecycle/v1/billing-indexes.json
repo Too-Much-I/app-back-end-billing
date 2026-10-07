@@ -1,0 +1,162 @@
+{
+  "fixtureVersion": 1,
+  "subset": "payment-foundation-v1-candidate",
+  "productionInitializer": false,
+  "indexes": [
+    {
+      "collection": "payment_products",
+      "name": "ux_payment_store_product",
+      "keys": {
+        "environment": 1,
+        "store": 1,
+        "appId": 1,
+        "storeProductId": 1
+      },
+      "unique": true
+    },
+    {
+      "collection": "payment_products",
+      "name": "ux_payment_rc_product",
+      "keys": {
+        "environment": 1,
+        "rcProductId": 1
+      },
+      "unique": true
+    },
+    {
+      "collection": "payment_products",
+      "name": "ux_payment_sale_offer_store",
+      "keys": {
+        "environment": 1,
+        "offerCode": 1,
+        "store": 1
+      },
+      "unique": true,
+      "partialFilterExpression": {
+        "saleEnabled": true
+      }
+    },
+    {
+      "collection": "payment_products",
+      "name": "ix_payment_catalog_sale",
+      "keys": {
+        "environment": 1,
+        "saleEnabled": 1,
+        "offerCode": 1
+      },
+      "unique": false
+    },
+    {
+      "collection": "payment_accounts",
+      "name": "ux_payment_account_user",
+      "keys": {
+        "environment": 1,
+        "userId": 1
+      },
+      "unique": true
+    },
+    {
+      "collection": "payment_accounts",
+      "name": "ux_payment_paid_subject",
+      "keys": {
+        "paidSubjectRefId": 1
+      },
+      "unique": true
+    },
+    {
+      "collection": "purchase_account_refs",
+      "name": "ux_purchase_active_ref",
+      "keys": {
+        "environment": 1,
+        "accountId": 1
+      },
+      "unique": true,
+      "partialFilterExpression": {
+        "active": true
+      }
+    },
+    {
+      "collection": "payment_rate_limits",
+      "name": "ux_payment_rate_bucket",
+      "keys": {
+        "environment": 1,
+        "routeKey": 1,
+        "subjectKey": 1,
+        "windowStart": 1
+      },
+      "unique": true
+    },
+    {
+      "collection": "payment_rate_limits",
+      "name": "ttl_payment_rate_purge",
+      "keys": {
+        "purgeAt": 1
+      },
+      "unique": false,
+      "expireAfterSeconds": 0
+    },
+    {
+      "collection": "payment_account_lifecycles",
+      "name": "ux_payment_lifecycle_user",
+      "keys": {
+        "environment": 1,
+        "userId": 1
+      },
+      "unique": true
+    },
+    {
+      "collection": "payment_withdrawal_inbox",
+      "name": "ux_payment_withdrawal_event",
+      "keys": {
+        "eventId": 1
+      },
+      "unique": true
+    },
+    {
+      "collection": "payment_withdrawal_inbox",
+      "name": "ttl_payment_withdrawal_inbox",
+      "keys": {
+        "purgeAt": 1
+      },
+      "unique": false,
+      "expireAfterSeconds": 0
+    },
+    {
+      "collection": "payment_account_cleanup_jobs",
+      "name": "ux_payment_cleanup_subject",
+      "keys": {
+        "environment": 1,
+        "userId": 1
+      },
+      "unique": true
+    },
+    {
+      "collection": "payment_account_cleanup_jobs",
+      "name": "ix_payment_cleanup_due",
+      "keys": {
+        "state": 1,
+        "nextAttemptAt": 1,
+        "_id": 1
+      },
+      "unique": false
+    },
+    {
+      "collection": "payment_reconcile_cursors",
+      "name": "ux_payment_reconcile_cursor",
+      "keys": {
+        "accountId": 1,
+        "kind": 1
+      },
+      "unique": true
+    },
+    {
+      "collection": "payment_reconcile_cursors",
+      "name": "ix_payment_reconcile_due",
+      "keys": {
+        "nextAttemptAt": 1,
+        "_id": 1
+      },
+      "unique": false
+    }
+  ]
+}
