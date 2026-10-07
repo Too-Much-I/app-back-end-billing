@@ -3661,3 +3661,790 @@
 - 변경 파일: CURRENT_STATE와 WORKLOG 기록만. 애플리케이션·Git branch/index/commit/remote/PR/Jira 변경 없음. 기존 사용자 변경 보존, 예상 밖 변경 없음.
 - 검증: Git 읽기 상태 확인 및 문서 diff 확인. 명령 안내만이므로 Gradle 재실행하지 않음. 기존 테스트 결과는 변경하지 않는다.
 - 유지 계약·다음 작업·위험: Git commit/push는 사용자 수행 규칙 유지. 기존 결제 설계 문서 포함 여부를 staged diff에서 확인한 뒤 commit하며, 결제 구현이나 배포를 수행하는 PR로 오인하지 않는다.
+
+## 2026-09-07 — PLAN-007 Identity 작업에서 구현 교차 검토
+
+<!-- codex-turn:01a07ace-3281-78c1-b731-14ed60bc16bc -->
+
+- 날짜·브랜치: 2026-09-07, Billing develop@eb0ae14. PR #9 merge/구현 commit dadb83f를 로컬에서 확인했다.
+- 목표: 사용자 요청으로 reader·재응시 표시·귀속 증빙·JWT·internal 경계와 회귀를 확인한다.
+- 변경 파일: docs/codex/WORKLOG.md, docs/codex/CURRENT_STATE.md. Identity 작업의 기록도 해당 저장소에 갱신했으며 어느 서비스의 애플리케이션 코드도 변경하지 않았다.
+- 확인 내용: 신규 INITIAL 수량과 replacement action은 구현에서 분리됐다. availableQuantity=0/retake=ALLOWED는 현재 계약대로이며 사용자 화면 1회 남음은 명시된 프론트 통합 표시가 필요하다. 별도 표시 수량 필드·앱 구현은 확인되지 않았다.
+- 귀속 보완: sessionOwnerEpoch/sessionBindingVersion과 reserve/confirm/owner CAS, command 삭제·8일 경과·반복 rejoin·Guest merge 보존, snapshot 무변경과 동시성 Mongo 테스트를 확인했다.
+- 테스트: ./gradlew clean test 성공. 35 suite·236개, 실패·오류·건너뜀 0. git diff --check 통과. sandbox cache 접근 제한 후 승인된 테스트 실행을 사용했다.
+- 유지 계약: GET에서 지급·hold·consume·owner 변경 없음, 기존 무료 consumption 재사용, public 사용자 JWT와 internal Lattice/SigV4 분리. 검토 범위에서 추가 차단급 결함 미발견.
+- 위험·다음 작업: 기본 OFF 유지. Identity audience/read 발급, legacy 이관 coverage, 운영 ALB/SG/JWKS/staging E2E와 프론트 1회 표시 확인이 남는다. 테스트 통과를 실제 배포·앱 사용 가능으로 보고하지 않는다. Jira·Git mutation·배포는 수행하지 않았다.
+
+## 2026-09-07 — ADR-004 결제 계약 사용자 설명
+
+- 날짜·브랜치: 2026-09-07, develop. Jira 없음. 목표: 사용자가 ADR-004를 이해하도록 제품·구매·기간·환불 흐름으로 풀어 설명한다.
+- 근거: ADR-004 전체와 출력에서 생략된 §5.4~5.9를 추가 확인했다. 공식 API 지원이나 실제 RevenueCat 프로젝트 설정은 이번 작업에서 외부 재검증하지 않았으며 초안 내용을 구현 사실로 설명하지 않는다.
+- 결론: 양 Store 재구매 가능한 일회성 1/3/7/14/30일 상품, Billing의 24/72/168/336/720시간 계산과 서버 검증 후 지급, payment account reference 고정, paid-first/free-preserve, ledger·inbox/outbox·중복/누락 복구, refund timeline 재배치와 LC 상태별 철회를 안내한다.
+- 미확정: D1 정상 만료 전 승인된 현재 Session의 기존 기한 내 완료/만료 전 reserve 5분 confirm 예외, D2 REFUND_REVERSED의 REVIEW_REQUIRED 격리·승인 복구. 권장안은 설명만 하며 사용자 승인으로 처리하지 않는다.
+- 위험·정확성: 한 달은 30일, 구매일부터 시작하며 첫 시험/알림 수신 시각부터가 아니다. 환불과 정상 만료 정책을 구분하고 비동기 LC 철회 지연을 즉시 차단 보장으로 표현하지 않는다. 소모성 상품은 시험 횟수 차감 상품을 뜻하지 않으며 소유권/계정 이전은 자동 허용하지 않는다.
+- 전달 방식: visualize 스킬의 정적 Mermaid 흐름도로 Store/RevenueCat/Billing/Learning Core 역할을 구분하고 기간·환불은 구체적 예로 설명한다. 새 시각화 파일이나 애플리케이션 코드는 만들지 않는다.
+- 변경 파일: CURRENT_STATE와 이 WORKLOG만. ADR 정책·코드·타 서버·상품/Console·Secret·Jira·Git 이력·배포 변경 없음. 기존 사용자 변경과 다른 작업 기록 보존, 예상 밖 변경 없음.
+- 검증: 문서 읽기 분석이므로 Gradle 미실행. 문서 diff 확인. 다음 작업은 D1/D2 확인과 무료 public API 구현 이후의 wrapper/인증 재사용 대조, 별도 결제 PLAN·검증 gate이며 이번 설명 자체가 구현 승인은 아니다.
+
+## 2026-09-07 — 4주 상품 및 D1-A·D2-A 권장안 승인 반영
+
+- 날짜·브랜치: 2026-09-07, develop. Jira 없음. 목표: 사용자 승인에 따라 30일 상품을 4주로 바꾸고 남은 두 예외 정책을 확정한다.
+- 결정: 1일·3일·1주·2주·4주 판매 구성, `PREMIUM_28D`와 28일·672시간·2,419,200초. package 후보는 premium28d이며 실제 Store/RevenueCat ID는 별도 출시 입력이다. 기존 거래의 duration을 소급 변경하지 않는다.
+- D1-A: 정상 만료 전 승인된 현재 Session은 기존 시험·제출 기한 안에서 완료 허용. 만료 전 reserve의 동일 Session confirm은 기존 5분 Reservation 유효기간 안에서 허용한다. 만료된 권리로 새 INITIAL/replacement는 금지, 다음 권리로 기존 group 자동 재결속 없음, 환불에는 유예 없음.
+- D2-A: REFUND_REVERSED 및 refunded→owned 재관측은 REVIEW_REQUIRED를 durable 저장하고 경보한다. 자동 지급·기간 복원·Session 재개는 하지 않으며 Store 최종 상태 확인 후 별도 승인 복구 절차로 처리한다. 원장 덮어쓰기와 영구 거절 정책이 아니다.
+- 변경 파일: AGENTS.md, ADR-004, CONTRACT_DECISIONS.md, FIXED_TERM_PREMIUM_PAYMENT_CONTRACT.md, BILLING_SERVICE_INTEGRATION_CONTRACT.md, PLAN-007의 후속 결제 상태 문구, CURRENT_STATE.md, WORKLOG.md. 기존 작업 기록은 보존했고 WORKLOG는 끝에만 추가했다.
+- 유지 계약: one-time consumable·RevenueCat 역할·paid-first/free-preserve·무료/owner wire와 schema·JWT/internal SigV4·환불 차단·보존기간 유지. 애플리케이션·외부 설정·타 서버·Jira·Git 이력·배포 변경 없음. 예상 밖 변경 없음.
+- 검증: 문서 전용 변경으로 Gradle 미실행. diff 검토, 28×24=672시간 및 28×86400=2419200초 확인, 잔여 상품/미확정 참조 검색과 git diff --check 수행. 과거 WORKLOG/CURRENT_STATE 이력은 최신 승인으로 supersede함을 명시했다.
+- 위험·다음 작업: 실제 상품 생성 여부/ID·가격·RevenueCat credential/provider 지원·sandbox·AWS 미검증. public wrapper·인증 재사용을 대조하고 별도 결제 PLAN 승인 후 Jira/구현. 이번 정책 승인을 결제 구현 또는 production 활성화 승인으로 확대하지 않는다.
+
+## 2026-09-07 — 하루 사용 후 환불 정책 범위 확인
+
+- 날짜·브랜치: 2026-09-07, develop. Jira 없음. 목표: 하루 사용 후 환불의 승인 기준과 확정 이후 차단 정책을 구분해 설명한다.
+- 근거: ADR-004 §3·G3/G4·§5.4·§5.9, FIXED_TERM_PREMIUM_PAYMENT_CONTRACT §6/7. 외부 Store 정책이나 RevenueCat 실제 설정은 재검증하지 않았다.
+- 확인: provider-confirmed 환불 이후 해당 source 신규/진행/재응시 차단, 선행 Billing GRADING 완료와 COMPLETED 기록 보존은 확정됐다. 하루 사용 시 환불 자동 거절, 사용일/AI 비용 공제, 반복 환불 제재 횟수는 정하지 않았다. 부분 환불·negative balance는 현재 범위 밖이다.
+- 위험: 이미 제공한 시험·채점은 환불 뒤 회수할 수 없다. 사용 후 환불 승인 가능성을 자체 정책만으로 막는다고 보장하지 않는다. REFUNDED_AFTER_USE 관찰과 provider 지원 시 consumption evidence 방향은 있으나 자동 Refund request handling은 OFF이며 일반 REFUND_REVIEW 신호는 지원 검증 전 비활성이다. 환불 신청만으로 즉시 인지·차단 가능하다고 설명하지 않는다.
+- 변경 파일·동작: CURRENT_STATE와 WORKLOG에 현황 분석만 기록. 기존 미커밋 정책 문서 보존, 정책·애플리케이션·타 서버·Jira·외부 리소스·Git 이력·배포 변경 없음, 예상 밖 변경 없음.
+- 검증: 문서 근거와 git diff --check 확인. 분석/기록 작업으로 Gradle 미실행. 다음 작업은 실제 Store/관할 환불 규정 확인과 사용자 고지·소비 증빙·반복 악용 수동 검토 정책의 별도 승인이다.
+
+## 2026-09-07 — Store 환불 정책·한국 청약철회·RevenueCat 공식 조사
+
+- 날짜·브랜치: 2026-09-07, develop. Jira 없음. 목표: 사용 후 환불을 Store 정책과 법규에 맞춰 처리하는 방향의 실제 조건 확인.
+- 변경 파일: docs/contracts/REFUND_POLICY_RESEARCH-2026-09-07.md 신규 조사 문서, CURRENT_STATE와 WORKLOG 기록. 기존 미커밋 변경 보존; 이번 승인 계약·코드·외부 설정 변경 없음.
+- 조사 결과: Apple 개별 심사·국가법 권리, Google 48시간 이내 가능/이후 개발자 문의와 별도 법적 요청, 전자상거래법 제17조(시행 2026-07-21)의 제공 개시/가분적 미제공 부분/고지·시험 사용 요건 확인. 하루 사용만으로 나머지 기간 전액 거절을 확정할 수 없다.
+- RC 최신 공개 문서: Apple·Google Refund Control 선호 전달, 최종 결정 Store, 거래별 사용률/이벤트 미전송, Apple 동의 필요, partial preference 미지원. RC 거래 존재 DELIVERED가 Billing 지급 완료와 같지 않을 수 있음. 실제 project 기능·설정 및 Billing 사전 review event 계약은 미확인.
+- 검증: 공식 공개 본문 6개와 로컬 ADR 대조, git diff --check. 분석/문서 전용으로 Gradle 미실행. Apple 일반 약관 페이지는 미국 표시라 한국 근거에서 제외. 외부 개인 계정 부수정보·원문·credential을 기록하지 않음.
+- 유지 계약·위험: 최종 환불 차단/무료 보존/ledger 및 자동 refund handling OFF 유지. 부분 자동 환불 미구현을 법적 환불 거절로 해석하지 않음. 상품 가분성·계속거래 등 법적 분류와 개발자 문의 운영·필요 동의·정확한 증빙은 출시 전 확인. 예상 밖 변경 없음. 다음은 이 조건을 반영한 정책/고지 검토이며 Console 활성화·타 서버·Jira·Git 이력·배포는 실행하지 않음.
+
+## 2026-09-08 — 남은 환불 운영 결정과 출시 검증 구분
+
+- 날짜·브랜치: 2026-09-08, develop. Jira 없음. 목표: 이미 승인된 기술 정책과 미정 운영/법률 검증을 구분해 사용자 결정 항목 안내.
+- 근거: 2026-09-07 공식 조사 문서 및 CURRENT_STATE. 이번 turn 외부 정책 재조회 없음.
+- 제안: 고객지원 채널·담당·첫 응답 목표(2영업일 권장, 법정 환급기한과 별개), 요청 유형별 개별 심사/고지, 최소 사용 증빙 범위·접근·보존, 반복 환불 자동 거절/제재 없이 수동 검토. 신규 제안을 승인으로 처리하지 않는다.
+- 확인 필요: 4주 unlimited 법적 분류/잔여기간 반환·공제 기준, Store별 실제 실행 권한·지원 범위와 중복 환불 방지/원장 수렴. 법적 요청에 부분 자동 환불 미구현을 거절 근거로 사용하지 않는다. 추가 운영 경로 구현은 별도 승인 범위다.
+- 유지: 이미 확정한 환불 후 차단, 선행 GRADING 완료/COMPLETED 보존, D2-A, RC 자동 refund handling 출시 OFF, 무료권 보존. 사용자 동의/정확성/지원 검증 없는 소비 데이터 외부 제출 없음.
+- 변경 파일: CURRENT_STATE와 WORKLOG 기록만. 기존 미커밋 변경 보존, 예상 밖 변경 없음. 코드·ADR 정책·Jira·타 서버·Git 이력·배포·외부 설정 변경 없음.
+- 검증: git diff --check. 분석/기록만 변경하여 Gradle 미실행. 다음 작업: 운영 선택 승인 및 법적/Store 실행 검증 후 구체 고지·운영 runbook·결제 계획에 반영.
+
+
+## 2026-09-08 다우기술 노션 포트폴리오 토선생 소재 선별
+
+- 브랜치: develop. 신규 Jira 없음.
+- 목표: 사용자 요청에 따라 토선생 상세 페이지에 넣을 내용을 선별.
+- 조사: 기존 포트폴리오 소재·트러블슈팅 문서, 각 서비스 현재 상태와 Learning Core 복구·Saga 테스트 및 MDC 구현을 대조.
+- 결정: 빈 종합 피드백과 선택적 채점 복구, 시험 생성·사용권 Reservation Saga를 대표 사례로 추천하고 구조화 로그를 보조 사례로 제안. 인증·저장 모델·S3는 구조 설명에 배치.
+- 구분: 구현 및 과거 테스트 기록은 운영 활성화 증거와 다르며 실제 결제·환불은 현재 구현 성과로 사용하지 않음. 처리량·비용·장애 감소 수치 미측정.
+- 변경 파일: 이 저장소의 docs/codex/WORKLOG.md와 CURRENT_STATE.md에 조사 기록만 추가. 기존 미커밋 작업 보존.
+- 검증: 소스·테스트 정적 조회. 애플리케이션 변경이 없어 Gradle 테스트는 재실행하지 않음.
+- 유지: API·AI 계약·feature flag·코드·외부 서비스·Git 이력 변경 없음.
+- 다음: 본인 역할과 사례별 설명 가능 범위 확인 후 노션 본문 작성.
+
+## 2026-09-08 — 4주권 하루 이용 후 잔여기간 반환 법령·Store 실행 조사
+
+- 날짜·브랜치: 2026-09-08, develop. Jira 없음. 목표: 잔여기간 반환 의무·공제식·Store 부분 환불 지원과 Billing 원장 보완 범위 확인.
+- 공식 근거: 전자상거래법 제17~19조, 콘텐츠이용자 보호지침, Google Console/Android Publisher orders.refund, Apple API 1.19+ refundPreference/ConsumptionRequest, RevenueCat Refund Control/Handling Refunds 공개 본문.
+- 결과: 사용 개시만으로 미제공 27일의 반환 배제를 단정할 수 없다. 토선생 법적 분류·정확 공제식은 미확정. 일할 반환·추가 위약금 0은 미승인 제안이며 지침 제25조의 10%는 조건부 잔여대금 기준 권고로 일반 청약철회에 일괄 적용하지 않는다.
+- 기술 결과: Google Console은 인앱 부분 환불 지원, 확인한 orders.refund endpoint는 부분 금액 인자 없음. Apple consumable도 GRANT_PRORATED·사용률 권고 가능하나 Apple 최종 심사. RC는 부분 선호/사용률 전송 미지원이고 Google 철회 없는 환불 탐지 제한을 안내하여 자동 반영을 보장할 수 없다.
+- 변경 파일: docs/contracts/REFUND_REMAINDER_RESEARCH-2026-09-08.md 신규, CURRENT_STATE.md와 WORKLOG.md 기록. 기존 미커밋/동시 작업 기록 보존. 승인 ADR·코드·다른 서버·Jira·Git 이력·설정·배포 변경 없음, 예상 밖 변경 없음.
+- 유지: 무료권/완료 기록 보존, append-only 원장, provider 검증, RC 자동 refund handling OFF. 부분 환불 범위 확대·외부 송금·사용정보 전송을 임의 승인하지 않는다.
+- 검증: 공식 본문과 ADR-004 §5.7/§5.9 대조, 예시 28000×648/672=27000 산술 및 git diff --check. 조사/문서만 변경하여 Gradle 미실행. 실제 Store/RC 프로젝트·sandbox/환불 event·법률 자문은 미실시.
+- 위험·다음 작업: 실제 상품 분류/철회와 해지 기준·법정 환급 기산점 확인, RC 지원 문의와 Store sandbox 증거 검증 후 부분 금액/누적 환불·접수/효력/정산 시점·운영 증빙 경로를 별도 ADR/PLAN 승인으로 보완한다. 시스템 미구현을 법정 요청 거절 사유로 삼지 않는다.
+
+## 2026-09-08 — 환불 관련 법적 분류의 의미 설명
+
+- 날짜·브랜치: 2026-09-08, develop. Jira 없음. 목표: 사용자가 확인해야 할 분류 대상과 이유를 쉬운 말로 설명.
+- 근거·결론: REFUND_REMAINDER_RESEARCH-2026-09-08.md 재사용. 실제 판매 대상, 가분적 미제공 기간, 계속거래 요건, 교육 관련 별도 규정 적용을 구분한다. Store consumable·사업자 업종명과 법적 분류는 동일하지 않으며 분류들은 상호 배타적 선택지가 아니다.
+- 변경 파일·동작: CURRENT_STATE.md와 WORKLOG.md 설명 기록만. 기존 변경 보존, 예상 밖 변경 없음. 계약·코드·타 서버·Jira·Git 이력·외부 설정·배포 변경 없음.
+- 검증: 기존 조사 문서 대조와 git diff --check. 추가 외부 법령 조회 및 Gradle 테스트는 설명/기록 작업이라 수행하지 않음.
+- 유지·위험·다음: 28일 unlimited·무료 보존·환불 차단 계약 유지. 실제 약관/서비스 제공 사실과 사업 형태로 적용 기준을 확인해야 하며 이번 설명을 법적 분류 확정이나 부분 환불 승인으로 간주하지 않는다.
+
+## 2026-09-08 — 법률팀 없는 환불 분류 검토의 필요 정보 안내
+
+- 날짜·브랜치: 2026-09-08, develop. Jira 없음. 목표: 환불 분류·사용분 계산 검토에 필요한 사실과 자료를 구체화.
+- 근거·동작: 기존 잔여기간 조사와 승인 제품 계약 기반. 확인된 28일 unlimited/일회성/stacking은 재질문하지 않고 강사·강의/교육시설 여부, 만료 후 콘텐츠 접근, 사업 형태/판매 국가/연령, 가격/할인, 약관/구매 화면/동의, 환불 효력 시점의 추가 확인 필요성을 안내한다.
+- 결정·유지: 자료 수집은 분류 확정이나 새 환불 정책 승인이 아니다. 법무팀 대신 단건 외부 자문/기관 상담에 같은 사실 요약을 전달하고 법적 판단과 Store/RC 실행 검증을 분리한다. 불필요한 사업자번호·개인정보·결제 원문 수집 없음.
+- 변경 파일: CURRENT_STATE.md와 WORKLOG.md 기록만. 기존 변경 보존, 예상 밖 변경 없음. 코드·계약·다른 서버·외부 설정·Jira·Git 이력·배포 변경 없음.
+- 검증: 기존 근거 대조, git diff --check. 설명/기록만으로 외부 법령 재조회·Gradle 미실행.
+- 위험·다음: 답변만으로 법적 적합성을 보장하지 않는다. 실제 운영 사실·약관 초안을 확보한 뒤 쟁점별 검토와 실행 경로 검증을 거쳐 별도 승인한다.
+
+## 2026-09-08 — AI 시험 서비스 사업·제공 형태 사용자 확인 기록
+
+- 날짜·브랜치: 2026-09-08, develop. Jira 없음. 목표: 환불 분류 상담에 필요한 사용자 확인 사실과 잠정안을 구분.
+- 확인: AI 시험·채점만, 강사/과정/진도/수료 없음, 외부 파일 보유 불가. 만료 후 기존 결과 열람은 변경 가능한 잠정안. 개인사업자·IT 업종 설명, 교육시설 등록 없음, 최초 한국 성인 대상. 등록증·연령 제한 구현·배포 독립 검증 아님.
+- 변경 파일: REFUND_REMAINDER_RESEARCH-2026-09-08.md §2.0, CURRENT_STATE.md, WORKLOG.md. 기간형 온라인 서비스라는 분석과 미확정 법적 분류·가격/고지/해지 조건을 분리했다.
+- 유지: 기존 완료 기록 보존·탈퇴 privacy·무료권·환불 차단 정책 유지. 결과 열람 잠정안을 보존 계약 변경이나 부분 환불 승인으로 해석하지 않음. 코드·외부 설정·타 서버·Jira·Git 이력·배포 변경 없음. 기존 변경 보존, 예상 밖 변경 없음.
+- 검증: 사용자 답변과 기존 조사 대조, git diff --check. 사실 기록만으로 외부 법령 재조회·Gradle 미실행.
+- 위험·다음: IT 업종/미등록만으로 교육 관련 법령 적용 제외를 단정하지 않는다. 구매가격·할인/화면·약관·환불 효력 시점 수집 후 단건 검토용 자료를 완성한다.
+
+## 2026-09-08 — 기간권 가격 기록 및 Store 중심 환불 창구 설명
+
+- 날짜·브랜치: 2026-09-08, develop. Jira 없음. 목표: 사용자 제시 가격 기록과 앱 자체 환불 접수 필요 여부 설명.
+- 사실·제안: 앞서 정한 상품 순서에 가격 9000/19000/29000/49000/69000원을 연결했다. 할인·세금·Store 등록은 미확인. 구매 화면/약관은 기간·기산점·자동 갱신 없음·환불/문의 안내를 포함하는 초안부터 작성 가능하다고 설명한다.
+- 환불 구분: Store 기본 접수·환급과 개발자의 장애/법적 요청 고객지원을 분리. 자체 환불 API/UI가 반드시 필요한 것은 아니며 안내 링크·이메일 등 가능. Store 자동 승인 보장이나 법적 책임 전부 이전으로 해석하지 않고 검증된 결과의 Billing 원장/권리 반영은 유지한다.
+- 변경 파일: REFUND_REMAINDER_RESEARCH-2026-09-08.md, CURRENT_STATE.md, WORKLOG.md. 기존 변경 보존, 예상 밖 변경 없음. 코드·승인 ADR·외부 설정·다른 서버·Jira·Git 이력·배포 변경 없음.
+- 검증: 기존 공식 조사 및 사용자 답변 대조, git diff --check. 설명/기록만이므로 외부 재조회·Gradle 미실행.
+- 위험·다음: Store/RC 부분 반환 증거 경로와 법적 처리 기한 검증은 남는다. 자체 신청 API 불필요 설명을 부분 환불 미지원 상태의 출시 승인으로 간주하지 않는다. 구매 고지 초안·지원 연락 수단과 할인 여부를 후속 정리한다.
+
+## 2026-09-09 — Store 중심 환불 창구 승인 반영·구매 안내 초안 작성
+
+- 날짜·브랜치: 2026-09-09, develop. Jira 없음. 목표: 사용자 승인한 Store 환불+토선생 고객지원 방향을 계약에 반영하고 구매·환불 안내 초안 작성.
+- 확정: C9-S10에 Store 기본 신청/심사/환급, 토선생 권리 미반영·장애·법적 요청 지원, 최초 자체 신청 API/심사 UI/직접 송금 제외를 명시했다. 사용자 제시 1/3/7/14/28일 국내 가격과 한국 성인 대상 기록을 연결했다.
+- 변경 파일: CONTRACT_DECISIONS.md, FIXED_TERM_PREMIUM_PAYMENT_CONTRACT.md, ADR-004, 신규 PREMIUM_PURCHASE_REFUND_NOTICE_DRAFT.md, CURRENT_STATE.md, WORKLOG.md. 기존 미커밋 변경은 보존했으며 이번 변경 범위 밖 파일은 추가 수정하지 않음.
+- 안내 초안: 구매 기준 기간 시작/stacking·자동 갱신 없음·무료 보존·가격·환불 안내·고객지원·결제 확인 중 문구와 게시 gate. 미정 연락처는 명시 placeholder, 만료 뒤 결과 영구 열람이나 자동 환불/법정 권리 포기 약속 없음.
+- 유지 계약: public payment 기존 4 route·internal SigV4/JWT·무료/owner·D1/D2·append-only ledger·검증된 최종 상태 반영·RC 자동 refund handling OFF 유지. 부분 환불 계산/자동화와 법적 분류는 승인으로 확대하지 않음.
+- 검증: git diff --check, 신규 문서 whitespace와 로컬 Markdown 링크 존재 확인. 문서 전용으로 Gradle 미실행. 코드·schema·외부 Store/RC 설정·타 서버·Jira·Git 이력·배포 변경 없음. 예상 밖 변경 없음.
+- 위험·다음 작업: 실제 지원 채널·담당자/가격 설정·세금/할인, 고지/동의, 결과 열람 범위, 법적 반환 기준·부분 환불 실제 실행/원장 경로를 확인해야 한다. 이 승인은 최종 약관 게시·결제 구현·판매 gate 해제가 아니다. 후속 결제 PLAN은 별도 승인한다.
+
+## 2026-09-09 — 남은 사용자 결정과 출시 검증 분리 안내
+
+- 날짜·브랜치: 2026-09-09, develop. Jira 없음. 목표: 결제 방향 승인 이후 사용자 선택을 불필요하게 반복하지 않고 잔여 사항 안내.
+- 근거: ADR-004 C9-S10/출시 입력/G1~G8, 구매·환불 안내 초안의 미정 항목. 이미 승인된 상품/가격/무료 보존/Store 중심 환불은 유지한다.
+- 안내: 실제 지원 채널·담당자, 정상 만료 후 결과 열람, 출시 할인 여부가 남은 운영 선택이다. 결과 열람 유지와 별도 할인 없이 출시를 신규 권장안으로 제시하되 확정하지 않는다. 법적 반환/고지·공제와 Store/RC 지원은 임의 선택이 아닌 검토/검증이다.
+- 변경 파일: CURRENT_STATE.md와 WORKLOG.md 기록만. 기존 변경 보존, 예상 밖 변경 없음. 코드·승인 계약·Jira·외부 설정·타 서버·Git 이력·배포 변경 없음.
+- 검증: 문서 대조, git diff --check. 설명/기록으로 Gradle 및 외부 정책 재조회 미실행.
+- 위험·다음: 운영 선택 없이도 결제 PLAN/고지 초안 작성은 가능하지만 별도 승인 전 구현하지 않는다. 결제 판매 전 법적/Store gate와 연락처·상품/가격·sandbox 검증을 완료해야 하며 미확정 부분 환불을 승인으로 간주하지 않는다.
+
+## 2026-09-09 — C9-S11 운영 확정 및 실제 결제 준비 상태 점검
+
+- 날짜·브랜치: 2026-09-09, develop. Jira 없음. 목표: 지정 고객지원 이메일·만료 후 결과 열람·별도 할인 없음 반영 및 법령/Store/RC/코드 잔여 검증.
+- 변경 파일: CONTRACT_DECISIONS.md C9-S11, FIXED_TERM_PREMIUM_PAYMENT_CONTRACT.md, ADR-004, PREMIUM_PURCHASE_REFUND_NOTICE_DRAFT.md, REFUND_REMAINDER_RESEARCH-2026-09-08.md 후속 참고, 신규 PAYMENT_READINESS_REVIEW-2026-09-09.md, CURRENT_STATE.md, WORKLOG.md.
+- 확정 동작: 지원 메일 안내, 본인 계정·기존 보존 정책 범위의 정상 만료 뒤 결과/피드백 열람, 최초 별도 할인 없음. 무기한 보관·탈퇴 기록 복원·새 유료 시험/임의 재채점 권한으로 확대하지 않고 D1/승인 장애 복구 유지.
+- 실제 RC 확인: Apple credential 2개 Valid와 알림 correctly configured/No notifications received, S2S tracking OFF·Refund Control default Do not respond. Google credential Valid와 Pub/Sub 접근 오류 동시 관찰/RTDN 미연결. Store Products(All) 비어 있음, default Offering Test Store 3상품, Billing webhook 미등록, 계정 이메일 미인증. 실제 Key/Issuer/알림 URL·거래/개인 계정 정보는 기록하지 않음.
+- Store 조회 한계: Apple 인증 실패 로그인 화면, Google 현재 계정 개발자 가입 안내로 실제 상품/가격/세금/심사·한국 설정 미확인. 계정 전환/가입·Resend·role/키 변경·연결/저장·결제/환불·문의 발송 없음.
+- 법령: 제17~18조 재확인, 시행령 제21조의2 시험 사용/제24조 사용분 비용 범위 추가 확인. 69,000원의 잔여27일 단순 비례 산술은 참고일 뿐 공제식/법적 분류 확정 아님. 실제 부분 반환/증거 경로와 개별 자문 필요성을 분리.
+- 코드: Billing 결제 application/schema v5 미구현 확인. Identity 현 로컬 Billing audience/read 발급과 구매 scope 미발견, LC owner 기반 history 조회 및 paid revoke 미발견 확인. 타 서버는 읽기만 수행하고 AWS 실배포 상태로 해석하지 않음.
+- 검증: 공식 본문·RC 실제 UI·로컬 소스 대조, git diff --check 및 신규 문서/Markdown 링크 검사. 코드 변경 없어서 Gradle 미실행, Store sandbox/E2E 미수행. 기존 미커밋 변경 보존, 예상 밖 변경 없음.
+- 다음: RC 가입 이메일 확인·해당 GCP 프로젝트 API/IAM 확인·실제 Store 로그인/상품 구성 확인, 별도 결제 PLAN/상대 서비스 인계와 법률 검토. 이번 확인은 자동 설정 수정·기능 구현·판매 승인 아님.
+
+## 2026-09-10 — Google Cloud 결제 화면과 Pub/Sub 설정 구분 안내
+
+- 날짜·브랜치: 2026-09-10, develop. Jira 없음. 목표: 사용자가 문의한 이전 Google 설정 필요사항 재안내.
+- 근거: PAYMENT_READINESS_REVIEW-2026-09-09.md. 당시 credential Valid와 별도 Pub/Sub 접근 오류/RTDN 미연결을 확인했으며 이번 실제 계정 상태는 재조회하지 않았다.
+- 안내: Cloud Billing은 결제계정 관리, 이번 직접 점검은 기존 service account와 동일 프로젝트의 Pub/Sub API 활성·IAM Pub/Sub Editor/Monitoring Viewer 및 후속 RevenueCat/Play RTDN 연결이다. 이미 준 권한을 중복/상위 부여하거나 무조건 키를 새로 만들지 않는다.
+- 변경 파일: CURRENT_STATE.md와 WORKLOG.md 기록만. 결제 계정 식별자/URL 원문은 기록하지 않았다. 코드·외부 설정·Jira·타 서버·Git 이력·배포 변경 없음, 기존 변경 보존·예상 밖 변경 없음.
+- 검증: 기존 점검 근거 대조와 git diff --check. 안내만으로 Gradle 미실행. 다음은 동일 프로젝트 API/IAM 현재 상태 확인이며 카드 등록·결제계정 신규 생성은 요청하지 않는다.
+
+## 2026-09-10 — 카드 등록과 프로젝트 Billing 연결 구분
+
+- 날짜·브랜치: 2026-09-10, develop. Jira 없음. 목표: 사용자가 기억한 카드 등록 선행 작업의 의미 설명.
+- 근거·분석: 기존 대화/9월 9일 실제 RC 화면에는 MTR 임계치 초과 대비 결제수단 안내가 있었다. 현재 사용자 Cloud Billing 링크에 대해서는 결제수단 등록과 프로젝트 결제계정 연결이 별도임을 설명한다. 과거 프로젝트 연결을 실제로 지시했거나 현 프로젝트 결제가 비활성이라고 단정하지 않는다.
+- 안내: RevenueCat service account 소속 프로젝트에서 결제 메뉴의 활성/연결 상태 확인, 이미 활성이라면 재등록하지 않음. Pub/Sub API·IAM/RTDN은 별도 점검. 우리 Billing 서버 코드 변경과도 구분한다.
+- 변경 파일: CURRENT_STATE.md·WORKLOG.md 기록만. 계정 ID/결제수단 정보 저장 없음. 코드·외부 금융/설정·권한·Jira·Git 이력·배포 변경 없음, 기존 변경 보존·예상 밖 변경 없음.
+- 검증: 기존 기록 대조·git diff --check, 설명/기록 작업으로 Gradle/실제 콘솔 재조회 미실행. 다음은 올바른 프로젝트 결제 상태 확인이다.
+
+## 2026-09-10 — Google Cloud 무료 체험 화면 인계
+
+- 날짜·브랜치: 2026-09-10, develop. Jira 없음. 목표: 사용자가 기억한 무료 크레딧 신청 화면 열기 및 실제 조건 구분.
+- 동작·근거: https://console.cloud.google.com/freetrial 로 이동해 무료 체험 계정 정보/계정 선택 화면 확인. 화면에 $300 크레딧·90일 사용과 일반 계정 활성화 또는 선불 선택 시 요금 청구 안내가 있다. 약 7만원 선결제·90일 뒤 현금 환불은 현재 화면에서 확인되지 않아 미확인으로 남긴다.
+- 변경 파일: CURRENT_STATE.md·WORKLOG.md 기록만. 계정 개인정보·결제 식별자 기록 없음. 약관 동의·결제·업그레이드·외부 설정·코드·타 서버·Jira·Git 이력·배포 변경 없음. 기존 변경 보존·예상 밖 변경 없음.
+- 검증: 실제 브라우저 DOM 확인 및 git diff --check. 화면 안내/문서 기록으로 Gradle 미실행. 무료 크레딧 사용기간을 현금 환불 기한으로 해석하지 않으며 기존 서비스 계약은 유지한다.
+- 위험·다음: 올바른 Google 계정 선택과 결제 단계 조건 확인은 사용자에게 인계했다. 실제 선불/인증 결제 금액·환급 조건·기존 결제계정 연결 상태는 미검증이다.
+
+## 2026-09-10 — Chrome에서 Google Cloud 링크 접근 안내
+
+- 날짜·브랜치: 2026-09-10, develop. Jira 없음. 목표: 복사한 콘솔 주소가 Chrome에서 열리지 않는 상황 안내.
+- 분석·동작: 제공된 현재 탭은 Billing 화면이다. authuser는 브라우저별 로그인 순번이라 다른 계정을 선택할 수 있으며 로그인 세션도 공유되지 않는다. 계정 지정 없는 Billing/무료 체험 주소와 수동 계정 선택을 안내하고 실제 Chrome 오류 확인 전 원인은 확정하지 않는다.
+- 변경 파일: CURRENT_STATE.md·WORKLOG.md. 기존 변경 보존·예상 밖 변경 없음. 코드·외부 설정·금융 작업·계약·Jira·Git 이력 변경 없음.
+- 검증: 제공된 UI 문맥과 URL 구조 확인, git diff --check. 안내/기록 작업으로 Gradle 미실행. 다음: 올바른 계정에서도 접근 실패 시 화면 오류 문구 확인. 결제계정 식별자나 개인 계정 정보는 기록하지 않음.
+
+## 2026-09-10 — Google Cloud 기타 사용료 신청 문구 작성
+
+- 날짜·브랜치: 2026-09-10, develop. Jira 없음. 목표: 사용자 제공 활동비 양식에 맞는 복사 가능한 초안 작성.
+- 동작: 프로젝트 활동비/기타, 신청일 제목, Google Cloud 사용료·카드결제 예정, 짧은 세부사항, 수량 1건 및 Pub/Sub·RevenueCat 기반 결제 알림 연동의 프로젝트 관련 구매사유를 제안했다. 실제 금액·통화는 결제 화면 기준 placeholder이며 선불/인증금/환불 조건은 확정하지 않았다.
+- 변경 파일: CURRENT_STATE.md·WORKLOG.md 기록만. 기존 변경 보존·예상 밖 변경 없음. 신청 제출·결제·첨부 업로드·외부 설정·코드·계약·Jira·Git 이력 변경 없음.
+- 검증: 사용자 양식의 세부사항 128자 이내·구매사유 공백 제외 30자 이상을 충족하는 문구 작성 및 git diff --check. 문안 작업으로 Gradle 미실행.
+- 위험·다음: 무료 크레딧을 실제 지출액으로 신청하지 않는다. 실제 청구 화면에서 금액·통화·거래 성격을 확인하고 선불금/환급성 인증금이면 담당자에게 지원 가능 여부 확인 후 제출한다.
+
+## 2026-09-10 — 활동비 신청 Firebase 용도 추가
+
+- 날짜·브랜치: 2026-09-10, develop. Jira 없음. 목표: 사용자가 추가한 Firebase 이용 목적을 신청 문구에 반영.
+- 변경 파일·동작: CURRENT_STATE.md·WORKLOG.md 기록, 응답의 세부사항과 구매사유에 Firebase 추가. 구체적인 Firebase 기능이나 유료 요금제·필수 지출은 추정하지 않음.
+- 검증: 세부사항 128자 이내·구매사유 공백 제외 30자 이상 문구 확인, git diff --check. 문구 보완만으로 Gradle 미실행.
+- 유지·위험·다음: 기존 계약·코드·외부 설정·신청 제출·결제 변경 없음. 기존 변경 보존·예상 밖 변경 없음. 실제 금액·통화·선불/인증금 성격 확인 후 사용자 제출 필요.
+
+## 2026-09-16 — Apple/Google 기간권 상품 등록 접근 확인 및 인계
+
+- 날짜·브랜치: 2026-09-16, develop. Jira 없음. 목표: 사용자 요청한 양 Store의 승인된 일회성 이용권 5종 등록.
+- 근거: AGENTS.md, ADR-004, FIXED_TERM_PREMIUM_PAYMENT_CONTRACT.md, PREMIUM_PURCHASE_REFUND_NOTICE_DRAFT.md. 1/3/7/14/28일과 9,000/19,000/29,000/49,000/69,000원, Apple consumable·Google one-time consumable, 자동갱신 없음 유지. 실제 product ID는 아직 미확정이며 문서 예제를 등록값으로 사용하지 않았다.
+- 실제 확인: 사용자 링크로 인앱 브라우저 접근. Apple은 인증 실패 후 로그인 화면. Google은 브라우저 로그인 순번 차이로 약관 검토 화면으로 이동했고 기존 토선생 계정을 선택한 뒤에도 동일 화면이었다. 이를 실제 개발자 계정 미보유나 상품 미존재 증거로 해석하지 않는다.
+- 수행 범위: 페이지 열기·기존 Google 계정 선택·로그인/약관 화면 인계만. 약관 동의·상품 생성·가격 저장·심사/출시 제출·판매 활성화·RevenueCat 변경 없음. 상품 생성 건수는 0건이며 완료로 보고하지 않는다.
+- 변경 파일: CURRENT_STATE.md·WORKLOG.md. 기존 미커밋 변경 보존, 예상 밖 변경 없음. 코드·다른 서버·계약·Jira·Git 이력·배포 변경 없음. 개인정보·credential·개발자 계정 식별자 기록 없음.
+- 검증: 실제 UI 상태 확인 및 git diff --check. 코드 변경이 없어 Gradle 미실행. Store 상품/금액 저장 검증과 sandbox E2E는 수행하지 못했다.
+- 위험·다음: 사용자가 올바른 개발자 계정으로 로그인하고 필요한 약관을 검토한 뒤 앱/상품 목록에서 대상·중복을 먼저 확인한다. 상품 ID·표시명·국내 가격을 등록하고 저장 상태를 검증하되 백엔드/Store gate 미완료 상태에서 임의 판매 활성화하지 않는다.
+
+## 2026-09-16 — Apple 이용권 5종 생성·한국 한정 설정 및 Google 차단 확인
+
+- 날짜·브랜치: 2026-09-16, develop. Jira 없음. 목표: 사용자 로그인 완료 후 기존 상품 등록 요청 계속 수행, 도중 추가된 한국 판매 지역 지정 반영.
+- Apple 실제 변경: 기존 상품 부재 확인 후 소모품 `premium1d/premium3d/premium7d/premium14d/premium28d` 생성. 한국어 ‘토선생 프리미엄 1일/3일/1주/2주/4주 이용권’, 24/72/168/336/672시간·AI 피드백 무제한·자동갱신 없음 설명 저장. KRW 9000/19000/29000/49000/69000 저장. 사용 가능 국가 전체 해제 후 대한민국만 지정하고 메인 저장.
+- 검증: 각 상품 ‘현재 가격’에서 한국 금액 재확인, 지역 지정 때 대한민국만 체크/1개 선택 확인, 최종 목록 초안 5개·소모품·제출 준비 중 확인. 최초 생성 및 저장 중 상태와 최종 결과를 구분했다. 심사 추가/제출·출시·약관 동의·심사 이미지 업로드는 하지 않음.
+- Google 실제 확인: 해당 앱 일회성 제품 화면에 결제 권한을 APK에 추가해야 한다는 안내와 새 APK 업로드 버튼만 표시돼 0건 생성. Android 코드·빌드 업로드는 범위 밖으로 미실행. 기존 로그인 차단은 해소됐으나 빌드 선행 조건이 남음.
+- 변경 파일: 신규 STORE_PRODUCT_REGISTRATION-2026-09-16.md, FIXED_TERM_PREMIUM_PAYMENT_CONTRACT.md 후속 링크, CURRENT_STATE.md, WORKLOG.md. 기존 사용자 미커밋 변경 보존·예상 밖 변경 없음. 앱의 기존 판매 메타데이터·세금 카테고리·타 서버·RevenueCat·Jira·Git 이력·배포는 변경하지 않음.
+- 유지 계약: 기간형 일회성 consumable·무료 보존·승인 가격·한국 대상·Billing duration source of truth 유지. 실제 결제/무료권 지급 없음. 가격표의 해외 자동환산을 해외 판매 승인으로 해석하지 않음.
+- 로컬 검증: git diff --check. 코드 변경 없어 Gradle 미실행. sandbox/RevenueCat/Billing E2E 미실행. 외부 생성 사실을 로컬 코드 구현 완료로 보고하지 않음.
+- 위험·다음: Google 결제 권한 포함 Android 빌드 업로드 후 5종 등록, Apple 계약 갱신/심사 스크린샷·새 앱 버전, RevenueCat 매핑 및 별도 결제 PLAN/구현·sandbox gate 필요. 상품 ID 생성과 심사/판매 완료를 구분한다. 사용자/credential·거래 원문은 문서에 기록하지 않음.
+
+## 2026-09-16 — Android 결제 권한 포함 빌드 의미 설명
+
+- 날짜·브랜치: 2026-09-16, develop. Jira 없음. 목표: Google 상품 생성 선행 조건을 앱 개발 관점에서 설명.
+- 설명: `com.android.vending.BILLING` manifest 선언과 RevenueCat/Play Billing 의존성의 manifest 병합, 새 versionCode의 AAB/APK 업로드·Play 처리 확인을 구분했다. 사용자 런타임 권한 요청·자동 결제 허용·Billing 백엔드 배포가 아니며 상품 등록과 구매 UI/검증 구현 완료도 별개다. 내부 테스트 트랙을 통한 준비를 안내하되 즉시 production 출시를 요청하지 않는다.
+- 변경 파일: CURRENT_STATE.md·WORKLOG.md 기록만. 앱 저장소/최종 빌드는 미검사이므로 실제 원인을 특정 소스 파일 누락으로 단정하지 않음. 기존 상품·결제·무료 계약 유지, 코드·외부 설정·업로드·배포·Jira·Git 이력 변경 없음. 기존 변경 보존·예상 밖 변경 없음.
+- 검증: 직전 Google UI 안내와 등록 기록 대조, git diff --check. 설명만이므로 Gradle 미실행. 다음: 앱 담당자가 SDK/merged manifest·versionCode 확인 후 승인된 테스트 배포 절차로 업로드하고 상품 등록 가능 여부 재확인.
+
+## 2026-09-16 — Apple 상품 생성과 심사 제출 상태 구분
+
+- 날짜·브랜치: 2026-09-16, develop. Jira 없음. 목표: 상품만 생성했고 심사는 미제출인지 사용자 확인에 답변.
+- 근거·동작: 직전 실제 확인 및 STORE_PRODUCT_REGISTRATION-2026-09-16.md 기준 5종 초안/제출 준비 중, 이름·설명·가격·한국 지역 저장 완료. 심사 추가/제출·판매 개시 미수행임을 확인했다. 콘솔 재조회 없이 마지막 확인 상태로 설명.
+- 변경 파일: CURRENT_STATE.md·WORKLOG.md 기록만. 코드·외부 설정·계약·Jira·Git 이력·배포 변경 없음, 기존 변경 보존·예상 밖 변경 없음.
+- 검증: 기존 등록 근거 대조와 git diff --check. 설명 작업으로 Gradle 미실행. 다음: RevenueCat·앱/백엔드 연동·sandbox 검증 및 심사 자료 준비 후 별도 요청 시 새 앱 버전과 첫 IAP 심사 제출. 신규 상품/심사 승인으로 확대하지 않음.
+
+## 2026-09-16 — Apple 즉시 심사 제출 선행 조건 안내
+
+- 날짜·브랜치: 2026-09-16, develop. Jira 없음. 목표: 현재 상품 등록만으로 바로 제출해도 되는지 설명.
+- 근거·동작: STORE_PRODUCT_REGISTRATION-2026-09-16.md의 미완료 조건 기준으로 RevenueCat/앱/Billing 연동, sandbox 구매·지급·환불 검증, 심사 스크린샷/접근 안내·새 앱 버전, 계약·정산 확인을 안내했다. 상품 초안과 동작하는 결제 기능을 구분하고 테스트를 위해 심사 승인을 먼저 받을 필요는 없음을 설명.
+- 변경 파일: CURRENT_STATE.md·WORKLOG.md 기록만. 심사 제출/외부 설정·코드·계약·타 서버·Jira·Git 이력·배포 변경 없음. 기존 변경 보존·예상 밖 변경 없음.
+- 검증: 등록 기록 대조, git diff --check. 설명만으로 Gradle/Store 테스트 미실행. 위험·다음: 실제 앱 결제 동작은 아직 확인하지 않았으며 연동 및 sandbox gate 이후 별도 요청으로 제출한다. 질문 자체를 심사 실행 승인으로 취급하지 않는다.
+
+## 2026-09-16 — 사용자 RevenueCat 상품·Offering 설정 읽기 검증
+
+- 날짜·브랜치: 2026-09-16, develop. Jira 없음. 목표: 사용자가 직접 완료한 Apple import와 premium Offering 패키지 매핑 확인.
+- 경과: 앞선 직접 설정 요청에서는 import 대상 5개 체크까지만 수행한 뒤 사용자의 직접 작업 요청으로 중단했다. 이번에는 완료 주장 대신 실제 저장된 Offering/Products를 확인했으며 외부 쓰기 없음.
+- 실제 결과: premium Offering 5개 custom package가 동명의 Apple premium1d/3d/7d/14d/28d와 일대일 연결. Apple Entitlements 열은 모두 Attach, Google 제품 미등록, default 3개 패키지 별도 존재. package 순서는 현재 UI 28/14/7/3/1일이며 순서를 수정하지 않음. Apple Missing Metadata와 이메일 미인증 배너 유지. 기본 Offering 지정 여부/SDK 실제 상품 조회는 미검증.
+- 변경 파일: STORE_PRODUCT_REGISTRATION-2026-09-16.md §6.1 실제 RC resource ID 매핑, CURRENT_STATE.md, WORKLOG.md. 기존 미커밋 변경 보존·예상 밖 변경 없음. 코드·계약 정책·타 서버·Jira·Git 이력·배포 변경 없음.
+- 검증: 실제 Offering 상세 패키지와 Products의 Entitlement 열 확인, git diff --check. 코드 변경 없어 Gradle 미실행. sandbox/실구매·Billing 지급·환불 E2E 미실행.
+- 유지·다음: 기간은 Billing이 관리하고 RC Entitlement에 연결하지 않는 계약 유지. 앱은 premium Offering을 명시 선택해 연동·상품 조회 검증 후 Billing 및 sandbox 구매/환불 검증을 수행한다. 이메일 인증/Apple 심사 metadata 보완과 Google 결제 권한 빌드·상품 등록은 별도다. 사용자 설정을 Codex 생성 결과로 보고하지 않음.
+
+## 2026-09-16 — Apple Missing Metadata 보완 항목 확인
+
+- 날짜·브랜치: 2026-09-16, develop. Jira 없음. 목표: RevenueCat에 표시된 Missing Metadata의 실무 보완 항목 설명.
+- 실제 확인: Apple 목록은 5개 초안/제출 준비 중. 1일권 상세에서 한국어 이름·설명, 가격 일정, 1개 판매지역 존재와 심사 정보 스크린샷 미첨부/추가 정보 빈칸 확인. 이번에 다른 4종 상세를 재조회하지 않았으며 스크린샷이 유일한 미충족 조건이라고 단정하지 않음.
+- 안내: 앱 실제 구매 화면이 준비되면 해당 상품·기간·가격이 보이는 심사용 캡처를 상품별 등록하고 구매 화면 접근/기간형 소모품 설명을 추가. 선택 사항인 프로모션 이미지와 구분. SDK/Billing 연동·sandbox 검증 후 첫 IAP는 새 버전과 제출하며 지금 외형만 갖춰 제출하지 않음.
+- 변경 파일: CURRENT_STATE.md·WORKLOG.md 기록만. 외부 저장/업로드·심사 제출·상품 설정·계약·코드·Jira·Git 이력·배포 변경 없음. 기존 변경 보존·예상 밖 변경 없음.
+- 검증: 실제 UI 읽기와 git diff --check. 설명 작업으로 Gradle/실구매 테스트 미실행. 다음: 실제 결제 UI·동작 준비, 심사 스크린샷/접근 정보 보완 후 Apple 및 RevenueCat 상태 확인.
+
+## 2026-09-16 — RevenueCat Google Pub/Sub 권한 오류 진단
+
+- 날짜·브랜치: 2026-09-16, develop. Jira 없음. 목표: 사용자 요청에 따라 Google Cloud·RevenueCat을 읽고 수정 대상 확인.
+- 확인 사실: RevenueCat credential 프로젝트와 동일한 Cloud 프로젝트의 enabled APIs에 Google Play Android Developer API, Google Play Developer Reporting API, Cloud Pub/Sub API가 모두 있다. 프로젝트 IAM의 RevenueCat용 서비스 계정은 모니터링 뷰어와 Pub/Sub 라이트 편집자만 표시된다. Pub/Sub API 대시보드는 최근 1일 요청 3건/오류율 100%를 표시하지만 이 집계만으로 개별 오류 원인을 단정하지 않는다.
+- RevenueCat: Play 구매 검증·인앱 카탈로그·구독 카탈로그 검증은 Valid credentials. Google developer notifications는 미연결이고 topic 선택지는 No options. 이번 로드에서 사용자 제보 오류 문구 자체는 보이지 않았으며 Client Email 필드도 빈 값이라 업로드 credential의 principal 직접 대조는 미완료다. 프로젝트 일치와 해당 프로젝트 IAM의 역할 누락은 확인했다.
+- 분석·권장: 공식 https://www.revenuecat.com/docs/service-credentials/creating-play-service-credentials 의 일반 Pub/Sub Editor(`roles/pubsub.editor`)와 Monitoring Viewer(`roles/monitoring.viewer`) 요구에 비해 Lite 역할은 일반 Pub/Sub 권한을 제공하지 않는다. 해당 서비스 계정에 일반 Pub/Sub 편집자를 보완하고 모니터링 뷰어를 유지한 뒤 RC topic 조회/RTDN을 재검증한다. Lite 제거는 다른 용도 확인 후 별도 판단하며 관리자 역할 확대·JSON 키 재생성을 우선 조치로 권하지 않는다.
+- 수행 경계: 화면 조회와 Google 기존 계정/프로젝트 선택만. API 활성·IAM 변경·topic 생성·RC Connect/Save·키 발급/업로드·Play 설정·실구매 없음. Firebase 별도 프로젝트와 혼동하지 않는다. topic 실존 여부와 권한 보완 후 성공은 아직 검증하지 않았다.
+- 변경 파일: CURRENT_STATE.md·WORKLOG.md만 기록. 기존 미커밋 변경 보존·예상 밖 변경 없음. 코드·계약·다른 서버·Jira·Git 이력·배포 변경 없음. credential/키/계정 식별자/결제 원문 미기록.
+- 검증·다음: 실제 UI 및 공식 가이드 대조, git diff --check. 코드 변경이 없어 Gradle 미실행. 사용자 승인 후 IAM 역할 보완·RC topic 재조회, 이후 Play 실시간 알림 연결/테스트가 필요하며 Google 상품 생성용 Billing 권한 빌드 문제와는 별도다.
+
+## 2026-09-16 — 승인된 Google Pub/Sub Editor 역할 추가
+
+- 날짜·브랜치: 2026-09-16, develop. Jira 없음. 목표: 직전 진단의 권한 누락을 사용자 명시 승인으로 수정.
+- 실제 변경: 대상 프로젝트 IAM의 RevenueCat 서비스 계정 행을 다시 확인하고 정확한 `roles/pubsub.editor` 검색 결과인 게시/구독 편집자를 추가·저장했다. 기존 모니터링 뷰어·Pub/Sub 라이트 편집자는 유지했고 개인 계정 역할은 변경하지 않았다.
+- 검증: Google 정책 업데이트 완료 알림과 저장된 서비스 계정 역할 3개를 확인했다. RC 새 페이지에서 Valid credentials 및 Google developer notifications의 `Play-Store-Notifications — Will be generated by RevenueCat` 옵션 표시를 확인했다. 이전 No options와 달라졌으나 실제 topic 생성/연결 완료로 해석하지 않는다.
+- 범위·유지 계약: IAM 역할 한 개 추가만 외부 변경. 키 발급/업로드·API 변경·RC Connect/Save·topic 생성·Play RTDN 설정·실구매·배포 없음. 상품/무료권/결제 계약·코드·타 서버·Jira·Git 이력은 유지.
+- 변경 파일: CURRENT_STATE.md·WORKLOG.md 기록만. 기존 미커밋 변경 보존·예상 밖 변경 없음. credential/키/계정 식별자 기록 없음.
+- 테스트·위험·다음: UI 저장/후속 조회 및 git diff --check. 코드 변경이 없어 Gradle 미실행. IAM 전파에는 몇 분 걸릴 수 있다는 콘솔 안내 확인. 별도 승인으로 RC 알림 연결과 Play RTDN 설정/전달 테스트가 필요하며 이번 작업은 알림 종단 검증 완료가 아니다.
+
+## 2026-09-16 — 서비스 계정의 불필요 Pub/Sub Lite 역할 제거
+
+- 날짜·브랜치: 2026-09-16, develop. Jira 없음. 목표: 사용자가 명시 요청한 RevenueCat 서비스 계정 Lite 권한 제거.
+- 실제 변경·검증: 같은 서비스 계정 편집 폼에서 역할 3이 Pub/Sub 라이트 편집자인지 확인한 뒤 해당 역할만 삭제. 변경 요약의 삭제 1개/추가 없음 확인 후 저장했고 정책 업데이트 알림과 최종 게시/구독 편집자·모니터링 뷰어 두 역할을 확인했다. 개인 계정 역할은 변경하지 않음.
+- 유지·복구: 역할 부여만 제거했으며 서비스 계정·키·topic·데이터 삭제 없음. 필요하면 같은 IAM 역할을 다시 부여할 수 있다. 상품/결제/무료권 계약·코드·RevenueCat/Play 설정·타 서버·Git·Jira·배포 변경 없음.
+- 변경 파일·테스트: CURRENT_STATE.md·WORKLOG.md 기록, git diff --check. 코드 변경 없어 Gradle 미실행. 기존 미커밋 변경 보존·예상 밖 변경 없음. 식별자/credential 미기록.
+- 위험·다음: IAM 전파에 몇 분이 걸릴 수 있다. 앞선 일반 역할 추가 후 RC 생성 예정 topic 옵션 표시까지 확인했고 실제 RTDN 연결/전달 테스트는 후속으로 남는다.
+
+## 2026-09-16 — 권한 정리 후 후속 작업 순서 안내
+
+- 날짜·브랜치: 2026-09-16, develop. Jira 없음. 목표: 사용자 다음 작업 질문에 현재 완료/미완료 기준 안내.
+- 동작·결정: 바로 다음은 RC Google developer notifications topic 선택/Connect, 생성 결과와 Play publisher 권한 확인, Play RTDN topic 등록 및 일회성 상품 알림 포함·테스트 수신 검증이다. 그 뒤 Android 결제 권한 빌드/Google 5종 상품/RC premium 패키지 매핑, 별도 Billing 결제 PLAN·구현·sandbox gate 순서를 설명한다. 테스트 알림 성공을 실제 구매/환불 검증 완료로 취급하지 않는다.
+- 변경 파일: CURRENT_STATE.md·WORKLOG.md 기록만. 직전 UI 확인 재사용, 이번 외부 재조회/설정·코드·계약·타 서버·Jira·Git·배포 변경 없음. 기존 변경 보존·예상 밖 변경 없음.
+- 테스트·위험·다음: git diff --check. 설명 작업으로 Gradle 미실행. topic 옵션은 생성 예정이지 생성 완료가 아니고 IAM 완료와 RTDN 연결도 별개다. 실행은 별도 사용자 요청 후 진행한다.
+
+## 2026-09-16 — RC Connect 후 topic 생성 권한 오류의 실제 Google 로그 진단
+
+- 날짜·브랜치: 2026-09-16, develop. Jira 없음. 목표: 사용자 Connect 실패 제보의 원인을 read-only 확인.
+- 확인 사실: 프로젝트 IAM에 일반 게시/구독 편집자·모니터링 뷰어가 유지됨. RC Play credential은 Valid, 연결은 미완료. Google 로그 탐색기의 최근 CreateTopic 기록은 16:26:37 생성 작업 후 16:26:45 status code 6과 Resource already exists를 표시했다. 후자 authorizationInfo의 `pubsub.topics.create`는 `granted=true`. principal은 앞서 수정한 서비스 계정과 같아 실제 생성 호출의 계정 일치도 확인했다.
+- RC 재조회: topic 선택지는 생성 예정이 아닌 실제 전체 경로가 붙은 기존 Play-Store-Notifications로 변경됐다. 실제 topic이 존재하며 확인된 최근 실패는 중복 생성이라는 근거다. 오류 문구만으로 생성 권한 부족/전파 지연/관리자 필요를 단정하지 않는다. 최초 연결의 다른 단계 실패 원인과 이후 연결 성공은 미검증.
+- 안내·근거: RC 새로고침 후 기존 topic 선택으로 연결 재시도 권장. https://www.revenuecat.com/docs/service-credentials/creating-play-service-credentials/troubleshooting 도 확인했지만 일반 가이드의 권한 확대/키 재발급 문구보다 이번 실제 로그를 우선하여 불필요한 credential 변경을 하지 않는다.
+- 수행 범위·변경 파일: 외부 화면/로그 읽기만, Connect·IAM 변경·키 발급/업로드·topic 생성/삭제·Play 설정 없음. CURRENT_STATE.md·WORKLOG.md만 기록. 기존 미커밋 변경 보존·예상 밖 변경 없음. 코드·계약·타 서버·Jira·Git·배포 변경 없음. 계정/키/프로젝트 식별자·로그 원문은 문서에 복제하지 않음.
+- 검증·위험·다음: UI와 감사 로그 대조, git diff --check. 코드 변경 없어 Gradle 미실행. 기존 topic 연결 후 subscription/publisher 권한과 Play RTDN 테스트를 검증해야 하며 이번 진단을 알림 연결 완료로 보고하지 않는다.
+
+## 2026-09-16 — Google 설정과 결제 개발 병행 권고
+
+- 날짜·브랜치: 2026-09-16, develop. Jira 없음. 목표: Google 설정 대기 중 결제 구현 우선 여부 설명.
+- 근거: ADR-004 상태·§1~3과 docs/plans 목록을 재확인했다. 제품 정책 승인과 기술 상세 초안/결제 PLAN 부재를 구분하며 코드 전체 재리뷰나 구현 완료 판정은 하지 않았다.
+- 안내·결정: Google 설정은 실제 연동 검증의 선행 조건이나 fake provider 기반 Billing 개발을 막지는 않는다. 다음은 실제 RevenueCat 지원/인증/이벤트 매핑 및 public wrapper 차이 검토를 포함한 별도 PLAN 작성·승인이고 이후 catalog/purchase account→거래 검증/기간권 원장→paid-first/무료 보존→환불/revoke/LC 차단 순서로 구현한다. PLAN-008은 현재 목록 기준 후보이지 작성 완료가 아니다.
+- 범위·유지: 이번은 안내만. 계획서 신규 작성·구현·Jira 생성·타 서버·외부 설정·Git·배포 없음. 승인된 무료/일회성 기간권 계약 유지. RTDN 오류는 단순 시간 경과 해결로 단정하지 않고 별도 추적한다.
+- 변경 파일·검증: CURRENT_STATE.md·WORKLOG.md 기록, git diff --check. 코드 변경 없어 Gradle 미실행. 기존 변경 보존·예상 밖 변경 없음.
+- 위험·다음: 실제 Store/RC 필드·webhook 인증 기능은 구현 전 검증, 차이가 있으면 계약 보완 승인 필요. Google 상품/RTDN 및 양 Store sandbox 구매·환불 E2E·배포 gate 전 production flag OFF. 사용자 요청 후 결제 PLAN 작성으로 진행한다.
+
+## 2026-09-22 — Google Ads 프로모션 사용 조건 조회 및 안내
+
+- 날짜·브랜치: 2026-09-22, develop. Jira 없음. 목표: 사용자 제공 Google Ads 프로모션의 현재 상태와 사용하는 방법 확인.
+- 실제 확인: 프로모션 등록 완료/추가 지출 요건 미충족, 인정 지출 진행률 약 91%, 광고 계정 가용 잔액 소진. 상세 패널의 인정 지출을 기준으로 부족분을 계산해 사용자에게 안내한다. 지출 기한은 2026-11-03, 크레딧 사용 기한은 적립 후 60일이다. 계정/쿠폰 코드·결제수단·거래 원문은 기록하지 않는다.
+- 근거·분석: https://support.google.com/google-ads/answer/6388096 및 /answer/16915411 확인. 충전 자체가 지출 요건 충족은 아니며, 요건 충족 후 자격 확인에 최대 35일, 적립 뒤 향후 광고비에 자동 적용된다. 이전 비용 소급 상계·현금 환급이 아니고 VAT 차감 국가의 선불 결제는 세금을 고려해야 한다. 이 계정의 구체적인 세금 원인은 별도 거래내역을 확인하지 않아 단정하지 않는다.
+- 안내·위험: 부족한 인정 광고 지출을 채우려면 현재 소진된 잔액에 사용자 예산 범위의 추가 충전이 필요할 수 있다. 정확 충전액은 세금/현재 집계/결제 화면으로 확인하고 크레딧 적립 전·소진 후 추가 비용이 생길 수 있으므로 필요한 경우 사용자가 캠페인 일시중지로 지출을 통제한다. Google Cloud/Firebase 크레딧과 혼동하지 않는다.
+- 범위·변경 파일: UI/공식 도움말 읽기 및 CURRENT_STATE.md·WORKLOG.md 기록만. 충전·쿠폰 등록·광고/예산/결제 설정·정지·문의·약관 동의·코드·계약·타 서버·Jira·Git·배포 변경 없음. 기존 미커밋 변경 보존·예상 밖 변경 없음.
+- 검증·다음: 실제 프로모션 상세 상태/산술/공식 조건 확인, git diff --check. 코드 변경 없어 Gradle 미실행. 필요 시 사용자가 추가 지출 예산을 정하고 직접 결제한 뒤 인정 지출과 지급 상태를 확인한다. 금액 소진과 크레딧 지급 완료를 구분한다.
+
+## 2026-09-22 — Google Ads 충전액과 프로모션 인정 광고비 차이 확인
+
+- 날짜·브랜치: 2026-09-22, develop. Jira 없음. 목표: 사용자 질문의 반영 지연/수수료 여부를 결제 내역으로 확인.
+- 실제 확인: 결제 요약의 현재 잔액은 사용자 말과 같은 15원. 당월 카드에서 캠페인별 비용, 초과 광고게재 조정, 예상 세금 및 요금의 VAT를 펼쳐 확인했다. 캠페인 합계-조정액=직전 프로모션 인정 광고비이며 여기에 VAT+잔액을 합하면 충전액과 일치한다. 직전 개요의 음수 잔액 표시와 이번 결제 요약을 구분하고 이번 상세를 최신 근거로 안내했다.
+- 결론·유지: 차액은 확인된 VAT로 설명되며 단순 반영 지연이나 별도 결제 수수료라고 추측하지 않는다. 프로모션 조건은 세금 포함 충전액이 아닌 인정 광고 지출 기준. 화면상 VAT는 예상 항목이므로 확정 세금계산서와 동일하다고 단정하지 않는다.
+- 변경 파일·범위: CURRENT_STATE.md·WORKLOG.md 기록만. 실제 결제/광고/예산/프로모션 설정·문의·코드·계약·타 서버·Jira·Git·배포 변경 없음. 기존 변경 보존·예상 밖 변경 없음. 계정/쿠폰/결제수단 식별자·거래 원문은 저장하지 않음.
+- 검증·위험·다음: 실제 결제 요약 및 산술 대조, git diff --check. 코드 변경 없어 Gradle 미실행. 추가 광고비를 지출하기로 하면 사용자가 세금과 조정을 고려해 예산/충전액을 정하고 인정 지출 및 크레딧 지급 상태를 확인한다. 이번은 지출 승인이나 충전 실행이 아니다.
+
+## 2026-09-22 — ADR-004 승인·미확정·검증 대기 분리 리뷰
+
+- 날짜·브랜치: 2026-09-22, develop. Jira 없음. 목표: ADR-004가 전부 확정됐는지 사용자 요청에 따라 확인. 계약 수정/구현 요청으로 확대하지 않음.
+- 근거: ADR-004 헤더·§2.2/§3/§4/§5/부록, CONTRACT_DECISIONS C9-S1~S11 및 C1-R1, FIXED_TERM_PREMIUM_PAYMENT_CONTRACT, 구매·환불 고지 초안, 9/9 readiness와 9/16 Store 등록 §6.1, 현재 작업 기록, docs/plans 목록 대조. 외부 Console/공식 provider 지원을 이번에 새로 검증하지 않음.
+- 승인 사실: 1/3/7/14/28일·국내 5가격·일회성 consumable·RevenueCat 표준 SDK completion, Billing 기간/원장, 구매 시각 시작·기간 stacking/reflow, ACTIVE MEMBER/opaque reference·다른 계정 자동 이전 금지, 유료 우선/무료 보존, provider-confirmed 환불 상태별 차단·GRADING 완료·COMPLETED 보존. D1 정상 만료와 D2 환불 취소 수동 검토, Store 기본 환불 창구·지원 이메일·만료 후 본인 기록 열람·출시 할인 없음도 승인됨.
+- 승인 기술 방향과 미완성 상세 구분: 4 public route/read·purchase scope/sync 멱등·202, Authorization+HMAC 방향/환경 분리/주기 reconciliation/보존/ALB-Lattice 경계는 이미 승인. DTO·오류·rate limit·public envelope 일치, provider 필드/SDK identifier 변환과 실제 signature 지원, LC exact revoke route/wire·paid GRADING commit gate, schema v5·exam owner guard·이관/rollback과 worker 상세는 초안 검토/계획 승인 대상. 기존 승인 숫자나 인증 방향을 새 미정으로 재분류하거나 임의 변경하지 않음.
+- 남은 사용자/법률·운영 항목: 28일권 부분 사용 후 반환 의무 적용·사용분 공제·반올림·해지 효력, Store 거절 시 법적 요청 처리, 필요한 부분 환불의 실제 Store/RC 증거/원장 경로 및 최종 구매 고지/동의. 일할 공식·위약금은 미승인. 지원 연락처는 확정이나 담당/접수·응대 운영, D2 별도 승인 복구 실행 절차는 완료 증거 없음. 기술 미구현을 법정 반환 거절 근거로 사용하지 않음.
+- 검증 대기: G1 거래 식별자, G2 소유권, G3 consumed one-time 환불, G4 실제 사전 review 신호, G5 누락 복구, G6 LC 제출 경합/전달, G7 paid/free 공통 guard, G8 Store/RC/AWS/staging E2E는 선택지 승인만으로 해결되지 않는다. REFUND_REVIEW 일반 event 미확인으로 자동 adapter OFF 유지. 실제 환경 입력·sandbox fixture가 필요함.
+- 문서 노후화: ADR §2.2의 상품/Console 전부 미수행, §3.1/§5.1의 모든 Store ID 미확인 및 §4의 9/9 실상품/Offering 미연결을 현재 상태로 읽으면 9/16 Apple 5종/한국 가격·지역/RC premium 매핑과 맞지 않는다. C.1 public JWT 미구현 설명도 이후 PLAN-007 사용자 reader 구현 기록과 시점 구분이 필요하다. Google 상품/RTDN·Billing webhook·판매 완료는 이후 성공 증거가 없으므로 완료 처리하지 않음. 이번은 지적/기록만이며 역사 문서나 계약 본문은 수정하지 않음.
+- 다음 작업: 승인 정책은 유지하면서 노후화 상태와 기술 초안을 정리하고, 사용자 결정(법률/운영)과 개발 검증 항목을 분리한 결제 PLAN을 작성·승인받는다. 로컬 plans에는 PLAN-001~007만 있고 결제 PLAN은 없음. 구현 가능 공통 기반과 출시 차단 조건을 분리한다.
+- 변경 파일·검증: CURRENT_STATE.md·WORKLOG.md만 추가. 문서 대조 및 git diff --check, 코드 변경 없어 Gradle 미실행. 기존 미커밋 변경 보존·예상 밖 변경 없음. ADR/정책/코드·타 서버·Jira·외부 설정·Git 이력·배포 변경 없음.
+
+## 2026-10-06 — 환불 상담 운영 및 SNS 변경 영향 검토
+
+- 브랜치 develop, 신규 Jira 없음. 사용자 요청은 운영 제안 검토와 타 서버 변경 영향 확인으로 한정.
+- Identity TMI-192 단일 SNS/계정 찾기 및 TMI-197 문의 API, JWT issuer·Guest upgrade 코드, LC 최신 변경/삭제 런북과 Billing ADR-004를 읽었다. 로컬 HEAD 기준이며 원격 최신/배포 완료를 확인하지 않았다.
+- 결론: 상담·수동 검토는 가능하나 Store 실제 환불/검증된 reversal과 분리한다. 공제 공식·법적 반환 기준은 미확정. 단일 SNS/힌트 조회는 userId/paid ownership 변경 근거가 아니며 기존 Billing 연결 설계를 유지한다. purchase scope 발급, 문의 결제 연결, 삭제 후 최소 이용 증거와 continuation E2E는 후속 확인 대상.
+- 변경 파일: REFUND-SNS-REVIEW-2026-10-06.md 신규, CURRENT_STATE.md 갱신, 본 기록 append. 승인 정책·API·애플리케이션·타 저장소·외부 설정·Jira·Git 이력 변경 없음. 기존 미커밋 변경 및 LC 진행 작업 보존, 예상 밖 수정 없음.
+- 검증: 정적 코드/문서 대조와 git diff --check. 분석/문서만 변경하여 Gradle 미실행. Store 현재 기능/법률·실제 데이터는 재검증하지 않음.
+- 다음: 문의를 주 상담 창구로 추가할지 사용자 승인 후 운영/사용분 판단 기준과 결제 PLAN을 보완. Store/RC 환불 증거 및 staging E2E 전 활성화하지 않는다.
+
+## 2026-10-06 — 결제 기록과 사용 기록 구분 재확인
+
+- 브랜치 develop, Jira 없음. 목표: 현재 결제 기록 저장 여부 확인.
+- src/main 파일 목록, EntitlementLedgerEntry/Repository, AttemptSession/Repository, AGENTS 결제 미구현·5년 보존 계약 대조. 현재 무료 지급/예약/소비와 세션 상태·시각 저장 구현은 존재하나 유료 Purchase/payment ledger는 아직 계획이다. 실제 DB/Store 거래를 조회하지 않았다.
+- 기존 Attempt projection 재사용 가능성과 유료 구매별 연결/삭제 후 보존 검증 필요를 구분한다. 신규 사용량 저장소나 정책을 승인한 것은 아니다.
+- 변경: CURRENT_STATE와 WORKLOG 기록만. 코드·계약·타 서버·외부 변경 없음, 기존 변경 보존·예상 밖 수정 없음. 정적 확인 및 git diff --check, 코드 변경 없어 테스트 미실행.
+- 다음: 결제 계획에서 구매와 기존 이용 projection 연결·최소 증거 보존을 정의한다.
+
+## 2026-10-06 — 환불 문의 접수 및 REFUND 분류 승인 기록
+
+- 브랜치 develop, Jira 없음. 사용자 승인에 따라 Identity 문의 기반 환불 상담과 REFUND 분류 추가 방향을 확정 기록했다. 실제 타 서버 변경 요청으로 확대하지 않았다.
+- 변경: ADR-004, CONTRACT_DECISIONS C9-S10, FIXED_TERM_PREMIUM_PAYMENT_CONTRACT, CURRENT_STATE, WORKLOG. 기존 자체 UI 제외를 상담 접수 범위에서 대체하며 Store 직접 신청/환급·검증된 최종 provider 반영 유지. 접수만으로 취소하지 않는다.
+- 남은 결정: 잔여기간 반환/공제/해지 효력·운영 담당/응답/구매자 확인·최종 구매 고지. 부분 환불 실행/원장·provider 지원 및 기술 상세는 검증/계획 승인 대상. 정책을 임의 확정하지 않음.
+- 검증: 문서 대조 및 git diff --check. 문서만 변경하여 Gradle 미실행. 기존 변경 보존, 예상 밖 수정 없음. Identity 코드·Jira·외부 설정·Git 이력·배포 변경 없음.
+- 다음: 운영 권장안 승인 및 법률/Store 확인을 분리하고 결제 PLAN에 반영한다.
+
+## 2026-10-06 — 환불 운영 기준 사용자 선택 반영
+
+- 브랜치 develop, Jira 없음. 사용자 선택: 팀 건별 범위/금액 판단, 실제 환불 확정 시각, 2영업일 이내 1차 답변, userId 필수, 약관 프론트 담당.
+- 변경 파일: CONTRACT_DECISIONS·ADR-004·FIXED_TERM_PREMIUM_PAYMENT_CONTRACT·CURRENT_STATE·WORKLOG. 기존 인증 계약상 userId는 검증된 로그인/현재 계정에서 자동 귀속하는 해석을 명시했다. 타 서버 DTO 변경은 하지 않았다.
+- 유지: Store 직접 요청/실제 환급, 검증된 최종 상태만 원장 반영, 법정 권리 우선, 로그인 불가/탈퇴는 별도 구매자 확인. 실제 확정 시각과 webhook 수신/팀 승인/입금 시각 구분, 부분 환불/공제 공식·법적 효력 미확정 gate 유지.
+- 검증: 문서 대조 및 git diff --check. 문서 변경만으로 Gradle 미실행. 기존 변경 보존, 예상 밖 수정 없음. 코드·타 서버·Jira·외부 설정·Git 이력 변경 없음.
+- 다음: Identity REFUND 인증별 처리 인계 및 provider 시각/부분 환불 증거·운영 감사 절차를 결제 계획에서 구체화. 프론트 약관과 실제 동작 일치 확인 후 출시.
+
+## 2026-10-06 — Store별 실제 환불 및 부분 환불 공식 문서 조사
+
+- 브랜치 develop, Jira 없음. Google Play 도움말, Apple refundPreference/Send Consumption Information/고객 지원, RC Handling Refunds/Refund Control/설정 공식 페이지 직접 조회.
+- 확인: Google Console 인앱 부분 금액/비율 환불, Apple 심사 선호와 직접 환급의 차이, RC 부분 선호 및 거래별 사용률 미지원. Apple12시간 정보 응답과 동의·Google 탐지 지연/제한 확인. 신규 Google reviewrefund 설명은 일반 Billing review event 계약으로 확대하지 않음.
+- 변경: STORE-REFUND-CAPABILITIES-2026-10-06.md 신규, CURRENT_STATE 및 본 기록. 계약/자동 refund flag/코드/타 서버/Jira/외부 설정/실제 주문·환불/사용자 데이터 전송 변경 없음. 기존 변경 보존·예상 밖 수정 없음.
+- 검증: 공식 문서 읽기·git diff --check. 코드 변경 없어 Gradle 미실행. 실제 거래 fixture/부분 환불 금액·시각·권리 종료/E2E는 미검증이며 법률 판단 아님.
+- 다음: Store별 운영 차이를 사용자에게 설명하고 부분 환불 원장/권리 계약·Apple 사용정보 전달 도입 여부를 별도 승인받는다.
+
+## 2026-10-06 — 부분 환불 잔여 권리 종료 승인 및 전체 흐름 설명
+
+- 브랜치 develop, Jira 없음. 사용자 승인: 부분 환불 뒤 해당 구매의 남은 권리 종료. 직전 Google/Apple 운영 차이 승인도 C9-S10에 반영.
+- 변경: CONTRACT_DECISIONS·ADR-004·FIXED_TERM_PREMIUM_PAYMENT_CONTRACT·CURRENT_STATE·WORKLOG. 다른 구매/무료권 유지, 실제 부분 반환액과 권리 종료 구분, 기존 reflow·GRADING/COMPLETED 예외 유지.
+- 정책 확장만 반영했으며 부분 환불 exact provider 증거/금액·시각/중복·후속 reversal은 PLAN 설계 대상. 결제 전체 흐름은 설계 설명이지 구현/배포 완료가 아니다.
+- 검증: 문서 대조·git diff --check. 문서 변경만으로 Gradle 미실행. 기존 변경 보존·예상 밖 수정 없음. 타 서버·애플리케이션·Jira·외부 설정·실제 환불·Git 이력 변경 없음.
+- 다음: 결제 PLAN에 부분 환불 원장/권리 종료 및 실제 Store fixture·LC 차단 검증을 포함한다.
+
+## 2026-10-06 — 결제·환불 논의 종합 리뷰
+
+- 날짜·브랜치: 2026-10-06, develop. 신규 Jira 없음. 목표: 최근 결제/환불 논의의 승인 정책·미완성 설계·문서 정합성을 검토.
+- 변경 파일: docs/contracts/PAYMENT_REFUND_DISCUSSION_REVIEW-2026-10-06.md 신규, CURRENT_STATE 갱신, 본 기록 append. 기존 미커밋 변경 보존, 예상 밖 변경 없음.
+- 확인: C9-S10의 REFUND 상담·Store별 운영·2영업일 첫 응답·부분 환불 뒤 해당 구매 종료 승인과 ADR 상세·안내 초안·AGENTS·기존 Store 조사 및 Billing 파일 목록 대조. 정책 방향은 일관되나 부분 반환 금액/증분·누적/후속 환불 dedupe, 금융과 권리 상태 분리, 확정 시각 fallback·지연 reflow와 구매별 최소 이용 증거 계약이 미완성이다. AGENTS 범위 제외 및 구매 안내 현행화 필요를 지적했다.
+- 유지·결정: 승인 정책을 재선택하거나 계약 본문을 수정하지 않음. 검토 결과와 후속 PLAN 검증 사례만 기록. 무료 Claim/Grant·owner·internal wire·인증·ledger 불변식·자동 refund OFF 유지. 코드·schema·타 서버·Jira·외부 설정·Git commit/push·배포 변경 없음.
+- 테스트: 정적 문서 대조·로컬 링크 확인·이번 문서 diff 검사. 분석/문서만 변경하여 ./gradlew clean test 미실행. 실제 Store/RC 최신 지원·거래·법률·배포는 새로 검증하지 않음.
+- 위험·다음: 기존 전액 환불 terminal 처리로 추가 금전 환불을 누락하거나 중복 합산하지 않도록 모델·증거를 정의하고, 실제 시각 미제공/지연 수신 timeline 예제를 고정한다. 최소 이용 증거와 운영 감사·최종 고지를 보완한 결제 PLAN 승인, provider fixture·LC 경합·staging gate 후 활성화한다.
+
+## 2026-10-06 — 사용자 전달 환불 리뷰 사실 재검증
+
+- 브랜치 develop, Jira 없음. PAYMENT_REFUND_DISCUSSION_REVIEW 전문과 ADR refund status/effectKey/terminal/reflow/source snapshot, AGENTS 부분 환불 제외, 구매 안내 및 AttemptGroup 필드 대조.
+- R1~R4 타당. 코드 결함 발견이 아닌 부분 환불 승인 뒤 기술 초안/문서의 공백이다. 실제 확정 시각은 승인 정책, 최초 검증 시각 fallback은 초안으로 구분. purchase별 snapshot 방향은 이미 있으나 상세 증거/보존/환불 연결은 미완성이다.
+- 변경: CURRENT_STATE 및 WORKLOG만. 기존 변경 보존·예상 밖 수정 없음. 계약·AGENTS·안내·코드·타 서버·Jira·외부·Git 변경 없음. 정책 재승인 요구 대신 ADR 상세/현행 문서 정리 후 PLAN 권장.
+- 검증: 정적 대조·git diff --check. 코드 변경 없어 Gradle 미실행. 실제 provider/법률/배포 및 이전 리뷰의 링크 검사 결과는 재검증하지 않음.
+- 다음: 권리 종료 한 번/금전 추가 반환 별도 누적, 지연 시각 예제, 기존 projection 활용 증거와 문서 정합성 보완을 승인받아 작성한다.
+
+## 2026-10-06 — 구매별 이용 증거 설계 및 환불 문서 정합화
+
+- 브랜치 develop, Jira 없음. 사용자 요청: 반복 부분 환불/알림 지연 의미 설명, 구매별 이용 증거 보완과 문서 정합성 수정. 결제 PLAN 승인 전이므로 application 구현으로 확대하지 않았다.
+- 변경 파일: AGENTS.md, ADR-004, CONTRACT_DECISIONS, BILLING_SERVICE_INTEGRATION_CONTRACT, FIXED_TERM_PREMIUM_PAYMENT_CONTRACT, PREMIUM_PURCHASE_REFUND_NOTICE_DRAFT, CURRENT_STATE, WORKLOG.
+- ADR §5.8.1에 인증된 문의자→검증된 구매→불변 source→기존 Group/Session/usage ledger 최소 증거 연결을 명시했다. 무료·취소·실패/replacement·완료 뒤 학습 원본 삭제를 구분하며 완료 당시 boolean/version 외 답안·피드백 원문은 복제하지 않는다. 같은 Transaction·멱등성·command/inbox TTL 독립·제한된 운영 조회/감사·ledger와 학습 개인정보 보존 구분 및 필수 테스트를 추가했다. exact schema/운영 DTO/최소 summary 보존·purge는 PLAN gate.
+- 최신 범위에서 부분 환불을 일괄 제외하던 AGENTS/통합 계약을 수정하고 자동 심사/공제·직접 송금은 계속 제외했다. 안내 초안에 REFUND·2영업일 첫 답변·userId 자동 연결·Google/Apple 차이·부분 환불 잔여권 종료·다른 권리 보존·프론트 담당을 반영. 과거 WORKLOG/리뷰를 수정하지 않으며 역사적 승인과 현재 규칙을 구분했다.
+- 설명: 반복 환불은 일반 상품 기능 제안이 아니며 통상 처리 후 종료. 외부 Store 추가 반환/정정 사실 누락 방지와 중복 알림 방어는 별개다. Store 확정 시각과 Billing 관측 시각이 다를 수 있어 지연 reflow/fallback은 미확정 유지; 소급/수신시각 기준을 임의 승인하지 않았다.
+- 검증: git diff --check 통과, 현재 계약의 범위 제외/안내 불일치 문구 검색·정적 대조. 코드 변경 없어 Gradle 미실행. 기존 사용자 변경/PLAN-007 보존, 이번 예상 밖 수정 없음. 타 서버·API·schema·외부 설정/환불·Jira·Git 이력 변경 없음.
+- 위험/다음: R3 문서 현행화와 R4 설계 보완을 수행했지만 결제 application은 미구현. R1 exact 환불 증거/금액 식별 및 R2 시각/fallback, provider fixture·LC/삭제 E2E·최종 고지 검증 후 결제 PLAN 승인과 구현으로 진행한다.
+
+## 2026-10-06 — 환불 금액·시각 예외 권장안 설명
+
+- 브랜치 develop, Jira 없음. 사용자 요청은 1/2번 권장안 상담이며 확정/구현 요청이 아님. C9-S2와 ADR §5.7 reflow 시각 원문 확인.
+- 제안 R1: 정상 건은 팀 검토 후 처리 종료, 반복 환불 UI/자동 집행 없음. 검증된 외부 추가 반환·정정만 별도 원장에 반영, 권리 종료/reflow 중복 없음. 증분/누적 금액과 환불 식별자 검증, 모호한 금액은 전액 추정하지 않고 대사. provider 지원 확인 필요.
+- 제안 R2: providerConfirmedAt nullable, firstVerifiedAt, appliedAt 분리. 최종 환불 검증 뒤 원 권리 차단, 아직 시작하지 않은 후속 기간은 최초 Billing 반영 기준으로 앞당겨 지연 중 소급 소진 방지. 기존 정상 시작시각을 뒤로 미루거나 이미 시작한 다른 slot을 재지급하지 않음. 중복 처리/후속 정확 시각 확보는 감사 증거 보완이지 재시작 근거가 아님. 지연 동안 원 권리 접근 가능성과 일시 서비스 비용을 설명하고 경보/재조회로 관리, 소급 과금/환불액 임의 공제 없음.
+- 기존 C9-S2의 refundConfirmedAt 기준을 변경하는 제안임을 명시, 승인 전 ADR/결정 원장 변경 안 함. 금전 확정 시각과 법적 효력/공제 기준을 동일시하지 않음.
+- 변경: CURRENT_STATE·WORKLOG만. 정적 대조 및 git diff --check, 코드 변경 없어 Gradle 미실행. 기존 변경 보존·예상 밖 수정 없음. 코드/타 서버/Jira/외부/Git 변경 없음.
+- 다음: 사용자 승인 시 R1/R2 계약을 보완하고 PLAN에 지연/중복/정정/시작 경계 테스트를 포함한다.
+
+## 2026-10-06 — R1/R2 환불 금전 예외·반영 시각 승인 반영
+
+- 브랜치 develop, Jira 없음. 사용자 두 권장안 승인에 따라 C9-S2/S10·ADR §5.7·결제 요약·AGENTS·CURRENT_STATE·WORKLOG 갱신.
+- 정상 환불 처리 종료, 외부 실제 추가 반환/정정만 금융 기록 보완, 중복 무효·불명 금액 대사 확정. 최초 접근 종료/reflow와 후속 금융 상태 분리. provider 식별·금액 exact 모델은 PLAN gate 유지.
+- providerConfirmedAt nullable/firstVerifiedAt/appliedAt 분리 및 최초 성공 Transaction 반영 기준 재배치 확정. 미시작 후속 권리만 앞당기고 기존 시작 지연·진행 slot 재지급·지연 소급 소진 금지. 정확 시각 후속 확보는 감사 근거만 보완. Mongo commit timestamp/LC 실제 차단/법적 기산점과 구분.
+- 검증: 문서 검색·git diff --check. 문서만 변경하여 Gradle 미실행. 기존 변경 보존·예상 밖 수정 없음. 코드/schema·타 서버·외부/Jira/Git 변경 없음.
+- 다음: 결제 PLAN에서 실제 provider 금액 식별/정정·시각 필드와 중복/지연/이미 시작한 slot/unknown commit 테스트 구체화 후 구현 승인.
+
+## 2026-10-06 — 결제부터 환불까지 단계별 PLAN 작성
+
+- 브랜치 develop, 신규 Jira 없음. 사용자 계획서들 작성 요청에 따라 PLAN-008~013 신규 생성. 구현/외부 검증/배포로 확대하지 않았다.
+- 파일: PLAN-008-fixed-term-payment-roadmap,009-payment-catalog-and-account,010-purchase-ingestion-and-timeline,011-paid-reservation-and-usage-evidence,012-refund-ledger-and-access-revocation,013-payment-rollout-and-operations(.md). ADR-004·AGENTS에 검토 대기 계획 안내, CURRENT_STATE 및 WORKLOG 갱신.
+- 범위: Phase0 선행 계약·실제 provider 확인 gate와 5개 vertical slice, 책임/의존/DTO/Transaction/index/flag/실패 복구/테스트·완료 조건·reader-first/rollback·보존·Identity/LC/앱 인계 구분. R1 금전 추가 정정과 단일 권리 종료, R2 appliedAt·늦은 provider 시각, 구매별 source/최소 증거 및 LC GRADING/revoke 경합 반영.
+- 확인 근거: ADR-004·PLAN-007 및 PublicResponse/PublicSecurityConfig/schema-v4 initializer/Reservation application 소스. PublicResponse 재사용과 LC source wire는 기존 초안과 차이가 있어 제안/승인 대기로 명시. 실제 RC HMAC·partial money fields를 가정하지 않고 fixture/ADR 수정 선행 gate 설정. 자동 심사·직접 송금·paid 이전·원본 학습 저장 제외 유지.
+- 검증: 문서 whitespace 및 상대 파일 링크 검사, git diff --check. 계획서만 변경하여 ./gradlew clean test 미실행. 실제 Store/RC/AWS/타 서버 최신 배포/법률 검증 미수행. 기존 사용자 변경·PLAN-007 보존, 이번 예상 밖 변경 없음.
+- 다음: 사용자 PLAN 검토/승인→Phase0 계약 동결/필요 재승인→사용자 요청 시 Jira 생성→009부터 구현. fake 로직 개발 완료와 실제 판매 준비 완료를 구분하며 모든 payment flag 기본 OFF.
+
+## 2026-10-06 — PLAN-008 전체 로드맵 설명
+
+- 브랜치 develop, Jira 없음. 사용자 요청에 따라 PLAN-008 전문 확인 후 전체 순서·Phase0·완료 기준·서비스별 인계 설명.
+- 변경: CURRENT_STATE/WORKLOG 기록만. 가격/기간/환불 R1·R2 유지, envelope 등 기술 제안은 승인 대기. 설명 요청을 구현·계획 승인으로 확대하지 않음.
+- 검증: 문서 대조·git diff --check. 코드 변경 없어 Gradle 미실행, 외부 provider/배포 검증 없음. 기존 변경 보존·예상 밖 수정 없음. 코드·타 서버·Jira·외부·Git 변경 없음.
+- 다음: 전체 계획 검토 후 009 상세 또는 Phase0 계약 확인, 사용자 승인 뒤 구현 준비.
+
+## 2026-10-06 — PLAN-008 사용자 결정 항목 구분
+
+- 브랜치 develop, Jira 없음. 목표: PLAN-008에서 지금 승인할 사항과 기술 검증/출시 입력 구분.
+- 안내: 009~013 단계별 진행과 PublicResponse 재사용을 권장. 제품 정책 재선택 불필요, provider·LC·schema는 근거 확인 및 기술 승인 절차, 운영 담당/환경/고지는 배포 전 준비. 구현/Jira 승인으로 확대하지 않음.
+- 변경: CURRENT_STATE/WORKLOG만. 기존 계약·코드·외부·타 서버·Git 변경 없음, 기존 변경 보존·예상 밖 수정 없음. 문서 대조·git diff --check, 코드 변경 없어 테스트 미실행.
+- 다음: 사용자 선택 확인 후 009 설명 또는 Phase0 세부 계약 검증으로 진행.
+
+## 2026-10-06 — PLAN-008 진행 구조·PublicResponse 승인
+
+- 브랜치 develop, Jira 없음. 사용자 두 선택 승인 반영: 009~013 단계별 진행, 사용자 public 결제4 API 응답 통일.
+- 변경: PLAN-008/009/010·ADR-004 §5.3·CONTRACT_DECISIONS·CURRENT_STATE·WORKLOG. direct DTO는 result 내부, 오류도 PublicResponse로 명시. top-level traceId 임의 추가 없이 기존 추적 로그 유지, internal204/provider200는 대상 제외.
+- 범위: 나머지 기술 초안·각 slice 구현·Jira·배포는 별도 승인. 기존 변경 보존·예상 밖 수정 없음, 타 서버/코드/외부/Git 미변경.
+- 검증: git diff --check, 문서만 변경하여 Gradle 미실행. 다음: PLAN-009 상세 검토와 Phase0 해당 계약 검증.
+
+## 2026-10-06 — PLAN-009 상품·구매 연결·인증 설명
+
+- 브랜치 develop, Jira 없음. PLAN-009 전문 확인 후 앱 상품 조회/구매 reference/권한 분리·단계 범위 설명.
+- 가격은 Store SDK 표시와 검증된 거래 금액을 구분, 계정 reference는 환경별 stable이고 생성 자체로 무료/유료권을 지급하지 않음. 009는 RevenueCat 결제·webhook·환불 구현 단계가 아님.
+- CURRENT_STATE/WORKLOG만 갱신, 계약·코드·타 서버·Jira·외부/Git 변경 없음. 기존 변경 보존·예상 밖 수정 없음. git diff --check, 설명 작업이라 Gradle 미실행.
+- 다음: PLAN-009 기술 검증/구현 승인 및 Identity purchase scope 인계. 실제 판매 flag는 전체 gate까지 OFF.
+
+## 2026-10-06 — Identity REFUND 구현 확인 및 Billing 인계 상태 갱신
+
+- 브랜치 develop, Jira 없음. Identity 로컬 HEAD cc076442를 읽기 전용 검사; 변경된 타 서버 작업기록은 보존. SupportRequest/ActorResolver/Controller/Service/Error, ServiceTests/WebTests와 문의 API 문서·기본 설정 확인.
+- 사실: REFUND enum, JWT/current active DB userId 사용, ACTIVE Guest/Member 문의 가능, 익명401 SUPPORT_REFUND_AUTH_REQUIRED, 본문 userId unknown400, service의 저장/멱등 응답 전 필수 검사 구현. 관련 단위/MVC 테스트 소스 있음. 이번 테스트 실행·remote merge·ECS 배포·Slack/프론트 실호출 확인 없음. 접수/worker 기본 false.
+- 변경: PLAN-008/013·ADR-004·CONTRACT_DECISIONS·FIXED_TERM_PREMIUM_PAYMENT_CONTRACT·PREMIUM_PURCHASE_REFUND_NOTICE_DRAFT·CURRENT_STATE·WORKLOG의 구현/인계 상태. 승인 정책/API 변경 없음. Identity 수정/테스트 빌드 생성하지 않음.
+- 남음: 실제 배포/flag·프론트 문의·구매 연결/소유권 검증·로그인 불가 이메일/Store 안내. Guest 문의는 구매 가능 의미 아님. billing:purchase 발급은 이번 변경과 별개로 후속 유지.
+- 검증: 정적 코드/테스트 대조 및 git diff --check. 문서만 변경해 Gradle 미실행. 기존 변경 보존·예상 밖 수정 없음. Jira·외부 설정·Git 이력 변경 없음.
+
+## 2026-10-06 — PLAN-010 구매 검증·기간권 흐름 설명
+
+- 브랜치 develop, Jira 없음. PLAN-010 전문 확인 후 앱 sync/RC webhook/reconciliation, 검증된 owner/transaction, Purchase·기간권·ledger 원자 저장, 중복/유실·PENDING 복구와 구매 시각 기준 stacking 설명.
+- Identity purchase scope 작업은 사용자 요청대로 후속 유지하되 실제 구매 API 활성화 요건에서 제거하지 않음. 009·010 구현/승인 완료 또는 판매 가능으로 처리하지 않음.
+- CURRENT_STATE/WORKLOG만 갱신. 코드·정책·타 서버·외부/Jira/Git 변경 없음. 기존 변경 보존·예상 밖 수정 없음. 문서 확인·git diff --check, 코드 변경 없어 Gradle 미실행.
+- 다음: 010 상세 질문/승인 및 provider 선행 계약 검증 또는 011 설명. 시험 연결/환불은 다음 slice.
+
+## 2026-10-06 — PLAN-011 유료 시험 승인·구매별 이용 증거 설명
+
+- 브랜치 develop, Jira 없음. 목표: PLAN-011의 유료 기간권과 기존 시험 시작/재응시 연결을 사용자에게 설명. 계획 전문을 확인하고 paid-first/free-preserve, 사용자 공통 guard, 불변 구매 source, 최소 이용 증거와 정상 만료/환불 차이를 정리.
+- 변경 파일: CURRENT_STATE·WORKLOG만 갱신. 코드·외부 계약·정책·타 서버·Jira·Git 이력 변경 없음. 기존 변경 보존, 예상 밖 변경 없음.
+- 검증: 계획 문서 확인 및 git diff --check. 설명/기록만 수행하여 Gradle 테스트 미실행.
+- 유지: reserve→Learning Core Session commit→confirm, 무료 consumption 보존, command TTL과 독립적인 이용 증거. 010 보류는 승인 아님; 결제 구현·판매 활성화 미수행.
+- 위험/다음: Learning Core의 source 구분 wire와 paid 채점 시작 승인, 공통 guard migration은 구현 전 계약 검증 필요. 011 상세 검토/승인 후 다음 계획 검토, 실제 배포 전 전체 E2E gate 유지.
+
+## 2026-10-06 — PLAN-011 추가 확정 사항 안내
+
+- 브랜치 develop, Jira 없음. PLAN-011 전문을 재확인해 이미 정한 상품 정책과 LC source 응답/채점 시작 gate의 기술 승인 대상을 분리했다. 공통 guard는 일생 1회 제한이 아니라 동시 시작·진행 정합성 장치이며 해제/재응시 상세 전이는 검증 대상이다.
+- CURRENT_STATE·WORKLOG만 변경. 외부 계약·코드·타 서버·Jira 변경 없음, 사용자 질문을 구현/기술 계약 승인으로 간주하지 않음. 기존 변경 보존, 예상 밖 변경 없음.
+- 검증: 문서 확인, git diff --check. 코드 변경 없는 안내이므로 Gradle 미실행.
+- 다음/위험: capability-gated v2의 exact route/DTO/version/IAM과 LC paid GRADING gate 합의, guard 전이·legacy migration·refund 경합 테스트 설계 후 구현 승인. 실제 판매/배포는 전체 연동 gate 전 OFF 유지.
+
+## 2026-10-06 — PLAN-013 출시 검증·운영 설명
+
+- 브랜치 develop, Jira 없음. 목표: PLAN-013 전문을 확인하고 실제 연동 검증, legacy/schema 이관, 단계별 배포, 안전 중단, 문의·보존·경보 및 판매 gate를 쉬운 용어로 안내.
+- 변경 파일: CURRENT_STATE·WORKLOG. 코드·외부 계약·타 서버·Jira·배포 변경 없음. 기존 변경 보존, 예상 밖 변경 없음.
+- 검증: 문서 확인 및 git diff --check. 설명 기록만 변경하여 Gradle/Store sandbox/실제 인프라 검증 미실행.
+- 유지: 판매 중단과 기존 결제 복구/환불 처리를 분리; 문의 2영업일은 첫 응답; 최소 금융 증거 5년과 무료 Claim 3년·backup35일을 혼용하지 않음.
+- 위험/다음: provider 인증·부분 환불 실제 증거, 운영 담당/권한·보존 manifest·D2 복구 절차·staging E2E가 남음. 상세 승인/구현과 외부 배포 승인은 별도이며 이번 설명을 승인으로 간주하지 않음.
+
+## 2026-10-06 — PLAN-013 출시 검증·운영 방향 승인 반영
+
+- 브랜치 develop, Jira 없음. 사용자 승인에 따라 PLAN-013 상태와 승인 범위를 기록하고 CONTRACT_DECISIONS·CURRENT_STATE·WORKLOG를 동기화했다.
+- 동작/계약: 연동 검증·migration·단계별 활성화·판매 중단/기존 거래 처리 분리·문의/보존/백업/경보 방향 승인. 외부 API/제품 정책 변경 없음. 미확정 상세·운영 담당/권한·배포/판매/환불 실행은 별도 승인 유지.
+- 검증: git diff --check. 문서만 수정하여 Gradle 미실행; 실제 sandbox/인프라/판매 gate 검증 미수행.
+- 기존 변경 보존, 이번 범위의 예상 밖 변경 없음. 코드·타 서버·Jira·Git 이력·외부 설정 변경 없음.
+- 다음/위험: 선행 계획 기술 계약 검증과 구현 범위 확정, 이후 실제 운영 담당/환경/보존 manifest·D2 절차 및 출시 체크리스트 준비. 계획 방향 승인을 gate 완료로 해석하지 않는다.
+
+## 2026-10-06 — PLAN-008~013 종합 리뷰
+
+- 날짜·브랜치: 2026-10-06, develop. 신규 Jira 없음. 목표: 사용자 작성 결제 계획 6개의 승인 계약·구현 순서·완료 조건 검토.
+- 조사/판정: PLAN-008~013 전문, 최신 AGENTS·ADR-004·C9, 기존 AttemptGroup event service/controller/repository·public security 대조. 분할과 R1/R2·PublicResponse·부분 환불 방향은 정합. paid GRADING 승인 확인의 wire(기존 STALE도204), bounded revoke fan-out/root deny, 공통 guard 상태 전이/온라인 이관 CAS, staging 환불 processor/publisher 선행 순서 구체화를 지적. provider/schema의 명시된 Phase 0 gate는 미완성임을 구분하며 정책을 재선택하지 않음.
+- 변경 파일: docs/plans/PLAN-008-013-REVIEW-2026-10-06.md 신규, CURRENT_STATE 갱신, 본 기록 append. 기존 사용자 미커밋 변경 보존, 예상 밖 변경 없음.
+- 유지/동작: 리뷰 문서만 추가. 계획/ADR/정책 본문·기존 무료 wire/owner/ledger·코드/schema·타 서버·Jira·외부 설정·Git commit/push·배포 변경 없음. 기존 승인 상태 유지, 이번 리뷰를 구현 승인으로 해석하지 않음.
+- 검증: 정적 코드/문서 대조, git diff --check 및 리뷰 상대 링크 검증. 분석/문서 작업으로 ./gradlew clean test 미실행. 실제 Identity/LC 배포·Store/RC/AWS·법률은 새로 검증하지 않음.
+- 위험/다음: GRADING ack를 paid Job 승인으로 사용할 exact 계약과 대량 fan-out의 장애/재시작·선행 GRADING 증거를 동결하고, guard 전이/online coverage 및 flag 상태표를 각 계획에 보완. provider/auth/partial evidence·manifest를 관련 slice 구현 전에 닫은 후 승인된 범위로 진행.
+
+## 2026-10-06 — 종합 리뷰 F1~F4 재검증
+
+- 브랜치 develop, Jira 없음. 사용자 제시 리뷰를 PLAN-011/012/013 및 AttemptGroupEventController/Service와 직접 대조. 네 지적 모두 타당하며 현재 무료 버그 단정이 아닌 미구현 paid 기술 계약 공백이다.
+- 확인: Controller는 service 결과와 무관하게 정상204; inactive Session/부적합 상태/유효 Trial link 부재는 STALE, 동일 inbox 재전송은 duplicate. 따라서 paid exact Session의 durable 승인 확인은 별도 계약 필요. 012 무제한 fan-out·011 guard 전이/이관·013 활성화 순서도 상세 미완성. 010 PUBLIC span 표현 보정 역시 타당.
+- 변경 파일: CURRENT_STATE·WORKLOG만. 계획/ADR/코드·타 서버·Jira·외부/Git 이력 미변경. 기존 변경 보존, 예상 밖 변경 없음.
+- 검증: 정적 문서/코드 대조, git diff --check. 분석 작업으로 Gradle/실제 provider·AWS 테스트 미실행.
+- 유지/다음: 기존 상품/환불 R1·R2 정책 유지. F1→F2→F3→F4 상세 설계 및 ADR 영향 검토 후 구현; source v2 승인만으로 채점 승인 계약 완료로 간주하지 않음. 대량 환불은 단순 분할만으로 안전하지 않으며 선행 GRADING 증거와 모든 authorization의 root deny 검증이 필요.
+
+## 2026-10-06 — F1~F4 선택지·장단점 제안
+
+- 브랜치 develop, Jira 없음. 목표: 구현 전 계약 공백의 선택지를 사용자에게 설명. F1 전용 멱등 paid 승인 command 대 versioned event ack, F2 구매 root 차단/원자적 durable job+분할 전파 대 전체 단일 Transaction, F3 공통 exact 전이표와 제한 이관 대 online CAS backfill, F4 환불 선행 자동 gate 대 수동 순서 관리 비교.
+- 권장안은 미승인 제안이다. guard INITIAL 취소/replacement 취소/GRADING/terminal/만료·환불을 구분하며 과거 작업의 새 guard 삭제를 exact version으로 방지한다. 이관 제한은 관련 writer/event 재시도와 복구를 포함하고 진행 중 시험을 임의 취소하지 않는다. 승인 command는 원자적 GRADING 증거와 환불 공통 CAS, TTL 독립성 및 LC Job 멱등성 필요.
+- 변경 파일: CURRENT_STATE·WORKLOG만. 계약/계획 본문·코드·타 서버·Jira·외부 설정/Git 이력 변경 없음. 기존 변경 보존, 예상 밖 변경 없음.
+- 검증: git diff --check. 선택지 설명/기록만 수행해 Gradle 미실행.
+- 위험/다음: 선택 승인 후 exact wire/상태 전이/작업 cursor·fencing/flag 표와 ADR 영향 작성. 이관 중단 허용·예상 시간은 실측/운영 승인 필요. root 차단은 LC 즉시 동기 차단 보장이 아니며 전파 지연 관리·사전 승인 exact Session 보존 필수. timeline reflow의 크기 한계도 별도 검증한다.
+
+## 2026-10-06 — F1~F4 A안 사용자 승인 반영
+
+- 브랜치 develop, Jira 없음. 사용자 승인에 따라 paid 전용 채점 승인·구매 root deny/분할 전파·guard 전이/짧은 제한 이관·자동 활성화 gate를 문서화했다.
+- 변경 파일: PLAN-008/010/011/012/013, ADR-004, CONTRACT_DECISIONS, CURRENT_STATE, WORKLOG. 기존 무료204/API·상품/환불 R1/R2 유지; paid 승인 API는 신규 계약 방향이며 exact wire는 미확정. 환불 전체 group 단일 Transaction 초안은 root+job 원자 저장/후속 bounded 전파로 명시 대체했다.
+- 동작: 코드 없음. guard 전이표와 단계별 flag 표, 관련 writer drain/재시도 및 coverage, 선행 GRADING 영속 증거·재전송·LC Job 멱등성을 추가. 010 PUBLIC span을 HTTP SERVER/업무 INTERNAL로 정합화.
+- 검증: git diff --check 및 수정 문서 정적 검토. 문서 변경만으로 Gradle 미실행; 실제 Store/RC/LC/인프라 미검증. 기존 변경 보존, 예상 밖 코드/타 서버 수정 없음.
+- 위험/다음: route/DTO/IAM/승인·fan-out schema, cursor/fencing·완료 검증, 긴 timeline 한계와 실제 이관 시간/실행 runbook은 구현 전 동결. 이번 승인으로 Jira 생성/코드 구현/타 서버 변경/배포/판매/외부 환불을 실행하지 않았다.
+
+## 2026-10-06 — 세부 기술 계약의 확정 주체 안내
+
+- 브랜치 develop, Jira 없음. PLAN-011~013의 미확정 항목 확인 후 사용자 정책/운영 승인, 개발 상세 작성, LC 합의/provider 실제 검증을 구분해 설명.
+- 변경 파일: CURRENT_STATE·WORKLOG만. 승인된 F1~F4 방향 유지; 사용자에게 임의 field/숫자 선택을 요구하지 않으며 상세 확정을 완료한 것으로 주장하지 않음. 기존 변경 보존, 예상 밖 변경 없음.
+- 검증: 문서 정적 확인·git diff --check. 분석 기록만 변경해 Gradle 미실행. 코드/타 서버/Jira/외부·배포 미변경.
+- 다음/위험: exact API·승인 증거/멱등/보존·fan-out checkpoint/fencing·guard CAS·flag 계약 초안 작성 후 검토. 실제 provider 지원·LC 합의와 이관 제한 시간/운영 권한·복구/판매 승인 별도.
+
+## 2026-10-07 — 운영·RevenueCat 인증/부분 환불 공식 지원 조사
+
+- 브랜치 develop, Jira 없음. 목표: 이관 시간·담당 권한·예외/출시 승인과 provider 지원을 조사해 권장안/장단점 제공.
+- 확인: RC 공식 webhook HMAC 헤더·raw body·재시도 재서명 지원, Google 부분 금액 미수신 제한(currency 문맥), Google Orders 부분 반환 상태/금액/시각 문서. RC 계정 실측·소모품 실제 환불 데이터·Apple 부분 금액 검증은 미완료.
+- 변경 파일: PAYMENT_OPERATIONS_PROVIDER_RESEARCH-2026-10-07.md 신규, CURRENT_STATE, WORKLOG. 기존 계약/PLAN/코드·타 서버·Jira·권한·외부 메시지/배포 변경 없음. 기존 변경 보존, 예상 밖 수정 없음.
+- 권장/위험: 이관 시간은 DB inventory·리허설 후 산정(현재 운영 수치 미확인). 담당/대체자·최소 권한·통제된 복구/단계 출시 권장. RC 증거 부족 시 Google 읽기 전용 대사 adapter는 별도 신뢰 계약 확대 승인이 필요한 후보이며 이번에 구현하지 않음. 금액 unknown과 환불 사실 미확인은 구분.
+- 검증: 공식 페이지 검색/열람, 로컬 runbook·설정 대조, 문서 diff/로컬 링크 검사. 코드 변경 없어 Gradle 미실행. Secret·실거래·운영 DB 미조회.
+- 다음: RC 계정 HMAC/test delivery·실제 consumable 환불 fixture/지원 확인, 부족 시 보완 경로 승인, migration 도구 이후 실측 및 담당자 지정. 법정 의무/스토어 판단을 기술 제한으로 면제하지 않음.
+
+## 2026-10-07 — Google Orders 부분 환불 보완 승인·문서 검증
+
+- 브랜치 develop, Jira 없음. 사용자 승인 범위: RC 부족 시 Google 소모성 상품 부분 환불의 인증된 읽기 조회 보완. 공식 orders.get/Orders schema·RC currency 제한/purchase v2 문서 재확인.
+- 변경 파일: AGENTS, ADR-004, PLAN-012, CONTRACT_DECISIONS, CURRENT_STATE, PAYMENT_OPERATIONS_PROVIDER_RESEARCH-2026-10-07, WORKLOG. 기존 RC-only 환불 신뢰 경계에 제한적 Google 조회 예외 명시. 신규 지급/자동 환불/수동 입력/owner 이전 제외, 기존 R1/R2·무료 계약 유지.
+- 검증 사실: package/order GET·androidpublisher scope, 부분 환불 성공 상태/시각/세금 포함 금액 존재. scope 자체 읽기 전용 아님, GET/최소 권한 필요. RC v2 Web Billing refund를 Store API로 오인하지 않음. RC/Google 이중 합산·식별자 발명 금지.
+- 검증: git diff --check·문서 대조. 문서 변경만으로 Gradle 미실행. 실제 Google 권한/주문/API·RC 계정/지원 질의·실제 환불 미수행. 코드·타 서버·Jira·배포 변경 없음, 기존 변경 보존·예상 밖 수정 없음.
+- 위험/다음: 실제 consumed one-time partial fixture, 조회 주체/권한·환경/owner mapping, 이력 완전성·누적/정정 모델 확인 후 구현/활성화. Apple 부분 금액 검증 별도. raw 개인정보/응답/credential 미수집.
+
+## 2026-10-07 — Google 상품 미등록 상태의 다음 작업 안내
+
+- 브랜치 develop, Jira 없음. PLAN-009를 확인해 관련 Phase0 상세 계약→검토/승인→Jira→구현 순서를 안내. 상품 catalog와 stable 구매 계정 연결 기반은 실제 Google 상품 없이 설계/fake 검증 가능하며 실제 매핑 없는 Google 상품은 비활성 유지.
+- 변경 파일: CURRENT_STATE·WORKLOG. 상품 미등록은 사용자 제공 사실이며 콘솔 확인 미수행. 코드·계약 본문·타 서버·Jira·외부 변경 없음. 기존 변경 보존, 예상 밖 변경 없음.
+- 검증: 계획 정적 확인·git diff --check. 안내 기록만 변경해 Gradle 미실행.
+- 유지/위험/다음: Identity purchase scope·실제 provider/Store fixture와 배포 gate는 면제하지 않음. 현재는 다음 작업 설명 요청이며 상세 작성/구현/이슈 생성 승인은 아님. 009 API/보안·index/limiter 계약 동결부터 진행 권장.
+
+## 2026-10-07 — PLAN-009 세부 기술 계약 초안 작성
+
+- 브랜치 develop, Jira 없음. 목표: 승인된 상품/계정 기반 방향을 구현 가능한 요청/응답·인증·저장·limiter·테스트 초안으로 작성. ADR §5.1~5.3/A와 현재 PublicSecurityConfig/IngressFilter/ApiWriter/JwtDecoder/Response/IndexInitializer를 대조했다.
+- 변경 파일: contracts/PLAN-009-payment-foundation-technical-contract.md 신규, PLAN-009·ADR-004 링크, CURRENT_STATE·WORKLOG. 코드/타 서버/Jira/외부 설정·Git 이력 미변경, 기존 변경 보존·예상 밖 변경 없음.
+- 내용: exact 두 route/권한/empty body/query·에러/헤더, Google 미등록 비노출, account/ref Transaction/unique/unknown commit, catalog snapshot, Mongo 고정1분60/10 limiter 제안·subset exact index, 활성화와 legacy 무료 회귀 테스트. 무료 writer의 scope/Allow/Retry-After 고정 위험을 분리했다.
+- 유지: PublicResponse·무료/SigV4·상품 기간/가격·새 혜택 무지급. 신규 index/limiter·subset·catalog 발행은 제안으로 표시하고 ADR을 임의 승인으로 바꾸지 않음. reference 암호화/미구매 계정 보존·Identity ACTIVE/token 잔존은 선행 동결 대상으로 남김.
+- 검증: git diff --check 및 신규 문서 로컬 링크 검사/정적 대조. 문서 작성만으로 Gradle 미실행; 실제 provider/Store/DB/배포 검증 미수행.
+- 다음/위험: 기술 초안 검토 및 미확정 privacy/발급 계약 동결→Jira 승인→009 구현. 실제 Google ID/테스트 구매는 등록 후, paid 전체 v5/판매 완료로 간주하지 않음.
+
+## 2026-10-07 — PLAN-009 기술 초안 설명
+
+- 브랜치 develop, Jira 없음. 사용자 요청에 따라 상품 조회/구매 계정 연결, scope·본인 식별, 원자 get-or-create, index·fixed-window limiter, 오류·flag·Google 미등록 조건을 쉬운 용어로 설명.
+- 변경 파일: CURRENT_STATE·WORKLOG만. 초안/정책/코드·타 서버·Jira·외부 변경 없음. 기존 변경 보존, 예상 밖 변경 없음.
+- 검증: 초안 정적 재확인·git diff --check. 설명 기록만 변경하여 Gradle 미실행.
+- 유지/위험/다음: 사용자 질문을 승인으로 간주하지 않음. 미구매 계정/reference 보존/암호화·Identity ACTIVE/token 잔존 및 limiter/schema 제안 검토 후 계약 동결→Jira/구현 승인. 실결제와 판매 활성화는 후속 gate.
+
+## 2026-10-07 — 009 상세 선택지 코드 확인·권장안
+
+- 브랜치 develop, Jira 없음. Identity issuer/login/reissue/recovery/session security/withdrawal/enum·TTL 설정을 읽기 전용 확인하고 Billing decoder/초안 보존·schema와 대조했다.
+- 확인: read/audience 합성, ACTIVE login/refresh, 탈퇴 refresh 폐기; SUSPENDED enum 존재. Billing JWT는 현재 상태 미조회. default30분이며 배포 override 미확인, MEMBER-only purchase 발급 정책은 별도 작업.
+- 변경 파일: PLAN-009-foundation-options-review-2026-10-07.md 신규, CURRENT_STATE·WORKLOG. 고정 window/subset·조건부 미구매 삭제/필드 암호화·상태 조회 선택 장단점 제시. 동기 조회는 신규 계약, 30일은 미검증 보존 후보로 명시. 기존 정책/코드/타 서버/Jira/외부 변경 없음, 기존 변경 보존·예상 밖 수정 없음.
+- 검증: 정적 소스/문서 대조·git diff --check·로컬 링크 검사. 코드 변경 없어 Gradle 미실행. 운영 token/DB/법률·배포 확인 미수행.
+- 위험/다음: 즉시 Store 결제 차단으로 오인 금지, 이미 결제된 거래 복구 유지. 보존을 위한 탈퇴 전달·암호화 lookup schema와 ACTIVE 조회 신규 wire는 선택 승인 뒤 ADR/인계 보완. 다음 사용자 선택 대기이며 자동 승인/구현하지 않음.
+
+## 2026-10-07 — DB 저장 암호화 여부 안내
+
+- 브랜치 develop, Jira 없음. application.yml/env 참조·ADR/runbook 확인 및 MongoDB 공식 Atlas encryption-at-rest 문서 검색. Atlas는 기본 AES256 저장 암호화 항상 활성이나 이 저장소만으로 운영 DB 종류/설정 확정 불가.
+- 변경 파일: CURRENT_STATE·WORKLOG만. 운영 DB/Secret·배포 미조회. 저장 암호화는 DB 권한으로 조회한 평문까지 가리는 필드 암호화와 다름을 설명. 코드/계약/타 서버/Jira/외부 변경 없음, 기존 변경 보존·예상 밖 수정 없음.
+- 검증: 공식 https://www.mongodb.com/docs/atlas/security-encryption-at-rest-overview/ 및 로컬 설정 대조, git diff --check. 코드 변경 없어 Gradle 미실행.
+- 다음/위험: 운영 Atlas 사용 여부 확인 후 실제 적용 여부 확정. self-hosted는 볼륨/DB 설정 별도 확인. 암호화 선택 질문을 필드 암호화 생략 승인으로 해석하지 않음.
+
+## 2026-10-07 — Reference 필드 암호화 생략 승인 반영
+
+- 브랜치 develop, Jira 없음. Atlas 사용 사용자 확인 및 purchaseAccountRefId 필드 암호화 생략 승인을 반영. 앞선 네 A 선택(요청 제한/subset/조건부 보존/JWT 만료 수용)도 명시하되 보존30일 미확정 유지.
+- 변경 파일: PLAN-009-payment-foundation-technical-contract, ADR-004, CONTRACT_DECISIONS, CURRENT_STATE, WORKLOG. referenceId=_id 유지, at-rest/TLS/최소권한/로그 제외·소유 검증 유지. Store token/credential 암호화까지 생략하지 않음. 동기 상태 API 미추가.
+- 검증: git diff --check·문서 정합성 대조. 코드 변경 없어 Gradle 미실행. 실제 Atlas/ECS 설정/키·DB·타 서버/Jira/배포 미변경. 기존 변경 보존·예상 밖 변경 없음.
+- 위험/다음: DB 조회 권한 침해 시 reference/사용자 연결 노출 위험은 접근 통제로 관리. Identity ACTIVE purchase 발급, 미구매/탈퇴 삭제 manifest·schema 상세 검토 후 구현 승인. 기존 JWT 만료 전 잔존 허용을 즉시 탈퇴 차단으로 해석하지 않음.
+
+## 2026-10-07 — 009 남은 결정사항 재확인
+
+- 브랜치 develop, Jira 없음. 최신009 초안의 승인/미확정 구분 확인. 정책 잔여는 탈퇴한 미구매 계정/reference 삭제 유예·늦은 결제/미해결 예외 범위이며30일은 미확정 후보. 사용자에게 기술 field 선택을 추가 요구하지 않음.
+- CURRENT_STATE·WORKLOG만 변경. 코드/정책/계약 본문·타 서버·Jira/외부 미변경, 기존 변경 보존·예상 밖 변경 없음.
+- 검증: 정적 문서 확인·git diff --check. 코드 변경 없어 Gradle 미실행.
+- 다음/위험: 탈퇴 증거 전달/대사·삭제 manifest와 Identity ACTIVE purchase 발급 검증 후 contract 동결 및 구현 승인. 단순 로컬 Purchase 부재를 미구매 증명으로 사용하지 않으며 전체 결제 출시 gate는 별도 남음.
+
+## 2026-10-07 — 미구매 탈퇴 계정 보존 선택지 안내
+
+- 브랜치 develop, Jira 없음. 7/30/90일 운영 후보의 최소 보관 대 복구 여유를 비교하고30일 조건부 삭제를 제안. 법정기간/Store 최대 지연 보장값으로 주장하지 않으며 새 승인은 받지 않음.
+- CURRENT_STATE·WORKLOG만 변경, 코드/계약/타 서버/Jira/외부 미변경. 기존 변경 보존·예상 밖 변경 없음. git diff --check, 설명 기록만으로 Gradle 미실행.
+- 유지/위험: authoritative 탈퇴시각·확인된 inactive 처리/재생성 차단, 로컬 미구매만으로 삭제 금지, 미해결 케이스 최소 증거·재검토 기한과 금융 증거 별도 보존. 삭제 후 늦은 거래는 새 계정 자동 지급/동일 번호 연결 금지. RC 밖 아직 미관측 거래 가능성과 완전성 검증 필요.
+- 다음: 사용자 보존안 선택 후 탈퇴 전달·대사·purge manifest/개인정보 고지 및 실제 지연 검증을 동결. 추천 기간만으로 실제 삭제/배포를 승인받은 것으로 해석하지 않음.
+
+## 2026-10-07 — 미구매 탈퇴 계정15일 조건부 삭제 승인
+
+- 브랜치 develop, Jira 없음. 사용자15일 선택/승인을 ADR-004·009 기술 계약/PLAN·CONTRACT_DECISIONS·CURRENT_STATE·WORKLOG에 반영.
+- 기준/동작: authoritative withdrawnAt+15일, 거래 대사/미해결 확인 후 명시적 purge. 금융 기록/미해결 최소 증거는 별도 보존, 지연 event/구매 경합/재생성 방지 조건 추가.15일을 unconditional TTL/법정 기간/물리삭제 SLA로 해석하지 않음.
+- 검증: git diff --check·정적 문서 대조. 문서만 변경해 Gradle 미실행. 코드/실제 삭제·타 서버/Jira·설정/배포 미변경. 기존 변경 보존, 예상 밖 수정 없음.
+- 남음/다음: 주요009 정책 선택은 완료. 탈퇴 전달·대사/삭제 worker 주기·미해결 재검토/최소 tombstone 보존·schema·Identity ACTIVE purchase 발급 기술 계약 검토가 필요하며 새로운 개인정보 수명/사용자 영향 발생 시 재승인. 이후 Jira/구현 승인, 실제 판매 gate 별도.
+
+## 2026-10-07 — 탈퇴 수신·계정 상태·거래 대사·삭제 절차 설계
+
+- 브랜치 develop, Jira 없음. 목표는 승인된15일 조건부 삭제의 기술 설계이며 코드 구현/운영 실행이 아니다.
+- 변경: docs/contracts/PLAN-009-withdrawal-reconciliation-and-purge-contract.md 신규; ADR-004, PLAN-009, PLAN-009-payment-foundation-technical-contract, CURRENT_STATE 및 이 기록에 연결/상태 추가. 기존 사용자 변경 보존.
+- 조사/동작: Identity 기존4필드 wire·단일 LC JWT publisher·탈퇴 transaction을 읽기 확인. Billing 독립 delivery/누락 feed, local lifecycle/cleanup 분리, 공통 writer CAS, provider 부재 증명, token drain, 조건부 삭제/늦은 거래 격리/복원 절차 및 테스트를 제안했다.
+- 유지: 신규 무료 지급/무료 Claim 삭제/자동 환불/paid owner 이전 없음, 금융5년·backup35일/15일 기산점 유지. 타 저장소·Jira·코드·실제 계정/설정/배포 변경 없음.
+- 결정/위험: 매시간 batch100, READY24시간 경보, 일일 재대사/7일 담당 검토 등은 미승인 초기값. RC 빈 응답만으로 미구매 확정 금지, coverage/예외 보존/Identity feed/token 운영수명 확인 전 purge OFF. 009 반복 무변경과 ADR activity 요구 충돌 발견: 별도 cursor 갱신을 제안하고 합의 전 해당 구현 중단.
+- 검증: git diff --check 및 신규 문서 로컬 링크 확인. 문서만 변경해 Gradle 미실행. 예상 밖 이번 작업 변경 없음. 다음은 기술안/운영 보존 검토와 Identity 계약 인계, ADR 정합성 동결 후 Jira·구현 승인이다.
+
+## 2026-10-07 — 탈퇴 cleanup 운영 주기 사용자 승인 반영
+
+- 브랜치 develop, Jira 없음. 사용자 승인한 매시간 삭제 대상 점검·매일 미확인 재확인·7일 이내 담당 검토를 설계/ADR/PLAN에 반영하는 문서 작업.
+- 변경 파일: PLAN-009-withdrawal-reconciliation-and-purge-contract, ADR-004, PLAN-009-payment-catalog-and-account, CONTRACT_DECISIONS, CURRENT_STATE, WORKLOG. 최초 미해결 기준 검토 기한과 재시도에 의한 기한 연장 금지를 명시했다.
+- 유지/결정: withdrawnAt+15일 조건부 삭제, 금융 보존/무료 불변, 실제 purge OFF 유지. batch/lease/24시간 경보·첫 검토 뒤 반복 담당 검토·예외 보존기간은 승인으로 확대 해석하지 않음.
+- 검증: git diff --check 통과. 문서만 변경하여 Gradle 미실행. 기존 변경 보존, 이번 작업의 예상 밖 변경 없음. 코드/타 서버/Jira/배포/실제 삭제 미변경.
+- 위험/다음: provider 미구매 증명 범위·Identity 누락 복구와 token drain·예외 최소정보 보존 manifest 및 cursor 정합성 동결 후 Jira/구현 승인 필요.
+
+## 2026-10-07 — Identity 결제 계정 lifecycle 서버 인계서 작성
+
+- 브랜치 develop, Jira 없음. 목표: 사용자 요청에 따라 Identity 담당자가 검토할 확정 정책/미합의 기술 계약과 회신 양식 작성.
+- 변경: docs/contracts/IDENTITY-PAYMENT-ACCOUNT-LIFECYCLE-HANDOFF.md 신규, 탈퇴·대사·삭제 설계에 인계 링크, CURRENT_STATE와 WORKLOG 갱신. Identity wire/JWT issuer/TTL 로컬 사실 재확인, 운영 배포 검증 아님.
+- 내용/유지: ACTIVE MEMBER purchase 발급 모든 경로·탈퇴 경합, 기존 UserWithdrawn4필드·LC JWT 보존/Billing SigV4 독립 delivery, snapshot/feed gap과 원천 보존, userId 비재사용/token 최대 수명 검증, 오류/retry·staging 테스트·회신 항목. 15일 조건부/승인된 점검 주기 유지. 새 route/IAM/feed 기술 제안은 확정으로 취급하지 않음.
+- 검증: git diff --check와 신규 문서 로컬 링크 검증 통과. 문서 작업으로 Gradle 미실행. 기존 변경 보존, 이번 작업 범위 밖 예상 변경 없음. 코드/Identity 수정·다른 채팅 전송·Jira·배포 없음.
+- 위험/다음: Identity 회신 후 exact wire/feed/보존·발급 경합 계약 동결. Billing provider coverage·예외 보존/cursor 정합성 별도 마무리와 구현 승인 필요; 실제 purge OFF 유지.
+
+## 2026-10-07 — 첨부 Identity 인계 검토 회신 확인
+
+- 브랜치 develop, Jira 없음. 사용자 첨부 회신의 핵심 지적을 읽고 issuer/LC publisher/backfill 소스 일부를 재대조했다.
+- 변경: docs/contracts/IDENTITY-PAYMENT-HANDOFF-REVIEW-2026-10-07.md 신규 및 CURRENT_STATE/WORKLOG. 기존 계약/코드/타 서버/Jira/외부 설정은 수정하지 않음.
+- 결과: scope 합성/equalsIgnoreCase·모든2xx ACK·bounded backfill 확인. 발급/replay 경합·원천 보존·snapshot commit 경계·Retry-After 상세 합의가 필요하며 첨부 조사와 이번 재검증 범위를 구분함.
+- 유지/위험: 15일 조건부·승인 운영 주기 유지, 새 보존/사용자 제한 승인 없음. 운영 token/coverage/provider 부재 증명 미검증으로 판매/purge 안전성 승인 불가.
+- 검증: git diff --check·신규 문서 로컬 링크 확인. 문서 분석으로 Gradle 미실행. 기존 변경 보존, 예상 밖 이번 변경 없음. 다음은 공동 기술 계약 보완안 작성/검토 후 구현 승인.
+
+## 2026-10-07 — Identity–Billing 공동 기술 계약 권장 초안 작성
+
+- 브랜치 develop, Jira 없음. 사용자 요청에 따라 반복 검토 대신 구현용 발급/원천/복구/재개 규격을 작성했다.
+- 변경 파일: IDENTITY-BILLING-PAYMENT-LIFECYCLE-TECHNICAL-CONTRACT.md 신규, Identity 인계서·탈퇴 설계·PLAN-009에 링크, CURRENT_STATE·WORKLOG 갱신.
+- 설계: 공통 control Transaction commit을 purchase 발급 선형화 지점으로 정의, replay 원 exp 유지. 탈퇴 atomic sequence capture·목적지 독립 보관, Mongo 고정 T/H snapshot과 feed 연속 checkpoint/legacy COMPLETE 증거 구분.204-only·retry20회·Retry-After·BLOCKED_AUTH·lease fencing/재개·capture 유지 rollback 및 테스트 제안.
+- 유지/승인 구분:15일 조건부와 매시간/매일/7일 검토 유지. 새 source120일·snapshot7일·token상한30분/이관은 미승인 권장값. 코드·Identity·Jira·실제 운영/외부 전송 변경 없음, 기존 변경 보존·예상 밖 이번 변경 없음.
+- 위험: snapshot 서버/driver 기능·history window, counter 처리량, token 과거 수명/전체 발급 경합, legacy 완전성·원천 보존 및 Billing provider 부재 증명 미검증. 단순 tombstone scan으로 COMPLETE 판정 금지.
+- 검증: git diff --check·신규 문서 로컬 링크 통과, 문서 작업으로 Gradle 미실행. 다음: 사용자 보존/상한 선택과 Identity 공동 검토·이관 측정, ADR/schema exact 동결 후 Jira/구현 승인. 판매/자동삭제 승인 아님.
+
+## 2026-10-07 — 공동 기술 계약 초안 Identity 회신 재검토
+
+- 브랜치 develop, Jira 없음. 사용자 첨부 R1~R5 및 추가 명세를 공동 계약과 로컬 Identity control/LoginService에 대조했다.
+- 변경: IDENTITY-BILLING-TECHNICAL-CONTRACT-REVIEW-2026-10-07.md 신규, CURRENT_STATE/WORKLOG. 공동 계약 원문/코드/타 서버/Jira/외부 전송·설정은 미변경.
+- 판정: baseline 승인·고정H2·consumer GAP 분리·control 이관·일반 발급 불명 결과 규격 공백 모두 타당. snapshot 마지막 marker+baseline만 bounded 원자 확정, 정상 지연 ACK와 위조 구분, receipt 없는 로그인503 권장 등 추가 설명.
+- 위험/유지: majority/restore stream·기산시각/canonical bytes/retry schema/operation 보존 상세 필요. 제품15일/운영 주기 유지,120일/7일/30분은 미승인. 실제 구현 장애로 단정하지 않음.
+- 검증: git diff --check 및 신규 문서 로컬 링크 통과. 정적 문서 검토로 Gradle 미실행. 기존 변경 보존, 예상 밖 이번 변경 없음. 다음은 단일 공동 기술 계약 개정안에 보완 후 양 서버 합의·정책/구현 승인.
+
+## 2026-10-07 — 공동 기술 계약 R1~R5 직접 보완
+
+- 브랜치 develop, Jira 없음. 사용자 보완 요청에 따라 기존 IDENTITY-BILLING-PAYMENT-LIFECYCLE-TECHNICAL-CONTRACT.md 본문 개정; Identity 인계서 링크 설명, CURRENT_STATE/WORKLOG 갱신. 별도 반복 리뷰 문서 생성 없음.
+- 변경: snapshot BASELINE/RESYNC/FEED/ACK 상태 조회와 bounded 완료 marker, 고정H2 scan/빈 page 규칙, 정상 source cleanup과 consumer GAP 구분. 신규/control 누락 legacy 이관·flag gate, 일반 로그인 unknown503와 기존 reissue replay/만료401 구분. majority+j/snapshot·복원 새 stream incarnation, 관측 capturedAt 기산, retry counters/status/헤더, canonical bytes·operation metadata 수명/테스트 추가.
+- 유지/결정: 제품/15일/승인 운영 주기·기존4필드/LC 인증/무료 정책 유지. source120일·snapshot7일·token30분 및 새 operation/coverage metadata 보존/clock·commit budget은 제안, 실제 승인 아님. 코드/Identity/Jira/배포·외부 전송 미변경.
+- 검증: git diff --check와 개정 문서 로컬 링크 검증, 기존 모호 문구 정적 대조. 문서 작업으로 Gradle 미실행. 기존 변경 보존·예상 밖 이번 변경 없음.
+- 위험/다음: Identity exact API/error/이관 합의·Mongo/TTL/clock fixture·보존 승인·provider coverage 남음. 개정본 공동 검토 뒤 ADR/PLAN 동기화와 Jira/구현 승인; 판매/purge OFF 유지.
+
+## 2026-10-07 — Identity 개정본 재검토 §7 확인
+
+- 브랜치 develop, Jira 없음. 새 첨부는 이전 R1~R5와 개정본 판정 갱신 §7을 함께 포함함. 이전 지적을 모두 미해결로 반복하지 않고 최신 §7을 현재 로컬 문서와 대조했다.
+- 변경: CURRENT_STATE/WORKLOG만. R1~R5 문서 대응 수용, manifestDigest 산출/응답 누락과 consumer-only restore/RESYNC 세대 fencing 부재를 확인. 권장: 별도 manifest hash 대신 contentDigest 명명+저장 manifest metadata 검증, consumerRecoveryGeneration을 snapshot/cursor/ACK/local CAS에 바인딩. 이는 아직 계약 수정/확정 아님.
+- 추가: 전체 readiness와 purchase 한정 fail-closed 표현 충돌·SCANNED/LEGACY_PARTIAL 용어 혼재 확인. 현 로컬 5줄 결론2는 commit 기준120일을 쓰지 않아 첨부 요약 지적은 버전차 가능; 보존 기산은 현재 capturedAt 관측 기준임.
+- 검증: 문서 대조와 git diff --check. 기록 작업으로 Gradle 미실행. 코드/타 서버/Jira/외부·계약 변경 없음. 기존 변경 보존, 예상 밖 수정 없음.
+- 위험/다음: 복구 세대 authority/초기화·old worker barrier와 hash 명명·readiness/enum 정리 후 fixture 검증. 새 보존/TTL/배포 승인을 얻은 것으로 처리하지 않음.
+
+## 2026-10-07 — 공동 계약 contentDigest·consumer 복구 세대 보완
+
+- 브랜치 develop, Jira 없음. 사용자 보완 요청에 따라 공동 기술 계약 본문·CURRENT_STATE·WORKLOG만 수정했다.
+- 변경: manifestDigest를 이미 정의한 contentDigest로 통일, status manifest/ACK equality와 소유/stream/H/generation/expiry 별도 검증 명시. consumerRecoveryGeneration authority/운영 role begin API·멱등/CAS·복구 barrier/local 설치·old worker/ACK fencing·새 baseline/완료 조건·schema/tests 추가. startup 실패와 runtime purchase-only gate·상태 enum 구분.
+- 유지: 기존4필드 push/LC/무료/15일/운영주기 유지, 제안 보존·token상한/이관 승인 변경 없음. 추가 generation metadata는 기존 제안 보존 범위이며 자동 승인/영구 보존 아님.
+- 검증: 문서 diff/링크/잔존 명명 정적 검사. 문서만 변경해 Gradle 미실행. 기존 사용자 변경 보존, 예상 밖 이번 변경 없음. 코드/Identity/Jira/외부 전송/운영 미변경.
+- 위험/다음: 상대 exact route/auth·복구 barrier 실현성 및 source/consumer restore fixture 검증 후 계약 합의. 판매/purge·구현 승인과 개인정보 보존 승인은 별도 유지.
+
+## 2026-10-07 — 공동 기술 계약 제안안 사용자 승인 반영
+
+- 브랜치 develop, Jira 없음. 사용자의 제안안 승인을 현 개정본 정책·기술 설계 채택으로 기록했다.
+- 변경: 공동 기술 계약 승인 상태/§3, ADR-004, CONTRACT_DECISIONS, PLAN-009, Identity 인계서, CURRENT_STATE/WORKLOG. 원천120일·snapshot7일·operation/coverage 최소 보존·token30분/skew60초와 설계/초기값 승인 범위 명시.
+- 유지:15일 조건부 및 기존 운영 주기/무료·LC 계약 유지. 상대 서버 합의·법적/기술 검증 완료로 주장하지 않음. 실제 이관 시간·실행/코드 착수/Jira·배포/판매/purge/개별 예외 연장은 별도 승인.
+- 검증: git diff --check·문서 정적 대조. 문서만 변경하여 Gradle 미실행. 기존 변경 보존, 예상 밖 이번 수정 없음. 코드/타 서버/외부 전송·설정 미변경.
+- 다음: Identity에 승인된 개정본 기준 합의 요청, fixture/이관 측정 후 작업 분할·Jira 및 구현 승인. 불가능한 계약이나 추가 개인정보/이용 제한이 발견되면 재보고.
+
+## 2026-10-07 — Identity 확인 전달 후 구현 작업 분할 안내
+
+- 브랜치 develop, Jira 없음. 사용자 Identity 확인 완료를 계약 확인으로 기록하며 구현·배포 검증 완료로 확대하지 않았다.
+- CURRENT_STATE/WORKLOG만 갱신. 기존009/010 범위 확인 후 공동 fixture 및 Mongo/restore 실현성 선행, Identity3개(I1 control/token, I2 capture/delivery, I3 snapshot/feed/recovery)·Billing3개(B1 account/lifecycle, B2 recovery consumer, B3 대사/purge)와 공동 staging으로 나누는 권장안 제시.
+- 의존: I1/I2/B1은 schema/fixture 합의 뒤 병행 가능. B2는 I3 fixture로 병행 개발하되 실제 연동은I3 완료 후. B3 후보/worker skeleton은009, 실제 거래 확인은010, 활성화는013 gate. 금융 ingestion·refund와 동일 lifecycle CAS 검증, 무료 불변·flags OFF 유지.
+- 검증: 문서 정적 대조·git diff --check. 기록 작업으로 Gradle 미실행. 기존 변경 보존·예상 밖 수정 없음. 코드/타 서버/Jira/배포/외부 메시지 없음.
+- 다음: 첫 작업은 공동 fixture/exact schema·index/오류 매핑/이관 가정 검증과 B1/I1 상세 완료 기준·Jira 승인. provider 미구매 증명/운영 fixture는 남은 gate이며 Identity 확인으로 대체되지 않는다.
+
+## 2026-10-07 — TMI-137 결제 에픽 아래 구현 작업 생성
+
+- 브랜치 develop. 사용자 요청으로 Jira TMI-137 결제 기능 에픽/기존 자식 없음/작업 유형을 확인 후 parent 연결 작업8개 생성.
+- 생성: TMI-199 공통C0 fixture/schema·실현성; TMI-200 Identity I1 발급/control; TMI-201 Billing B1 상품/account·탈퇴 수신(두 PR); TMI-202 Identity I2 journal/delivery; TMI-203 Identity I3 snapshot/feed/generation; TMI-204 Billing B2 recovery; TMI-205 Billing B3 대사/purge; TMI-206 공통C1 staging/복원 gate.
+- 각 이슈에 범위·완료조건·선행/후속·기본OFF/실행 승인 구분·계약 파일 경로 기재. 모두 해야 할 일/미할당, 부모 에픽은 수정하지 않음. 실제 dependency link는 생성하지 않고 description에 의존 명시.
+- 로컬 변경: CURRENT_STATE/WORKLOG만. Jira parent=TMI-137 검색으로8개 연결 재확인, git diff --check. 코드 변경 없어 Gradle 미실행. 기존 변경 보존·예상 밖 로컬 수정 없음. 구현/타 서버 코드/배포/판매/삭제 미수행.
+- 다음: TMI-199부터 계약 fixture/실현성 gate 후 TMI-200/201/202 병행. TMI-205 실제 대사는PLAN-010, 판매/환불 준비와 purge 활성화는PLAN-013 별도 gate 유지.
+
+## 2026-10-07 — TMI-199 공통 fixture·schema·Mongo 로컬 검증
+
+- 브랜치 develop, 에픽 TMI-137/작업 TMI-199을 먼저 읽고 완료 기준에 맞춰 진행. 기존 dirty 문서 보존, Git commit/push/상태 변경 없음.
+- 신규: PaymentLifecycleContractFixtureTest(39), PaymentLifecycleMongoFeasibilityTest(10), contracts/payment-lifecycle/v1의 snapshot-digest/protocol-cases/wire-examples/billing-indexes JSON4종, docs/contracts/TMI-199-PAYMENT-LIFECYCLE-FOUNDATION.md.
+- 문서 수정: PLAN-009-payment-foundation-technical-contract/ADR-004에 stable account/ref와 별도 lifecycle/cursor activity 쓰기 정합성 반영. Identity 인계에 새 fixture 교차 실행 요청 연결, CURRENT_STATE 및 이 기록 갱신. production src/main/build dependency·Identity 코드/설정 미변경.
+- 검증: Docker29.6.1/로컬 mongo7.0.14 disposable replica set. 실제 고정 atClusterTime User/H 읽기·후속 commit feed 연결, counter/journal 원자 rollback·snapshot write conflict, generation fencing,16index 옵션/partial unique, account/activity 분리 및 단일 멤버 stepdown/재선출 통과. unknown commit/SnapshotTooOld는 failCommand 주입이며 다중 노드/실제 eviction 검증으로 주장하지 않음. BSON Date nanos 손실/text 보존 확인, wire 정밀도 동일 근거를 Identity에 확인 필요.
+- 테스트: 분리 contract test 성공 후 ./gradlew clean test285 tests/failures0/errors0/skipped0. 최초 clean test sandbox Gradle lock 실패는 승인된 권한 재실행으로 해결. git diff --check·로컬 링크/JSON 정적 검증 수행. 이49개는 test-only oracle/실험이며 production controller/worker 완료가 아님.
+- 유지: UserWithdrawn4필드/무료·LC/보존/flag 불변. 실제 Store/provider/운영 Atlas·AWS 호출/판매/purge 없음. 테스트는 자기 random DB만 정리. 예상 밖 이번 변경 없음.
+- 미완료/다음: 신규 fixture 독립 Identity 실행/DTO T·count·오류 envelope/index 후보 수락, 실제 다중노드·history 만료·성공 commit 응답유실/운영TTL·control 이관 실측/인증 route gate 남음. TMI-199 전체 완료로 표시하지 않음. Jira 전환·댓글 권한을 임의 추론하지 않아 변경하지 않았다. 상대 확인 후 TMI-200/201/202 착수 기준 동결.
+
+## 2026-10-07 — TMI-199 Identity 독립 검증 회신 확인
+
+- 브랜치 develop / TMI-199, 목표: 사용자 전달 검증 결과의 최신 §7을 확인하고 최초 미완료 기록을 갱신.
+- 변경: docs/contracts/TMI-199-PAYMENT-LIFECYCLE-FOUNDATION.md, CURRENT_STATE 및 이 기록. Identity 독립44건·전체1233건/실패0/오류0/기존skip6은 상대 보고로 표시. JSON4종 SHA-256은 Billing 로컬에서 직접 일치 확인. Identity 테스트 source는 읽기만 했으며 해당 테스트 XML은 로컬 검색에서 찾지 못해 직접 실행 검증으로 주장하지 않음.
+- 판단: 실제 엔티티 converter 왕복에서 User/outbox 시각은 동일 밀리초. 저장 전 고정밀 값과 혼합 시 digest 불일치이며 현행 publisher 결함 입증은 아님. 실제 Mongo·다중노드·운영 검증과 분리.
+- 검증: 문서 변경만으로 Gradle 재실행 생략. git diff --check 및 결과 문서 로컬 링크 검사. 기존 사용자 변경 보존, 예상 밖 변경 없음.
+- 유지/다음: 기존4필드/보존/무료/결제 정책·코드·fixture·flag 불변. 신규 authoritative 시각·exact DTO/숫자 타입·오류/auth/index 동결과 미검증 Mongo/staging gate 담당 배정 후 C0 완료 판단. Jira 완료 전환·댓글·타 서버 수정·배포 없음.
+
+## 2026-10-07 — TMI-199 잔여 기술 선택 권장안
+
+- 브랜치 develop / TMI-199. 목표: 사용자가 요청한 시각·DTO/인증/index·Mongo 검증 분담 권장안 설명.
+- 근거: 승인 공동 계약 §5.2~5.7/§6, wire-examples와 TMI-199 결과 확인. FOUNDATION에 승인 전 권장안 추가, CURRENT_STATE 및 이 기록 갱신.
+- 권장: 신규 영속 withdrawnAt 밀리초 통일/기존 canonical 정밀도·event 보존, wire 숫자 문자열/DB int64·T BSON Timestamp 구별, 신규 internal 전용 오류/최소권한 SigV4/additive index. 200/202/203/204 구현 통합 테스트 후206 운영 동등 staging; 실제 담당자/환경 승인 별도.
+- 유지/위험: 기존 API/보존/무료/결제 정책 불변. Identity ingress·exact 규격 수락·운영 검증 미완료. C0 종료 조건은 제안이며 Jira 종료/후속 이관을 임의 실행하지 않음. 코드·타 서버·fixture·배포 미변경, 기존 변경 보존·예상 밖 변경 없음.
+- 검증: 문서만 변경하여 Gradle 미실행, git diff --check 실행. 다음: 권장안 합의 후 공동 규격 동결 및 후속 이슈별 검증 기준 반영.
+
+## 2026-10-07 — TMI-199 후속 기술 권장안 사용자 승인 반영
+
+- 브랜치 develop / TMI-199. 목표: 사용자의 권장안 승인 반영, 기존 미검증 사실과 실행 권한 구분.
+- 변경: IDENTITY-BILLING-PAYMENT-LIFECYCLE-TECHNICAL-CONTRACT §4에 승인 규칙과200/202/203/204/206별 통과 기준 추가, TMI-199-PAYMENT-LIFECYCLE-FOUNDATION 승인 상태 갱신, CURRENT_STATE 및 이 기록.
+- 동작/유지: 신규 영속 withdrawnAt 밀리초 통일·과거 event/digest 불변, wire decimal/영속 int64·T 별도, internal 오류/최소권한 SigV4/additive index 채택. 원래 wire4필드·무료/보존 정책·코드/fixture/타 서버 불변. 승인 범위 밖 Jira 전환·댓글·배포·판매·삭제 없음.
+- 검증: 문서만 수정하여 Gradle 재실행 생략. git diff --check 실행. 기존 사용자 변경 보존, 예상 밖 변경 없음.
+- 위험/다음: 이번 후속 exact 규격 상대 수락·endpoint nullable 목록·index manifest 검증·실제 담당자/환경 권한은 여전히 필요. 공동 C0 완료 판단 뒤 후속 구현 진행, 운영 gate 미충족 기능은 비활성 유지.
+
+## 2026-10-07 — TMI-199 exact 필드·인덱스·숫자 경계 보완
+
+- 브랜치 develop / TMI-199을 읽고 완료 기준 확인. 목표: 사용자 제시3개 남은 항목의 Billing 보완과 상대 수락 자료 작성.
+- 변경: TMI-199-EXACT-WIRE-AND-INDEX-SPEC 신규, 공동 계약/FOUNDATION 링크, numeric-boundaries/identity-indexes 신규 JSON, PaymentLifecycleContractFixtureTest/PaymentLifecycleMongoFeasibilityTest 추가 테스트 및 index helper 추출, CURRENT_STATE/이 기록.
+- 동작: nullable 필수 키와 상태별 생략·nested DTO exact안 작성. Billing16 기존 manifest byte 유지/Identity13 물리 명세 추가. 숫자 canonical/Long.MAX_VALUE/overflow/sequence0/U32 등39건+increment1건, Mongo index 재생성/방향/unique·partial/TTL 및 int64 9/10/MAX 정렬1건 추가.
+- 테스트: ./gradlew clean test326 tests/failures0/errors0/skipped0. 최초 sandbox cache lock 실패 후 승인 실행 성공. JSON parse·로컬 링크·git diff --check 통과. 외부 서비스/운영 DB 미호출.
+- 유지: production 코드·의존성·기존4필드/event digest·무료/보존/LC 불변. Identity 저장소 미변경. 신규 nested wire는 상대 수락안이며 이미 공동 확정했다고 주장하지 않음. 기존 사용자 변경 보존·예상 밖 변경 없음. Jira 상태/댓글·커밋/푸시·배포 없음.
+- 다음/위험: Identity에 exact안·신규 fixture2개 전달 후 수락/숫자 독립 실행 필요. 실제 initializer/schema/collation/운영 이관·다중노드 등 gate는 후속 분담 유지. 해당 회신 후 C0 완료 판단.
+
+## 2026-10-07 — TMI-199 Identity exact 수락·독립 실행 회신 반영
+
+- 브랜치 develop / TMI-199. 목표: 사용자 첨부 최신 §8 수락·검증 내용을 확인하고 공동 C0 상태 갱신.
+- 변경: TMI-199-EXACT-WIRE-AND-INDEX-SPEC §8/승인 상태, FOUNDATION 최신 결론·gate 상태, 공동 기술 계약 최신 수락, CURRENT_STATE 및 이 기록. 기존 기록 보존.
+- 확인: Identity가 exact §5 wire/null/상태별 생략·nested DTO/오류·숫자와 §6 물리 manifest 수락. 신규42건/전체1276건 실패0·기존skip6은 상대 보고이며 실행/전체 XML 직접 재검증과 구분. 신규 fixture2종 SHA-256은 Billing에서 재계산해 일치 확인.
+- 검증: 문서 변경만으로 Gradle 재실행 생략, git diff --check·문서 로컬 링크 검사. 기존 사용자 변경 보존·예상 밖 변경 없음. 코드·fixture·외부 API 동작 불변.
+- 판단/다음: 기술 수락·독립 검증 보류 해소, 공동 규격 동결. 관련 변경 병합 확인 및 별도 Jira 종료 승인 남음. 병합 확인/Jira 댓글·전환·타 서버 수정·배포/판매/삭제 미수행.200/202/203/204/206 실제 구현·운영 gate 유지.

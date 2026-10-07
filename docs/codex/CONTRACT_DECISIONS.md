@@ -1,9 +1,21 @@
 # Billing 계약 결정서
 
 - 최초 작성일: 2026-08-24
-- 상태: 결제 개발 재개, Apple·Google one-time fixed-term 상품·RevenueCat 표준 연동·무료권 보존·C1-A/C2-A·C9-S1~S8 승인; 실제 Store/RevenueCat 값·가격과 exact DTO/Mongo ADR 작성 대기
-- Jira: 무료/owner lifecycle 관련 `TMI-120` 구현은 병합 완료; 결제 ADR·PLAN·Jira 생성 대기
+- 상태: 결제 제품 정책·C9-S1~S9 승인, C9-S10 Store 중심 환불 창구 승인(2026-09-09). 국내 판매가격 기록 완료; ADR-004 기술 초안 작성, 실제 Store 설정·기술 검증·별도 PLAN은 대기
+- Jira: 무료/owner lifecycle 관련 `TMI-120` 구현은 병합 완료; 결제 PLAN·Jira 생성 대기
 - 문서 역할: Billing 구현 전 계약의 단일 기준
+
+### 2026-10-07 Identity–Billing 공동 기술 계약 개정안 — 사용자 승인
+
+- [개정 계약](../contracts/IDENTITY-BILLING-PAYMENT-LIFECYCLE-TECHNICAL-CONTRACT.md)의 정책·기술 설계/초기값 채택. 탈퇴 원천 capturedAt 관측 기준120일, snapshot 사용자 자료 최대7일, snapshot/recovery operation120일·활성 stream 최소 checkpoint 유지/폐기 stream 종료 후120일, 신규 구매 token 최대30분/skew60초 승인.
+- 공통 발급/탈퇴 fence·control 이관, independent capture, 고정 snapshot/sequence feed/consumer coverage, contentDigest·consumerRecoveryGeneration·ACK/retry/복원 설계 포함. 기존15일 조건부 삭제와 운영 주기 유지.
+- 사용자 승인과 Identity 합의·운영 가능성/보존 적합성 검증은 구별한다. 실제 barrier 시간/실행·코드 착수·Jira 변경·배포/판매/자동삭제·개별 예외 보존 연장은 승인하지 않았다. 기술 검증에서 범위 변경이 필요하면 재보고한다.
+
+### 2026-10-07 탈퇴 구매 계정 정리 운영 주기 — 확정
+
+- 삭제 대상은 매시간 점검한다. 미확인 건은 매일 재확인하고, 계속 미해결이면 최초 미해결 판정 후 7일 이내 담당자가 검토한다. 재시도로 최초 검토 기한을 연장하지 않는다.
+- 기존 withdrawnAt+15일 조건부 삭제와 거래 확인 선행은 유지한다. 예외 정보 보존기간·batch/lease·24시간 지연 경보·첫 검토 이후 반복 담당 검토 주기 및 실제 삭제 실행은 이번 승인에 포함하지 않는다.
+- 상세: [탈퇴·대사·삭제 설계](../contracts/PLAN-009-withdrawal-reconciliation-and-purge-contract.md). provider coverage/Identity 계약·보존 manifest 검증 전 purge OFF 유지.
 
 이 문서에서 `권장`은 아직 승인되지 않은 후속 제안이다. `확정` 또는 아래 승인 요약에 포함된 항목은 구현 계약이다.
 
@@ -19,7 +31,7 @@
 ### 0A. 2026-09-05 결제 개발 재개 — 최신 결정
 
 - 사용자는 1차 개발 범위에 Apple App Store·Google Play 결제를 포함하기로 했다. 위 2026-08-24 결제 연기는 역사적 일정 기록이며 현재 결제 개발을 차단하지 않는다.
-- 유료 상품은 자동 갱신형 월 구독이 아니라 결제 검증 뒤 정해진 기간 동안 모의고사를 무제한 사용하는 fixed-term access 상품이다. 기간은 `1일`, `3일`, `7일`, `14일`, `30일`이다.
+- 유료 상품은 자동 갱신형 월 구독이 아니라 결제 검증 뒤 정해진 기간 동안 모의고사를 무제한 사용하는 fixed-term access 상품이다. 기간은 `1일`, `3일`, `7일`, `14일`, `4주(28일)`이다.
 - 활성 유료 기간에는 유료 권리를 먼저 사용하고 `FREE_EXAM_ONCE` Claim·Grant·available unit은 변경하지 않는다. 유료 기간 종료 뒤 무료권이 아직 미사용이면 그대로 사용할 수 있다.
 - 기존 `CREDIT_5`, `CREDIT_10`, `CREDIT_100`, `UNLIMITED_3D`, first-purchase credit bonus, check-in 연장과 C10 credit 만료 결정은 현재 결제 구현 계약에서 제외한 역사적 초안이다. 별도 사용자 승인 없이는 구현하지 않는다.
 - C9의 Store 상품 매핑·account binding·RevenueCat 검증 데이터·복원은 C9-S1, 앱 API/auth는 C1-A/C2-A, entitlement lifecycle·환불·webhook·reconciliation·보존과 ADR-004 세부 연동 선택은 아래 C9-S2~S8로 확정했다.
@@ -85,7 +97,7 @@
 - `AttemptGroup`은 최초 시험 사용 건과 same-consumption replacement Session을 연결하며 entitlement 종류와 무관하게 결과 생성 lifecycle을 추적한다.
 - 실제 지급·hold·release·consume 감사 이력은 append-only `EntitlementLedger`가 소유한다. TrialClaim이나 mutable Grant projection을 이력 원장으로 대체하지 않는다.
 - 이 구조 승인은 현재 무료 MVP의 lazy TrialClaim/Grant 생성, `reserve → Session commit → confirm`과 Mongo wire/schema를 즉시 변경하지 않는다. 현재 코드에 없는 BenefitDefinition foundation은 별도 vertical slice로, SubscriptionEntitlement와 구독 resolver는 결제 재개 시 별도 계약·계획으로 구현한다.
-- 과거 credit/pass 상품 초안은 2026-09-05의 0A·C9-S1에 의해 현재 결제 범위에서 제외됐다. 현재 유료 방향은 credit balance가 아니라 1·3·7·14·30일 fixed-term unlimited entitlement다.
+- 과거 credit/pass 상품 초안은 2026-09-05의 0A·C9-S1에 의해 현재 결제 범위에서 제외됐다. 현재 유료 방향은 credit balance가 아니라 1·3·7·14·28일 fixed-term unlimited entitlement다.
 - 2026-08-28에는 `FREE_EXAM_ONCE` BenefitDefinition foundation만 구현했으며, 그 당시의 `PREMIUM_SUBSCRIPTION`·Store 구현 연기는 2026-09-05 결제 개발 재개 결정으로 종료됐다. paid benefit은 `PREMIUM_SUBSCRIPTION`, 기간형 권리는 `SubscriptionEntitlement`로 사용하고 exact field·Mongo schema/index는 결제 ADR에서 확정한다.
 
 ## 2. 무료 최소 계약 선택지 검토 기록
@@ -366,12 +378,12 @@ promotional credit끼리는 만료 임박순, paid credit끼리는 오래된 gra
 
 상품과 내부 catalog:
 
-- Billing 내부 offer code는 `PREMIUM_1D`, `PREMIUM_3D`, `PREMIUM_7D`, `PREMIUM_14D`, `PREMIUM_30D`다.
-- 다섯 offer는 동일한 무제한 premium benefit을 각각 1·3·7·14·30일 동안 부여한다. 앱이 보낸 가격·기간·표시 이름을 권리 지급 근거로 신뢰하지 않는다.
+- Billing 내부 offer code는 `PREMIUM_1D`, `PREMIUM_3D`, `PREMIUM_7D`, `PREMIUM_14D`, `PREMIUM_28D`다.
+- 다섯 offer는 동일한 무제한 premium benefit을 각각 1·3·7·14·28일 동안 부여한다. 앱이 보낸 가격·기간·표시 이름을 권리 지급 근거로 신뢰하지 않는다.
 - Apple은 offer별 재구매 가능한 `Consumable In-App Purchase`, Google은 offer별 재구매 가능한 consumable `one-time product`를 사용한다.
 - 앱의 Store purchase, 상품 노출과 transaction completion은 RevenueCat 표준 SDK·Offering/Package를 사용한다. RevenueCat은 결제 연동·검증 데이터 공급 계층이며 Billing entitlement를 소유하지 않는다.
 - 각 Store의 5개 provider product ID는 환경별 Billing catalog 설정에서 내부 offer code로 exact mapping한다. 실제 product ID, 판매 국가와 가격은 Store Console 생성·출시 승인 때 확정하며 소스 코드에 운영값을 하드코딩하지 않는다.
-- Store 상품 자체의 subscription period나 expiry를 권리 기간으로 사용하지 않는다. 검증된 product ID가 매핑된 Billing catalog의 24·72·168·336·720시간을 권위 있는 duration으로 사용한다.
+- Store 상품 자체의 subscription period나 expiry를 권리 기간으로 사용하지 않는다. 검증된 product ID가 매핑된 Billing catalog의 24·72·168·336·672시간을 권위 있는 duration으로 사용한다.
 
 사용자 연결:
 
@@ -407,9 +419,9 @@ promotional credit끼리는 만료 임박순, paid credit끼리는 오래된 gra
 - 공통 paid benefit은 `PREMIUM_SUBSCRIPTION`으로 유지하고 다섯 offer가 서로 다른 duration의 `SubscriptionEntitlement`를 만든다. 이름은 Store 자동 갱신을 뜻하지 않으며 `autoRenew=false` fixed-term 권리다.
 - 권리는 provider purchase가 `VERIFIED`로 검증됐을 때만 생성한다. authorization은 Billing local Transaction commit 뒤 시작한다.
 - 기준 `startsAt`은 provider가 증명한 purchase 시각이다. 두 Store 모두 검증된 product ID의 Billing catalog duration으로 `endsAt`을 계산한다.
-- 1·3·7·14·30일은 각각 24·72·168·336·720시간의 UTC duration이다. KST 자정이나 달력 월말로 재계산하지 않는다.
+- 1·3·7·14·28일은 각각 24·72·168·336·672시간의 UTC duration이다. KST 자정이나 달력 월말로 재계산하지 않는다.
 - active 권리가 없으면 `startsAt=provider start`, active 또는 scheduled paid timeline이 있으면 `startsAt=max(provider start,current paid timeline endsAt)`로 이어 붙이고 `endsAt=startsAt+duration`으로 만든다. 구매별 entitlement와 immutable purchase 연결을 유지해 기존 기간을 덮어쓰지 않는다.
-- active 또는 scheduled entitlement가 refund/revoke되면 그 purchase의 slot만 timeline에서 제거한다. 뒤의 VERIFIED entitlement는 기존 sequence와 각 duration을 유지한 채 `max(refundConfirmedAt, 앞선 유효 entitlement endsAt)`부터 즉시 앞으로 재배치하고, 원래 schedule과 모든 조정은 append-only ledger로 감사 가능해야 한다.
+- active 또는 scheduled entitlement가 refund/revoke되면 그 purchase의 slot만 timeline에서 제거한다. 2026-10-06 R2 승인으로 기존 refundConfirmedAt 기준을 대체한다. 최초 성공한 Billing 권리 종료 Transaction에 고정한 `appliedAt`을 기준으로, 아직 시작하지 않은 뒤의 VERIFIED entitlement를 기존 sequence/duration을 유지하며 `max(appliedAt, 앞선 유효 entitlement endsAt)`부터 앞당긴다. 기존 시작시각보다 뒤로 미루거나 이미 시작/완료된 다른 slot을 재시작하지 않는다. 원래 schedule과 모든 조정은 append-only ledger로 남긴다. provider 확정 시각은 별도 사실 기록이며 소급 소진 근거로 쓰지 않는다.
 - entitlement 상태는 최소 `SCHEDULED`, `ACTIVE`, `EXPIRED`, `REVOKED`를 사용하고 provider purchase의 `PENDING`, `VERIFIED`, `REFUND_REVIEW`, `REFUNDED`, `REVOKED`와 분리한다. 자동갱신용 grace/account-hold/cancel-scheduled 상태는 현재 범위에 만들지 않는다.
 - Reservation resolver는 현재 시각에 ACTIVE paid entitlement를 먼저 선택하고 authorization source를 `SUBSCRIPTION`으로 기록한다. paid 사용은 unit을 차감하지 않되 Reservation·AttemptGroup usage audit를 남긴다.
 - paid가 ACTIVE가 아니면 기존 `FREE_EXAM_ONCE` resolver를 사용한다. paid 기간 중 TrialClaim·무료 Grant·available unit·claimedAt을 생성·소비·갱신하지 않으므로 종료 뒤 미사용 무료권을 그대로 사용할 수 있다.
@@ -425,7 +437,7 @@ promotional credit끼리는 만료 임박순, paid credit끼리는 오래된 gra
 - Billing 신규 reserve 차단만으로 기존 Learning Core Session을 막을 수 없으므로 Billing은 durable access-revocation event를 발행하고 Learning Core는 exact AttemptGroup/Session projection으로 답안·제출·채점·replacement를 fail-closed한다. event 이름·wire·route는 payment ADR에서 고정한다.
 - Store가 환불을 확정하기 전에 이미 완료된 디지털 서비스는 회수할 수 없다. provider가 지원하면 최소 consumption evidence를 전송하고 `REFUNDED_AFTER_USE` 저카디널리티 운영 지표로 반복 악용을 관찰하되 사용자 식별자를 metric label이나 일반 로그에 넣지 않는다.
 - refund 뒤 ACTIVE paid 권리와 진행 가능한 paid AttemptGroup이 없으면 다음 신규 시험은 보존된 `FREE_EXAM_ONCE`가 있을 때 기존 무료 resolver를 사용할 수 있다. 기존 refunded AttemptGroup을 무료권으로 자동 재결속하지 않는다.
-- fixed-term 상품에는 잔여 시간 비례 cash refund나 Billing 자체 negative balance를 만들지 않는다. Store가 승인한 전체 transaction refund/revoke를 반영하며 부분 환불·수동 보상은 별도 운영 ADR 전까지 자동화하지 않는다.
+- fixed-term 상품에는 자동 잔여 시간 비례 환급액 산정이나 Billing 자체 negative balance를 만들지 않는다. 2026-10-06 C9-S10 승인으로 Store가 확정한 전액/부분 환불 결과 반영과 해당 구매 잔여권 종료를 설계 범위에 포함한다. 부분 반환액의 증거/원장 exact 계약은 PLAN에서 보완하며 자동 심사·직접 송금·수동 보상은 승인하지 않았다.
 
 #### C9-S4. RevenueCat client sync + Authorization/HMAC webhook — 확정
 
@@ -477,12 +489,53 @@ promotional credit끼리는 만료 임박순, paid credit끼리는 오래된 gra
 - refund/revoke의 Learning Core 차단은 Billing refund Transaction과 같은 local outbox에 exact AttemptGroup 단위 durable event를 기록하고 VPC Lattice SigV4로 비동기 전달한다. Billing은 신규 Reservation을 즉시 차단하고 Learning Core 장애 때문에 provider refund commit을 롤백하지 않는다. exact event name·route·wire와 inbox는 ADR-004에서 작성한다.
 - Mongo collection/index/Transaction/CAS, UTC/exclusive time, raw-body 상한, timeout/backoff, error envelope/rate limit, secret rotation, observability와 purge worker는 위 정책을 바꾸지 않는 구현 세부로 ADR-004에서 exact 고정한다.
 
-#### C9-S9. ADR-004 작성 중 발견한 예외 정책 — 미확정
+#### C9-S9. 4주 상품과 ADR-004 예외 정책 — 확정(2026-09-07)
 
 - 기술 초안: [ADR-004](../adr/ADR-004-fixed-term-premium-payment-contract.md). C9-S1~S8 승인 정책은 유지하며 이 초안이 승인 원장을 자동으로 대체하지 않는다.
-- D1 정상 기간 만료 중 시험: 권장안은 유효기간 안에 승인된 현재 Session을 기존 시험·제출 기한 안에서 완료하도록 하고, 만료된 권리로 새 INITIAL/replacement를 만들지 않는 것이다. 환불의 OPEN 차단 정책과 구분한다. reserve/confirm의 만료 경계와 새 권리 사용 시 group 처리는 ADR §3에 함께 제안했다. 아직 승인 아님.
-- D2 Apple `REFUND_REVERSED`: 최초 출시 권장안은 durable REVIEW_REQUIRED와 경보로 격리하고 자동 기간 복구·재지급은 하지 않는 것이다. 실제 환불 취소가 확인된 사용자에게는 별도 승인된 복구 절차가 필요하며 영구적인 권리 거절 정책이 아니다. 아직 승인 아님.
+- 사용자 승인: 기존 30일 상품을 4주(28일)로 대체한다. 내부 offer는 `PREMIUM_28D`, duration은 672시간·2,419,200초이며 표시명은 '4주'다. 실제 Store/RevenueCat 상품 변경은 별도 준비하며 기존 거래 duration에 소급하지 않는다.
+- D1-A 정상 기간 만료 중 시험: 유효기간 안에 confirm된 현재 Session은 기존 시험·제출 기한 안에서 완료를 허용한다. 만료 전 reserve가 commit된 동일 Session의 confirm도 기존 5분 Reservation 유효기간 안에서는 허용한다. 만료된 권리로 새 INITIAL/replacement를 만들지 않으며 다음 유효 권리로 기존 group을 자동 재결속하지 않는다. 새 권리의 새 INITIAL 전 기존 group 종료·guard 해제를 같은 Transaction에서 검증한다. 환불의 OPEN 차단 및 refund-first confirm 거절에는 이 유예를 적용하지 않는다.
+- D2-A Apple `REFUND_REVERSED`: 최초 출시에서는 durable REVIEW_REQUIRED와 경보로 격리하고 자동 기간 복구·재지급·Session 재개는 하지 않는다. `refunded → owned` 재관측도 일반 신규 구매로 처리하지 않는다. 담당자가 Store 최종 상태를 확인하고 별도 승인된 복구 절차로 처리하며 원장 덮어쓰기는 금지한다. 영구적인 권리 거절 정책이 아니다.
 - SDK transaction/order ID 매핑, Store account identifier 변환, consumed 구매 환불 fixture, 누락 거래 복구와 LC 제출/환불 경합은 사용자 선택 대신 기술 gate로 검증한다.
+
+#### C9-S10. Store 중심 환불 창구와 국내 판매가격 — 확정(2026-09-09)
+
+- 2026-10-06 Identity 구현 확인: 로컬 cc076442의 REFUND enum·인증된 활성 계정 userId 자동 귀속·익명401/본문 userId400·저장/멱등 응답 전 검사와 테스트 코드 확인. 아래 Identity 구현 후속이라는 당시 상태는 이 기록으로 갱신. ACTIVE Guest 문의 허용은 구매/환불 거래 소유권을 뜻하지 않음. 배포·프론트·Slack 활성화·대상 구매 연결은 미확인, 구매 scope는 별도다.
+
+- 2026-10-06 개발 진행 승인: PLAN-008의 009→010→011→012→013 단계별 진행과 사용자 public 결제4 API의 기존 PublicResponse 통일 승인. 성공/오류 envelope는 ADR §5.3, 내부/제공자 응답은 유지. 각 세부 PLAN의 구현·Jira·배포 승인을 대신하지 않는다.
+- 2026-10-06 PLAN-013 출시 검증·운영 방향 승인: 실제 연동 검증, 안전한 migration, 단계별 활성화, 신규 판매 중단과 기존 결제 복구/환불 처리 분리, 문의·보존·백업·경보 운영 방향을 승인했다. 미확정 기술 상세·운영 담당/권한·실제 배포/판매/환불 실행 승인은 별도이며 판매 gate 통과로 간주하지 않는다.
+- 2026-10-06 F1~F4 A안 승인: (1) paid 전용 멱등 채점 승인 API, exact Session GRADING/승인 증거 원자 저장·환불 CAS, 무료 v1 204 유지. (2) 구매 root 차단/금융 효과/reflow/durable job 원자 저장 후 group/outbox bounded 전파; 기존 전 group 단일 Transaction 초안 대체. (3) PLAN-011 exact guard 전이표·최초 짧은 관련 writer 제한 이관, 실측 제한 시간·실행 별도 승인. (4) 환불/전파·LC deny/채점 gate·schema coverage 선행 자동 활성화 검사+운영 최종 판매 승인. exact wire/schema·타 서버·Jira/구현·실제 배포는 별도이며 상세 설계 미완료를 숨기지 않는다.
+- 2026-10-07 Google 보완 경로 승인: RC가 부족한 소모성 상품 부분 환불의 검증에 인증된 Google Orders 읽기 조회 허용. 기존 Purchase 매핑·성공 확정 증거 검증 후 금융 원장과 해당 구매 잔여권 종료만 처리. 신규 지급/owner 이전/자동 환불/임의 입력은 제외. actual fixture·권한·중복/정정/누적 schema 검증은 후속이며 코드는 미구현.
+- 2026-10-07 009 선택 승인: 고정1분60/10 제한 A·subset 단계 적용 A·회원 중 stable/탈퇴 후 조건부 정리 A·기존 JWT 만료까지 수용 A. 보존30일 후보는 미확정. purchaseAccountRefId 별도 필드 암호화는 생략, Atlas 저장 암호화/TLS/최소권한/로그 제외 및 Store token/credential 보호 유지. Atlas 사용은 사용자 확인, 실제 설정 미점검. 동기 Identity 상태 API는 추가하지 않으며 ACTIVE MEMBER 전용 purchase 발급 검증은 필요. exact manifest·구현/배포 승인 별도.
+- 2026-10-07 후속 보존 확정: 앞선30일 미확정 후보 대신 미구매 탈퇴 계정의 Identity 확정 withdrawnAt+15일 후 조건부 삭제 승인. 거래 대사/미해결 점검 선행, 실제 구매는 금융 보존·미해결 최소 증거와 재검토로 분리. 지연 거래/재생성 방지와 물리 purge 주기·실행/배포는 상세 검증 대상. 법정/최대지연 보장 기간으로 주장하지 않는다.
+
+- 2026-10-06 R1/R2 권장안 승인: 정상 운영은 팀 검토→환불 처리→해당 잔여권 종료→문의 종결이다. 일반 반복 환불 UI/자동 추가 환불은 만들지 않는다. 검증된 Store 추가 반환/정정은 금전 원장에만 추적하고 최초 권리 종료/reflow를 반복하지 않는다. 같은 환불의 재관측은 중복 무효, 금액 불명은 전액 추정 없이 대사한다. provider별 식별자·증분/누적 변환 exact 계약은 PLAN에서 고정한다.
+- 시각은 `providerConfirmedAt`(미제공이면 null), `firstVerifiedAt`(최초 검증), `appliedAt`(최초 성공한 Billing 권리 종료 Transaction의 고정 기준)으로 분리한다. C9-S2 reflow는 appliedAt 기준이다. 뒤늦은 정확 provider 시각은 감사 근거만 보완하며 이미 반영한 후속 권리를 재시작/축소하지 않는다. 중복/재조회는 기준 시각을 갱신하지 않는다. LC 실제 차단은 비동기 전파임을 유지하고 지연 중 사용을 소급 과금하거나 환불액에서 임의 공제하지 않는다. 법적 해지/반환 기산점과 이 운영 시각은 별개다.
+
+- 2026-10-06 구매별 증거 보완 요청 반영: 인증된 문의자→검증된 구매→Reservation/Group/Session source와 최소 완료·실패 증거를 ADR-004 §5.8.1에 설계한다. userId/현재 시험 목록 개수만으로 환불 거래·사용분을 판정하지 않는다. 신규 중복 이력 저장소나 학습 원문 보존은 추가하지 않으며 exact schema/보존 구분/권한·테스트는 PLAN에서 확정한다.
+- 반복 환불은 일반 사용자 기능이나 분할 환불 지급 정책으로 제안한 것이 아니다. 통상 팀 검토 뒤 정해진 환불 건을 처리하고 해당 잔여권을 종료한다. Store의 별도 판단·오처리 정정 등으로 실제 추가 반환이 발생한 경우 금전 사실을 누락하지 않는 예외 대비와 중복 알림 재반영 금지는 구분한다. 예외의 exact 식별/금액 처리는 미확정이며 임의 추가 환불 실행 권한을 부여하지 않는다.
+
+- 2026-10-06 추가 승인: Google은 팀 검토 후 지원되는 Store 전액/부분 환불 실행, Apple은 팀 검토·신청 안내 후 Apple 최종 결과 반영으로 운영한다. 검증된 부분 환불이 확정되면 해당 구매의 남은 기간권도 종료한다. 다른 구매의 권리·미사용 무료권은 취소하지 않으며 기존 timeline reflow/상태별 접근 차단 방향을 유지한다. 부분 환불 금액은 실제 반환액으로 기록해야 하고 권리 종료를 전액 금전 환불로 오기하지 않는다. 부분 환불의 원장/금액·시각 증거/중복·후속 환불 및 reflow exact 계약은 결제 PLAN의 추가 설계 범위이며 구현 완료가 아니다. 문의·팀 승인만으로 종료하지 않고 검증된 provider 최종 결과를 따른다.
+
+- 2026-10-06 운영 추가 승인: 환불 가능 범위·금액은 접수 후 팀이 구매/이용 증거를 보고 건별 검토한다. 이는 법정 권리·Store 정책을 임의 재량으로 배제하거나 공제 공식을 승인한 것이 아니다. 운영상 기준 시각은 실제 provider 환불 확정 시각(팀 승인/웹훅 수신/계좌 입금 시각과 구분), 2영업일 이내 1차 응답으로 정한다. 법정 청약철회/해지 효력이나 금액 계산을 처리 지연만큼 불리하게 미루는 근거로 사용하지 않는다. provider의 정확한 확정 시각 field/fallback은 기술 검증 대상이다.
+- 환불 문의에는 userId 귀속을 필수로 한다. 기존 인증 계약에 따라 Identity가 검증된 로그인 JWT sub와 현재 계정으로 자동 연결하며 임의 body userId/이메일을 소유권 증거로 신뢰하지 않는다. 이는 이번 요청의 안전한 구현 해석이며 Identity exact API는 후속이다. 로그인 불가/탈퇴 사용자의 법적 요청은 지원 이메일/Store 경로로 받고 별도 본인·구매자 확인을 하며 userId 부재만으로 거절하지 않는다.
+- 약관 작성·화면 고지는 프론트 담당으로 정한다. 최종 내용의 법규/Store 정책·백엔드 동작 일치는 출시 전 확인하며 역할 배정이 약관 완료/법률 검토 완료를 뜻하지 않는다. 접수/판단/금액/사유/Store 결과의 감사 절차, 담당자 배정과 부분 환불의 실제 실행·원장 경로는 후속이다.
+
+- 2026-10-06 추가 승인: 앱의 Identity 문의 접수를 환불 상담 창구로 사용하고 분류 `REFUND`를 추가한다. 운영자가 구매와 이용 내역을 확인한다. 아래 최초 자체 UI 제외는 상담 접수에 한해 대체한다. Store 직접 신청과 지원 이메일은 유지하며 실제 환급은 Store 절차, Billing 반영은 검증된 최종 provider 결과를 따른다. 문의 접수 자체는 환불 확정/이용권 취소가 아니다. Identity 구현은 후속이며 자동 심사·직접 송금·공제 공식·부분 환불 원장 계약은 이번 승인에 포함하지 않는다.
+
+- 2026-09-09 당시 승인(상담 UI 범위는 위 10/6 승인으로 대체): 일반 환불은 구매한 Apple App Store/Google Play의 신청·심사·환급 경로를 기본으로 한다. 앱에는 Store 환불 안내와 토선생 고객지원 연락 수단을 제공한다. 최초 범위에 Billing 자체 환불 신청 API·앱 자체 심사 UI·직접 송금 기능을 추가하지 않는다.
+- 토선생은 결제 후 권리 미반영·서비스 장애·미제공·관련 법령상 요청을 고객지원으로 접수하고 확인한다. 지원 이메일/실제 채널·담당자는 출시 전 입력한다. Store 거절을 모든 법적 요청의 자동 종결 사유로 사용하지 않는다.
+- Store 환불은 자동 승인이 아니며, Billing은 검증된 최종 거래 상태에 따라 append-only 원장·source 권리·LC 접근 차단을 반영한다. 앱/이메일의 환불 신청 주장만으로 REFUNDED나 환급 완료를 표시하지 않는다. C9-S3·S8·S9의 상태 전이와 자동 refund handling OFF는 유지한다.
+- 2026-09-08 사용자 제시 국내 판매가격: PREMIUM_1D 9,000원 / PREMIUM_3D 19,000원 / PREMIUM_7D 29,000원 / PREMIUM_14D 49,000원 / PREMIUM_28D 69,000원. 최초 판매 대상은 한국 성인이다. 실제 Store product ID·가격 설정·세금/할인·연령 제한 검증은 별도이며 앱의 최종 표시·결제 금액은 Store SDK의 검증 가능한 현지화 가격을 사용한다.
+- [구매·환불 안내 초안](../contracts/PREMIUM_PURCHASE_REFUND_NOTICE_DRAFT.md)은 게시 전 검토용이다. 고객지원 실제 값, 법적 고지/동의, 부분 반환 적용·공제/효력 시점, Store/RevenueCat 부분 환불 전달·정합성 경로는 출시 gate로 남긴다.
+- 이 승인은 잔여기간 일할 환불식·위약금·부분 환불 자동화·법적 분류 확정이 아니다. 부분 기능 미구현을 법정 반환 거절 사유로 사용하지 않는다. 필요 시 별도 승인으로 계약·운영 경로를 확장한 뒤 판매한다. 코드·스토어 설정·배포 승인이 아니다.
+
+#### C9-S11. 고객지원·만료 후 열람·출시 할인 — 확정(2026-09-09)
+
+- 고객지원 이메일은 `tosunsaeng093@gmail.com`이다. 메일 발송·수신함 운영 검증이나 담당자 지정 완료를 뜻하지 않는다.
+- 정상 이용기간 만료 뒤 본인 계정의 기존 시험 결과·피드백 열람을 허용한다. 기존 데이터 보존·탈퇴 정책은 유지하고 영구 보관·재가입 이전 기록 복원이나 추가 유료 시험/임의 재채점을 허용하지 않는다. D1의 현재 Session 완료 예외·승인 장애 복구 흐름은 유지한다.
+- 최초 출시에는 별도 할인을 하지 않는다. C9-S10의 국내 5개 가격을 유지하고 실제 Store 가격/세금/프로모션 설정은 검증한다.
+- [2026-09-09 준비 상태 점검](../contracts/PAYMENT_READINESS_REVIEW-2026-09-09.md): RC 앱 자격증명 정상 표시와 Google Pub/Sub 권한 오류는 별개다. 실제 상품·Offering·Billing webhook과 sandbox 검증은 미완료. 법적 반환 기준·부분 환불 실행/증거·원장 경로는 C9-S10과 같이 미확정 gate다.
+- 이번 승인은 문서상 운영 계약 반영이다. 타 서버/앱·Store 설정 변경, 법률 자문 대행·문의 발송, 결제 코드 구현·배포 또는 판매 승인으로 확대하지 않는다.
 
 아래 C9-A/B/C는 2026-08-24 credit/3일 pass 초안의 역사적 비교 기록이다. C9-A의 Store one-time 유형은 2026-09-07 C9-S1에 fixed-term 5개 상품으로 다시 승인됐지만 credit/3일 pass 중심의 나머지 설명은 현재 구현 선택이 아니다.
 

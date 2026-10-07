@@ -7,7 +7,7 @@
 - 로컬 검증: `./gradlew clean test` 성공, 236개 테스트·실패/skip 0. 실제 AWS/Identity·운영 legacy coverage는 별도 gate다.
 - 대상: Billing 무료 entitlement public reader. Identity는 계약 확인용 읽기만 수행했다.
 - 선행: [ADR-001](../adr/ADR-001-free-trial-internal-api-and-mongo-contract.md), [ADR-002](../adr/ADR-002-vpc-lattice-ecs-sigv4-and-environment-migration.md), [ADR-003](../adr/ADR-003-retained-trial-owner-rebind-contract.md), [PLAN-006](PLAN-006-retained-trial-owner-rebind.md).
-- 결제와의 관계: [ADR-004 초안](../adr/ADR-004-fixed-term-premium-payment-contract.md)은 후속 결제 트랙이다. 이 계획은 결제의 미확정 D1·D2와 독립적으로 진행한다.
+- 결제와의 관계: [ADR-004 초안](../adr/ADR-004-fixed-term-premium-payment-contract.md)은 후속 결제 트랙이다. 이 계획은 결제와 독립적으로 진행한다. 결제의 4주 상품·D1-A·D2-A는 2026-09-07 후속 승인됐으며 무료 reader 범위는 변경하지 않는다.
 
 ## 1. 5줄 결론
 

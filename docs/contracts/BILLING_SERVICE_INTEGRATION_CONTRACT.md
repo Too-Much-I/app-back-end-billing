@@ -19,7 +19,7 @@
 5. fixed-term premium 결제: `docs/contracts/FIXED_TERM_PREMIUM_PAYMENT_CONTRACT.md`
 6. 현재 owner rebind 구현 순서: `docs/plans/PLAN-006-retained-trial-owner-rebind.md`
 
-결제 public DTO·RevenueCat adapter·Mongo v5·Learning Core 접근 철회 wire는 [ADR-004 기술 초안](../adr/ADR-004-fixed-term-premium-payment-contract.md)에 작성했다. 승인된 제품 선택과 별개로 D1 정상 기간 만료와 D2 환불 취소 정책은 검토 대기이며, 초안 작성은 상대 서비스 구현·배포 완료를 의미하지 않는다.
+결제 public DTO·RevenueCat adapter·Mongo v5·Learning Core 접근 철회 wire는 [ADR-004 기술 초안](../adr/ADR-004-fixed-term-premium-payment-contract.md)에 작성했다. 4주(28일) 상품·D1-A 정상 만료 중 현재 Session 완료·D2-A 환불 취소 수동 검토는 2026-09-07 승인됐으며, 초안 작성은 상대 서비스 구현·배포 완료를 의미하지 않는다.
 
 이 문서와 ADR이 충돌하면 ADR을 따른다. 계약을 변경할 때는 이 안내서만 고치지 않고 producer와 consumer의 ADR·fixture·contract test를 함께 갱신한다.
 
@@ -457,7 +457,7 @@ Identity producer나 Learning Core 시험 생성 gate를 Billing consumer보다 
 - Learning Core의 Billing reserve saga와 AttemptGroup status publisher는 구현돼 있다. `UserMerged` owner migration/source deny와 phone target의 기존 group replacement 수용은 별도 후속 검증 대상이다.
 - VPC Lattice, Billing ECS service와 실제 IAM/SG 리소스는 아직 없다.
 - Identity event별 owner delivery, Learning Core `UserMerged` consumer와 phone replacement staging E2E가 끝나기 전에는 production owner rebind를 활성화하지 않는다.
-- 무료/owner lifecycle 핵심 코드는 구현됐고 Apple Consumable In-App Purchase·Google consumable one-time product와 RevenueCat 표준 SDK/Authorization+HMAC webhook/API 기반 fixed-term 결제는 제품·ADR-004 선택 승인, exact ADR/PLAN 작성 대기 상태다. paid credit, fixed-unit exam pass, 자동 갱신, coupon과 부분 환불은 범위 밖이다.
+- 무료/owner lifecycle 핵심 코드는 구현됐고 Apple Consumable In-App Purchase·Google consumable one-time product와 RevenueCat 표준 SDK/Authorization+HMAC webhook/API 기반 fixed-term 결제는 제품·ADR-004 선택 승인, exact ADR/PLAN 보완 대기 상태다. 2026-10-06 Store 부분 환불 결과의 실제 반환액 기록·해당 구매 잔여권 종료 및 구매별 최소 이용 증거 연결은 설계 범위에 포함됐다(ADR-004 §5.8.1). Identity REFUND 문의·팀 검토·2영업일 1차 답변은 운영 방향이며 타 서버 구현 완료를 뜻하지 않는다. paid credit, fixed-unit exam pass, 자동 갱신, coupon·자동 환불 심사/공제액 산정·직접 송금은 범위 밖이다.
 
 ## 15. 연동 점검 체크리스트
 

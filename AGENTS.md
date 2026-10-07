@@ -45,11 +45,12 @@ verified-phone candidate 기준 무료 모의고사 1회 Entitlement와 owner li
 - AttemptGroup consumption 연결과 Learning Core reconciliation
 - Mongo transaction, unique index, 멱등성, 관측성과 운영 복구
 - Apple Consumable In-App Purchase·Google consumable one-time product와 RevenueCat 표준 SDK·Offering 연동
-- `PREMIUM_1D`, `PREMIUM_3D`, `PREMIUM_7D`, `PREMIUM_14D`, `PREMIUM_30D`와 기간형 `SubscriptionEntitlement`
+- `PREMIUM_1D`, `PREMIUM_3D`, `PREMIUM_7D`, `PREMIUM_14D`, `PREMIUM_28D`와 기간형 `SubscriptionEntitlement`
 - 앱이 직접 호출하는 Billing public API와 Identity JWT의 `tosunsaeng-billing` audience
 - ACTIVE paid-first/free-preserve Reservation resolver
 - client sync, RevenueCat Authorization+HMAC webhook·REST API reconciliation과 표준 SDK transaction completion
 - refund/revoke의 append-only reversal과 신규 시험 차단
+- Store-confirmed 부분 환불의 실제 반환액 기록과 해당 구매 잔여권 종료(2026-10-06 승인). 구매별 최소 이용 증거 연결을 결제 ADR/PLAN에 포함하며 exact schema·provider 증거 검증과 구현은 후속이다.
 - ACTIVE MEMBER 전용 구매, 사용자·환경별 stable `purchaseAccountRefId`
 - 기존 public ALB의 Billing 전용 host/path allowlist·별도 target group과 internal Lattice 분리
 - refund 시 entitlement timeline reflow, OPEN/RETAKE_AVAILABLE 차단·GRADING 완료·COMPLETED 보존
@@ -59,11 +60,13 @@ verified-phone candidate 기준 무료 모의고사 1회 Entitlement와 owner li
 
 - paid credit pack, fixed-unit exam pass와 자동 갱신 subscription
 - coupon, 출석과 추천인 보상
-- 부분 환불, 수동 보상과 Billing 자체 negative balance
+- 자동 환불 심사·자동 공제액 산정, 수동 보상과 Billing 자체 negative balance. 승인된 Store 부분 환불 결과 수신·원장 반영은 이 범위 제외에 해당하지 않는다.
 
 ## 현재 구현 단위
 
-retained trial owner rebind vertical slice는 Jira `TMI-120`, `docs/plans/PLAN-006-retained-trial-owner-rebind.md`와 `docs/adr/ADR-003-retained-trial-owner-rebind-contract.md`에 구현됐다. `docs/plans/PLAN-007-public-free-entitlement-query.md`의 무료 사용권 public reader는 사용자 승인 후 구현·로컬 테스트를 완료했으며 기본 OFF다. 배포·legacy coverage는 `docs/runbooks/PLAN-007-public-reader-rollout.md`를 따른다. 결제 기술 초안은 `docs/adr/ADR-004-fixed-term-premium-payment-contract.md`에 작성됐지만 별도 후속 트랙이다. 제품 정책과 C9-S8의 9개 선택은 승인됐고 정상 기간 만료(D1)와 환불 취소(D2)는 미확정이며, 결제 PLAN은 이후 번호로 작성한다. 결제 application code·schema v5는 아직 구현하지 않았다.
+2026-10-06 결제 계획은 `docs/plans/PLAN-008-fixed-term-payment-roadmap.md`와 PLAN-009~013(상품/계정, 구매/기간권, paid 시험/증거, 환불/차단, 배포/운영)에 작성됐으며 검토·구현 승인 대기다. 아래의 결제 PLAN 이후 작성 표현은 이 기록으로 갱신한다. 새 PLAN의 envelope·상대 wire·schema 기술 제안은 ADR 동기화/Phase 0 검증 없이 확정 계약으로 구현하지 않는다. Jira·결제 코드·배포는 아직 수행하지 않았다.
+
+retained trial owner rebind vertical slice는 Jira `TMI-120`, `docs/plans/PLAN-006-retained-trial-owner-rebind.md`와 `docs/adr/ADR-003-retained-trial-owner-rebind-contract.md`에 구현됐다. `docs/plans/PLAN-007-public-free-entitlement-query.md`의 무료 사용권 public reader는 사용자 승인 후 구현·로컬 테스트를 완료했으며 기본 OFF다. 배포·legacy coverage는 `docs/runbooks/PLAN-007-public-reader-rollout.md`를 따른다. 결제 기술 초안은 `docs/adr/ADR-004-fixed-term-premium-payment-contract.md`에 작성됐지만 별도 후속 트랙이다. 제품 정책과 C9-S8의 9개 선택은 승인됐고 2026-09-07 4주(28일) 상품 변경과 정상 기간 만료(D1-A)·환불 취소(D2-A) 권장안도 승인됐으며, 결제 PLAN은 이후 번호로 작성한다. 결제 application code·schema v5는 아직 구현하지 않았다.
 
 무료 reader는 `GET /api/v1/entitlements`, Identity 사용자 JWT `tosunsaeng-billing` audience와 `billing:read`, 검증된 `sub`를 사용한다. Guest/MEMBER 모두 본인 조회만 허용하고 account_type만으로 phone eligibility를 추론하지 않는다. Grant가 없는 신규 VERIFIED 대상은 retained Claim 부재가 확인될 때만 예상 신규 수량을 표시하며 조회에서 발급·hold·소비·owner 변경을 하지 않는다. 연동 불명은 PENDING/null, 저장소 실패는 503으로 분리한다. public 전용 envelope와 ALB connector는 internal Lattice/SigV4와 격리하고 기존 internal DTO를 변경하지 않는다. Identity account_type PR #39 병합은 Billing audience·billing:read 발급 완료가 아니며 별도 후속과 staging 검증 전 reader flag는 OFF다.
 
@@ -105,10 +108,14 @@ PLAN-007 §8 구현: 세션 귀속은 기본 7일 command TTL에 의존하지 �
 - 구매는 Identity가 `billing:purchase`를 발급한 ACTIVE MEMBER만 허용한다. Guest는 최대 `billing:read`만 받으며 Guest purchase·paid UserMerged migration은 현재 범위에 없다.
 - `purchaseAccountRefId`는 사용자·환경별 stable lowercase UUID v4다. 회전된 과거 값은 기존 transaction 검증·환불용 inactive alias일 뿐 신규 구매에 사용할 수 없다.
 - active/scheduled paid timeline 중간 purchase가 refund/revoke되면 해당 slot만 제거하고 뒤의 VERIFIED entitlement를 기존 sequence·duration대로 즉시 앞으로 재배치하며 원래 schedule과 조정을 ledger에 남긴다.
+- 2026-10-06 R2: reflow는 최초 성공한 Billing 권리 종료 Transaction의 고정 appliedAt 기준이다. Store 확정 시각(providerConfirmedAt, 없으면 null)·최초 검증 시각과 분리하고 미시작 후속 기간을 지연 때문에 소급 소진하지 않는다. 이미 시작한 다른 권리는 유지하며 기존 시작을 늦추지 않는다. 중복·외부 추가 반환·후속 정확 시각 보완으로 권리를 재종료하거나 기간을 재배치하지 않는다. R1: 외부 추가 반환/정정은 검증된 금전 사실만 기록하고 불명 금액은 대사하며 일반 반복 환불 기능은 제공하지 않는다.
 - provider-confirmed refund 뒤 해당 source의 `RESERVED`, `OPEN`, `RETAKE_AVAILABLE`은 추가 사용·replacement가 불가능하다. 이미 제출된 `GRADING`만 terminal까지 수렴하고 `COMPLETED` history는 삭제하지 않는다.
 - refund가 reserve/confirm과 경합하면 Transaction/CAS commit 순서로 수렴한다. refund가 먼저면 confirm을 revoked error로 거절하고 Learning Core Session을 durable access-revocation으로 보상한다.
 - refund 신청에 대한 client 주장만 신뢰하지 않는다. RevenueCat이 Store에서 수신·검증한 review 신호는 `REFUND_REVIEW`, RevenueCat API/webhook이 제공하는 최종 Store 상태만 `REFUNDED/REVOKED` 근거다.
-- RevenueCat은 결제 연동·검증 데이터 공급 계층이며 Billing entitlement의 source of truth가 아니다. consumable을 RevenueCat Entitlement에 연결해 기간 권리를 판정하지 않고, Billing catalog·Purchase·SubscriptionEntitlement·ledger가 24·72·168·336·720시간과 stacking을 결정한다.
+- 2026-10-07 사용자 승인 예외: RevenueCat 증거가 부족한 Google 소모성 상품 부분 환불은 Billing이 인증한 Google Orders 읽기 전용 조회 결과를 보완 증거로 허용한다. 기존 검증된 Purchase의 앱/환경/거래·소유 연결과 성공 확정 상태를 검증한 뒤 금액 원장/해당 구매 잔여권 종료에만 사용한다. 신규 구매 지급·owner 이전·자동 환불 실행·임의 운영자 입력 허용이 아니며 RC/Google 중복 관측 수렴과 실제 fixture 검증 전 활성화하지 않는다.
+- 환불은 Identity 문의 `REFUND`와 인증된 userId 귀속으로 접수하고 팀이 건별 검토하며 2영업일 내 1차 답변한다. Google은 지원되는 Store 환불 실행, Apple은 고객 신청 안내 후 Apple 최종 결과를 반영한다. 문의만으로 권리를 취소하지 않는다. 실제 반환액과 권리 종료를 분리해 부분 환불에도 해당 구매의 잔여권만 종료하고 다른 구매·무료권은 보존한다. 반복 환불을 일반 상품 기능으로 제공한다는 뜻은 아니며 외부의 추가 반환/정정 사실을 원장에서 누락해서도 안 된다.
+- 구매별 이용 증거는 ADR-004 §5.8.1의 내부 source snapshot과 기존 Attempt projection/ledger를 사용한다. userId·현재 시험 목록 개수만으로 환불 거래/사용분을 확정하지 않으며 답안·피드백 원문을 복제하지 않는다. paid schema/내부 계약 확장은 별도 PLAN 승인 후 구현한다.
+- RevenueCat은 결제 연동·검증 데이터 공급 계층이며 Billing entitlement의 source of truth가 아니다. consumable을 RevenueCat Entitlement에 연결해 기간 권리를 판정하지 않고, Billing catalog·Purchase·SubscriptionEntitlement·ledger가 24·72·168·336·672시간과 stacking을 결정한다.
 - RevenueCat 표준 SDK가 Apple transaction finish와 Google consumable completion을 담당한다. Store 결제가 완료됐지만 Billing 반영이 지연되면 client callback으로 권리를 지급하지 않고 `PENDING`으로 표시하며 HMAC webhook·event ID 멱등성·REST API reconciliation으로 최종 수렴한다.
 - RevenueCat custom App User ID에는 실제 userId가 아니라 사용자·환경별 stable `purchaseAccountRefId`를 사용한다. 익명 상태 구매와 RevenueCat alias/restore에 의한 다른 토선생 계정으로의 구매·권리 자동 이전을 허용하지 않는다.
 - 결제 public route는 `GET /api/v1/payments/products`, `POST /api/v1/payments/purchase-account`, `POST /api/v1/payments/sync`, `GET /api/v1/payments/entitlement`로 분리한다. sync는 필수 lowercase UUID v4 `Idempotency-Key`와 untrusted Store transaction hint를 사용하며 미확인은 `202 PENDING`과 `Retry-After`로 fail-closed한다.
@@ -305,7 +312,7 @@ Codex는 다음 작업을 직접 수행하지 않는다.
 9. Identity와 Learning Core workload role의 route 권한이 섞였는가
 10. unsigned·wrong role·direct task 접근이 허용되는가
 11. 테스트가 실제 Atlas, AWS, RevenueCat, Store, Identity 또는 Learning Core에 의존하는가
-12. 승인된 fixed-term 결제를 넘어 paid credit·coupon·자동 갱신·부분 환불 등 범위 밖 기능이나 관련 없는 대규모 리팩터링이 포함됐는가
+12. 승인된 fixed-term 결제·Store 부분 환불 결과 반영을 넘어 paid credit·coupon·자동 갱신·자동 환불 심사/공제 등 범위 밖 기능이나 관련 없는 대규모 리팩터링이 포함됐는가. 부분 환불 금전 기록과 구매 잔여권 종료를 혼동하거나 외부 추가 반환 사실을 누락했는가
 13. internal API에 앱용 `BaseResponse`를 적용하거나 userId를 URL·로그에 노출했는가
 14. `inbound_event_inbox` 120일 TTL, TrialClaim 3년 보존과 Reservation audit 보존을 같은 정책으로 취급했는가
 15. PLAN-002 구현에 confirm·cancel·expiry·reconciliation 또는 결제 기능을 섞어 vertical slice 범위를 넓혔는가
