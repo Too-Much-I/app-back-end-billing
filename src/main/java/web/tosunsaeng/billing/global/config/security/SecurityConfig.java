@@ -15,10 +15,13 @@ import web.tosunsaeng.billing.domain.attempt.config.AttemptGroupEventProperties;
 import web.tosunsaeng.billing.domain.reservation.config.ReservationProperties;
 import web.tosunsaeng.billing.domain.ownerrebind.config.OwnerRebindProperties;
 import web.tosunsaeng.billing.global.config.mongodb.BillingMongoProperties;
+import web.tosunsaeng.billing.domain.payment.config.PaymentProperties;
+import web.tosunsaeng.billing.domain.payment.api.PaymentWithdrawalController;
 
 @Configuration
 @EnableConfigurationProperties({
         InternalIngressProperties.class,
+        PaymentProperties.class,
         AttemptGroupEventProperties.class,
         TrialEligibilityProperties.class,
         ReservationProperties.class,
@@ -34,6 +37,7 @@ public class SecurityConfig {
             AttemptGroupEventProperties attemptGroupEventProperties,
             TrialEligibilityProperties trialEligibilityProperties,
             OwnerRebindProperties ownerRebindProperties,
+            PaymentProperties paymentProperties,
             BillingMongoProperties mongoProperties,
             Environment environment
     ) throws Exception {
@@ -42,6 +46,7 @@ public class SecurityConfig {
                 trialEligibilityProperties, ownerRebindProperties,
                 mongoProperties, environment
         );
+        validateWithdrawal(ingressProperties, paymentProperties, mongoProperties);
         return http
                 .csrf(csrf -> csrf.disable())
                 .httpBasic(httpBasic -> httpBasic.disable())
@@ -52,6 +57,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> {
                     authorize.requestMatchers("/actuator/health", "/actuator/health/**").permitAll();
                     if (ingressProperties.getMode() == InternalIngressProperties.Mode.TEST) {
+                        if (paymentProperties.isWithdrawalEnabled()) {
+                            authorize.requestMatchers(HttpMethod.POST, PaymentWithdrawalController.PATH).hasRole("IDENTITY_WORKLOAD");
+                        }
                         authorize.requestMatchers(
                                 HttpMethod.POST,
                                 "/internal/v1/eligibility/trial/events"
@@ -82,6 +90,10 @@ public class SecurityConfig {
                         }
                     } else if (ingressProperties.getMode()
                             == InternalIngressProperties.Mode.LATTICE_AWS_IAM) {
+                        // IAM authentication/route authorization is enforced by Lattice; isolated task ingress is mandatory.
+                        if (paymentProperties.isWithdrawalEnabled()) {
+                            authorize.requestMatchers(HttpMethod.POST, PaymentWithdrawalController.PATH).permitAll();
+                        }
                         authorize.requestMatchers(
                                 HttpMethod.POST,
                                 "/internal/v1/eligibility/trial/events"
@@ -114,6 +126,20 @@ public class SecurityConfig {
                     authorize.anyRequest().denyAll();
                 })
                 .build();
+    }
+
+    static void validateWithdrawal(InternalIngressProperties ingress, PaymentProperties payment, BillingMongoProperties mongo) {
+        if (!payment.isWithdrawalEnabled()) return;
+        if (ingress.getMode() == InternalIngressProperties.Mode.DISABLED
+                || !mongo.isInitializeIndexes() || !mongo.isRequireTransactions()
+                || !java.util.Set.of("SANDBOX", "PRODUCTION").contains(payment.getEnvironment())) {
+            throw new IllegalStateException("Withdrawal requires internal ingress, payment environment and transactional indexes");
+        }
+        if (ingress.getMode() == InternalIngressProperties.Mode.LATTICE_AWS_IAM
+                && !("staging".equals(ingress.getEnvironment()) && "SANDBOX".equals(payment.getEnvironment())
+                || "production".equals(ingress.getEnvironment()) && "PRODUCTION".equals(payment.getEnvironment()))) {
+            throw new IllegalStateException("Withdrawal and ingress environments must match");
+        }
     }
 
     private static void validateConfiguration(

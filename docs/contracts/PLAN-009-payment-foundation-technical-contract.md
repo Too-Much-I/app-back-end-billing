@@ -1,12 +1,12 @@
-# PLAN-009 상품·구매 계정 기반 세부 기술 계약 초안
+# PLAN-009 상품·구매 계정 기반 세부 기술 계약
 
-- 작성일: 2026-10-07 / 상태: 검토용 기술 초안 / Jira 미생성 / 코드 미구현.
+- 작성일: 2026-10-07 / 갱신: 2026-10-12 / Jira: TMI-201 PR1 / 상태: 사용자 요청으로 구현·로컬 테스트 완료. PR2도 별도 탈퇴 계약에 따라 구현·로컬 검증 완료이며 실제 연동·배포 미완료.
 - 상위: [PLAN-009](../plans/PLAN-009-payment-catalog-and-account.md), [ADR-004 §5.1~5.3/A](../adr/ADR-004-fixed-term-premium-payment-contract.md).
-- 이미 승인된 제품 정책·PublicResponse는 유지한다. 아래 신규 limiter·schema subset·catalog 발행 절차는 제안이며 본 문서 작성이 구현/배포 승인은 아니다. 충돌 시 승인 ADR을 우선하고 조용히 변경하지 않는다.
+- 승인된 제품 정책·PublicResponse·고정 window/subset 방향을 유지한다. 수락된 물리 manifest는 TMI-199 exact 규격을 따른다. catalog 발행/운영 입력 및 미검증 배포 절차를 완료로 간주하지 않으며 배포 승인은 별도다. 충돌 시 승인 ADR을 우선한다.
 
 ## 1. 5줄 결론
 
-후속 기술 설계: [탈퇴 수신·계정 상태·거래 확인·삭제](PLAN-009-withdrawal-reconciliation-and-purge-contract.md). 최신 승인 범위는 공동 기술 계약을 따른다. TMI-199에서 반복 account 안정성과 ADR §5.10 activity/cursor 요구를 [별도 lifecycle/cursor 쓰기 규격](TMI-199-PAYMENT-LIFECYCLE-FOUNDATION.md#53-반복-account-호출과-activity-cursor-정합성)으로 구체화하고 test-only Transaction으로 확인했다. production 구현은 TMI-201이며 신규 wire/Identity fixture 합의는 별도다.
+연결 설계: [탈퇴 수신·계정 상태·거래 확인·삭제](PLAN-009-withdrawal-reconciliation-and-purge-contract.md). TMI-199에서 [별도 lifecycle/cursor 쓰기 규격](TMI-199-PAYMENT-LIFECYCLE-FOUNDATION.md#53-반복-account-호출과-activity-cursor-정합성)과 [exact wire/index](TMI-199-EXACT-WIRE-AND-INDEX-SPEC.md)을 양측 수락·검증하고 병합했다. TMI-201 PR1 구현은 PR2의 탈퇴 차단과 공유할 lifecycle fence를 사용한다. 복구 client(TMI-204)·실제 대사/삭제(TMI-205)는 제외한다. 전용 production 코드의 로컬 테스트는 완료했지만 상대 연동·운영 검증은 미완료다. [검증 범위와 배포 gate](../runbooks/TMI-201-payment-foundation.md)를 따른다.
 
 1. 상품 GET과 구매 계정 POST만 추가하며 실제 결제·기간권·환불·무료권 지급은 하지 않는다. [PLAN-009 §2](../plans/PLAN-009-payment-catalog-and-account.md)
 2. verified JWT sub/environment로 계정을 만들고 원자적 get-or-create로 같은 사용자에게 같은 reference를 반환한다. [ADR §5.2](../adr/ADR-004-fixed-term-premium-payment-contract.md)
@@ -89,7 +89,7 @@ reference는 lowercase UUIDv4이며 userId가 아니다. 앱이 RC custom App Us
 - 실제 거래가 발견되면 해당 금융 증거의 승인 보존 정책으로 분리한다. 미해결 건은 필요한 최소 증거와 사유·재검토 기한을 별도 관리하며 전체 account를 무기한 보존하지 않는다. 삭제 후 늦은 거래는 새 계정/같은 전화번호에 자동 연결·지급하지 않고 검토한다.
 - 15일은 운영 기본 기준이지 법정기간/provider 최대 지연 보장이 아니다. 실제 검증에서 부족함이 확인되면 보고 후 정책을 재검토한다. 탈퇴 전달·대사 완전성·purge 실행 주기/지연 경보·미해결 재검토 기한·재생성 방지 기록의 최소 보존은 상세 manifest에서 동결한다. 이번 승인은15일 정확 시점 물리 삭제 SLA나 실제 삭제 실행 승인이 아니다.
 
-새 상품/가격/무료 보존 정책 선택은 없다. 다음 기술안을 검토 승인하면 009 구현 범위를 고정할 수 있다.
+새 상품/가격/무료 보존 정책 선택은 없다. 아래는 승인된 방향의 구현 기준이며 미검증 운영 절차는 별도 gate다.
 
 - rate limit: Mongo UTC 고정 1분 window, products60/account10, 환경+route+검증된 사용자 기준. 경계 전후 최대 두 window 한도가 연속 가능하며 rolling60초 보장은 아님. sliding window를 원하면 구현 전 변경 승인.
 - payment schema 전체 v5와 별개로 `payment-foundation-v1` subset 검증을 추가한다. 아래 추가 index/limiter collection은 ADR A에 정식 동기화 후 구현.
@@ -131,7 +131,7 @@ reference는 lowercase UUIDv4이며 userId가 아니다. 앱이 RC custom App Us
 
 payment_accounts._id=accountId, purchase_account_refs._id=referenceId. 참조는 동일 user/environment에 stable하며 TrialClaim/Grant/Reservation/ledger/기간권 document는 쓰지 않는다. 반복 호출의 limiter counter 변경은 보안 목적의 별도 쓰기이며 혜택 지급으로 해석하지 않는다.
 
-### 5.3 Mongo 분산 limiter 제안
+### 5.3 Mongo 분산 limiter
 
 추가 collection `payment_rate_limits`: `_id` 서버 UUID, environment, routeKey(PRODUCTS|PURCHASE_ACCOUNT), subjectKey, windowStart, count, purgeAt. subjectKey는 환경별 별도 HMAC key로 environment+canonical sub의 길이 구분 encoding을 해시한 lowercase hex. token/reference/raw userId·IP는 저장하지 않는다. 해시도 연결 가능 정보로 보호한다.
 
@@ -143,13 +143,13 @@ limiter DB 장애는503, 우회 허용하지 않는다. limiter write 뒤 업무
 
 기존 BILLING_USER_JWT_ISSUER/JWKS_URI/CLOCK_SKEW와 PUBLIC_CONNECTOR_ENABLED/PORT 입력 호환성을 보존하면서 공통 public 설정으로 최소 분리한다. 결제 enabled가 무료 LEGACY_ATTRIBUTION_VERIFIED를 대신 true로 만들지 않는다. 무료 reader는 기존 eligibility/legacy gate를 계속 요구한다.
 
-flags 제안: `billing.payment.catalog-enabled` / `BILLING_PAYMENT_CATALOG_ENABLED`, `billing.payment.purchase-account-enabled` / `BILLING_PAYMENT_PURCHASE_ACCOUNT_ENABLED`, 기본false. 추가 서버 입력: `BILLING_PAYMENT_ENVIRONMENT=SANDBOX|PRODUCTION`, `BILLING_PAYMENT_CATALOG_VERSION` 양수, limiter key는 secret store 주입이며 저장소에 값 없음.
+구현 계획의 flags: `billing.payment.catalog-enabled` / `BILLING_PAYMENT_CATALOG_ENABLED`, `billing.payment.purchase-account-enabled` / `BILLING_PAYMENT_PURCHASE_ACCOUNT_ENABLED`, 기본false. 추가 서버 입력: `BILLING_PAYMENT_ENVIRONMENT=SANDBOX|PRODUCTION`, `BILLING_PAYMENT_CATALOG_VERSION` 양수, limiter key는 secret store 주입이며 저장소에 값 없음.
 
 어느 결제 flag든 ON이면 isolated public connector·trusted JWT·Mongo replica set/index subset·limiter 설정을 검사한다. catalog ON은 catalog snapshot도 검증. OFF 경로404, 잘못된 port/path는404, internal SigV4 principal이 사용자 JWT를 대신하지 않는다. ALB에는 기존 무료 GET과 결제 두 exact method/path만 허용한다. sync/webhook/paid entitlement는 009에서 열지 않는다. wildcard·forwarded header 기반 bypass 금지, HEAD/OPTIONS도 새로 허용하지 않는다.
 
 ## 6. 부록 — schema manifest·검증·인계
 
-### 6.1 Foundation subset index 제안
+### 6.1 Foundation subset index
 
 모든 key는 표 순서 ascending, 기본 _id unique 제외. 별도 명시 없으면 partial/TTL 없음. 기존 운영 index drop/recreate 금지, 불일치 fail-fast.
 
@@ -157,19 +157,19 @@ flags 제안: `billing.payment.catalog-enabled` / `BILLING_PAYMENT_CATALOG_ENABL
 | --- | --- | --- | --- |
 | payment_products | ux_payment_store_product | environment,store,appId,storeProductId | unique; ADR 유지 |
 | payment_products | ux_payment_rc_product | environment,rcProductId | unique; ADR 유지 |
-| payment_products | ux_payment_sale_offer_store | environment,offerCode,store | unique, partial {saleEnabled:true}; 추가 제안 |
-| payment_products | ix_payment_catalog_sale | environment,saleEnabled,offerCode | 추가 제안 |
+| payment_products | ux_payment_sale_offer_store | environment,offerCode,store | unique, partial {saleEnabled:true}; TMI-199 수락 |
+| payment_products | ix_payment_catalog_sale | environment,saleEnabled,offerCode | TMI-199 수락 |
 | payment_accounts | ux_payment_account_user | environment,userId | unique; ADR 유지 |
 | payment_accounts | ux_payment_paid_subject | paidSubjectRefId | unique; ADR 유지 |
 | purchase_account_refs | ux_purchase_active_ref | environment,accountId | unique, partial {active:true}; ADR 유지 |
 | payment_reconcile_cursors | ux_payment_reconcile_cursor | accountId,kind | unique; ADR §5.10/A 유지 |
 | payment_reconcile_cursors | ix_payment_reconcile_due | nextAttemptAt,_id | ADR 유지, 실제 worker010 |
-| payment_rate_limits | ux_payment_rate_bucket | environment,routeKey,subjectKey,windowStart | unique; 추가 제안 |
-| payment_rate_limits | ttl_payment_rate_purge | purgeAt | expireAfterSeconds=0; 추가 제안 |
+| payment_rate_limits | ux_payment_rate_bucket | environment,routeKey,subjectKey,windowStart | unique; TMI-199 수락 |
+| payment_rate_limits | ttl_payment_rate_purge | purgeAt | expireAfterSeconds=0; TMI-199 수락 |
 
 account/ref/catalog에는 business TTL 없음. migration manifest 성공과 앱 기동 subset 비교를 별도 기록하며 subset 성공으로 v5 전체 완료를 표시하지 않는다.
 
-탈퇴 lifecycle/inbox/cleanup까지 포함한 TMI-201 candidate16개 exact index manifest는 [TMI-199 fixture](../../src/test/resources/contracts/payment-lifecycle/v1/billing-indexes.json)를 따른다. 테스트 DB에서 검증했으며 production initializer는 아직 변경하지 않았다.
+탈퇴 lifecycle/inbox/cleanup까지 포함한 TMI-201의 수락된16개 exact index manifest는 [TMI-199 fixture](../../src/test/resources/contracts/payment-lifecycle/v1/billing-indexes.json)를 따른다. fixture의 candidate 명칭은 작성 당시 식별자이며 원본 byte를 유지한다. sparse=false/simple collation 전제까지 exact 규격을 따른다. 테스트 DB에서 검증했으며 production initializer는 아직 변경하지 않았다.
 
 ### 6.2 테스트 완료 조건
 

@@ -22,23 +22,24 @@ import org.springframework.security.web.SecurityFilterChain;
 import web.tosunsaeng.billing.domain.entitlement.config.EntitlementQueryProperties;
 import web.tosunsaeng.billing.domain.eligibility.trial.config.TrialEligibilityProperties;
 import web.tosunsaeng.billing.global.config.mongodb.BillingMongoProperties;
+import web.tosunsaeng.billing.domain.payment.config.PaymentProperties;
 
 @Configuration
-@EnableConfigurationProperties(EntitlementQueryProperties.class)
+@EnableConfigurationProperties({EntitlementQueryProperties.class, PaymentProperties.class})
 public class PublicSecurityConfig {
     @Bean
     JwtDecoder identityUserJwtDecoder(EntitlementQueryProperties p, Clock clock) { return new IdentityUserJwtDecoder(p, clock); }
 
     @Bean
-    FilterRegistrationBean<PublicIngressFilter> publicIngressGuard(EntitlementQueryProperties p, PublicApiWriter writer) {
-        var registration = new FilterRegistrationBean<>(new PublicIngressFilter(p, writer));
+    FilterRegistrationBean<PublicIngressFilter> publicIngressGuard(EntitlementQueryProperties p, PublicApiWriter writer, PaymentProperties payments) {
+        var registration = new FilterRegistrationBean<>(new PublicIngressFilter(p, writer, payments));
         registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 20);
         return registration;
     }
 
     @Bean
     WebServerFactoryCustomizer<TomcatServletWebServerFactory> publicConnector(EntitlementQueryProperties p,
-            TrialEligibilityProperties eligibility, BillingMongoProperties mongo, Environment environment) {
+            TrialEligibilityProperties eligibility, BillingMongoProperties mongo, Environment environment, PaymentProperties payments) {
         if (p.isPublicConnectorEnabled() && (p.getPublicPort() < 1024 || p.getPublicPort() > 65535
                 || p.getPublicPort() == environment.getProperty("server.port", Integer.class, 8082))) {
             throw new IllegalStateException("Public connector must use a separate port");
@@ -51,6 +52,18 @@ public class PublicSecurityConfig {
                     || p.getClockSkew().compareTo(Duration.ofSeconds(60)) > 0
                     || !https(p.getIssuer()) || !https(p.getJwksUri())) {
                 throw new IllegalStateException("Public reader requires trusted JWT, isolated ingress, transactional schema and attribution coverage");
+            }
+        }
+        if (payments.enabled()) {
+            boolean validKey;
+            try { validKey = java.util.Base64.getDecoder().decode(payments.getLimiterKey()).length >= 32; }
+            catch (RuntimeException e) { validKey = false; }
+            if (!p.isPublicConnectorEnabled() || !mongo.isRequireTransactions() || !mongo.isInitializeIndexes()
+                    || !https(p.getIssuer()) || !https(p.getJwksUri()) || p.getClockSkew() == null
+                    || p.getClockSkew().isNegative() || p.getClockSkew().compareTo(Duration.ofSeconds(60)) > 0
+                    || !java.util.Set.of("SANDBOX", "PRODUCTION").contains(payments.getEnvironment())
+                    || payments.getCatalogVersion() <= 0 || !validKey) {
+                throw new IllegalStateException("Payments require trusted JWT, isolated ingress, schema and limiter configuration");
             }
         }
         return factory -> {
@@ -75,16 +88,18 @@ public class PublicSecurityConfig {
                 .formLogin(c -> c.disable()).logout(c -> c.disable()).requestCache(c -> c.disable())
                 .sessionManagement(c -> c.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(c -> c.requestMatchers(PublicIngressFilter.PATH).hasAuthority("SCOPE_billing:read")
+                        .requestMatchers(PublicIngressFilter.PRODUCTS).hasAuthority("SCOPE_billing:read")
+                        .requestMatchers(PublicIngressFilter.ACCOUNT).hasAuthority("SCOPE_billing:purchase")
                         .anyRequest().denyAll())
-                .exceptionHandling(c -> c.authenticationEntryPoint((req, res, e) -> writer.error(res, 401, "UNAUTHENTICATED"))
-                        .accessDeniedHandler((req, res, e) -> writer.error(res, 403, "FORBIDDEN")))
+                .exceptionHandling(c -> c.authenticationEntryPoint((req, res, e) -> writer.routeError(req, res, 401, "UNAUTHENTICATED"))
+                        .accessDeniedHandler((req, res, e) -> writer.routeError(req, res, 403, "FORBIDDEN")))
                 .oauth2ResourceServer(c -> c.withObjectPostProcessor(new org.springframework.security.config.ObjectPostProcessor<org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter>() {
                             @Override public <O extends org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter> O postProcess(O filter) {
                                 // Default Spring handler rethrows AuthenticationServiceException instead of serializing it.
                                 filter.setAuthenticationFailureHandler((req, res, error) -> {
                                     Throwable cause = error;
                                     while (cause != null && !(cause instanceof IdentityUserJwtDecoder.KeysUnavailable)) { cause = cause.getCause(); }
-                                    writer.error(res, cause == null ? 401 : 503,
+                                    writer.routeError(req, res, cause == null ? 401 : 503,
                                             cause == null ? "UNAUTHENTICATED" : "AUTHENTICATION_TEMPORARILY_UNAVAILABLE");
                                 });
                                 return filter;
@@ -99,7 +114,7 @@ public class PublicSecurityConfig {
                         .authenticationEntryPoint((req, res, e) -> {
                             Throwable cause = e;
                             while (cause != null && !(cause instanceof IdentityUserJwtDecoder.KeysUnavailable)) { cause = cause.getCause(); }
-                            writer.error(res, cause == null ? 401 : 503,
+                            writer.routeError(req, res, cause == null ? 401 : 503,
                                     cause == null ? "UNAUTHENTICATED" : "AUTHENTICATION_TEMPORARILY_UNAVAILABLE");
                         }))
                 .build();

@@ -21,6 +21,7 @@
 - Billing은 client가 보낸 가격, 기간, entitlement state 또는 userId를 신뢰하지 않는다.
 - 앱의 RevenueCat 구매 성공 callback만으로 권리를 지급하지 않는다. Billing이 Authorization+HMAC webhook 또는 인증된 RevenueCat API에서 Store transaction을 확인하고 local Transaction을 commit한 뒤 권리를 지급한다.
 - 같은 Apple/Google 계정, device 또는 phone을 사용해도 다른 토선생 계정으로 유료 권리를 자동 이전하지 않는다.
+- 2026-10-12 사용자 확인: 탈퇴 후 재가입 시 잔여 유료권은 복구·이전하지 않으며 별도 수동 복구 기능도 현재 범위에 추가하지 않는다. 동일 계정 재로그인과 구별하고 탈퇴 전에 안내한다. 결제 기록 보존·Store/법령상 환불 처리·무료 미완료 그룹 정책은 그대로이며, 이를 환불 권리 포기로 해석하지 않는다.
 - 구매는 ACTIVE MEMBER만 가능하다. Guest는 상품·권리 조회까지만 가능하며 현재 paid owner migration 대상이 아니다.
 - 무료권은 유료 기간에 소비되지 않으며, 유료 기간 종료 뒤 아직 미사용이면 사용할 수 있다.
 - 정규화된 결제·권리·원장은 최종 거래·이용기간·reversal 중 가장 늦은 시점부터 5년 보존하고 provider inbox는 120일 보존한다.

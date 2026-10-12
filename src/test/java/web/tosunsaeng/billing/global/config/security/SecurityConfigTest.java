@@ -39,6 +39,14 @@ import web.tosunsaeng.billing.global.observability.TraceCorrelation;
 @WebMvcTest
 @Import(SecurityConfig.class)
 class SecurityConfigTest {
+    @MockitoBean private web.tosunsaeng.billing.domain.payment.api.PaymentWithdrawalDecoder paymentWithdrawalDecoder;
+    @MockitoBean private web.tosunsaeng.billing.domain.payment.application.PaymentWithdrawalService paymentWithdrawalService;
+
+    @MockitoBean private web.tosunsaeng.billing.domain.payment.application.PaymentCatalogService paymentCatalogService;
+    @MockitoBean private web.tosunsaeng.billing.domain.payment.application.PaymentAccountService paymentAccountService;
+    @MockitoBean private web.tosunsaeng.billing.domain.payment.application.PaymentRateLimiter paymentRateLimiter;
+    @MockitoBean private web.tosunsaeng.billing.domain.payment.config.PaymentProperties paymentProperties;
+    @MockitoBean private web.tosunsaeng.billing.domain.entitlement.config.EntitlementQueryProperties entitlementQueryProperties;
 
     @MockitoBean private web.tosunsaeng.billing.domain.entitlement.application.EntitlementQueryService entitlementQueryService;
     @MockitoBean private web.tosunsaeng.billing.domain.entitlement.application.EntitlementQueryRateLimiter entitlementQueryRateLimiter;
@@ -126,6 +134,14 @@ class SecurityConfigTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void internalPaymentWithdrawalEndpointIsDeniedByDefault() throws Exception {
+        mockMvc.perform(post("/internal/v1/payments/accounts/withdrawal/events")
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isForbidden());
+        org.mockito.Mockito.verifyNoInteractions(paymentWithdrawalDecoder, paymentWithdrawalService);
     }
 
     @Test

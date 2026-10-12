@@ -1,0 +1,11 @@
+{
+  "fixtureVersion": 1,
+  "subset": "payment-withdrawal-v1",
+  "productionInitializer": true,
+  "indexes": [
+    {"collection":"payment_withdrawal_inbox","name":"ux_payment_withdrawal_event","keys":{"eventId":1},"unique":true},
+    {"collection":"payment_withdrawal_inbox","name":"ttl_payment_withdrawal_inbox","keys":{"purgeAt":1},"unique":false,"expireAfterSeconds":0},
+    {"collection":"payment_account_cleanup_jobs","name":"ux_payment_cleanup_subject","keys":{"environment":1,"userId":1},"unique":true},
+    {"collection":"payment_account_cleanup_jobs","name":"ix_payment_cleanup_due","keys":{"state":1,"nextAttemptAt":1,"_id":1},"unique":false}
+  ]
+}

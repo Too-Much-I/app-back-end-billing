@@ -1,21 +1,19 @@
 # PLAN-009: 탈퇴 수신·구매 계정 상태·거래 확인·삭제 설계
 
-- 작성일: 2026-10-07 / 상태: 기술 설계 제안, 매시간 점검·일일 재확인·7일 이내 담당 검토 승인; 구현·외부 계약·나머지 운영값 승인 전 / Jira 없음
+- 작성일: 2026-10-07 / 갱신: 2026-10-12 / Jira: TMI-201 PR2(탈퇴 수신), TMI-204(복구), TMI-205(대사/삭제) / 상태: PR2 구현·로컬393개 테스트 완료, 204/205·운영 gate 별도
 - 기준: [ADR-004](../adr/ADR-004-fixed-term-premium-payment-contract.md), [009 기반 계약](PLAN-009-payment-foundation-technical-contract.md), [PLAN-009](../plans/PLAN-009-payment-catalog-and-account.md). Identity는 읽기만 했으며 이 문서는 상대 서버의 구현 완료를 의미하지 않는다.
 
 ## 1. 5줄 결론
 
-Identity 검토 요청은 [서버 인계서](IDENTITY-PAYMENT-ACCOUNT-LIFECYCLE-HANDOFF.md)에 별도로 정리했다. 외부 wire/feed 합의와 구현 완료는 회신 후 확인한다.
-
-Identity 회신 이후 [공동 기술 계약 권장 초안](IDENTITY-BILLING-PAYMENT-LIFECYCLE-TECHNICAL-CONTRACT.md)을 작성했다. 신규 source120일/snapshot7일/token 최대30분 및 commit-consistent 복구는 미승인 제안이며 기존15일 정책의 자동 변경이 아니다.
-
-1. Identity 기존 `UserWithdrawn` 4필드를 유지하고 Billing 전용 durable delivery와 SigV4 수신 경로를 추가하는 안이다(§5.1, §6.1).
+1. TMI-199에서 [공동 계약](IDENTITY-BILLING-PAYMENT-LIFECYCLE-TECHNICAL-CONTRACT.md)과 [exact 규격](TMI-199-EXACT-WIRE-AND-INDEX-SPEC.md)을 양측 수락했다. 기존 UserWithdrawn4필드·Billing SigV4 수신 계약을 유지한다.
 2. 탈퇴 인지 즉시 구매 계정 신규 사용을 차단하지만 탈퇴를 환불로 기록하거나 무료 Claim을 지우지 않는다(§5.2).
 3. `withdrawnAt + 15일`은 삭제 자격 시각이며 로컬·provider 거래 확인 완료 없이 삭제하지 않는다([승인된 보존 정책](PLAN-009-payment-foundation-technical-contract.md#미구매-탈퇴-계정-정리--15일-조건부-정책)).
 4. 거래 수신·계정 발급·삭제가 같은 계정 fence에 쓰도록 하고, 삭제 후 늦은 거래는 새 사용자에게 자동 연결하지 않는다(§5.3~5.5).
-5. provider 거래 부재의 증명 범위·최소 차단기록 보존·Identity 누락 복구 계약은 실제 검증/승인 gate이며 미충족 시 purge는 OFF다(§3~4).
+5. 공동 규격 합의는 실제 복구/대사 구현 검증이 아니다. provider 거래 부재 coverage·token drain·예외 보존 미충족 시 purge는 OFF다(§3~4).
 
 ## 2. 사용자가 반드시 읽어야 하는 내용
+
+**TMI-201 PR2는 §5.1의 push 수신·§5.2 계정 차단 및 cleanup 후보/index 기반까지만 구현한다.** 신규 lifecycle/cursor는 PR1과 공유한다. 아래 §5.3~5.5의 실제 provider 대사/물리 삭제/복원 worker를 함께 구현하지 않는다. 누락 복구 client는 TMI-204, 실제 거래 확인·조건부 purge는 TMI-205와 PLAN-010 이후, 운영 활성화는 TMI-206/PLAN-013이다. 원천 capturedAt120일·snapshot7일·token상한30분과 운영 점검 주기는 이미 승인됐으며 실제 운영 검증/실행은 별도다.
 
 탈퇴 → 신규 구매 계정 사용 차단 → 15일 대기 → 거래/미해결 확인 → 안전한 미구매 계정만 삭제 순서다. 구매가 있었다면 금융 기록의 기존 5년 보존 정책을 적용한다. “계정을 지운다”는 구매 연결정보 정리이지 시험 이력·무료권·Identity 계정을 Billing이 일괄 삭제한다는 뜻이 아니다.
 
@@ -32,21 +30,21 @@ Identity 회신 이후 [공동 기술 계약 권장 초안](IDENTITY-BILLING-PAY
 | 재생성 차단 기록 | 사용자 연결은 유효 JWT/진행 요청 drain과 복구 증명이 끝날 때까지만; 완료 시 account와 함께 제거 | 고정 무기한 tombstone 금지. 실제 최대 token/요청 수명과 replay 계약 검증 필요 |
 | 증명 불가능한 미해결 건 | 최소 case로 분리하고 목적·필드·보존 종료일·담당자 명시 | 종료일을 정하지 못한 예외의 자동 purge/판매 활성화 금지; 별도 보존 승인 필요 |
 
-exact route/index는 아래 개발 제안으로 제시한다. 사용자에게 UUID/필드명을 다시 선택하도록 요구하는 것은 아니지만 Identity 합의·ADR 동기화·Jira 및 구현 승인은 필요하다.
+exact route/index·숫자/null 규격은 TMI-199에서 수락됐다. 사용자에게 다시 정책 선택을 요구하지 않는다. 다만 아래 후속 purge worker 초기값·개별 예외 보존 및 실제 이관/운영 실행은 별도 승인/검증을 유지한다.
 
 ## 4. 주요 위험과 미확인 사항
 
 - 확인된 구현: Identity에는 탈퇴 transaction/outbox와 LC용 단일 발행 설정이 있다. Billing 독립 delivery, 누락 복구 feed는 확인되지 않았다(§6.1).
 - RC `404`/빈 목록은 “RC에 아직 없는 결제도 없음”의 증명이 아니다. 현재 Google 상품 미등록으로 실거래·지연 fixture 미검증이다. Google Orders 보완 승인은 알려진 거래의 부분 환불 확인용이며 전체 사용자 미구매 검색 권한으로 확장하지 않는다.
 - JWT 최대 수명은 로컬 기본값과 실제 배포가 다를 수 있다. 기존 토큰 만료까지 수용하는 승인과 일치시키되 Billing이 이미 아는 탈퇴 사실은 신규 account 발급 거절에 사용한다. 전체 서비스 토큰 즉시 폐기 기능을 추가하는 것은 아니다.
-- ADR §5.10은 account 호출 시 activity 갱신/lookup cursor 생성을 요구하지만 009 초안은 반복 호출 무변경·cursor 제외로 읽힐 수 있다. 아래 §5.6은 충돌 해소 **제안**이며 기존 ADR을 임의 변경하지 않는다. 이 부분 구현은 합의 전 중단한다.
+- 반복 account 호출과 ADR §5.10의 정합성은 TMI-199에서 해결됐다. account/ref는 유지하고 별도 cursor activity와 lifecycle fence를 갱신한다(§5.6). 실제 production 동시성 검증은 TMI-201에서 수행한다.
 - HMAC 사용자 키·event digest도 재연결 가능한 개인정보일 수 있다. 해시라는 이유로 무기한 보존하지 않는다. provider 측 고객 데이터 삭제는 Billing DB purge와 별개이며 금융 증거 영향/RC 정책을 확인한 별도 절차가 필요하다.
 
 ## 5. 현재 작업과 직접 관련된 설계
 
 ### 5.1 탈퇴 수신과 누락 복구
 
-**제안 route:** `POST /internal/v1/payments/accounts/withdrawal/events`. Identity → Billing은 Lattice `AWS_IAM`/SigV4, Identity role에 이 POST만 추가 허용한다. public ALB는 전달하지 않는다. LC 기존 `/internal/v1/events/withdrawn` workload JWT는 유지한다.
+**수락된 route:** `POST /internal/v1/payments/accounts/withdrawal/events`. Identity → Billing은 Lattice `AWS_IAM`/SigV4, Identity role에 이 POST만 추가 허용한다. public ALB는 전달하지 않는다. LC 기존 `/internal/v1/events/withdrawn` workload JWT는 유지한다.
 
 기존 wire 그대로 `eventId`, `schemaVersion=1`, `userId`, `withdrawnAt`만 받는다. 새 eventType/producer/consumerScopeId를 v1에 넣지 않는다. 환경/producer는 검증된 principal과 endpoint로 고정한다. UUID lowercase canonical, Instant 유효성·미래시각 최대 60초 허용을 검증하며 오래된 탈퇴는 거절하지 않는다. publisher는 현재 4 KiB 제한, Billing inbound 상한은 기존 16 KiB다.
 
@@ -56,9 +54,11 @@ duplicate field·unknown field·trailing token·coercion을 거절한다. 기존
 
 Identity 후속: 같은 탈퇴 transaction의 durable 원천에서 `(eventId,destination)`별 Billing/LC delivery를 독립 관리한다. 한쪽 성공으로 다른 쪽을 완료하지 않는다. timeout/429/5xx는 backoff 재시도, 401/403은 BLOCKED_AUTH 경보, malformed/충돌은 dead-letter+담당 검토; 재전송은 원 eventId/payload 유지. backoff 초기 5초~1시간 full jitter, 24시간 미전달 경보를 제안하며 이벤트를 시간 초과만으로 버리지 않는다.
 
-누락 복구는 단순 재시도와 다르다. 최초 cutover snapshot과 이후 durable withdrawal feed의 opaque cursor/완료 watermark를 Billing이 주기적으로 대조하는 계약이 필요하다. 페이지 실패 시 checkpoint를 전진하지 않고 처리 commit 뒤만 전진한다. 원 event 또는 검증된 동일 탈퇴 사실을 같은 수신 서비스로 적용한다. Identity 원천 보존보다 뒤처진 gap은 자동 완료 처리하지 않고 bounded 재동기화한다. feed exact route/DTO/원천 보존은 Identity 인계 후 동결할 항목이다. 공개 구매 요청마다 Identity를 동기 조회하지 않는다.
+누락 복구는 단순 재시도와 다르다. 최초 cutover snapshot과 이후 durable withdrawal feed의 opaque cursor/완료 watermark를 Billing이 주기적으로 대조한다. 페이지 실패 시 checkpoint를 전진하지 않고 처리 commit 뒤만 전진한다. 원 event 또는 검증된 동일 탈퇴 사실을 같은 수신 서비스로 적용한다. Identity 원천 보존보다 뒤처진 gap은 자동 완료 처리하지 않고 bounded 재동기화한다. feed exact route/DTO/원천 보존은 TMI-199 공동 규격으로 동결됐으며 구현은 TMI-203/204다. 공개 구매 요청마다 Identity를 동기 조회하지 않는다.
 
 ### 5.2 상태는 서로 분리한다
+
+2026-10-12 PR2 구현: `withdrawnAt` BSON Date와 `withdrawnAtCanonical` UTC 문자열을 lifecycle/account에 함께 저장한다. legacy 나노초를 소실하지 않고 다른 탈퇴시각 충돌을 판정하기 위한 최소 증거이며 wire 4필드는 변경하지 않는다. `eligibleAt`은 withdrawnAt+15일을 밀리초 올림해 자격 시각보다 먼저 정리하지 않는다. cleanup은 WAITING 후보만 생성하고 반복 event에서 lease/일정/기산점을 초기화하지 않는다. inbox는 eventId/digest/disposition/receivedAt/purgeAt만 보관하며 user/ref/payload를 넣지 않는다. 실제 삭제·복구·provider 조회는 없다.
 
 | 축 | 제안 값 | 의미 |
 | --- | --- | --- |
@@ -103,17 +103,18 @@ purge 후보는 withdrawnAt+15일 경과, READY, 최신 부재 증명, pendingEv
 | 확인된 미구매 account/ref/사용자 연결·cursor | 조건 충족 후 명시적 삭제, business TTL 금지 |
 | 금융 Purchase/ledger/entitlement/환불 | 기존 최종 거래·권리 종료·reversal 중 최후 시점 기준5년 정책 유지 |
 | unresolved 최소 case | reason/nextReviewAt/담당/목적·승인된 종료일, 일반 계정 전체 무기한 보관 금지 |
-| withdrawal inbox | 제안120일 멱등 보관; eventId/digest/결과/시각만, userId/ref/payload 제외. 개인정보 검토 후 동결 |
+| withdrawal inbox |120일 멱등 보관; eventId/digest/결과/시각만, userId/ref/payload 제외. 수락된 purgeAt TTL 명세와 실제 writer 검증 필요 |
 | 무료 Claim·Grant·Reservation·owner fence | 본 설계 삭제 대상 아님; 기존 정책 유지 |
 | 삭제 실행 감사 | 건수·성공 여부·저카디널리티 실패 사유, userId/ref/candidate 없음 |
 | 백업 | 기존 최대35일 rolling; 복원 후 withdrawal 재대사와 만료 purge/차단 검증 전에 트래픽 금지 |
 
 승인된 운영 주기는 삭제 대상 매시간 점검, 미확인 건 자동 일 1회 재확인, 최초 미해결 판정 후 7일 이내 담당자 검토다. 재시도나 reason 변경으로 최초 미해결 시각과 검토 기한을 계속 늦추지 않는다. batch100·lease30초·version fencing·갱신 및 READY24시간 지연 경보는 기술 초기값 제안이다. 일시 장애는 ADR의 5초~1시간 backoff를 재사용한다. 오래된 lease의 삭제 commit을 허용하지 않는다. 대사 오류/오래된 BLOCKED/READY 지연을 구분해 경보한다. 판매 flag를 꺼도 이미 받은 탈퇴·금융 대사와 보존 작업을 중단하지 않는다. RC 고객 삭제는 이 worker에서 자동 실행하지 않는다.
 
-### 5.6 009~013 반영 순서와 초안 충돌 해소안
+### 5.6 구현 분담과 확정된 account/cursor 경계
 
-- 009: lifecycle fence/수신·계정 사용 차단·cleanup 후보와 index 기반, fake 대사 포트까지. 실제 삭제 OFF. Identity Billing delivery 별도 인계. 신규 account 생성 시 조회 cursor도 원자 생성하는 쪽으로 subset 확대를 제안한다.
-- 반복 account POST는 stable ref/account version을 불필요하게 변경하지 않되 **별도 cursor의 activity를 갱신**해 ADR §5.10을 만족시키는 안이다. 앞선 “반복 무변경”은 금융 계정/권리 무변경으로 좁혀야 하므로 ADR·009 초안 검토 후 확정한다. 조회 priority 갱신도 purge와 경합하므로 lifecycle fence 통과가 필요하다.
+- TMI-201/009: PR1 account/ref/ACCOUNT_LOOKUP cursor 원자 생성과 lifecycle fence, PR2 탈퇴 수신·차단·cleanup 후보/index. 실제 RC worker·대사/purge worker는 제외한다. fake 검증이 필요해도 실제 미구매 판정으로 승격하지 않는다.
+- 반복 account POST는 stable ref/account version을 유지하고 **별도 cursor activity를 monotonic 갱신**한다. lifecycle fence 쓰기를 통과하며 worker lease/notBefore/backoff를 초기화하지 않는다. cursor 누락은503/운영 확인, 새 ref로 자동 복구하지 않는다. TMI-199 수락 규격이다.
+- TMI-203/204: Identity 복구 API/Billing client·generation 적용. TMI-205: PLAN-010 실제 거래 증거에 기반한 대사/조건부 정리. TMI-206: 공동 staging·복원/운영 검증.
 - 010: 실제 RC 대사/금융 입력 fence, 늦은 거래 격리·누락 복구. 011: WITHDRAWN paid admission 거절. 012: 환불 금전/권리와 탈퇴 상태 분리. 013: 운영값·보존 manifest·백업 복원/예외 검증 후 purge 활성화 승인.
 - Identity: ACTIVE MEMBER purchase scope를 defaults/명시 scope/login/refresh 전체에서 검증. LC 기존 탈퇴 인증/경로는 그대로. Billing 수신 ready → Identity fan-out ON → 누락 복구 검증 → account 기능 단계 활성화. 실제 구매/삭제는 각각 별도 gate다.
 
@@ -130,18 +131,20 @@ purge 후보는 withdrawnAt+15일 경과, READY, 최신 부재 증명, pendingEv
 
 위 타 저장소 링크는 동일 부모 디렉터리 checkout 기준이며 Billing 배포 파일 의존성이 아니다.
 
-### 6.2 추가 schema 제안
+### 6.2 수락된 index와 후속 schema
 
-| collection | 최소 field | index 제안 |
+| collection | 최소 field(전체 schema는 해당 slice에서 검증) | 수락된 index |
 | --- | --- | --- |
 | payment_account_lifecycles | environment,userId,state,withdrawnAt,version,pendingEvidence | ux_payment_lifecycle_user(environment,userId), unique |
 | payment_withdrawal_inbox | eventId,digest,disposition,receivedAt,purgeAt | ux_payment_withdrawal_event(eventId), unique; ttl_payment_withdrawal_inbox(purgeAt), expireAfterSeconds=0 |
 | payment_account_cleanup_jobs | account/lifecycle 연결,eligibleAt,state,nextAttemptAt,lease/version,proof,nextReviewAt | ux_payment_cleanup_subject(environment,userId), unique; ix_payment_cleanup_due(state,nextAttemptAt,_id) |
-| payment_reconcile_cursors | ADR의 account/kind cursor와 별도 lastActivityAt | ADR 기존 unique(accountId,kind)/due index 재사용 제안 |
+| payment_reconcile_cursors | ADR의 account/kind cursor와 별도 lastActivityAt | ux_payment_reconcile_cursor(accountId,kind), unique; ix_payment_reconcile_due(nextAttemptAt,_id) |
 
 환경은 데이터베이스 격리가 기본이며 user unique에는 방어적으로 포함한다. inbox120일과 lifecycle 보존은 서로 다르다. job/user 연결도 purge manifest에 포함한다. 정확 index 이름/key order/options와 account 참조 무결성은 versioned additive subset으로 검증하고 schema v5 전체 완료로 표시하지 않는다. finance retention·미매핑 case schema는 010/012와 공동 동결한다.
 
 ### 6.3 필수 검증 사례와 완료 기준
+
+아래는 여러 작업의 전체 검증 목록이다. TMI-201은1~3 및9의 account/cursor·무료 불변 부분,4의15일 후보 기산 부분을 맡는다. 실제 provider coverage/금융 수신/purge 경합은 TMI-205 및 PLAN-010 이후,7의복구 client는204,8의운영 복원은206/013에서 검증한다. 전체 목록을 TMI-201 단독 구현 범위로 해석하지 않는다.
 
 1. malformed/unknown/duplicate JSON·canonical digest·동일 eventId 충돌·다른 탈퇴시각 충돌·같은 사실 다른 eventId.
 2. SigV4 Identity만 성공, unsigned/wrong environment/role/route/direct ALB 차단; LC 기존 JWT 경로 불변.

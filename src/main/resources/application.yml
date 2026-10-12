@@ -7,6 +7,13 @@ spring:
       auto-index-creation: false
 
 billing:
+  payment:
+    catalog-enabled: ${BILLING_PAYMENT_CATALOG_ENABLED:false}
+    purchase-account-enabled: ${BILLING_PAYMENT_PURCHASE_ACCOUNT_ENABLED:false}
+    withdrawal-enabled: ${BILLING_PAYMENT_WITHDRAWAL_ENABLED:false}
+    environment: ${BILLING_PAYMENT_ENVIRONMENT:}
+    catalog-version: ${BILLING_PAYMENT_CATALOG_VERSION:1}
+    limiter-key: ${BILLING_PAYMENT_LIMITER_KEY:}
   entitlement-query:
     enabled: ${BILLING_ENTITLEMENT_QUERY_ENABLED:false}
     public-connector-enabled: ${BILLING_PUBLIC_CONNECTOR_ENABLED:false}
