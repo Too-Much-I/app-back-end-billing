@@ -40,6 +40,12 @@ import web.tosunsaeng.billing.global.observability.TraceCorrelation;
 @Import(SecurityConfig.class)
 class SecurityConfigTest {
 
+    @MockitoBean private web.tosunsaeng.billing.domain.payment.application.PaymentCatalogService paymentCatalogService;
+    @MockitoBean private web.tosunsaeng.billing.domain.payment.application.PaymentAccountService paymentAccountService;
+    @MockitoBean private web.tosunsaeng.billing.domain.payment.application.PaymentRateLimiter paymentRateLimiter;
+    @MockitoBean private web.tosunsaeng.billing.domain.payment.config.PaymentProperties paymentProperties;
+    @MockitoBean private web.tosunsaeng.billing.domain.entitlement.config.EntitlementQueryProperties entitlementQueryProperties;
+
     @MockitoBean private web.tosunsaeng.billing.domain.entitlement.application.EntitlementQueryService entitlementQueryService;
     @MockitoBean private web.tosunsaeng.billing.domain.entitlement.application.EntitlementQueryRateLimiter entitlementQueryRateLimiter;
     @MockitoBean private PublicApiWriter publicApiWriter;

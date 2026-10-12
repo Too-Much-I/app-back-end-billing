@@ -4448,3 +4448,112 @@
 - 확인: Identity가 exact §5 wire/null/상태별 생략·nested DTO/오류·숫자와 §6 물리 manifest 수락. 신규42건/전체1276건 실패0·기존skip6은 상대 보고이며 실행/전체 XML 직접 재검증과 구분. 신규 fixture2종 SHA-256은 Billing에서 재계산해 일치 확인.
 - 검증: 문서 변경만으로 Gradle 재실행 생략, git diff --check·문서 로컬 링크 검사. 기존 사용자 변경 보존·예상 밖 변경 없음. 코드·fixture·외부 API 동작 불변.
 - 판단/다음: 기술 수락·독립 검증 보류 해소, 공동 규격 동결. 관련 변경 병합 확인 및 별도 Jira 종료 승인 남음. 병합 확인/Jira 댓글·전환·타 서버 수정·배포/판매/삭제 미수행.200/202/203/204/206 실제 구현·운영 gate 유지.
+
+## 2026-10-07 — TMI-199 양측 병합 확인 및 Jira 완료
+
+- 브랜치 develop. 사용자 '확인되면 지라 닫아줘' 승인으로 양측 병합 확인 후 TMI-199 완료 전환.
+- 근거: GitHub API로 Billing PR#10 MERGED/develop/c7baf0b(2026-10-07T07:54:59Z), Identity PR#53 MERGED/develop/78a6e6ae(07:56:06Z) 확인. 로컬 develop의 계약/테스트 파일 반영 확인. 최초 sandbox 네트워크 오류 후 승인된 읽기 호출 성공.
+- Jira: 기존 해야 할 일에서 허용 transition41 완료로 전환, 재조회 status=완료 확인. 댓글/다른 이슈 변경 없음.
+- 로컬 변경: CURRENT_STATE와 WORKLOG만. 코드·타 서버·Git commit/push·배포 없음. 문서/상태 작업으로 Gradle 미실행, git diff --check 수행. 예상 밖 변경 없음.
+- 유지/다음: C0 공동 계약·fixture 준비 완료이지 판매/자동삭제·실제 운영 검증 완료 아님. Billing201 및 Identity200/202 후속 구현과203/204/206 검증 gate 유지.
+
+## 2026-10-07 — TMI-199 이후 작업 안내
+
+- 브랜치 develop. 목표: 사용자에게 다음 구현 단위 설명. TMI-201/200/202 Jira 범위·상태 읽기 확인, 모두 해야 할 일.
+- 변경: CURRENT_STATE와 이 기록만. Billing201의 상품 GET/구매 계정 POST 및 탈퇴 수신 두 PR 구분, Identity200/202 병행 가능·실제 연동 선행조건 안내.
+- 유지: 신규 flag OFF, 실제 RevenueCat 지급/환불/자동삭제 제외. 무료 Claim/Grant·LC 계약 불변. 코드/타 서버/Jira/배포 변경 없음, 기존 기록 보존·예상 밖 변경 없음.
+- 검증: 설명 작업으로 Gradle 미실행, git diff --check. 다음: 명시적 구현 요청 후 TMI-201 첫 단위 착수, Identity200/202는 해당 저장소에서 별도 진행.
+
+## 2026-10-12 — 현재 진행 상태 재확인
+
+- 브랜치 develop/c7baf0b. 목표: 사용자 재개 질문에 완료/미착수/다음 작업 구분 설명.
+- 확인: 로컬 log·production 파일 목록·CURRENT_STATE/WORKLOG, Jira199 완료 및201/200/202 해야 할 일 실시간 조회. 마지막 단계는 TMI-199 공동 계약/테스트 병합·종료이며 Billing201 구현은 미착수. 기존326건 테스트 결과는 과거 결과로 구분.
+- 변경: CURRENT_STATE 및 이 기록만. 기존 미커밋 기록 보존·예상 밖 변경 없음. 코드/타 서버/Jira/운영 설정 변경 없음.
+- 검증: 상태 조회·기록 작업으로 Gradle 재실행 생략, git diff --check. 실제 배포/운영 준비 완료로 주장하지 않음.
+- 다음: 명시적 구현 요청 후 Billing201 상품 조회·구매 계정 기반부터 시작. Identity200/202는 해당 저장소 별도 작업 및 실제 연동 gate 유지.
+
+## 2026-10-12 — TMI-199~202 범위 설명
+
+- 브랜치 develop / 관련 Jira199~202. 목표: 공동 계약·권한 발급·Billing 계정·탈퇴 원천 전달의 역할과 완료 결과 구분.
+- 근거: 직전 조회한 Jira 범위 및 현재 기록.199 완료,200/201/202 후속 구현 범위 설명.200/202 공통 control/탈퇴 Transaction 조율 및202의 publisher OFF/capture 유지 설명.
+- 변경: CURRENT_STATE/WORKLOG만, 코드·계약·Jira·타 서버·배포 변경 없음. 기존 기록 보존·예상 밖 변경 없음.
+- 검증: 설명 작업으로 Gradle 미실행, git diff --check. 신규 구매 검증/기간권 지급/환불/실제 purge는 이 단계 완료로 간주하지 않음.
+- 다음: 명시적 구현 요청 후 Billing201 착수; Identity200/202는 해당 저장소 별도 진행.
+
+## 2026-10-12 — TMI-201 계획서 존재·위치 확인
+
+- 브랜치 develop / TMI-201. PLAN-009 및 foundation/withdrawal 세부 계약 확인. 사용자에게 상위 계획과 보조 계약 연결,201 범위 밖 대사/자동삭제 구분 안내.
+- 변경: CURRENT_STATE/WORKLOG만. 구 헤더의 Jira 미생성·과거 미승인 표현 잔존을 확인하고 최신 공동 계약/199 수락과 구분. 계획 본문·코드·Jira 변경 없음, 예상 밖 변경 없음.
+- 검증: 문서 확인 작업으로 Gradle 미실행, git diff --check. 다음: 구현 전에 계획 상태·201 두 단위 범위 동기화, 이후 명시적 구현 요청에 따라 진행.
+
+## 2026-10-12 — TMI-201 계획·세부 계약 최신 상태 정리
+
+- 브랜치 develop / TMI-201. 목표: 사용자 요청대로 PLAN-009의 과거 상태/승인 표현과 실제 구현 범위를 정리.
+- 변경: PLAN-009-payment-catalog-and-account, PLAN-009-payment-foundation-technical-contract, PLAN-009-withdrawal-reconciliation-and-purge-contract, CURRENT_STATE/WORKLOG. 기존 미커밋 기록 보존.
+- 내용:199 완료·exact 수락 반영,201 PR1/PR2 포함/제외·테스트 분담 명시. account/ref 안정성+별도 lifecycle/cursor 쓰기 합의 동기화.203/204 복구·205 실제 대사/삭제·206/013 운영 활성화 분리. 과거 중복 승인 설명 정리하되 미검증 provider coverage·worker 운영 초기값·예외 보존 gate는 유지.
+- 유지: API/무료/보존 정책 변경 없음, 새 승인 추론 없음. 코드·fixture·타 서버·Jira·커밋/푸시·배포 미변경. 예상 밖 변경 없음.
+- 검증: 문서만 수정하여 Gradle 미실행. git diff --check·수정3문서 로컬 링크 검사. 다음: 명시적 요청 후 TMI-201 PR1 구현, 실제 연동/활성화는 상대 구현·staging gate 후.
+
+## 2026-10-12 — TMI-201 구현 계획 상세 설명
+
+- 브랜치 develop / TMI-201. 목표: 사용자 요청으로 최신 계획의 기능·내부 처리·완료 기준을 설명.
+- 확인: PLAN-009 및 foundation 기술 계약의 API/가격/계정/cursor/limiter/security, 기존 탈퇴 계획의 수신/차단 범위. 실제 결제·지급·환불·물리 삭제와 구분.
+- 변경: CURRENT_STATE/WORKLOG만. 코드·계약·Jira·타 서버·배포 미변경, 기존 변경 보존·예상 밖 변경 없음.
+- 검증: 설명 작업으로 Gradle 미실행, git diff --check. 다음: 구현 요청 후 PR1→PR2 진행, 실제 활성화는 Identity200/202 및 staging gate 이후.
+
+## 2026-10-12 — Google Play 일회성 상품 등록 가능 상태 확인
+
+- 날짜·브랜치: 2026-10-12, feat/TMI-201-billing-product-purchase-account. 목표: 사용자 제공 Google Play Console에서 빌드 업로드 후 상품 등록 가능 여부 읽기 확인. 이번 조회의 별도 Jira 없음.
+- 확인 동작: 테스트 및 출시 화면에서 프로덕션 2.0.1/출시율100%·내부 테스트2.0.1 표시를 확인. Play를 통한 수익 창출→제품→일회성 제품 목록은 결과 없음이며 만들기 링크가 노출됐다. 링크에서 상품 ID·이름·설명 입력 및 이후 사용 가능 여부/가격 단계가 있는 생성 폼에 정상 접근했다. 현재 상품 등록 시작 가능으로 판단.
+- 한계·위험: 정확 Billing/RevenueCat SDK 포함 여부·버전, 가격 단계 진입/저장 성공, 상품 활성화·RC 매핑·sandbox 결제는 미검증. 빈 필수 입력 상태의 다음 버튼 비활성을 SDK 차단으로 해석하지 않음. 업로드/프로덕션 표시와 전체 결제 판매 준비 완료를 구분.
+- 변경 파일: docs/codex/CURRENT_STATE.md 갱신, WORKLOG append만. 기존 미커밋 변경 보존, 예상 밖 변경 없음. 상품 정보 입력/생성·가격/판매국가/콘솔 설정 저장·타 서버·코드·외부 계약·Jira·Git 이력·배포 변경 없음.
+- 검증: 실제 로그인된 Console 화면 읽기 및 git diff --check. 코드 변경 없는 조사로 Gradle 미실행. 실제 계정/앱 식별자·credential·고객 거래를 기록하지 않음.
+- 다음: 상품 등록 요청 시 승인된 5개 기간권의 ID/설명·한국 가격·구매 옵션을 구체화하고 별도 등록 진행. RC 매핑과 실제 결제·환불/staging gate를 통과한 뒤 판매 검토.
+
+## 2026-10-12 — TMI-201 API·cursor·탈퇴 후 유료권 질의 답변
+
+- 브랜치 feat/TMI-201-billing-product-purchase-account / TMI-201. 목표: 사용자 이해 확인 및 승인 계약 설명.
+- 근거: foundation API/Retry-After/cursor 규격, ADR-004 §5.10 callback 유실 탐색과 paid 자동 이전 금지, withdrawal 설계. products catalog/SDK 분리·빈배열, 동일user/environment ref, 검증 JWT sub·200 purchase 권한,201 consumer/202 publisher 구분.
+- 변경: CURRENT_STATE/WORKLOG 기록만. 동일 번호 재가입 유료권 자동 복구 금지 설명이며 새 이전/환불 정책 승인·구현 아님. 다른 작업의 분기/기록 변경 보존, 이번 예상 밖 수정 없음.
+- 검증: 문서 근거 확인·git diff --check, 코드 변경 없어 Gradle 미실행. 다음: 계획 구현/타 서버 연동은 별도 요청과 기존 gate 유지.
+
+## 2026-10-12 — 탈퇴 후 재가입 유료권 비복구 확인
+
+- 브랜치 feat/TMI-201-billing-product-purchase-account / 관련 TMI-201. 목표: 사용자의 탈퇴 후 잔여 유료권 복구 불필요 의견을 기존 제품 범위에 명확히 반영.
+- 변경: CONTRACT_DECISIONS, ADR-004, FIXED_TERM_PREMIUM_PAYMENT_CONTRACT, CURRENT_STATE/WORKLOG. 재가입 유료권 비복구/비이전·수동 복구 기능 제외와 탈퇴 전 안내 명시.
+- 유지: 같은 계정 재로그인·무료 미완료 승계·금전 기록 보존·Store/법정 환불 처리 불변. 법적 권리 포기/자동 환불·revoke로 해석하지 않음. 코드·UI·타 서버·Jira·배포 미변경, 기존 작업 보존·예상 밖 수정 없음.
+- 검증: 문서 변경으로 Gradle 미실행, git diff --check. 다음: 프론트 탈퇴 안내에 반영하고 기존201 범위 유지, 실제 UI 구현은 별도 작업.
+
+## 2026-10-12 — Google 5종 상품 등록 입력안 안내
+
+- 브랜치: feat/TMI-201-billing-product-purchase-account. 이번 안내의 별도 Jira 없음. 목표: 상품 생성 시 각 입력값을 설명.
+- 근거/결정: STORE_PRODUCT_REGISTRATION-2026-09-16 및 FIXED_TERM_PREMIUM_PAYMENT_CONTRACT의 Apple 실제 premium1d/3d/7d/14d/28d·한국어 이름/설명·9000/19000/29000/49000/69000원과 대한민국 판매 방향을 재사용. Google 생성 완료로 표현하지 않음.
+- 변경 파일: CURRENT_STATE 갱신·WORKLOG append만. 입력안 설명이며 Store 입력/저장·상품 생성/아이콘 업로드·가격/세금 설정·RC 매핑·코드·외부 계약·타 서버·Jira·Git 이력·배포 변경 없음. 기존 사용자 변경 보존, 예상 밖 변경 없음.
+- 유지: fixed-term consumable one-time·재구매·자동갱신 없음·Billing 기간/stacking·무료권 보존. Google 기간형 rental/자동갱신 상품으로 변경하지 않음.
+- 검증: 문서 대조·git diff --check, 설명/기록만으로 Gradle 미실행. 실제 Google 구매 옵션·세금 포함 최종 가격과 RC/SDK completion은 등록/E2E에서 확인 필요.
+- 다음: 상품 등록 요청 시 해당 입력안을 실제 폼에 적용하고 가격·한국 판매/구매 옵션을 검증. 실제 판매는 기존 결제 gate 이후.
+
+## 2026-10-12 — Google 1일권 상품 폼 입력만 수행
+
+- 날짜·브랜치: 2026-10-12, feat/TMI-201-billing-product-purchase-account. 별도 Jira 없음. 목표: 사용자 명시 요청대로 1일권 폼을 채우고 생성 전 중단.
+- 실제 동작: 제품 ID premium1d, 이름 토선생 프리미엄 1일 이용권, 설명 '24시간 동안 모의고사와 AI 피드백 무제한 이용. 자동 갱신 없음.' 입력. 다음 단계 구매 옵션 ID premium1d·유형 구입, 대한민국 외/새 지역 사용 불가를 폼에 적용하고 대한민국 가격 KRW9000 입력. 최종 가격 행 KRW9000/사용 가능 확인. 활성화/임시보관함 저장 미실행, 아이콘 미등록. 미저장 폼을 다음 사용자 작업용으로 유지.
+- 변경 파일: CURRENT_STATE·WORKLOG 기록만. 생성/영구 저장·판매 활성화·RC 매핑·다른 상품·코드/계약·타 서버·Jira·Git 이력·배포 변경 없음. 기존 변경 보존·예상 밖 변경 없음.
+- 검증: 실제 입력값/가격 행 UI 확인, /private/tmp/google-premium1d-unsaved.jpg 화면 증거 저장 및 git diff --check. 코드 변경 없어 Gradle 미실행. SDK consumption/결제·세금 적합성·실제 상품 저장은 검증하지 않음.
+- 유지/다음: 기존 fixed-term/자동갱신 없음/한국 판매·9000원 계약 유지. 새로고침/이탈 시 미저장 값 유실 가능. 사용자가 검토 후 별도 생성 요청하기 전 저장/활성화하지 않는다.
+
+## 2026-10-12 — Google 1일권 설명 간소화
+
+- 브랜치 feat/TMI-201-billing-product-purchase-account, 별도 Jira 없음. 목표: 사용자 지정 짧은 상품 설명 반영.
+- 동작: 미저장 Google 폼의 설명만 `토선생 1일 무제한 이용권`으로 변경, 실제 입력값과 스크린샷 확인. 생성/임시보관함 저장/활성화 미실행, 상품 이름·ID 유지. 입력 화면 유지.
+- 변경 파일: CURRENT_STATE 갱신·WORKLOG append, 증거 /private/tmp/google-premium1d-description-unsaved.jpg. 코드·도메인/외부 계약·타 서버·Jira·Git 이력 변경 없음, 기존 변경 보존·예상 밖 변경 없음.
+- 검증: UI 값 확인·git diff --check, 코드 변경 없어 Gradle 미실행. 기간/가격/자동갱신 없음 정책 유지. 미저장 값 유실 가능하며 다음은 사용자 검토/별도 생성 요청 후 진행.
+
+## 2026-10-12 — TMI-201 PR1 상품·구매 계정 기반 구현
+
+- 브랜치: feat/TMI-201-billing-product-purchase-account. 목표: 사용자 구현 요청에 따라 승인된 PLAN-009의 PR1만 구현. Jira TMI-201 현황 조회만 수행했으며 상태/완료 변경 없음.
+- 변경 파일: domain/payment의 config·API·DTO·service·repository·exception, payment-foundation-indexes.json, public security/filter/writer와 application.yml, payment 테스트4종·기존 SecurityConfigTest, PLAN-009/기반 계약·runbook·CURRENT_STATE·WORKLOG. 기존 정책/외부 작업 문서 변경은 보존했다.
+- 동작: GET products는 서버 catalog의 유효한 활성 매핑만 반환하며 빈 목록과 장애를 분리. POST purchase-account는 verified sub/environment로 stable ref를 원자 생성/반환하고 lifecycle fence와 별도 ACCOUNT_LOOKUP cursor를 갱신. 기존 account/ref를 회전하지 않으며 cursor lease/backoff 보존. 알려진 WITHDRAWN은403, 불명 연결은503. 무료 데이터 생성·소비 없음.
+- 인증/운영: read/purchase+MEMBER·public/internal connector 격리·no-store·16KiB 응답·body/query 거절·기본OFF flag. Mongo fixed-minute limiter60/10과429 Retry-After, HMAC subject, privacy-safe service/time/trace 로그와 INTERNAL span. 수락 manifest16개 중 PR1의12개만 additive initializer로 검증하고 core schema v4 유지, drop/recreate 없음.
+- 검증: 최종 ./gradlew clean test363개 성공·실패0·오류0·skip0. 동시20요청 수렴·환경/사용자 격리·부분 실패 rollback·cursor 보존·withdrawn/inactive ref·limiter·index drift·오류 라벨 주입·Controller 권한/오류/관측·기존 무료/internal 회귀 포함. 최초 실패의 기존 MVC bean 구성과 failpoint primary invalidation 문제를 수정하고 전체 재실행했다. 새 의존성/실제 외부 API 호출 없음.
+- 유지/결정: 무료 TrialClaim·Grant·Reservation·owner 계약 불변. 결제 지급/환불/재가입 복구 기능 추가 없음. PR1 구현은 TMI-201 전체 완료·판매/자동삭제 승인 아님. flag OFF, commit/push·배포/타 서버 수정 없음.
+- 위험/다음: PR2 strict 탈퇴 수신·비활성·cleanup 후보 및 생성-탈퇴 동시성 구현 필요. 실제 성공 commit 응답유실/다중노드 failover·네트워크 timeout budget·실제 catalog migration/Identity/ALB/RC/Store 연동은 미검증으로 staging gate 유지. 후속204 recovery/205 거래 대사·purge 별도. 다음은 PR1 리뷰 후 PR2 구현.
