@@ -1,6 +1,6 @@
 # PLAN-009: 탈퇴 수신·구매 계정 상태·거래 확인·삭제 설계
 
-- 작성일: 2026-10-07 / 갱신: 2026-10-12 / Jira: TMI-201 PR2(탈퇴 수신), TMI-204(복구), TMI-205(대사/삭제) / 상태: 공동 규격 수락, 구현 미착수·운영 gate 별도
+- 작성일: 2026-10-07 / 갱신: 2026-10-12 / Jira: TMI-201 PR2(탈퇴 수신), TMI-204(복구), TMI-205(대사/삭제) / 상태: PR2 구현·로컬393개 테스트 완료, 204/205·운영 gate 별도
 - 기준: [ADR-004](../adr/ADR-004-fixed-term-premium-payment-contract.md), [009 기반 계약](PLAN-009-payment-foundation-technical-contract.md), [PLAN-009](../plans/PLAN-009-payment-catalog-and-account.md). Identity는 읽기만 했으며 이 문서는 상대 서버의 구현 완료를 의미하지 않는다.
 
 ## 1. 5줄 결론
@@ -57,6 +57,8 @@ Identity 후속: 같은 탈퇴 transaction의 durable 원천에서 `(eventId,des
 누락 복구는 단순 재시도와 다르다. 최초 cutover snapshot과 이후 durable withdrawal feed의 opaque cursor/완료 watermark를 Billing이 주기적으로 대조한다. 페이지 실패 시 checkpoint를 전진하지 않고 처리 commit 뒤만 전진한다. 원 event 또는 검증된 동일 탈퇴 사실을 같은 수신 서비스로 적용한다. Identity 원천 보존보다 뒤처진 gap은 자동 완료 처리하지 않고 bounded 재동기화한다. feed exact route/DTO/원천 보존은 TMI-199 공동 규격으로 동결됐으며 구현은 TMI-203/204다. 공개 구매 요청마다 Identity를 동기 조회하지 않는다.
 
 ### 5.2 상태는 서로 분리한다
+
+2026-10-12 PR2 구현: `withdrawnAt` BSON Date와 `withdrawnAtCanonical` UTC 문자열을 lifecycle/account에 함께 저장한다. legacy 나노초를 소실하지 않고 다른 탈퇴시각 충돌을 판정하기 위한 최소 증거이며 wire 4필드는 변경하지 않는다. `eligibleAt`은 withdrawnAt+15일을 밀리초 올림해 자격 시각보다 먼저 정리하지 않는다. cleanup은 WAITING 후보만 생성하고 반복 event에서 lease/일정/기산점을 초기화하지 않는다. inbox는 eventId/digest/disposition/receivedAt/purgeAt만 보관하며 user/ref/payload를 넣지 않는다. 실제 삭제·복구·provider 조회는 없다.
 
 | 축 | 제안 값 | 의미 |
 | --- | --- | --- |

@@ -9,6 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class PaymentProperties {
     private boolean catalogEnabled;
     private boolean purchaseAccountEnabled;
+    private boolean withdrawalEnabled;
     private String environment = "";
     private long catalogVersion = 1;
     private String limiterKey = "";

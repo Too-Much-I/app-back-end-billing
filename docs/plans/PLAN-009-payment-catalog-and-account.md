@@ -1,6 +1,6 @@
 # PLAN-009: 결제 상품·구매 계정·public 인증 기반
 
-- 작성일: 2026-10-06 / 갱신: 2026-10-12 / Jira: [TMI-201](https://to-teacher.atlassian.net/browse/TMI-201) / 상태: 사용자 요청으로 PR1 구현·로컬 검증 완료, PR2 미구현·전체 이슈 미완료
+- 작성일: 2026-10-06 / 갱신: 2026-10-12 / Jira: [TMI-201](https://to-teacher.atlassian.net/browse/TMI-201) / 상태: 사용자 요청으로 PR1·PR2 구현·로컬393개 테스트 완료. 병합·Jira 종료·배포 별도
 - 선행: [PLAN-008 Phase 0](PLAN-008-fixed-term-payment-roadmap.md), [ADR-004 §5.1~5.3](../adr/ADR-004-fixed-term-premium-payment-contract.md).
 - 세부 기준: [상품·계정 기술 계약](../contracts/PLAN-009-payment-foundation-technical-contract.md), [탈퇴 수신·후속 대사 설계](../contracts/PLAN-009-withdrawal-reconciliation-and-purge-contract.md), [공동 계약](../contracts/IDENTITY-BILLING-PAYMENT-LIFECYCLE-TECHNICAL-CONTRACT.md), [수락된 exact 규격](../contracts/TMI-199-EXACT-WIRE-AND-INDEX-SPEC.md). [PR1 구현·검증 안내](../runbooks/TMI-201-payment-foundation.md). 구현 완료는 배포·활성화 승인이 아니다.
 
@@ -67,7 +67,7 @@ Purchase-account는 body 없음. verified sub/environment의 account를 get-or-c
 
 `payment_products`, `payment_accounts`, `purchase_account_refs`와 ADR A.2의 store/RC product unique, environment-user unique, paidSubject unique, active reference partial unique를 추가한다. 계정과 active reference는 같은 Transaction. 식별자는 서버 생성하며 get-or-create는 지급·Claim·Grant·Reservation·무료 ledger를 쓰지 않는다. catalogVersion/duration immutable snapshot 사용 준비.
 
-기존 `BillingMongoIndexInitializer`를 additive manifest로 확장한다. v5 전체 완료와 이 slice subset을 구분하고 신규 collection만 준비된 상태로 v5 전체를 충족했다고 표시하지 않는다. 실제 migration 명령·dry run·reader compatibility는 013에서 승인한다.
+별도 `PaymentFoundationInitializer`의 additive manifest로 확장한다. 기존 core `BillingMongoIndexInitializer`와 schema v4는 변경하지 않는다. v5 전체 완료와 이 slice subset을 구분하고 신규 collection만 준비된 상태로 v5 전체를 충족했다고 표시하지 않는다. 실제 migration 명령·dry run·reader compatibility는 013에서 승인한다.
 
 ### 구현 순서·flag
 

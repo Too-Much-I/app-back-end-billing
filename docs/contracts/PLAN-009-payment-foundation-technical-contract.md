@@ -1,6 +1,6 @@
 # PLAN-009 상품·구매 계정 기반 세부 기술 계약
 
-- 작성일: 2026-10-07 / 갱신: 2026-10-12 / Jira: TMI-201 PR1 / 상태: 사용자 요청으로 구현·로컬 테스트 완료. PR2·실제 연동·배포 미완료.
+- 작성일: 2026-10-07 / 갱신: 2026-10-12 / Jira: TMI-201 PR1 / 상태: 사용자 요청으로 구현·로컬 테스트 완료. PR2도 별도 탈퇴 계약에 따라 구현·로컬 검증 완료이며 실제 연동·배포 미완료.
 - 상위: [PLAN-009](../plans/PLAN-009-payment-catalog-and-account.md), [ADR-004 §5.1~5.3/A](../adr/ADR-004-fixed-term-premium-payment-contract.md).
 - 승인된 제품 정책·PublicResponse·고정 window/subset 방향을 유지한다. 수락된 물리 manifest는 TMI-199 exact 규격을 따른다. catalog 발행/운영 입력 및 미검증 배포 절차를 완료로 간주하지 않으며 배포 승인은 별도다. 충돌 시 승인 ADR을 우선한다.
 

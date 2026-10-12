@@ -35,6 +35,7 @@ class PaymentFoundationIntegrationTest {
         store = new PaymentStore(client, new SimpleMongoClientDatabaseFactory(client, name));
         db = store.database();
         PaymentFoundationInitializer.initialize(db);
+        PaymentFoundationInitializer.initializeWithdrawal(db);
         properties = new PaymentProperties(); properties.setEnvironment("SANDBOX");
         properties.setLimiterKey(Base64.getEncoder().encodeToString(new byte[32]));
         Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
@@ -166,6 +167,152 @@ class PaymentFoundationIntegrationTest {
             assertThat(accounts.getOrCreate(user, NOW.plusSeconds(60)).purchaseAccountRefId()).isEqualTo(ref);
         }
         assertThat(db.getCollection("payment_accounts").countDocuments()).isEqualTo(2);
+    }
+    PaymentWithdrawalService withdrawals() {
+        return new PaymentWithdrawalService(store, properties, Clock.fixed(NOW, ZoneOffset.UTC));
+    }
+    @Test void withdrawalDoesNotAffectOtherEnvironmentAndRejectsOverflowWithoutPartialWrites() {
+        String sandbox = accounts.getOrCreate(USER, NOW.plusSeconds(60)).purchaseAccountRefId();
+        properties.setEnvironment("PRODUCTION");
+        String production = accounts.getOrCreate(USER, NOW.plusSeconds(60)).purchaseAccountRefId();
+        properties.setEnvironment("SANDBOX");
+        var key = new Document("environment", "SANDBOX").append("userId", USER);
+        db.getCollection("payment_account_lifecycles").updateOne(key, new Document("$set", new Document("version", Long.MAX_VALUE)));
+        var e = event(UUID.randomUUID().toString(), USER, NOW);
+        assertThatThrownBy(() -> withdrawals().process(e)).isInstanceOfSatisfying(
+                web.tosunsaeng.billing.global.exception.InternalApiException.class, ex -> assertThat(ex.status().value()).isEqualTo(503));
+        assertThat(db.getCollection("payment_withdrawal_inbox").countDocuments()).isZero();
+        assertThat(db.getCollection("purchase_account_refs").find(new Document("_id", sandbox)).first().getBoolean("active")).isTrue();
+        db.getCollection("payment_account_lifecycles").updateOne(key, new Document("$set", new Document("version", 1L)));
+        withdrawals().process(e);
+        properties.setEnvironment("PRODUCTION");
+        assertThat(accounts.getOrCreate(USER, NOW.plusSeconds(60)).purchaseAccountRefId()).isEqualTo(production);
+    }
+    @Test void withdrawalIndexValidationRejectsTtlDriftAndCleanupHasNoTtl() {
+        PaymentFoundationInitializer.initializeWithdrawal(db);
+        assertThat(db.getCollection("payment_account_cleanup_jobs").listIndexes().into(new ArrayList<>()))
+                .noneMatch(index -> index.containsKey("expireAfterSeconds"));
+        db.getCollection("payment_withdrawal_inbox").dropIndex("ttl_payment_withdrawal_inbox");
+        db.getCollection("payment_withdrawal_inbox").createIndex(new Document("purgeAt", 1),
+                new IndexOptions().name("ttl_payment_withdrawal_inbox").expireAfter(120L, TimeUnit.SECONDS));
+        assertThatThrownBy(() -> PaymentFoundationInitializer.initializeWithdrawal(db)).isInstanceOf(IllegalStateException.class);
+    }
+    web.tosunsaeng.billing.domain.payment.domain.PaymentWithdrawal event(String id, String user, Instant time) {
+        String json = "{\"eventId\":\""+id+"\",\"schemaVersion\":1,\"userId\":\""+user+"\",\"withdrawnAt\":\""+time+"\"}";
+        return new web.tosunsaeng.billing.domain.payment.api.PaymentWithdrawalDecoder(Clock.fixed(NOW, ZoneOffset.UTC)).decode(json.getBytes());
+    }
+    @Test void withdrawalBeforeAccountCreationBlocksWithoutCreatingEmptyAccount() {
+        var e = event(UUID.randomUUID().toString(), USER, NOW.minusSeconds(1));
+        assertThat(withdrawals().process(e)).isEqualTo(PaymentWithdrawalService.Outcome.APPLIED);
+        assertThatThrownBy(() -> accounts.getOrCreate(USER, NOW.plusSeconds(60))).isInstanceOfSatisfying(PaymentException.class,
+                error -> assertThat(error.code()).isEqualTo("PAYMENT_ACCOUNT_WITHDRAWN"));
+        assertThat(db.getCollection("payment_accounts").countDocuments()).isZero();
+        assertThat(db.getCollection("purchase_account_refs").countDocuments()).isZero();
+        Document job = db.getCollection("payment_account_cleanup_jobs").find().first();
+        assertThat(job.get("accountId")).isNull();
+        assertThat(job.getDate("eligibleAt")).isEqualTo(Date.from(e.withdrawnAt().plus(Duration.ofDays(15))));
+        assertThat(job.getString("state")).isEqualTo("WAITING");
+    }
+    @Test void withdrawalPreservesIdsCursorAndFreeRecordsWhileRetiringReference() {
+        String ref = accounts.getOrCreate(USER, NOW.plusSeconds(60)).purchaseAccountRefId();
+        Document cursor = db.getCollection("payment_reconcile_cursors").find().first();
+        Document before = db.getCollection("payment_accounts").find().first();
+        List<String> untouched = List.of("trial_claims", "entitlement_grants", "entitlement_ledger", "attempt_groups", "billing_subject_links");
+        for (String name : untouched) db.getCollection(name).insertOne(new Document("_id", "sentinel").append("value", 7L));
+        var e = event(UUID.randomUUID().toString(), USER, NOW);
+        withdrawals().process(e);
+        Document after = db.getCollection("payment_accounts").find().first();
+        assertThat(after.getString("state")).isEqualTo("WITHDRAWN");
+        assertThat(after.getString("_id")).isEqualTo(before.getString("_id"));
+        assertThat(after.getString("activeRefId")).isEqualTo(ref);
+        assertThat(db.getCollection("purchase_account_refs").find(new Document("_id", ref)).first().getBoolean("active")).isFalse();
+        assertThat(db.getCollection("payment_reconcile_cursors").find().first()).isEqualTo(cursor);
+        for (String name : untouched) assertThat(db.getCollection(name).find().first()).isEqualTo(new Document("_id", "sentinel").append("value", 7L));
+        Document inbox = db.getCollection("payment_withdrawal_inbox").find().first();
+        assertThat(inbox.keySet()).containsExactlyInAnyOrder("_id", "eventId", "digest", "disposition", "receivedAt", "purgeAt");
+        assertThat(inbox.getDate("purgeAt")).isEqualTo(Date.from(NOW.plus(Duration.ofDays(120))));
+        String rejoined = accounts.getOrCreate(UUID.randomUUID().toString(), NOW.plusSeconds(60)).purchaseAccountRefId();
+        assertThat(rejoined).isNotEqualTo(ref);
+    }
+    @Test void duplicateAndSemanticNoopDoNotResetVersionsOrCleanup() {
+        accounts.getOrCreate(USER, NOW.plusSeconds(60));
+        var e = event(UUID.randomUUID().toString(), USER, NOW.minusNanos(123));
+        withdrawals().process(e);
+        var lifecycle = db.getCollection("payment_account_lifecycles").find().first();
+        var job = db.getCollection("payment_account_cleanup_jobs").find().first();
+        assertThat(withdrawals().process(e)).isEqualTo(PaymentWithdrawalService.Outcome.DUPLICATE);
+        assertThat(withdrawals().process(event(UUID.randomUUID().toString(), USER, e.withdrawnAt())))
+                .isEqualTo(PaymentWithdrawalService.Outcome.NOOP);
+        assertThat(db.getCollection("payment_account_lifecycles").find().first()).isEqualTo(lifecycle);
+        assertThat(db.getCollection("payment_account_cleanup_jobs").find().first()).isEqualTo(job);
+        assertThat(job.getDate("eligibleAt").toInstant()).isAfterOrEqualTo(e.withdrawnAt().plus(Duration.ofDays(15)));
+        assertThatThrownBy(() -> withdrawals().process(event(e.eventId(), USER, NOW))).isInstanceOfSatisfying(
+                web.tosunsaeng.billing.global.exception.InternalApiException.class, ex -> assertThat(ex.code()).isEqualTo("EVENT_ID_CONFLICT"));
+        assertThatThrownBy(() -> withdrawals().process(event(UUID.randomUUID().toString(), USER, NOW))).isInstanceOfSatisfying(
+                web.tosunsaeng.billing.global.exception.InternalApiException.class, ex -> assertThat(ex.code()).isEqualTo("WITHDRAWAL_STATE_CONFLICT"));
+        assertThat(db.getCollection("payment_withdrawal_inbox").countDocuments()).isEqualTo(2);
+    }
+    @Test void lateWithdrawalUsesOriginalFifteenDayDeadlineButDoesNotDelete() {
+        accounts.getOrCreate(USER, NOW.plusSeconds(60));
+        Instant old = NOW.minus(Duration.ofDays(20));
+        withdrawals().process(event(UUID.randomUUID().toString(), USER, old));
+        assertThat(db.getCollection("payment_account_cleanup_jobs").find().first().getDate("eligibleAt"))
+                .isEqualTo(Date.from(old.plus(Duration.ofDays(15))));
+        assertThat(db.getCollection("payment_accounts").countDocuments()).isEqualTo(1);
+    }
+    @Test void cleanupInsertFailureRollsBackWithdrawalAndInbox() {
+        accounts.getOrCreate(USER, NOW.plusSeconds(60));
+        var lifecycle = db.getCollection("payment_account_lifecycles").find().first();
+        db.runCommand(new Document("collMod", "payment_account_cleanup_jobs")
+                .append("validator", new Document("impossible", new Document("$exists", true))));
+        assertThatThrownBy(() -> withdrawals().process(event(UUID.randomUUID().toString(), USER, NOW)))
+                .isInstanceOfSatisfying(web.tosunsaeng.billing.global.exception.InternalApiException.class,
+                        e -> assertThat(e.status().value()).isEqualTo(503));
+        assertThat(db.getCollection("payment_account_lifecycles").find().first()).isEqualTo(lifecycle);
+        assertThat(db.getCollection("payment_accounts").find().first().getString("state")).isEqualTo("ACTIVE");
+        assertThat(db.getCollection("purchase_account_refs").find().first().getBoolean("active")).isTrue();
+        assertThat(db.getCollection("payment_withdrawal_inbox").countDocuments()).isZero();
+    }
+    @Test void concurrentIssuanceAndWithdrawalConvergeToBlocked() throws Exception {
+        for (int run = 0; run < 10; run++) {
+            String user = UUID.randomUUID().toString();
+            var e = event(UUID.randomUUID().toString(), user, NOW);
+            var barrier = new CyclicBarrier(2);
+            try (var pool = Executors.newFixedThreadPool(2)) {
+                var issue = pool.submit(() -> {
+                    barrier.await();
+                    try { accounts.getOrCreate(user, NOW.plusSeconds(60)); }
+                    catch (PaymentException error) { assertThat(error.code()).isEqualTo("PAYMENT_ACCOUNT_WITHDRAWN"); }
+                    return true;
+                });
+                var withdraw = pool.submit(() -> { barrier.await(); return withdrawals().process(e); });
+                issue.get(); withdraw.get();
+            }
+            assertThatThrownBy(() -> accounts.getOrCreate(user, NOW.plusSeconds(60))).isInstanceOf(PaymentException.class);
+            Document account = db.getCollection("payment_accounts").find(new Document("userId", user)).first();
+            if (account != null) {
+                assertThat(account.getString("state")).isEqualTo("WITHDRAWN");
+                assertThat(db.getCollection("purchase_account_refs").countDocuments(new Document("accountId", account.get("_id")).append("active", true))).isZero();
+            }
+        }
+    }
+    @Test void concurrentDuplicateAndCommitRetriesLeaveOneEffect() throws Exception {
+        var e = event(UUID.randomUUID().toString(), USER, NOW);
+        List<Callable<PaymentWithdrawalService.Outcome>> calls = new ArrayList<>();
+        for (int i=0; i<12; i++) calls.add(() -> withdrawals().process(e));
+        try (var pool = Executors.newFixedThreadPool(6)) {
+            for (var result : pool.invokeAll(calls)) assertThat(result.get()).isIn(PaymentWithdrawalService.Outcome.APPLIED, PaymentWithdrawalService.Outcome.DUPLICATE);
+        }
+        assertThat(db.getCollection("payment_account_cleanup_jobs").countDocuments()).isEqualTo(1);
+        assertThat(db.getCollection("payment_withdrawal_inbox").countDocuments()).isEqualTo(1);
+        for (String label : List.of("TransientTransactionError", "UnknownTransactionCommitResult")) {
+            client.getDatabase("admin").runCommand(new Document("configureFailPoint", "failCommand").append("mode", new Document("times", 1))
+                    .append("data", new Document("failCommands", List.of(label.equals("TransientTransactionError") ? "insert" : "commitTransaction"))
+                            .append("errorCode", label.equals("TransientTransactionError") ? 112 : 1).append("errorLabels", List.of(label))));
+            var retry = event(UUID.randomUUID().toString(), UUID.randomUUID().toString(), NOW);
+            assertThat(withdrawals().process(retry)).isEqualTo(PaymentWithdrawalService.Outcome.APPLIED);
+            assertThat(withdrawals().process(retry)).isEqualTo(PaymentWithdrawalService.Outcome.DUPLICATE);
+        }
     }
     static Document product() {
         return new Document("environment", "SANDBOX").append("saleEnabled", true).append("offerCode", "PREMIUM_1D")

@@ -66,4 +66,17 @@ class PaymentCatalogTest {
             assertThat(actual.size()).isEqualTo(12);
         }
     }
+    @Test void withdrawalSubsetMatchesRemainingFourAcceptedIndexes() throws Exception {
+        var json = new ObjectMapper();
+        try (var production = getClass().getResourceAsStream("/payment-withdrawal-indexes.json");
+             var fixture = getClass().getResourceAsStream("/contracts/payment-lifecycle/v1/billing-indexes.json")) {
+            var actual = json.readTree(production).get("indexes");
+            var expected = json.createArrayNode();
+            json.readTree(fixture).get("indexes").forEach(index -> {
+                if (Set.of("payment_withdrawal_inbox", "payment_account_cleanup_jobs").contains(index.get("collection").asText())) expected.add(index);
+            });
+            assertThat(actual).isEqualTo(expected);
+            assertThat(actual.size()).isEqualTo(4);
+        }
+    }
 }

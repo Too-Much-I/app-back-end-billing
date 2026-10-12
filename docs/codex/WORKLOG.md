@@ -4557,3 +4557,84 @@
 - 검증: 최종 ./gradlew clean test363개 성공·실패0·오류0·skip0. 동시20요청 수렴·환경/사용자 격리·부분 실패 rollback·cursor 보존·withdrawn/inactive ref·limiter·index drift·오류 라벨 주입·Controller 권한/오류/관측·기존 무료/internal 회귀 포함. 최초 실패의 기존 MVC bean 구성과 failpoint primary invalidation 문제를 수정하고 전체 재실행했다. 새 의존성/실제 외부 API 호출 없음.
 - 유지/결정: 무료 TrialClaim·Grant·Reservation·owner 계약 불변. 결제 지급/환불/재가입 복구 기능 추가 없음. PR1 구현은 TMI-201 전체 완료·판매/자동삭제 승인 아님. flag OFF, commit/push·배포/타 서버 수정 없음.
 - 위험/다음: PR2 strict 탈퇴 수신·비활성·cleanup 후보 및 생성-탈퇴 동시성 구현 필요. 실제 성공 commit 응답유실/다중노드 failover·네트워크 timeout budget·실제 catalog migration/Identity/ALB/RC/Store 연동은 미검증으로 staging gate 유지. 후속204 recovery/205 거래 대사·purge 별도. 다음은 PR1 리뷰 후 PR2 구현.
+
+## 2026-10-12 — TMI-201 PR2 구현 계획 설명
+
+- 브랜치: feat/TMI-201-billing-product-purchase-account. 목표: 2차 구현 범위/동작/완료 기준 설명. PLAN-009와 탈퇴 수신·대사·삭제 계약을 확인했다.
+- 내용: Identity SigV4 탈퇴 수신, strict decode·inbox 멱등, 동일 Transaction의 lifecycle/account/ref 차단·cleanup 후보, 계정 없는 탈퇴 및 발급과 경합 처리. 15일은 후보 자격 시각이지 자동 삭제 시각이 아니며 복구204/대사·삭제205/실제 공동 검증206과 구분했다.
+- 변경 파일: CURRENT_STATE·WORKLOG 기록만. 기존 코드/문서 변경 보존. 인증·무료권·환불·재가입 정책 불변, Jira/타 서버/외부 설정/commit/push/배포 변경 없음.
+- 검증: 문서 대조와 git diff --check. 설명 작업으로 Gradle 재실행 없음(PR1 직전363개 통과 기록 유지). 위험: 탈퇴 전달 전 local ACTIVE는 Identity 실시간 상태를 보장하지 않으며 staging/누락 복구 gate 필요. 다음: 사용자 요청 시 PR2 구현, 신규 flag OFF 유지.
+
+## 2026-10-12 — Google 나머지 4종 상품 입력 준비
+
+- 브랜치 feat/TMI-201-billing-product-purchase-account. 이번 외부 폼 작업의 별도 Jira 없음. 목표: 1일권처럼 나머지도 준비하라는 사용자 요청 수행. 앞선 생성/저장 보류 요청이 있어 입력만/초안 저장까지 범위를 비동기 확인하고, 답변 전에는 미저장 준비만 수행.
+- 동작: 4개 별도 Google 생성 탭에 premium3d/7d/14d/28d, 기존 승인 프리미엄 이름, `토선생 3일/1주/2주/4주 무제한 이용권` 설명 입력. 구매 옵션 ID는 각 제품 ID와 동일·유형 구입, 대한민국 외/새 지역 사용 불가, 대한민국KRW19000/29000/49000/69000 폼 적용. 실제 가격 행 확인. 4주권의 KRW57000 초과 다중수량 결제 불가 안내 확인(단일 상품 가격 오류로 단정하지 않음).
+- 상태: 활성화/임시보관함 저장 미실행·아이콘 미등록. 기존1일권과 4종 입력 탭은 handoff로 유지. /private/tmp/google-premium3d-unsaved.jpg, google-premium7d-unsaved.jpg, google-premium14d-unsaved.jpg, google-premium28d-unsaved.jpg 화면 증거 확보.
+- 변경 파일: CURRENT_STATE·WORKLOG 기록만. 코드/계약·타 서버·Jira·배포·Git commit/push 변경 없음. 동시 진행의 PR1 구현/기록과 기존 사용자 변경 보존, 이번 범위의 예상 밖 변경 없음.
+- 검증: DOM/가격 행 확인·git diff --check. 코드 변경 없어 Gradle 재실행 없음. 증거 합성용 시스템 Python에 Pillow가 없어 합성 이미지 생성은 생략, 원본4개 사용. 실제 상품 저장/SDK 결제/세금 적합성·RC 매핑은 검증하지 않음.
+- 위험/다음: 미저장 폼은 새로고침/탭 종료 시 유실 가능. 저장 범위 답변 후 승인 범위에서 진행하며 판매 활성화는 별도. 제품ID는 생성 후 변경/재사용 불가.
+
+## 2026-10-12 — Google 나머지 4종 초안 저장 완료
+
+- 날짜·브랜치: 2026-10-12, feat/TMI-201-billing-product-purchase-account. 별도 Jira 없음. 목표: 사용자 `초안 저장까지` 승인에 따라 준비된 나머지 네 상품 저장.
+- 동작: premium3d/7d/14d/28d의 임시보관함 저장 실행. 각 상세 화면에서 기존 프리미엄 이름·토선생 해당 기간 무제한 이용권 설명·동일 구매 옵션 ID·구입·대한민국·임시 상태 확인. 저장 전 가격은 KRW19000/29000/49000/69000 확인. 최종 목록의 네 상품 활성 구매 옵션 0 확인. 활성화 버튼은 누르지 않았고 아이콘 업로드 없음.
+- 관측: 최종 목록에는 premium1d도 존재하며 활성 구매 옵션 1로 표시됐다. 이전 미저장 기록과 다른 외부 상태이며 이번 작업에서 1일권 저장/활성화 또는 비활성화는 수행하지 않았다. 기존 1일권 탭과 최종 목록 유지.
+- 변경 파일: CURRENT_STATE 갱신·WORKLOG append만. 기존 동시 작업 보존, 코드·외부 계약·타 서버·Jira·commit/push·배포 변경 없음.
+- 검증: 각 저장 후 상세 임시 상태와 최종 목록 UI 확인, 증거 /private/tmp/google-products-drafts.jpg 확보. git diff --check 수행. 코드 변경 없어 Gradle 재실행 없음.
+- 유지·위험·다음: fixed-term 구입·한국 가격·Billing 기간/stacking 계약 유지. RC 매핑·SDK 결제·세금 적합성은 미검증. 다음은 아이콘 준비 및 별도 활성화 요청/기존 연동 gate 확인. 1일권 외부 상태는 관측 사실만 기록하고 변경하지 않았다.
+
+## 2026-10-12 — Google 1일권 구매 옵션 비활성화
+
+- 날짜·브랜치: 2026-10-12, feat/TMI-201-billing-product-purchase-account. 별도 Jira 없음. 목표: 사용자 변경 요청에 따라 기존 활성 1일권도 판매 비활성 상태로 변경.
+- 동작: premium1d 상세의 활성 상태 확인 후 구매 옵션 수정의 비활성화 및 확인 dialog 적용. 저장 완료 표시와 상세 재진입 후 비활성 상태 확인. 이름·토선생 1일 무제한 이용권 설명·대한민국 KRW9000 유지. 나머지 네 초안 수정 없음, 삭제/활성화 미실행.
+- 변경 파일: CURRENT_STATE 갱신·WORKLOG append. 코드·도메인 계약·타 서버·Jira·commit/push·배포 변경 없음, 기존 작업 보존.
+- 검증: UI 저장 완료·비활성 상태 확인, /private/tmp/google-premium1d-inactive.jpg 증거 저장, git diff --check. 코드 변경 없어 Gradle 미실행.
+- 유지·결정·위험·다음: fixed-term 구입·가격/기간 정책 유지. 1일권은 생성 전 초안이 아니라 생성된 구매 옵션의 비활성 상태다. RC/SDK 실제 결제는 미검증. 다음은 아이콘/연동 검증 및 별도 판매 활성화 요청 후 진행.
+
+## 2026-10-12 — Apple 소모품 상품 심사 준비 요건 확인
+
+- 날짜·브랜치: 2026-10-12, feat/TMI-201-billing-product-purchase-account. 별도 Jira 없음. 목표: 기존 생성 상품의 심사 제출 준비 항목 안내.
+- 근거: STORE_PRODUCT_REGISTRATION-2026-09-16와 Apple 공식 Submit an In-App Purchase, In-App Purchase information, Configure In-App Purchases for review in the sandbox, configuring overview/App Review 문서 확인.
+- 결과: 첫 소모품 유형은 새 앱 버전과 동일 submission에 제출. 실제 결제/기간권 이용 가능한 빌드, 상품별 review screenshot/메모와 metadata, 심사 계정/경로, 활성 Paid Apps Agreement·은행/세금, 사전 sandbox 테스트 필요. 1024x1024 홍보 이미지는 일반 상품 심사용 스크린샷과 구분. 한국 storefront 제한을 심사 메모에 명시해야 하며 첫 유형 승인 후 동일 유형 추가 상품은 조건 충족 시 별도 제출 가능.
+- 서비스 gate: App Review는 sandbox 구매를 사용하므로 승인된 SANDBOX→staging 분리에서 제출 빌드의 로그인/구매 account/Billing 사용권 조회·시험 이용이 실제로 연결되는지 검증 필요. 임의 production sandbox 허용 또는 환경 계약 변경 없음. 무료/paid domain 계약 유지.
+- 변경 파일: CURRENT_STATE 갱신·WORKLOG append만. 코드·ASC 입력/제출·계약 동의·타 서버·Jira·commit/push·배포 변경 없음. 기존 변경 보존.
+- 검증: 등록 기록/공식 문서 대조·git diff --check. 분석만 수행해 Gradle 미실행. 현재 ASC 상태/상품별 누락 필드/앱 구현·계정 계약 실시간 상태는 미확인. 다음: 결제 E2E와 심사용 자료 준비 후 ASC 실제 누락 항목 점검.
+
+## 2026-10-12 — Apple 심사 전 상품 조회 설명
+
+- 날짜·브랜치: 2026-10-12, feat/TMI-201-billing-product-purchase-account. 별도 Jira 없음. 목표: 등록만으로 심사 전 조회 가능한지와 실제 앱 조회 흐름 설명.
+- 내용: Apple 공식 sandbox 심사 안내 및 RevenueCat Displaying Products/Sandbox/Creating Offerings 문서 대조. 승인 전 실제 Store 상품 조회/구매는 sandbox에서 가능, production 제공은 심사 승인 필요. 상품 등록만으로 SDK 조회 성공 보장하지 않으며 유료 계약·상품 구성·Bundle ID/SDK iOS 키·RC Offering 매핑과 실제 앱 검증 필요.
+- 우리 흐름: SDK getOfferings에서 premium Offering 패키지의 Store 상품/현지 가격을 읽고 Billing catalog의 ID/기간 정책과 결합. 9/16 Apple 5종 Offering 연결 기록은 있으나 SDK 조회 성공 미검증. 서버 catalog는 Store 등록에서 자동 생성되지 않음. 소모품 RC Entitlement 미연결·Billing 기간 판정 유지.
+- 변경 파일: CURRENT_STATE·WORKLOG만. 코드·외부 설정·타 서버·Jira·commit/push·배포 변경 없음. 기존 변경 보존.
+- 검증: 공식 문서/등록 기록 대조·git diff --check, 분석 작업으로 Gradle 미실행. 실제 iOS SDK 및 계약 현재 상태는 미확인. 다음: 개발/TestFlight 빌드에서 premium 5개 상품 조회 확인 후 sandbox 구매/권리 반영 검증.
+
+## 2026-10-12 — TMI-201/202/205 책임과 탈퇴 상태 질의 설명
+
+- 브랜치: feat/TMI-201-billing-product-purchase-account. 관련 Jira: TMI-201/202/205. 목표: 사용자 네 가지 이해 확인.
+- 결정/동작 설명: endpoint 수신201·Identity 발송202, WITHDRAWN은 Billing lifecycle/account 상태이며 userId/ref 값 변경 아님. Identity 로그인/발급 차단과 Billing 구매 경로 차단을 분리한다. 발급-탈퇴 공통 DB Transaction/fence,201의 비삭제·후보 기록과205의 거래 확인 후 조건부 삭제를 구분했다.
+- 변경 파일: CURRENT_STATE·WORKLOG만. 코드/정책/타 서버/Jira/외부 설정 변경 없음, 기존 변경 보존. 검증: 기존 계약 대조·git diff --check, 설명 작업으로 Gradle 미실행. 위험/다음: 전달 지연은 DB 직렬화만으로 해결되지 않으며 후속 복구·연동 gate 유지, PR2 구현은 별도 요청 시 진행.
+
+## 2026-10-12 — Billing 구매 계정의 탈퇴 표시 의미 설명
+
+- 브랜치: feat/TMI-201-billing-product-purchase-account / TMI-201. 목표: 로그인 계정과 결제 관리 기록 구분.
+- 설명: userId·구매 연결 ID의 관리 기록을 보존한 채 로컬 상태를 ACTIVE에서 WITHDRAWN으로 바꾸는 의미. Identity 통지에 따른 신규 사용 차단이며 별도 회원가입/ID 변경/즉시 삭제/자동 환불이 아니다.
+- 변경 파일: CURRENT_STATE·WORKLOG만. 정책·코드·외부 설정·Jira 변경 없음. 검증: git diff --check, 설명 작업으로 테스트 재실행 없음. 위험/다음: Identity 실시간 상태와 로컬 상태를 혼동하지 않으며 기존 PR2/연동 gate 유지.
+
+## 2026-10-12 — TMI-201 PR2 탈퇴 수신·구매 계정 차단 구현
+
+- 브랜치: feat/TMI-201-billing-product-purchase-account / Jira TMI-201. 목표: 사용자 요청으로 PR2 구현, PR1 및 기존 문서 변경 보존.
+- 변경 파일: PaymentWithdrawalController/Decoder/Service/record/Exception, PaymentProperties·PaymentFoundationInitializer·SecurityConfig·application.yml·payment-withdrawal-indexes.json, withdrawal decoder/controller/observability/security 테스트 및 기존 foundation/catalog/security 테스트, PLAN-009·두 세부 계약·runbook·CURRENT_STATE·WORKLOG.
+- 동작: POST /internal/v1/payments/accounts/withdrawal/events의 기존4필드 strict 검증·canonical digest 후 inbox/lifecycle CAS/account WITHDRAWN/ref inactive/cleanup 후보를 한 snapshot/majority+j Transaction으로 반영하고204. 동일 event/digest DUPLICATE·동일 탈퇴시각 새 event NOOP; 다른 digest/탈퇴시각409, 장애503. 구매 계정 없는 탈퇴도 terminal fence만 생성하며 새 구매 계정은 만들지 않는다. 계정/ref ID/cursor/무료 기록 보존, 발급과 동일 lifecycle 쓰기로 경합 수렴.
+- 개인정보/보존: inbox는 식별 event/digest/결과/수신/purge 시각만 저장(user/ref/payload 제외),120일 TTL. lifecycle/account에 withdrawnAt Date+canonical text를 남겨 legacy 나노초 충돌 판정. cleanup WAITING 후보는 원 탈퇴+15일(밀리초 올림)이며 반복 알림으로 기산/lease 재설정 없음. 실제 삭제·provider 대사·지급·환불·재가입 권리 이전 없음.
+- 인증/운영: 신규 withdrawal flag 기본OFF, public 결제 flag와 독립. transactional index/환경 matching/startup 검증. TEST는 Identity role만; 운영은 기존 Lattice IAM+SigV4 신뢰 경계/SG 전제 유지하며 앱 내 서명 검증 추가 안 함.4개 additive index를 별도 manifest로 준비, 기존core v4/drop 금지 유지. 개인정보 없는 service/time/trace 로그·INTERNAL span/저카디널리티 metric.
+- 검증: ./gradlew clean test393개 성공·실패0·오류0·skip0(PR1 대비30개). 실제 Mongo replica-set의 발급-탈퇴10회 경합/동시 duplicate/rollback/unknown commit label·transient 주입/환경격리·overflow·TTL drift/무료불변, Controller 권한/응답·strict decoder·span 종료 확인.16개 manifest 수락 fixture 일치·git diff --check 통과. 최초 sandbox Gradle cache lock 권한 오류 뒤 승인된 실행으로 검증, 코드 테스트 실패 없음.
+- 위험/미수행: 실제 Lattice wrong role/unsigned/direct task 차단은 AWS policy/SG staging 검증 대상이며 mock principal 테스트로 대체하지 않음. 실제 성공 commit 응답유실/다중노드 failover·Identity 발송·recovery coverage·운영 migration 미검증. Identity는 wire 확인만 읽었고 타 서버 수정/외부 API/배포/Jira 상태/commit/push 없음.
+- 결정/다음: TMI-201 PR1+PR2 로컬 구현 완료, 사용자 PR 검토/병합/종료와 실제 활성화는 별도. Identity202 발송과 연동 검증,204 recovery/205 실제 거래 확인·조건부 삭제/206 공동 gate를 후속으로 유지. 기존무료/owner·결제/환불 제품 계약 불변.
+
+## 2026-10-12 — PLAN-009 연결 Jira 범위 재확인
+
+- 날짜·브랜치: 2026-10-12, feat/TMI-201-billing-product-purchase-account. 목표: 사용자 PLAN-009 개발의 Jira 종료 범위 질문 답변.
+- 근거/결과: 최신 PLAN-009 직접 구현은 TMI-201의PR1/PR2. 관련 트랙199 계약,200 권한,202 탈퇴 전달,203/204 누락 복구,205 조건부 대사/purge,206 공동 staging.199~206 전부를201 한 작업으로 포함하지 않으며205는010 거래 증거,206/판매·삭제 활성화는013 후속 gate와 연결.
+- 실제 Jira 조회:199 완료,200~206 해야 할 일. 로컬 PLAN-009의PR2 최종 회귀 검증 중 표기는 Jira 종료/병합/배포 완료와 구분. Jira 상태 변경 없음.
+- 변경 파일: CURRENT_STATE 갱신·WORKLOG append만. 코드·계약·타 서버·외부 설정·commit/push·배포 변경 없음, 동시 작업 보존.
+- 검증: PLAN-008/009·CURRENT_STATE와 Jira 조회 대조, git diff --check. 설명 작업으로 Gradle 재실행 없음. 위험/다음: Jira 상태와 실제 개발 진행은 다를 수 있으므로201 검증·리뷰·병합 확인 후 별도 종료 처리, 후속010 및 공동 검증 진행.

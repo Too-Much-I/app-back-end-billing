@@ -25,12 +25,19 @@ public class PaymentFoundationInitializer implements ApplicationRunner {
         this.properties = properties; this.store = store; this.catalog = catalog;
     }
     @Override public void run(ApplicationArguments args) {
-        if (!properties.enabled()) return;
+        if (!properties.enabled() && !properties.isWithdrawalEnabled()) return;
         initialize(store.database());
+        if (properties.isWithdrawalEnabled()) initializeWithdrawal(store.database());
         if (properties.isCatalogEnabled()) catalog.read();
     }
     public static void initialize(MongoDatabase db) {
-        try (var input = PaymentFoundationInitializer.class.getResourceAsStream("/payment-foundation-indexes.json")) {
+        initialize(db, "/payment-foundation-indexes.json");
+    }
+    public static void initializeWithdrawal(MongoDatabase db) {
+        initialize(db, "/payment-withdrawal-indexes.json");
+    }
+    private static void initialize(MongoDatabase db, String resource) {
+        try (var input = PaymentFoundationInitializer.class.getResourceAsStream(resource)) {
             var manifest = new ObjectMapper().readTree(Objects.requireNonNull(input));
             for (var row : manifest.get("indexes")) {
                 String collection = row.get("collection").asText(), name = row.get("name").asText();
