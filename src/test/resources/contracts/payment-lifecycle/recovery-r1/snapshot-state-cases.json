@@ -1,0 +1,76 @@
+{
+  "revision": "recovery-r1",
+  "synthetic": true,
+  "cases": [
+    {
+      "name": "same-key-new-stream",
+      "bindingMatches": false,
+      "active": false,
+      "exists": true,
+      "expired": false,
+      "status": "READY",
+      "action": "CREATE",
+      "expected": "OPERATION_CONFLICT"
+    },
+    {
+      "name": "old-key-old-body",
+      "bindingMatches": true,
+      "active": false,
+      "exists": true,
+      "expired": true,
+      "status": "READY",
+      "action": "CREATE",
+      "expected": "STREAM_REPLACED"
+    },
+    {
+      "name": "create-expired",
+      "bindingMatches": true,
+      "active": true,
+      "exists": true,
+      "expired": true,
+      "status": "FAILED",
+      "action": "CREATE",
+      "expected": "EXPIRED"
+    },
+    {
+      "name": "page-expired",
+      "bindingMatches": true,
+      "active": true,
+      "exists": true,
+      "expired": true,
+      "status": "FAILED",
+      "action": "PAGE",
+      "expected": "SNAPSHOT_EXPIRED"
+    },
+    {
+      "name": "page-failed",
+      "bindingMatches": true,
+      "active": true,
+      "exists": true,
+      "expired": false,
+      "status": "FAILED",
+      "action": "PAGE",
+      "expected": "SNAPSHOT_FAILED"
+    },
+    {
+      "name": "page-building",
+      "bindingMatches": true,
+      "active": true,
+      "exists": true,
+      "expired": false,
+      "status": "BUILDING",
+      "action": "PAGE",
+      "expected": "SNAPSHOT_NOT_READY"
+    },
+    {
+      "name": "status-removed",
+      "bindingMatches": true,
+      "active": false,
+      "exists": false,
+      "expired": true,
+      "status": "EXPIRED",
+      "action": "STATUS",
+      "expected": "SNAPSHOT_NOT_FOUND"
+    }
+  ]
+}

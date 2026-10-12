@@ -15,6 +15,8 @@ import web.tosunsaeng.billing.domain.payment.application.*;
 import web.tosunsaeng.billing.domain.payment.config.*;
 import web.tosunsaeng.billing.domain.payment.exception.PaymentException;
 import web.tosunsaeng.billing.domain.payment.repository.PaymentStore;
+import web.tosunsaeng.billing.domain.payment.recovery.*;
+import web.tosunsaeng.billing.domain.payment.domain.WithdrawalFact;
 import static org.assertj.core.api.Assertions.*;
 
 @Testcontainers(disabledWithoutDocker = false)
@@ -319,5 +321,152 @@ class PaymentFoundationIntegrationTest {
                 .append("catalogVersion", 1L).append("durationSeconds", 86400L).append("referencePriceKrw", 9000L)
                 .append("referenceCurrency", "KRW").append("store", "APP_STORE").append("appId", "fake-app")
                 .append("storeProductId", "fake-product").append("rcProductId", "fake-rc-product").append("packageId", "fake-package");
+    }
+
+    PaymentRecoveryFence enableFence(String barrier) {
+        PaymentRecoverySchema.initializeEmpty(db);
+        db.getCollection(PaymentRecoveryFence.COLLECTION).insertOne(new Document("_id", UUID.randomUUID().toString())
+                .append("environment", "SANDBOX").append("consumer", "billing")
+                .append("schemaVersion", 1L).append("epoch", UUID.randomUUID().toString())
+                .append("version", 1L).append("barrier", barrier));
+        properties.getRecovery().setFenceRequired(true);
+        return new PaymentRecoveryFence(store, properties);
+    }
+    Document control() { return db.getCollection(PaymentRecoveryFence.COLLECTION).find().first(); }
+
+    @Test void recoveryRequiredWithoutControlFailsClosedAndDoesNotBootstrap() {
+        properties.getRecovery().setFenceRequired(true);
+        assertThatThrownBy(() -> accounts.getOrCreate(USER, NOW.plusSeconds(60))).isInstanceOf(PaymentException.class);
+        assertThatThrownBy(() -> withdrawals().process(event(UUID.randomUUID().toString(), USER, NOW)))
+                .isInstanceOf(web.tosunsaeng.billing.global.exception.InternalApiException.class);
+        assertThat(db.getCollection(PaymentRecoveryFence.COLLECTION).countDocuments()).isZero();
+        assertThat(db.getCollection("payment_accounts").countDocuments()).isZero();
+    }
+
+    @Test void recoveryBarrierAllowsPushAndRepairButBlocksAccountIssuance() {
+        var fence = enableFence("PURCHASE_BLOCKED");
+        assertThatThrownBy(() -> accounts.getOrCreate(USER, NOW.plusSeconds(60))).isInstanceOf(PaymentException.class);
+        withdrawals().process(event(UUID.randomUUID().toString(), USER, NOW));
+        var ticket = fence.capture();
+        store.transaction(session -> {
+            fence.acquire(session, ticket, PaymentRecoveryFence.Writer.RECOVERY);
+            return new PaymentWithdrawalApplier(store, properties, Clock.fixed(NOW, ZoneOffset.UTC))
+                    .applyFact(session, new WithdrawalFact(UUID.randomUUID().toString(), NOW));
+        });
+        assertThat(control().getLong("version")).isEqualTo(3L);
+        db.getCollection(PaymentRecoveryFence.COLLECTION).updateOne(new Document(),
+                new Document("$set", new Document("barrier", "ALL_BLOCKED")).append("$inc", new Document("version", 1L)));
+        assertThatThrownBy(() -> store.transaction(session -> {
+            fence.acquire(session, ticket, PaymentRecoveryFence.Writer.RECOVERY); return true;
+        })).isInstanceOf(PaymentException.class);
+    }
+
+    @Test void oldEpochIsRejectedBeforeDuplicateOrFactCanApply() {
+        var fence = enableFence("OPEN");
+        var e = event(UUID.randomUUID().toString(), USER, NOW);
+        withdrawals().process(e);
+        var old = fence.capture();
+        db.getCollection(PaymentRecoveryFence.COLLECTION).updateOne(new Document(),
+                new Document("$set", new Document("epoch", UUID.randomUUID().toString()))
+                        .append("$inc", new Document("version", 1L)));
+        Document before = control();
+        assertThatThrownBy(() -> store.transaction(session -> {
+            fence.acquire(session, old, PaymentRecoveryFence.Writer.RECOVERY);
+            return new PaymentWithdrawalApplier(store, properties, Clock.fixed(NOW, ZoneOffset.UTC)).applyEvent(session, e);
+        })).isInstanceOf(PaymentException.class);
+        assertThat(control()).isEqualTo(before);
+        assertThat(db.getCollection("payment_withdrawal_inbox").countDocuments()).isEqualTo(1);
+    }
+
+    @Test void duplicateAndNoopStillWriteControlFence() {
+        enableFence("OPEN");
+        var e = event(UUID.randomUUID().toString(), USER, NOW);
+        withdrawals().process(e);
+        assertThat(withdrawals().process(e)).isEqualTo(PaymentWithdrawalService.Outcome.DUPLICATE);
+        assertThat(withdrawals().process(event(UUID.randomUUID().toString(), USER, NOW)))
+                .isEqualTo(PaymentWithdrawalService.Outcome.NOOP);
+        assertThat(control().getLong("version")).isEqualTo(4L);
+    }
+
+    @Test void snapshotFactAndProgressShareCallerTransactionWithoutFakeInbox() {
+        var fence = enableFence("OPEN");
+        db.createCollection("test_progress");
+        var ticket = fence.capture();
+        var applier = new PaymentWithdrawalApplier(store, properties, Clock.fixed(NOW, ZoneOffset.UTC));
+        var fact = new WithdrawalFact(USER, NOW.minusNanos(123));
+        assertThatThrownBy(() -> store.transaction(session -> {
+            fence.acquire(session, ticket, PaymentRecoveryFence.Writer.RECOVERY);
+            applier.applyFact(session, fact);
+            db.getCollection("test_progress").insertOne(session, new Document("_id", "page"));
+            throw new IllegalStateException("synthetic failure");
+        })).isInstanceOf(IllegalStateException.class);
+        assertThat(control().getLong("version")).isEqualTo(1L);
+        for (String collection : List.of("payment_account_lifecycles", "payment_account_cleanup_jobs",
+                "payment_withdrawal_inbox", "test_progress"))
+            assertThat(db.getCollection(collection).countDocuments()).isZero();
+        store.transaction(session -> {
+            fence.acquire(session, ticket, PaymentRecoveryFence.Writer.RECOVERY);
+            applier.applyFact(session, fact);
+            db.getCollection("test_progress").insertOne(session, new Document("_id", "page"));
+            return true;
+        });
+        assertThat(db.getCollection("payment_withdrawal_inbox").countDocuments()).isZero();
+        assertThat(withdrawals().process(event(UUID.randomUUID().toString(), USER, fact.withdrawnAt())))
+                .isEqualTo(PaymentWithdrawalService.Outcome.NOOP);
+        assertThat(db.getCollection("payment_account_cleanup_jobs").countDocuments()).isEqualTo(1);
+    }
+
+    @Test void recoveryControlSchemaVerifiesExactlyAndNeverRepairsDrift() {
+        enableFence("OPEN");
+        PaymentRecoverySchema.verify(db);
+        PaymentRecoverySchema.initializeEmpty(db);
+        assertThatThrownBy(() -> db.getCollection(PaymentRecoveryFence.COLLECTION).updateOne(new Document(),
+                new Document("$set", new Document("version", 2)))).isInstanceOf(com.mongodb.MongoWriteException.class);
+        db.runCommand(new Document("collMod", PaymentRecoveryFence.COLLECTION)
+                .append("validationLevel", "moderate"));
+        assertThatThrownBy(() -> PaymentRecoverySchema.verify(db)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> PaymentRecoverySchema.initializeEmpty(db)).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test void controlOverflowAndAllBlockedRejectWithoutInboxWrites() {
+        enableFence("OPEN");
+        db.getCollection(PaymentRecoveryFence.COLLECTION).updateOne(new Document(),
+                new Document("$set", new Document("version", Long.MAX_VALUE)));
+        assertThatThrownBy(() -> withdrawals().process(event(UUID.randomUUID().toString(), USER, NOW)))
+                .isInstanceOf(web.tosunsaeng.billing.global.exception.InternalApiException.class);
+        assertThat(db.getCollection("payment_withdrawal_inbox").countDocuments()).isZero();
+        assertThat(control().getLong("version")).isEqualTo(Long.MAX_VALUE);
+    }
+
+    @Test void concurrentAccountAndWithdrawalStillConvergeWithSharedControl() throws Exception {
+        enableFence("OPEN");
+        concurrentIssuanceAndWithdrawalConvergeToBlocked();
+    }
+
+    @Test void transactionRetryDoesNotRecaptureNewEpoch() {
+        var fence = enableFence("OPEN");
+        var ticket = fence.capture();
+        var changed = new java.util.concurrent.atomic.AtomicBoolean();
+        var applier = new PaymentWithdrawalApplier(store, properties, Clock.fixed(NOW, ZoneOffset.UTC));
+        assertThatThrownBy(() -> store.transaction(session -> {
+            // Establish old snapshot, then commit an operator epoch change before the writer CAS.
+            db.getCollection(PaymentRecoveryFence.COLLECTION).find(session).first();
+            if (changed.compareAndSet(false, true)) {
+                db.getCollection(PaymentRecoveryFence.COLLECTION).updateOne(new Document(),
+                        new Document("$set", new Document("epoch", UUID.randomUUID().toString()))
+                                .append("$inc", new Document("version", 1L)));
+            }
+            fence.acquire(session, ticket, PaymentRecoveryFence.Writer.RECOVERY);
+            return applier.applyFact(session, new WithdrawalFact(USER, NOW));
+        })).isInstanceOf(PaymentException.class);
+        assertThat(control().getLong("version")).isEqualTo(2L);
+        assertThat(db.getCollection("payment_account_lifecycles").countDocuments()).isZero();
+    }
+
+    @Test void recoveryRequiresFenceEvenWhenOrdinaryWritersAreInLegacyMode() {
+        var fence = new PaymentRecoveryFence(store, properties);
+        assertThatThrownBy(() -> store.transaction(session -> {
+            fence.acquire(session, null, PaymentRecoveryFence.Writer.RECOVERY); return true;
+        })).isInstanceOf(PaymentException.class);
     }
 }

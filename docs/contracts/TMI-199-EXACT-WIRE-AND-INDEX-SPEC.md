@@ -1,5 +1,7 @@
 # TMI-199 exact wire·index 수락안
 
+> 2026-10-12 후속 개정 안내: [TMI-204 단순화 계획](../plans/TMI-204-withdrawal-recovery.md)은 원격 ACK/consumer generation 대신 Billing local authority를 사용한다. 이 문서의 관련 route/header/manifest/index는 기존 동결 버전으로 보존한다. 새 revision fixture·availability·호환 전환 동결 전 기존 필드를 조용히 제거하거나 새 의미로 재사용하지 않는다. 기존4필드 event/canonical/numeric 검증은 재사용한다.
+
 - 작성일: 2026-10-07 / develop / TMI-199
 - 상태: 2026-10-07 Identity §5 전체 wire 및 §6 manifest 수락·추가42건 독립 검증 회신 확인. 본 버전 공동 구현 규격 동결. 관련 변경 병합 확인·Jira 종료 승인은 별도이며 운영 검증 완료 아님.
 

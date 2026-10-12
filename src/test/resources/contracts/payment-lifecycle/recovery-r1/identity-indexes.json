@@ -1,0 +1,222 @@
+{
+  "revision": "recovery-r1",
+  "status": "IDENTITY_PROPOSED_PENDING_JOINT_ACCEPTANCE",
+  "productionInitializer": false,
+  "declaredIndexCount": 16,
+  "defaultIdIndex": "Each collection must also have the normal unique _id_ index.",
+  "indexes": [
+    {
+      "collection": "withdrawal_stream",
+      "name": "ux_withdrawal_stream",
+      "keys": {
+        "environment": 1,
+        "streamId": 1
+      },
+      "unique": true,
+      "sparse": false,
+      "collation": {
+        "locale": "simple"
+      }
+    },
+    {
+      "collection": "withdrawal_stream",
+      "name": "ux_withdrawal_active_stream",
+      "keys": {
+        "environment": 1
+      },
+      "unique": true,
+      "sparse": false,
+      "collation": {
+        "locale": "simple"
+      },
+      "partialFilterExpression": {
+        "status": "ACTIVE"
+      }
+    },
+    {
+      "collection": "withdrawal_journal",
+      "name": "ux_withdrawal_sequence",
+      "keys": {
+        "streamId": 1,
+        "sequence": 1
+      },
+      "unique": true,
+      "sparse": false,
+      "collation": {
+        "locale": "simple"
+      }
+    },
+    {
+      "collection": "withdrawal_journal",
+      "name": "ux_withdrawal_event",
+      "keys": {
+        "eventId": 1
+      },
+      "unique": true,
+      "sparse": false,
+      "collation": {
+        "locale": "simple"
+      }
+    },
+    {
+      "collection": "withdrawal_journal",
+      "name": "ix_withdrawal_capture_expiry",
+      "keys": {
+        "capturedAt": 1,
+        "_id": 1
+      },
+      "unique": false,
+      "sparse": false,
+      "collation": {
+        "locale": "simple"
+      }
+    },
+    {
+      "collection": "withdrawal_deliveries",
+      "name": "ux_withdrawal_destination",
+      "keys": {
+        "eventId": 1,
+        "destination": 1
+      },
+      "unique": true,
+      "sparse": false,
+      "collation": {
+        "locale": "simple"
+      }
+    },
+    {
+      "collection": "withdrawal_deliveries",
+      "name": "ix_withdrawal_due",
+      "keys": {
+        "destination": 1,
+        "status": 1,
+        "nextAttemptAt": 1,
+        "_id": 1
+      },
+      "unique": false,
+      "sparse": false,
+      "collation": {
+        "locale": "simple"
+      }
+    },
+    {
+      "collection": "withdrawal_snapshot_runs",
+      "name": "ux_withdrawal_snapshot_operation_r1",
+      "keys": {
+        "environment": 1,
+        "consumer": 1,
+        "requestOperationId": 1
+      },
+      "unique": true,
+      "sparse": false,
+      "collation": {
+        "locale": "simple"
+      }
+    },
+    {
+      "collection": "withdrawal_snapshot_runs",
+      "name": "ux_withdrawal_snapshot",
+      "keys": {
+        "snapshotId": 1
+      },
+      "unique": true,
+      "sparse": false,
+      "collation": {
+        "locale": "simple"
+      }
+    },
+    {
+      "collection": "withdrawal_snapshot_rows",
+      "name": "ux_withdrawal_snapshot_user",
+      "keys": {
+        "snapshotId": 1,
+        "userId": 1
+      },
+      "unique": true,
+      "sparse": false,
+      "collation": {
+        "locale": "simple"
+      }
+    },
+    {
+      "collection": "withdrawal_unavailable_ranges",
+      "name": "ux_withdrawal_unavailable_from",
+      "keys": {
+        "streamId": 1,
+        "fromSequence": 1
+      },
+      "unique": true,
+      "sparse": false,
+      "collation": {
+        "locale": "simple"
+      }
+    },
+    {
+      "collection": "withdrawal_unavailable_ranges",
+      "name": "ix_withdrawal_unavailable_to",
+      "keys": {
+        "streamId": 1,
+        "toSequence": 1
+      },
+      "unique": false,
+      "sparse": false,
+      "collation": {
+        "locale": "simple"
+      }
+    },
+    {
+      "collection": "withdrawal_snapshot_runs",
+      "name": "ix_withdrawal_snapshot_privacy_expiry",
+      "keys": {
+        "privacyExpiresAt": 1,
+        "_id": 1
+      },
+      "unique": false,
+      "sparse": false,
+      "collation": {
+        "locale": "simple"
+      }
+    },
+    {
+      "collection": "withdrawal_snapshot_runs",
+      "name": "ix_withdrawal_snapshot_operation_expiry",
+      "keys": {
+        "operationExpiresAt": 1,
+        "_id": 1
+      },
+      "unique": false,
+      "sparse": false,
+      "collation": {
+        "locale": "simple"
+      }
+    },
+    {
+      "collection": "withdrawal_snapshot_runs",
+      "name": "ix_withdrawal_snapshot_build_lease",
+      "keys": {
+        "status": 1,
+        "leaseUntil": 1,
+        "_id": 1
+      },
+      "unique": false,
+      "sparse": false,
+      "collation": {
+        "locale": "simple"
+      }
+    },
+    {
+      "collection": "withdrawal_stream",
+      "name": "ix_withdrawal_retired_stream",
+      "keys": {
+        "status": 1,
+        "closedAt": 1,
+        "_id": 1
+      },
+      "unique": false,
+      "sparse": false,
+      "collation": {
+        "locale": "simple"
+      }
+    }
+  ]
+}

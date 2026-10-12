@@ -5,6 +5,19 @@
 - Jira: 무료/owner lifecycle 관련 `TMI-120` 구현은 병합 완료; 결제 PLAN·Jira 생성 대기
 - 문서 역할: Billing 구현 전 계약의 단일 기준
 
+### 2026-10-12 TMI-203·204 단순화 권장안 계획 반영 — 사용자 요청
+
+- [TMI-204 개정 계획](../plans/TMI-204-withdrawal-recovery.md): Billing이 local checkpoint/epoch/consumer coverage를 단독 소유한다. Identity 원격 ACK·consumer generation·양측 완료 대사를 제거하는 방향을 채택한다.
+- 고정 T/H snapshot·digest/H2, 로컬 CAS·복원 격리와 기존202 push204·원천120일은 유지한다. 정상 지연과 실제 GAP/복원을 구분하며205 거래 확인·조건부 삭제를 완화하지 않는다.
+- 새 exact revision/availability/index·배포 호환성은 공동 동결 전이다. 기존 공동 규격은 구버전 기준으로 보존하며 새 의미를 섞어 구현하지 않는다. 계획 수정은 코드·Jira·배포·판매·삭제 실행 승인이 아니다.
+
+### 2026-10-12 최초 결제 출시의 legacy 범위 — 사용자 승인
+
+- 사용자 확인: 기존 구매 계정·purchaseAccountRefId 발급·실제 거래 없음. 운영 DB/Store 직접 검증을 수행했다는 뜻은 아니다.
+- 과거 전체 탈퇴 completeness를 최초 결제 출시의 필수 조건에서 제외한다. 결제 시작 전에 capture/ACTIVE MEMBER 발급 fence·구버전 token drain·수신/복구 기준점과 연동 검증을 준비하고, 기준점 이후 누락 없는 범위를 검증한다.
+- legacy PARTIAL/UNKNOWN을 COMPLETE로 바꾸지 않으며 과거 증명만을 위해 작업을 무기한 대기/재시도하지 않는다. 기준점 이후 GAP/복원 증거 소실에는 일반 보호 규칙을 적용한다. 기존 대상 발견 시 영향 재평가·승인이 필요하다.
+- 실제 판매·205 purge 승인/거래 부재 검증·보존·무료/owner 정책은 변경하지 않는다. 상세 [TMI-204 §2.3](../plans/TMI-204-withdrawal-recovery.md#23-최초-결제-출시의-기존-대상-없음--2026-10-12-승인). 전체204 구현 승인 아님.
+
 ### 2026-10-12 탈퇴 후 재가입 유료권 비복구 — 사용자 확인
 
 - 탈퇴 후 동일 번호·Store 계정으로 재가입해도 이전 계정의 남은 유료 이용권을 복구·이전하지 않는다. 이를 위한 별도 수동 복구/소유권 이전 기능도 현재 제품 범위에 추가하지 않는다.

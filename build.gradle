@@ -33,6 +33,7 @@ dependencies {
 	testImplementation 'org.springframework.security:spring-security-test'
 	testImplementation 'org.testcontainers:junit-jupiter'
 	testImplementation 'org.testcontainers:mongodb'
+	testImplementation 'com.networknt:json-schema-validator:1.5.6'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

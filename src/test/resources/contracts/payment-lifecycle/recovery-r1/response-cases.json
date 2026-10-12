@@ -1,0 +1,233 @@
+{
+  "revision": "recovery-r1",
+  "synthetic": true,
+  "cases": [
+    {
+      "name": "building",
+      "definition": "SnapshotStatus",
+      "valid": true,
+      "value": {
+        "snapshotId": "00000000-0000-4000-8000-000000000002",
+        "status": "BUILDING"
+      }
+    },
+    {
+      "name": "failed",
+      "definition": "SnapshotStatus",
+      "valid": true,
+      "value": {
+        "snapshotId": "00000000-0000-4000-8000-000000000002",
+        "status": "FAILED",
+        "failureCode": "SNAPSHOT_HISTORY_LOST"
+      }
+    },
+    {
+      "name": "expired",
+      "definition": "SnapshotStatus",
+      "valid": true,
+      "value": {
+        "snapshotId": "00000000-0000-4000-8000-000000000002",
+        "status": "EXPIRED"
+      }
+    },
+    {
+      "name": "empty-ready",
+      "definition": "SnapshotStatus",
+      "valid": true,
+      "value": {
+        "snapshotId": "00000000-0000-4000-8000-000000000002",
+        "status": "READY",
+        "manifest": {
+          "snapshotId": "00000000-0000-4000-8000-000000000002",
+          "streamId": "00000000-0000-4000-8000-000000000001",
+          "T": {
+            "seconds": "1791763200",
+            "increment": "1"
+          },
+          "H": "0",
+          "itemCount": "0",
+          "pageCount": "1",
+          "contentDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "legacyCoverage": "UNKNOWN",
+          "knownGaps": [
+            {
+              "kind": "LEGACY_HISTORY",
+              "fromSequence": null,
+              "toSequence": null
+            }
+          ],
+          "expiresAt": "2026-10-19T00:00:00Z"
+        }
+      }
+    },
+    {
+      "name": "empty-page",
+      "definition": "SnapshotPage",
+      "valid": true,
+      "value": {
+        "items": [],
+        "nextCursor": null,
+        "done": true
+      }
+    },
+    {
+      "name": "completed-feed",
+      "definition": "FeedPage",
+      "valid": true,
+      "value": {
+        "items": [],
+        "scanCursor": "synthetic.signed.cursor",
+        "targetThroughSequence": "100",
+        "nextAfterSequence": "100",
+        "scannedThrough": "100",
+        "done": true,
+        "availability": {
+          "streamId": "00000000-0000-4000-8000-000000000001",
+          "replayFloor": "80",
+          "observedThroughSequence": "150",
+          "checkedFromExclusive": "100",
+          "checkedThroughSequence": "100",
+          "observedAt": "2026-10-12T00:00:00Z"
+        }
+      }
+    },
+    {
+      "name": "gap",
+      "definition": "Error",
+      "valid": true,
+      "value": {
+        "code": "COVERAGE_GAP",
+        "message": "Required withdrawal source is missing.",
+        "retryable": false,
+        "correlationId": "00000000-0000-4000-8000-000000000002",
+        "details": {
+          "streamId": "00000000-0000-4000-8000-000000000001",
+          "replayFloor": "80",
+          "observedThroughSequence": "150",
+          "missingSequence": "101",
+          "unavailableRange": null,
+          "observedAt": "2026-10-12T00:00:00Z"
+        }
+      }
+    },
+    {
+      "name": "expired-range",
+      "definition": "Error",
+      "valid": true,
+      "value": {
+        "code": "REPLAY_UNAVAILABLE",
+        "message": "Required withdrawal source is no longer replayable.",
+        "retryable": false,
+        "correlationId": "00000000-0000-4000-8000-000000000002",
+        "details": {
+          "streamId": "00000000-0000-4000-8000-000000000001",
+          "replayFloor": "80",
+          "observedThroughSequence": "150",
+          "missingSequence": "101",
+          "unavailableRange": {
+            "fromSequence": "101",
+            "toSequence": "130"
+          },
+          "observedAt": "2026-10-12T00:00:00Z"
+        }
+      }
+    },
+    {
+      "name": "building-with-null-manifest",
+      "definition": "SnapshotStatus",
+      "valid": false,
+      "value": {
+        "snapshotId": "00000000-0000-4000-8000-000000000002",
+        "status": "BUILDING",
+        "manifest": null
+      }
+    },
+    {
+      "name": "failed-without-code",
+      "definition": "SnapshotStatus",
+      "valid": false,
+      "value": {
+        "snapshotId": "00000000-0000-4000-8000-000000000002",
+        "status": "FAILED"
+      }
+    },
+    {
+      "name": "expired-with-manifest",
+      "definition": "SnapshotStatus",
+      "valid": false,
+      "value": {
+        "snapshotId": "00000000-0000-4000-8000-000000000002",
+        "status": "EXPIRED",
+        "manifest": null
+      }
+    },
+    {
+      "name": "uncertain-with-null-details",
+      "definition": "Error",
+      "valid": false,
+      "value": {
+        "code": "SOURCE_AVAILABILITY_UNCERTAIN",
+        "message": "Withdrawal source availability is uncertain.",
+        "retryable": true,
+        "correlationId": "00000000-0000-4000-8000-000000000002",
+        "details": null
+      }
+    },
+    {
+      "name": "gap-without-details",
+      "definition": "Error",
+      "valid": false,
+      "value": {
+        "code": "COVERAGE_GAP",
+        "message": "Required withdrawal source is missing.",
+        "retryable": false,
+        "correlationId": "00000000-0000-4000-8000-000000000002"
+      }
+    },
+    {
+      "name": "user-id-not-v4",
+      "definition": "SnapshotItem",
+      "valid": true,
+      "value": {
+        "userId": "11111111-1111-1111-8111-111111111111",
+        "withdrawnAt": "2026-10-12T00:00:00Z"
+      }
+    },
+    {
+      "name": "d0-max",
+      "definition": "D0",
+      "valid": true,
+      "value": "9223372036854775807"
+    },
+    {
+      "name": "d0-overflow",
+      "definition": "D0",
+      "valid": false,
+      "value": "9223372036854775808"
+    },
+    {
+      "name": "d1-zero",
+      "definition": "D1",
+      "valid": false,
+      "value": "0"
+    },
+    {
+      "name": "u32-max",
+      "definition": "U32",
+      "valid": true,
+      "value": "4294967295"
+    },
+    {
+      "name": "u32-overflow",
+      "definition": "U32",
+      "valid": false,
+      "value": "4294967296"
+    },
+    {
+      "name": "newid-wrong-variant",
+      "definition": "NewId",
+      "valid": false,
+      "value": "00000000-0000-4000-0000-000000000001"
+    }
+  ]
+}

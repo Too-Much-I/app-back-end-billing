@@ -4638,3 +4638,240 @@
 - 실제 Jira 조회:199 완료,200~206 해야 할 일. 로컬 PLAN-009의PR2 최종 회귀 검증 중 표기는 Jira 종료/병합/배포 완료와 구분. Jira 상태 변경 없음.
 - 변경 파일: CURRENT_STATE 갱신·WORKLOG append만. 코드·계약·타 서버·외부 설정·commit/push·배포 변경 없음, 동시 작업 보존.
 - 검증: PLAN-008/009·CURRENT_STATE와 Jira 조회 대조, git diff --check. 설명 작업으로 Gradle 재실행 없음. 위험/다음: Jira 상태와 실제 개발 진행은 다를 수 있으므로201 검증·리뷰·병합 확인 후 별도 종료 처리, 후속010 및 공동 검증 진행.
+
+## 2026-10-12 — TMI-201 전체 구현 코드 설명
+
+- 브랜치: feat/TMI-201-billing-product-purchase-account / TMI-201. 목표: 사용자 요청대로 PR1/PR2 전체 파일과 실행 흐름 설명.
+- 확인/내용: payment16개 production 파일, public/internal 인증/응답,16개 index와 runbook 확인. 실제 코드 발췌와 파일 링크로 catalog·stable ref/별도 lifecycle/cursor·탈퇴 atomic commit·멱등/경합·limiter/flag/보존 후보 설명. 실제 Store 조회/구매 지급/환불/삭제가 미포함임을 구분.
+- 변경 파일: CURRENT_STATE·WORKLOG만. 코드/계약/타 서버/외부 설정/Jira/commit/push/배포 변경 없음. 기존 동시 작업 기록 보존.
+- 검증: 소스 대조·git diff --check, 설명 작업으로 Gradle 재실행 없음. 직전 전체393개 성공 기록을 인용하며 실제 Identity/AWS/Store 검증으로 확대하지 않음. 위험/다음: flag OFF와 staging/recovery gate 유지, 사용자 코드 검토 후 후속 요청에 따라 진행.
+
+## 2026-10-12 — TMI-204 전용 계획서 존재 확인
+
+- 브랜치: feat/TMI-201-billing-product-purchase-account / TMI-204. 목표: 사용자 질문에 따라 저장소 계획 문서 유무 확인.
+- 결과: docs 파일명/내용 검색상204 전용 구현 계획 없음. PLAN-009, 탈퇴 수신·대사·삭제 설계, 공동 기술 계약 및 TMI-199 exact 규격에 snapshot/feed/checkpoint/generation·복원/ACK 검증 기준 존재. 설계가 전혀 없는 것이 아니라 구현 단위 문서로 모으는 작업이 필요함을 안내.
+- 변경 파일: CURRENT_STATE·WORKLOG만. 코드/계약/타 서버/Jira/외부 설정 변경 없음. 검증: rg 검색·git diff --check, 분석 작업으로 Gradle 미실행. 위험/다음: 상대202 진행은 사용자 전달 기준,203 실제 구현 확인과 별도로204 계획 작성 가능. 이번 요청에서 신규 계획서는 작성하지 않음.
+
+## 2026-10-12 — TMI-204 탈퇴 누락 복구 구현 계획 작성
+
+- 브랜치: feat/TMI-201-billing-product-purchase-account / TMI-204(상위137). 목표: 승인된 공동 계약과201 코드를204 구현 단위로 구체화.
+- 변경 파일: docs/plans/TMI-204-withdrawal-recovery.md 신규, PLAN-009 연결, CURRENT_STATE 갱신·WORKLOG append. 코드/production schema/의존성/타 서버/Jira/외부 설정·commit/push/배포 변경 없음.
+- 내용/결정: 기존203 exact wire·numeric/canonical·generation/coverage 의미 재사용.201 applier 추출 및 모든 account/push/복구/ACK 쓰기의control CAS,가짜 event 없는 snapshot facts·bounded page commit/7일 staging 재해시·최종marker,고정H2 feed/ACK outbox/응답 유실,restore barrier·운영 세대 설치·old worker 보호,임시 자료 정리/기본OFF·관측/테스트/4개 PR 단계 정리. 신규로컬7개 collection/index와worker·운영 도구/서명 의존성은 제안이며 동결/승인 필요로 구분.
+- 유지: UserWithdrawn4필드·기존public DTO·무료권/재가입 유료 미이전·15일 조건부정리/보존 불변.204 임시 복구자료 정리와205 실제 구매계정 purge를 분리. Identity202 진행은 사용자 전달이며203 실제 구현/배포 완료를 주장하지 않음.
+- 검증: 공동 계약/수락 exact 규격/fixture/201소스 대조, Markdown 상대 링크·git diff --check. 문서 작업으로 Gradle 미실행. 신규코드/실제203/AWS/복원/부하 검증 없음.
+- 위험/다음: local schema/validator·signer module/version·운영설치 도구 동결, 공통control hotspot/2초budget·page20 검증,203 exact 지원/stream 운영 입력·실제generation 복원 gate 필요. 계획 검토 및 구현 승인 후PR1부터 진행, 판매/자동삭제 활성화 별도.
+
+## 2026-10-12 — TMI-204 계획 상세 설명
+
+- 브랜치: feat/TMI-201-billing-product-purchase-account / TMI-204. 목표: 사용자에게 복구 필요성과 구현 계획 전체를 쉽게 설명.
+- 내용: 최신 계획 원문 확인 후 실시간push 재시도와 별도 복구의 차이,snapshot T/H와feed H2,페이지 검증·checkpoint/ACK 유실,복원 전후generation·공통control CAS/barrier,coverage 구분,저장소7종·임시자료 보존,201 변경·203 의존·4개PR·테스트/승인 항목 설명.
+- 변경 파일: CURRENT_STATE·WORKLOG만. 코드/계획 본문/계약/타 서버/Jira/외부 설정/배포 변경 없음. 제품/보존/무료·유료 이전 정책 및 기본OFF 유지.
+- 검증: 계획 원문 대조·git diff --check, 설명 작업으로 Gradle 미실행. 위험/다음: 로컬schema·worker 상세는 아직 제안, 구현/판매 승인 아님. 사용자 검토 후 기술안 동결 및 구현 승인 필요.
+
+## 2026-10-12 — TMI-204 11개 이해 확인 질의
+
+- 브랜치: feat/TMI-201-billing-product-purchase-account / TMI-204. 목표: 사용자의 계획 해석 확인 및 오해 교정.
+- 설명/결정: Billing DB 진행기록을 기준으로Identity203 API를능동조회하며상대DB직접접근아님.피드생성은계속하고H2만고정.페이지최대20의원자적용과전체검증marker구분,ACK는commit된범위확인.새generation은복구실행세대이며일반retry마다변경않음,version CAS와별개.과거자료소실은증거없이COMPLETE불가이나현재stream CAUGHT_UP과구분·예외범위승인별도.7개recovery collection은모두신규제안이며기존201 lifecycle/서비스는연결변경.
+- 변경파일: CURRENT_STATE·WORKLOG만. 코드/계획/계약/타서버/Jira/외부설정/배포변경없음.검증: git diff --check,설명작업으로Gradle미실행.위험/다음: legacy gap을자동성공/판매·purge허용으로해석하지않음,기술안검토·승인후구현.
+
+## 2026-10-12 — 복구 불가능한 legacy 범위의 종료 방안 제안
+
+- 브랜치: feat/TMI-201-billing-product-purchase-account / TMI-204. 목표: UNKNOWN 상태 장기 방치 우려에 대한 권장 운영 방향 제시.
+- 제안: 과거 completeness와worker 종료/출시cohort/계정별purge를분리.출시전실제운영구매account/ref/거래·과거발급·복원현황검증후 영향없음증명이가능하면 capture/발급fence/oldtoken drain·snapshot/feed기준점으로신규범위활성화 승인 검토.과거UNKNOWN을COMPLETE로재표기하지않음.영향건은별도case로분리·7일내최초검토와명시결정기한·승인된최소보존/expiry처리,거래부재를추측한삭제나무기한보존금지.
+- 변경파일: CURRENT_STATE·WORKLOG만. 제품/공동계약/계획/코드/Jira/외부설정변경없음,운영데이터조회없음. 검증: git diff --check,설명작업으로Gradle미실행.위험/다음: 현DB빈값만으로과거부재를증명하지않으며제안은승인전.사용자동의후204 gate/종료조건을구체화하고실제환경근거를확인해야함.
+
+## 2026-10-12 — 기존 결제 대상 없는 최초 출시의 legacy 범위 승인 반영
+
+- 브랜치: feat/TMI-201-billing-product-purchase-account / TMI-204. 목표: 사용자 기존대상없음확인 및 방향승인을 문서에 반영.
+- 결정: 기존구매계정/ref발급/실거래없음을사용자확인으로기록(운영DB/Store조회아님).과거전체legacy COMPLETE는최초결제출시필수조건에서제외,결제시작기준점이후capture·ACTIVE MEMBER발급fence·oldtoken/요청drain·201/203/204연동은검증.과거불명완전성은사실대로두고관련증명작업을출시필수에서제외·무기한재시도않음.기존대상발견시재평가.
+- 변경파일: TMI-204계획§2.3/위험/완료gate,ADR004,공동기술계약,CONTRACT_DECISIONS,CURRENT_STATE,WORKLOG.기존변경보존.코드/타서버/Jira/외부설정/commit/push/배포변경없음.
+- 유지: wire/coverage enum 의미불변,기준점이후GAP·복원generation보호·205거래확인/보존·조건부purge/무료정책불변.이번승인은한정출시범위방향이며전체204기술안/구현/실제판매·삭제실행승인아님.
+- 검증: git diff --check·문서상대링크확인.문서변경으로Gradle미실행.위험/다음: 실제이관시기존대상없음과기준점근거기록,신규DB/adapter세부안동결·구현승인과203실제연동/출시승인은후속.
+
+## 2026-10-12 — 첨부 Identity TMI-203 구현 계획 검토
+
+- 브랜치: feat/TMI-201-billing-product-purchase-account / TMI-203·204.목표: 사용자첨부계획의Billing연동정합성확인.
+- 근거: 첨부203계획전문,공동계약§5.3~5.7,TMI-199 exact§5~6/Identity13개manifest,204계획과비교.최초출시legacy COMPLETE면제는snapshot필터/빈응답면제가아님을정확히반영했고7개route·추가6index도기준과일치.중대한계약충돌발견없음.
+- 보완권장(새제품정책아님):요약의복구마다새세대표현을INITIAL/BILLING_RESTORE/RESYNC로한정;baseline첫ACK성공후응답유실·동일expectedCheckpointVersion=null재전송을currentgeneration/소유/유효manifest검증뒤204로수렴시키는회귀명시;source정상정리로기존적용coverage를무효화하지않는경계테스트와실제미적용구간GAP구분.
+- 변경파일: CURRENT_STATE·WORKLOG만.첨부/계획본문/Identity코드/공동계약/Jira/외부설정변경없음.검증: 문서대조·git diff --check,Gradle/실제Mongo/IAM미실행.첨부의202코드확인주장은이번독립검증결과로승격하지않음.
+- 위험/다음: 고정T실현성·인증principal신뢰경계·실제history/복원검증은구현gate유지.큰설계재분할없이보완문구/회귀확인후0단계실험부터진행가능하며구현·배포승인은별도.
+
+## 2026-10-12 — TMI-203·204 단순화 방향 확인
+
+- 브랜치: develop / TMI-203·204. 목표: 사용자의 과도한 검증 복잡도 축소 요청에 유지할 안전성과 축소 대상 분리.
+- 결정/제안: 단순화 방향에 사용자 동의. 과거 전체 완전성 증명·일시적 복구 지연을 정상 서비스와 과도하게 결합하지 않는 방향으로 재설계. durable capture/재시도/멱등 적용/commit 뒤 진행 저장/탈퇴 상태 비복원/최소 인증·동시성 검증은 유지. exact snapshot·ACK·generation 제거까지 승인받은 것으로 확대하지 않는다.
+- 주의: 기존 토큰의 유효기간·진행 요청 경합 보호가 필요하며 Identity 발급 차단만으로 대체하지 않는다. 누락 대상을 특정하지 못하면 개별 계정만 삭제 보류할 수 있다고 보장하지 않는다. 확인 불가를 완료/미구매로 간주하거나 보류 자료를 무기한 보존하는 정책도 도입하지 않는다.
+- 변경 파일: CURRENT_STATE·WORKLOG만, 기존 변경 보존. 공동 계약/계획 본문/Identity/코드/Jira/외부 설정/배포 변경 없음. 검증: 현재204계획 gate/control 확인 및 git diff --check; 문서 기록 작업으로 Gradle 미실행.
+- 다음: 203·204의 축소안을 비교해 shared wire/완료조건/삭제 안전조건 영향을 먼저 합의한 후 관련 계획·계약 동기화. 이번 방향 동의는 판매·삭제 활성화 승인이 아님.
+
+## 2026-10-12 — Identity203 단순화 인계서 작성
+
+- 브랜치: develop / TMI-203·204. 목표: 사용자 요청대로 Identity 전달용 단순화 요청 정리.
+- 변경: docs/contracts/TMI-203-204-SIMPLIFICATION-HANDOFF.md 신규, CURRENT_STATE 갱신, WORKLOG append. 5줄 결론/필독/결정·회신/위험 구성, 기존 변경 보존.
+- 내용: durable capture·재시도·멱등·commit 후 checkpoint·탈퇴 단조성·기존 token/복원 보호 유지. 과거완전성 출시 gate·일시지연 일괄차단·불필요한 수동검토 축소 목표. T/digest/H2/ACK/generation은 삭제 확정 아닌 안전한 대체 비교 요청.205 재검토기준과203 오류운영 분리, 범위 불명시 개별 격리 불가 명시.
+- 검증: git diff --check 및 인계서 상대링크 존재 확인. 문서 작업으로 Gradle/실제 Mongo/IAM/상대코드 검증 미실행. 공동 exact 계약·코드·Identity·Jira·외부 메시지·배포 변경 없음.
+- 위험/다음: 상대 권장 최소안·wire/index/보존 영향·경합/복원 테스트 회신 후 공동 계약과204 계획 개정. 단순화 방향 승인을 기술 장치 제거·판매/삭제 승인으로 확대하지 않음.
+
+## 2026-10-12 — Identity Billing 단일 진행 authority 회신 검토
+
+- 브랜치: develop / TMI-203·204. 목표: 사용자 첨부 공동 단순화 회신 전체 검토.
+- 결과: 원격 consumer 상태/ACK를 제거하고 local checkpoint/epoch/CAS·restore 격리는 유지하는 구조를 권장. 원천120일이 ACK 기반 가변 보존이 아니므로 중복 진행 관리를 줄일 논리적 근거 있음. T/H/digest·H2 유지,202 push 응답 유지,cleanup port와205 책임 이동을 명시한 점 타당.
+- exact 보완: source availability의 관측 일관성·floor/interval 범위·16KiB 초과 및410에서도 필요한 최소 복구정보 전달 경로 동결; snapshot baseline H와 실제 연속 원event 적용 checkpoint를 분리해 C 이전 원천만료 판단을 오용하지 않음; revision/old client 거절·배포 호환을 조사 후 동결. 새 제품 정책 재선택보다 구현 규격 마무리 항목임.
+- 변경: CURRENT_STATE·WORKLOG만. 공동 계약/계획/코드/Identity/Jira/외부 발송/배포 변경 없음. 사용자 수락·구현 승인으로 간주하지 않음. 검증: 첨부 전문과 기존 공동 계약/인계 방향 대조, git diff --check. Gradle·실제Mongo/IAM/상대코드 재검증 미실행.
+- 위험/다음: local progress 유실 및 source 만료는 여전히 자동 정상화 불가. 권장안 채택 후 공동 exact/fixture/index·204와205/운영gate 영향 동기화 필요.
+
+## 2026-10-12 — TMI-204 Billing 단일 authority 계획 개정
+
+- 브랜치: develop / TMI-203·204. 목표: 사용자 요청으로 Identity 단순화 회신을 Billing 구현 계획에 반영.
+- 변경 파일: docs/plans/TMI-204-withdrawal-recovery.md 본문 개정, PLAN-009, CONTRACT_DECISIONS, ADR-004, 공동 기술 계약, TMI-199 exact, 탈퇴·purge 설계의 개정 안내 및 CURRENT_STATE/WORKLOG. 기존 사용자 변경 보존, 예상 밖 범위 변경 없음.
+- 내용: 원격 ACK/Identity consumer generation·ACK worker/flag·별도 scans 제거; local checkpoint/epoch/coverage·CAS/복원 격리, T/H/digest/H2 유지. 기본4+최소 operation 기록1의5개 collection 후보, state baseline/feed 적용 범위 분리, availability410/상한/일관성 동결 요구, 자동retry/circuit·판매/삭제 영향 구분·Phase0+4PR·회귀 기준 정리.
+- 계약: 기존4필드 event/push204·public DTO·상품/무료/재가입/보존 불변. 공동exact 기존 본문/fixture는 구버전으로 보존하고 상단에서 변경 범위와 구현 보류를 명시. 계획 채택과 신규wire/index 공동동결을 구분. Identity 저장소·Jira·코드·의존성·실제배포/판매/purge 변경 없음.
+- 검증: git diff --check,204/009의 로컬 파일링크16개 존재 확인,구ACK/generation 요구 잔존 검색(제거 설명/구버전 문맥만). 문서 변경이므로 Gradle/실제Mongo/IAM/상대서버 테스트 미실행.
+- 위험/다음: Identity에 개정 계획 전달 후 새exact revision·availability/오류·manifest/index·구배포호환·202 cleanup/205 증거소비 합의. 운영 의존성과 구현 착수/실제활성화는 별도 승인. 실제 운영 상태나새계약배포완료를 주장하지 않음.
+
+## 2026-10-12 — PLAN009·ADR·공동 계약 문서 개정 인계서
+
+- 브랜치: develop / TMI-203·204, 영향199·202·205·206. 목표: 사용자 요청대로 새 방향을 각 문서 본문에 반영하는 구체 인계 작성.
+- 변경: docs/contracts/TMI-203-204-DOCUMENT-REVISION-HANDOFF.md 신규, CURRENT_STATE 갱신·WORKLOG append. 현재 안내문/본문 변경 상태, 문서·절별 기존→대체 지침, 유지 event/token/capture/보존·local fence,새exact/fixture/index·배포호환·회신/완료기준 포함.
+- 주의: remote recovery generation과202 resumeGeneration·source stream 구분,복구ACK와push204 구분,baseline과원event증거 구분. snapshot 생성 stream 귀속·마지막scanCursor의새의미·410 availability는미결로표시. 기존본문/fixture일괄치환·운영index삭제·Identity/Jira수정없음.
+- 검증: 신규 인계서 로컬링크 존재 확인·git diff --check. 문서 작업으로 Gradle·실제Mongo/IAM/상대코드/배포 검증 미실행. 기존 변경 보존, 예상 밖 변경 없음.
+- 다음: Identity exact 제안과 호환 회신 수락 후 Billing에서 공동본문·활성명세·계획/205/206 동기화. 코드착수/배포/판매/삭제 별도 승인.
+
+## 2026-10-12 — PLAN010~013 서비스별 수정 범위 안내
+
+- 날짜·브랜치: 2026-10-12, feat/TMI-201-billing-product-purchase-account. 목표:009 외 계획도 Billing만 수정하는지 설명. 별도 Jira 없음.
+- 근거/결과:010~013 계획 대조.010은 Billing 구매 검증·기간권·sync/webhook 및 앱RC SDK completion 연동,011은Billing paid Reservation/이용 증거 및LC source reader·채점 승인 연동,012는Billing 환불/권리 종료와LC durable revoke consumer/실사용 차단,013은Identity·LC·앱·Store/RC·AWS 공동E2E/배포운영. 상대 수정·배포는 별도 계약 승인/담당 작업이며 Billing 저장소에서 묶어 수정하지 않음.
+- 변경 파일:CURRENT_STATE·WORKLOG만. 코드·정책/exact계약·타 서버·Jira·외부설정·commit/push·배포 변경 없음, 기존 동시 변경 보존.
+- 검증:계획 서비스 인계/완료 gate 확인·git diff --check, 설명만으로Gradle 미실행. 위험/다음:Billing 단독 개발 완료를 앱 결제/LC차단/staging 완료로 간주하지 않음. 각 계획 착수 시 상대 wire/작업 분담 확정.
+
+## 2026-10-12 — Identity 단순화 인계·exact 미결안 공동 검토
+
+- 브랜치: develop / TMI-203·204. 목표: 첨부2종의 기술수락 요청 검토 및 Billing 회신 정리.
+- 변경: docs/contracts/TMI-203-204-EXACT-AMENDMENT-REVIEW.md 신규,CURRENT_STATE·WORKLOG. 기존 동시 작업 기록 보존,예상 밖 변경 없음.
+- 결과: local authority/atomic checkpoint·restore,명시stream body·key unique/binding,페이지availability·최초410구간1개·baseline/feed 분리 방향 타당.503 details는생략해variant축소 권장;순번검증/논리expiry/pagehole/7일run·120일keybinding 동결요구. versioned v2 prefix는권장후보이며확정아님.
+- 유지: 계획/공동exact본문/fixture/index/코드/타서버/Jira·외부설정변경없음. 기술검토를새공동exact동결·구현/판매/삭제승인으로해석하지않음.
+- 검증: 첨부전문·204/기존exact대조,새문서로컬링크·git diff --check. 문서작업으로Gradle/실제Mongo/IAM/배포검증미실행. 상대203코드부재보고는실배포부재증거아님.
+- 다음: Identity exact보완수락·route/index/DTO/error명세후공동본문과fixture동기화. 실제runtime/복원/watchdog는206에서검증.
+
+## 2026-10-12 — recovery-v2-candidate-1 검토
+
+- 브랜치: develop / TMI-203·204.목표: Identity새exact후보의앞선보완반영과기술채택가능성확인.
+- 변경: TMI-203-204-EXACT-AMENDMENT-REVIEW.md§6추가,CURRENT_STATE/WORKLOG.첨부전문·기존13index대조결과후보10index의유지/변경/제외일치.주요보완반영으로큰재설계없이후보채택권장.
+- 잔여: sourceinterval저장/overflow원자성,429/message/FAILEDpage상태표,500RESPONSE_LIMIT_EXCEEDED의일괄5xxretry예외를새exact작성시완결. 실제route/index/배포/IAM/복원gate와구분.
+- 유지: 계약본문/계획/fixture/코드/Identity/Jira/배포변경없음.권장수락을공동동결·구현/판매/삭제승인으로승격하지않음.기존변경보존,예상밖변경없음.
+- 검증: 첨부/manifest정적대조·git diff --check.문서검토이므로Gradle/Mongo/IAM미실행.다음: 후보채택뒤새exact/schema/manifest/fixture작성·검증과활성문서동기화,별도구현요청.
+
+## 2026-10-12 — Identity 최종 방향 확인·Billing204 운영값 제안
+
+- 브랜치: develop / TMI-203·204.목표: 첨부의v1/range방향확인과§3.3운영값회신.
+- 변경: TMI-204-OPERATIONS-PROPOSAL.md신규,기존검토서상단최신방향링크,CURRENT_STATE·WORKLOG.코드/계획운영값/공동exact/fixture/Identity/Jira/배포변경없음,기존변경보존.
+- 내용: 미구현전제의v1최초구현·별도range/prefix병합방향을직전v2/10index후보와구분.204정상5초/빈30초·1~60초backoff20회뒤5분probe·bounded snapshot재생성·Retry-After·경보억제·watchdog·분리된epoch설치권한제안.기존202/205규칙불변,수치최종수락/담당지정별도.
+- 위험:capturedAt없는wire에서withdrawnAt/sequence로만료시각추정금지.권한/원천range저장/실제부하·DB복원미검증.원천/운영미구현전제는사용자전달이며실배포독립확인아님.
+- 검증:첨부전문·기존후보대조,git diff --check·신규링크확인.문서작업으로Gradle/Mongo/IAM미실행.다음:양측운영값/range schema·exact동결후새fixture와활성문서정합화,별도구현요청.
+
+## 2026-10-12 — 사용자 승인204 계획·Jira 갱신
+
+- 브랜치: develop / TMI-204(상위137).목표: 사용자 요청대로 최신 방향/운영값/완료기준을계획과Jira에동기화.
+- 변경파일: TMI-204-withdrawal-recovery.md,TMI-204-OPERATIONS-PROPOSAL.md,CURRENT_STATE,WORKLOG. 기존변경보존,예상밖파일변경없음.
+- 내용: v1최초구현/명시streambody·keybinding/source floor+별도range,local epoch/5개collection후보/ACK제거. poll5초/빈30초,backoff1~60초20회후5분probe,lease60/20,catchup10page/30초,추가snapshot2run/24h,Retry-After/명시nonretryable/경보/운영권한과회귀기준반영. 기존202/205·보존/무료정책유지.
+- Jira: 기존TMI-204를읽고제목·description만수정,재조회로v1/5분probe/빈30초/ACK제거와상태해야할일·parent137·미할당유지확인.다른이슈/댓글/상태/담당변경없음. URL https://to-teacher.atlassian.net/browse/TMI-204 .
+- 검증: git diff --check·계획/운영문서로컬링크확인·구1시간retry/versioned미결표현잔존확인.문서/Jira작업으로Gradle/Mongo/IAM미실행.코드/의존성/타서버/배포/commit/push없음.
+- 위험/다음: 신규exact/range schema·index/429/message·manifest/fixture 공동동결,실제담당/채널/권한/부하·복원검증 및별도구현착수/활성화승인필요.채택된운영수치는아직실환경에적용하지않음.
+
+## 2026-10-12 — Identity203 내부 코어 보고·저장 규격 검토
+
+- 브랜치: develop / TMI-203·204.목표: 첨부구현보고와공동확정요청검토.
+- 변경: TMI-203-204-EXACT-AMENDMENT-REVIEW.md§7,CURRENT_STATE,WORKLOG만. source range/index/version·100batch·FAILED409/429제안이204방향과일치함을기록.100제한의조회누락방지·선택밖동일from unique충돌의재선택수렴을DBadapter검증으로요청.
+- 확인범위: 첨부전문과현204계획/운영값대조.1492개/1486통과6skip·신규17개는상대보고이며소스독립검토/실행아님. API/DB/cursor/IAM미완성으로실연동가능상태를주장하지않음.
+- 검증: git diff --check,문서검토로Gradle/Mongo/IAM미실행.기존변경보존,예상밖변경없음.계약본문/계획/fixture/코드/타서버/Jira/배포미변경.
+- 다음: 새exact/schema/message/index최종명·fixture공동확인,실제동일T/Mongo/CAS검증과후속controller/adapter구현.제품정책재선택이나API/판매/삭제승인으로확대하지않음.
+
+## 2026-10-12 — Identity 현재 구현·fixture 직접 확인
+
+- 브랜치: Billing develop / 대상Identity feat/TMI-203-withdrawal-snapshot-feed-recovery / TMI-203·204.목표: 사용자질문에현재작성상태읽기확인.
+- 확인: Identitygit상태·src/main전역참조검색,RecoveryProtocol/SnapshotAccessRules·RecoverySchemaTests·recovery-r1파일목록/schema,최근WORKLOG와XML열람.새JSON6종·strictcodec/고정오류·상태규칙/추가range코어존재,미커밋작업.코드상HTTP/DB복구adapter연결없고codec주석에도미등록명시.
+- 검증: 기존로컬XML6종80tests(6+3+8+7+33+23)/실패0/오류0/skip0직접확인.테스트재실행이나미커밋현재전체변경에대한완전검증은아님. schema는공동수락pending명시,manifest테스트기준16개존재.공동동결/실배포/API준비로확대하지않음.
+- 변경: Billing CURRENT_STATE/WORKLOG만,Identity파일/Gradle/DB/외부/Jira미변경. git diff --check.기존동시변경보존,예상밖변경없음.
+- 다음: Billing에서이미작성된recovery-r1명세/fixture독립검증·공동확인후204개발병행가능.203실제HTTP/Mongo/cursor/builder/IAM연동은후속이며별도승인없이구현착수하지않음.
+
+## 2026-10-12 — TMI-204 Phase0 recovery-r1 Billing 독립 검증
+
+- 브랜치: feat/TMI-204-billing-withdrawal-recovery. 목표: 사용자 승인에 따라 Identity 새 exact/fixture를 Billing에서 독립 검증.
+- 변경: build.gradle(test-only networknt1.5.6), WithdrawalRecoveryFixtureTest, recovery-r1 JSON8종, 독립 검증 결과 문서, 204 계획 진행 메모, CURRENT_STATE/WORKLOG. 기존 dirty 문서와 v1 fixture 보존. Identity Java 구현 복사·Identity 수정 없음.
+- 동작: 요청22/응답20/상태7과 숫자 경계·오류 retry/details·index 정적 확인·feed 관계·범위 조회/승격·공유 SHA-256 검증, 총58개 추가. 작업 중 source에 추가된 range/hash fixture도 포함. 운영 decoder/worker/DB initializer 구현 아님.
+- 발견/결정: D0/D1/U32 JSON Schema pattern의 끝 개행 허용을 실제 재현. Identity decimal String.matches는 정적 확인상 거절하며 Billing 독립 oracle도 거절. 공유 원본을 고치지 않고 known-gap 재현 테스트와 Identity 전달용 보완 요청을 기록. 이를 schema 완전 적합/공동 동결로 포장하지 않음.
+- 테스트: 최초 targeted53개 중 숫자 개행1개 실패로 차이 발견; 후속 범위 테스트 타입 추론 compile 오류 수정. 최종 ./gradlew clean test 성공, XML합계451개/실패0/오류0/skip0(신규58개). Gradle 캐시/로컬 disposable Testcontainers 접근 승인 사용. git diff --check 통과. 기존 Mongo 회귀는 실행했으나 신규 Identity 복구 Mongo adapter/실AWS/Store/Identity API/배포는 미검증.
+- 유지 계약: 기존 UserWithdrawn4필드·push204·무료/유료 정책·보존기간·기존199 fixture 불변. runtime dependency/운영코드/Jira/commit/push/판매·삭제 활성화 변경 없음.
+- 위험/다음: schema 끝 개행 등 scalar 음성 fixture 공동 보완·hash 재확인/수락 후 exact 동결. 실제 T/H snapshot·range delete/evidence 원자성·unique 재선택·unknown commit·cursor/IAM과 PR1~4 구현은 별도. 이번 통과는 상대 API 구현·병합·실배포 완료가 아님.
+
+## 2026-10-12 — TMI-203·204 scalar-end-1 보완본 독립 재검증·수락
+
+- 브랜치: feat/TMI-204-billing-withdrawal-recovery. 목표: Identity 인계의8종문자열종료보완을 Billing에서 재검증. 구현전 TMI-204 Jira 본문/완료기준 읽기확인, Jira 쓰기없음.
+- 변경: recovery-r1 wire.schema/hash 동기화·scalar-cases/README추가, WithdrawalRecoveryFixtureTest의known-gap거절변경/272개입력+coverage1개추가, 독립검증문서·204계획·CURRENT_STATE·WORKLOG. Identity구현복사없음, 기존dirty보존, 예상밖변경없음.
+- 검증: 이전schema대조상8개pattern끝조건만변경. Billing networknt1.5.6에서정상8허용·개행/제어문자264거절, schema/strictdecimal동시거절. 최신8개입력SHA256일치·전달schema/scalarhash일치. ./gradlew clean test724개통과/실패0/오류0/skip0(복구fixture331), git diff --check통과. Gradle캐시/Testcontainers접근승인사용. 이전451개결과재사용아님.
+- 결정: recovery-r1/scalar-end-1공유wire/schema/fixture보완본 Billing 기술수락, Identity인계와양측확인근거기록·끝개행미결닫음. Phase0전체/local schema/index/API·배포/실Mongo/IAM/복원완료승인으로확대하지않음.
+- 유지: 기존199fixture·요청/응답shape·숫자범위·runtime·의존성·무료/유료/보존정책불변. Identity/외부설정/Jira/commit/push/배포미변경.
+- 위험/다음: semantic검증은계속필수. 실제source transaction/cursor/HTTP/IAM/복원검증은별도. 다음204 PR1준비와local schema/index·공동본문정합화; 신규기능활성화없음.
+
+## 2026-10-12 — TMI-204 PR1 초안 착수 후 사용자 요청으로 구현 중단
+
+- 브랜치: feat/TMI-204-billing-withdrawal-recovery. 최초목표: PR1기반구현. TMI-204 Jira읽기와현재계획/기존서비스 확인후착수했으나 사용자가 미동결사항부터해결하도록변경요청, 즉시추가구현중단.
+- 변경파일: PaymentWithdrawalService(공통applier위임), 신규PaymentWithdrawalApplier/WithdrawalFact, recovery/RecoveryContractException·RecoveryPayloadDecoder·IdentityWithdrawalRecoveryClient 초안, CURRENT_STATE/WORKLOG. 기존dirty보존, 예상밖변경없음. 초안미커밋유지하며무단삭제/되돌림없음.
+- 초안동작: 기존탈퇴처리를caller ClientSession에추출, snapshot fact에는eventId/inbox생성없음. strict response shape/숫자/UTF8/시간/순번검사와fakeable client interface초안. 실제worker/HTTPclient/신규DBschema/fence/활성화없음. PR1전체·신규decoder검증완료를주장하지않음.
+- 유지: public/internal wire변경없음, 기존push서비스Transaction경계유지의도. 아직전용회귀추가전이므로보장완료아님. Identity/Jira쓰기/의존성/배포/commit/push없음.
+- 미결정리: local5collection exact필드/null/state/index, barrier의account/push/recovery쓰기허용표, bounded unresolved GAP와초과UNKNOWN/205삭제보류소비,구공동본문정합화. AWS signer의module/version/credential/실권한은실HTTP단계gate로분리. 문자열schema보완은재논의하지않음.
+- 다음: 정책선택과내부기술명세를구분해권장안승인/동결후구현재개. 코드추가수정은멈추고현재상태clean test만검사; 결과는다음추가기록참조.
+- 중단시점검사: ./gradlew clean test 성공(XML724개/실패0/오류0/skip0), git diff --check통과. 신규decoder/applier전용테스트추가전이므로기존회귀통과와새기능완료를구분한다.
+
+## 2026-10-12 — TMI-204 1·2 방향 승인과 GAP 보관 설명
+
+- 브랜치: feat/TMI-204-billing-withdrawal-recovery. 목표: 사용자1·2승인기록과3번상세설명.
+- 변경: 204계획§3,CURRENT_STATE,WORKLOG만. 5collection/exact명세·단순lag정상유지/복원·control소실관련쓰기차단·승인복구방향승인. 정확필드/전이표는작성필요,3번상한/UNKNOWN/해제조건미승인.
+- 설명: 필요한원천event소실과일시통신실패구분,101~110같은구간1개와event10개구분,인접구간만합침. overflow UNKNOWN은상세범위완전성불명이며미래follow-up성공만으로과거완료처리금지. 관련205자동삭제보류는전체구매자동차단/무기한개인정보보존권한아님.
+- 검증: 계획현재본문대조·git diff --check. 문서/설명만으로Gradle재실행없음. 기존미완성코드보존·구현재개/Jira/외부/배포/commit/push없음,예상밖변경없음.
+- 다음: 3번단순한보관/초과/해제안설명후동결,1·2exact명세와함께구현재개범위확정.
+
+## 2026-10-12 — TMI-204 GAP 관리가 필요한 이유와 과설계 경계 설명
+
+- 브랜치: feat/TMI-204-billing-withdrawal-recovery / TMI-204. 사용자질문: 그렇게까지관리할필요성.
+- 변경: CURRENT_STATE/WORKLOG만. 탈퇴누락을정상으로오인하거나삭제안전성을추측하지않는목적과,상세과거구간관리라는선택적구현방식을분리해설명.
+- 제안: 현재탈퇴상태snapshot복구와과거event완전성을분리하고,과거불명최소표시·현재stream정상화와205개별거래/삭제증거확인을중심으로더단순화가능성검토. snapshot만으로삭제허가/과거완료를선언하지않음. 기존계약변경승인아님.
+- 테스트: 설명/기록만,git diff --check; Gradle재실행없음. 코드/Jira/타서버/배포/commit/push없음,미완성변경보존.
+- 다음: 사용자의복잡성허용범위를확인하고205의과거완전성의존을검토한뒤단순화정확규격제안. 구현중단유지.
+
+## 2026-10-12 — TMI-204 snapshot 중심 단순화 승인 반영
+
+- 브랜치: feat/TMI-204-billing-withdrawal-recovery / TMI-204·205. 사용자5단계흐름승인반영.
+- 변경: 204계획§2.0/2.4/5.4/6, PLAN-009탈퇴·purge설계최신안내, CURRENT_STATE/WORKLOG. 코드중단유지·기존초안/dirty보존,예상밖변경없음.
+- 결정: 평상시push+연속feed;필요원본소실이면현재상태snapshot검증후H기준재개;과거event불명최소표시.상세GAP배열/상한초과설계대체.현재정상화≠과거event완전성,목록부재로탈퇴상태복원금지.단순통신오류는기존retry,반복snapshot은기존budget유지.
+- 205: 전체과거불명만으로전계정영구보류하지않되계정별탈퇴/거래/환불/보존/동시성증거부족은보류. snapshot성공을미구매·자동삭제승인으로사용금지.
+- 유지: Identitywire/source floor·range/보존/제품정책·기본OFF. Identity/Jira/배포/commit/push변경없음.세부worker전이·local스키마·구공동본문정합화는후속.
+- 검증: 현재계획·205조건대조,git diff --check.문서만으로Gradle재실행없음.다음:승인방향의최소저장/전이명세반영후구현재개범위확정.
+
+## 2026-10-12 — Identity에 알릴 snapshot 재동기화 범위 설명
+
+- 브랜치: feat/TMI-204-billing-withdrawal-recovery / TMI-203·204. 사용자질문에전달용요약제공.
+- 변경: CURRENT_STATE/WORKLOG만. Billing복구전이/과거불명최소표시/205별도판정을공유하되API추가·source range삭제·보존확대요청과구분.
+- 확인요청: 동일T의원천목록과H,READY완전성/만료·실패거절,원천사용자삭제시snapshot포함범위·legacyCoverage/knownGaps의의미유지. snapshot에없음은탈퇴하지않았음이나삭제안전성증명아님.
+- 검증: 승인계획/직전Identityexact대조,git diff --check.설명만으로Gradle미실행. 코드재개/메시지전송/Jira/타서버/배포/commit/push없음,예상밖변경없음.
+- 다음: 사용자전달후필요한범위회신확인, Billing최소저장/전이규격정리.새source보존의무나상대구현완료로확대하지않음.
+
+## 2026-10-12 — TMI-204 계획·Jira 반영 및 Identity snapshot 범위 회신 수신
+
+- 브랜치: feat/TMI-204-billing-withdrawal-recovery / TMI-204. 앞선사용자의계획/Jira수정요청을계속수행하며새Identity회신을반영.
+- 변경: docs/plans/TMI-204-withdrawal-recovery.md, CURRENT_STATE/WORKLOG, Jira TMI-204 description만. 최신승인/중단상태·잔존WITHDRAWN snapshot범위·회귀조건·Identity인계/후속작업정합화. 기존dirty/미완성코드보존,예상밖변경없음.
+- 회신구분: T시점DB잔존모든WITHDRAWN대상,원event소실/tombstone잔존은복구·tombstone삭제/복원소실은불가. Identity자동물리삭제경로미발견은상대코드조사보고이며독립운영검증/무기한보존보장아님. count/digest는제공snapshot무결성일뿐사라진과거완전성아님.
+- Jira: 기존본문읽기후승인된snapshot재동기화·과거불명최소표시·205계정별증거·회신·추가테스트를반영,기존운영숫자/보존조건유지. 재조회로반영및제목불변/상태해야할일/parentTMI-137/미할당확인. URL https://to-teacher.atlassian.net/browse/TMI-204 . 댓글/상태/다른이슈변경없음.
+- 검증: git diff --check·Jira재조회. 문서/Jira만으로Gradle재실행없음. runtime/Identity/배포/commit/push없음.
+- 다음: local최소저장/재동기화전이규격·구공동본문정합화후중단PR1재개범위확인. 실제API/Mongo/IAM/복원및판매/삭제gate유지.
+
+## 2026-10-12 — TMI-204 사용자 재개 요청·PR1 제어기반 구현
+
+- 브랜치: feat/TMI-204-billing-withdrawal-recovery. 목표: 승인된snapshot중심복구의공통적용·strictdecoder·로컬제어기반구현. 착수전TMI-204 Jira읽기확인,내용/상태수정없음.
+- 변경파일: PaymentWithdrawalApplier/WithdrawalFact 및 기존PaymentWithdrawalService위임완성, PaymentAccountService fence연결, recovery/{RecoveryPayloadDecoder,RecoveryContractException,IdentityWithdrawalRecoveryClient,PaymentRecoveryFence,PaymentRecoverySchema}, PaymentProperties/application.yml, payment-recovery-control-schema.json. 테스트 PaymentFoundationIntegrationTest/RecoveryPayloadDecoderTest/RecoveryConfigurationTest. 계획·runbook·CURRENT_STATE/WORKLOG갱신. 기존중단초안/dirty변경보존,예상밖변경없음.
+- 동작: caller ClientSession내fact/event반영·가짜inbox없음;strict16KiB/UTF8/BOM/중복/trailing/coercion/UUID/시각/numeric·manifest/page/feed관계와exact오류15종. 전용client는interface만.
+- 제어: 필수flagOFF기존201유지,ON일때control부재failclosed.요청전ticket고정·transaction내epoch/version/barrier CAS,중복/NOOP도쓰기. OPEN/PURCHASE_BLOCKED/ALL_BLOCKED허용표문서화. startup은control schema/index/설치존재검증만,DDLhelper는명시단계용·자동epoch없음.
+- 저장범위: 승인5collection중control header만exact구현(schemaVersion/version int64·epochv4·환경/consumerunique·TTL없음). 다른4collection/control job/C/baseline등은후속migration이며전체PR1/204완료로확대하지않음.
+- 테스트: targeted Mongo/decoder통과. 최종 ./gradlew clean test749개성공/실패0/오류0/skip0(기존724+신규25), XML직접집계. 복구응답14/config1/Mongo신규10 포함. staleepoch·transactionretry재캡처금지·barrier·snapshotfact와진행실패rollback·pushNOOP·versionoverflow·schema drift·동시발급/탈퇴를로컬replica-set검증. git diff --check통과.
+- 유지: public/internal wire/기존4필드event·canonicaldigest·무료/유료/15일/120일보존계약불변, runtime dependency추가없음. 기존test-onlynetworknt변경은이전작업. 실제Identity/AWS/Store/운영DB호출·타서버/Jira/commit/push/배포없음.
+- 위험/다음: flagfalse유지. snapshot/rows/receipt/checkpoint/lease영속처리·자동재동기화·retry/retention/운영installer·SigV4는미구현. decoder단독검증은snapshot전체digest/expiry/HTTP인증증거아님. 공통control쓰기부하·oldworker물리격리·실Mongo/IAM/복원은206 gate. 다음PR2 snapshot영속단계와PR3feed·PR4운영으로이어감.

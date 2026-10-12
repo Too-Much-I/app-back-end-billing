@@ -1,0 +1,16 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "required": ["_id", "environment", "consumer", "schemaVersion", "epoch", "version", "barrier"],
+    "additionalProperties": false,
+    "properties": {
+      "_id": {"bsonType": "string"},
+      "environment": {"enum": ["SANDBOX", "PRODUCTION"]},
+      "consumer": {"enum": ["billing"]},
+      "schemaVersion": {"bsonType": "long", "enum": [1]},
+      "epoch": {"bsonType": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?![\\s\\S])"},
+      "version": {"bsonType": "long", "minimum": 1},
+      "barrier": {"enum": ["OPEN", "PURCHASE_BLOCKED", "ALL_BLOCKED"]}
+    }
+  }
+}

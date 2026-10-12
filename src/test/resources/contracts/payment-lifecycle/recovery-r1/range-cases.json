@@ -1,0 +1,113 @@
+{
+  "revision": "recovery-r1",
+  "synthetic": true,
+  "rangeLookupCases": [
+    {
+      "name": "required-point-after-first-100",
+      "generator": {
+        "count": 150,
+        "fromStart": "2",
+        "fromStep": "2",
+        "width": "0"
+      },
+      "after": "201",
+      "target": "202",
+      "expectedWitnesses": [
+        [
+          "202",
+          "202"
+        ]
+      ],
+      "expectedLookupCount": 1
+    },
+    {
+      "name": "over-100-overlaps",
+      "generator": {
+        "count": 150,
+        "fromStart": "1",
+        "fromStep": "1",
+        "toFixed": "200"
+      },
+      "after": "150",
+      "target": "180",
+      "expectedWitnesses": [
+        [
+          "1",
+          "200"
+        ]
+      ],
+      "expectedLookupCount": 20
+    },
+    {
+      "name": "empty-max",
+      "generator": {
+        "count": 0,
+        "fromStart": "1",
+        "fromStep": "1",
+        "width": "0"
+      },
+      "after": "9223372036854775807",
+      "target": "9223372036854775807",
+      "expectedWitnesses": [],
+      "expectedLookupCount": 0
+    }
+  ],
+  "normalizationCases": [
+    {
+      "name": "do-not-bridge",
+      "floor": "100",
+      "head": "110",
+      "ranges": [
+        [
+          "105",
+          "108"
+        ]
+      ],
+      "expectedFloor": "100",
+      "expectedRanges": [
+        [
+          "105",
+          "108"
+        ]
+      ]
+    },
+    {
+      "name": "prefix-absorption",
+      "floor": "100",
+      "head": "110",
+      "ranges": [
+        [
+          "105",
+          "108"
+        ],
+        [
+          "101",
+          "104"
+        ]
+      ],
+      "expectedFloor": "108",
+      "expectedRanges": []
+    },
+    {
+      "name": "max-boundary",
+      "floor": "9223372036854775806",
+      "head": "9223372036854775807",
+      "ranges": [
+        [
+          "9223372036854775807",
+          "9223372036854775807"
+        ]
+      ],
+      "expectedFloor": "9223372036854775807",
+      "expectedRanges": []
+    }
+  ],
+  "requiredAdapterExperiments": [
+    "same-snapshot head/floor/range/journal while cleanup commits",
+    "selected _id/old-value mismatch rolls back journal and evidence",
+    "duplicate key causes fresh exact-key lookup and bounded replan, not identical infinite retry",
+    "unknown commit reconciles source/evidence before further deletion",
+    "source replacement and stale source-version write are rejected",
+    "sweep cursor plus carry and mutations commit together; missing carry restarts sweep without deleting evidence"
+  ]
+}

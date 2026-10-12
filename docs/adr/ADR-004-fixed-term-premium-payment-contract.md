@@ -1,9 +1,12 @@
 # ADR-004: RevenueCat 기반 fixed-term premium 결제 계약
 
+- 2026-10-12 복구 단순화 계획 반영: [TMI-204 개정안](../plans/TMI-204-withdrawal-recovery.md)은 Billing local checkpoint/epoch를 단일 authority로 두고 원격 ACK/Identity consumer generation을 제거한다. 아래 과거 승인 문구 중 원격 세대/ACK는 구 exact 기준이며 신규 revision·availability/index·배포 호환 공동 동결 전 변경 구현은 보류한다. T/H·digest·H2·local CAS/복원 격리·보존 및 제품 정책은 유지, 코드/판매/삭제 실행 승인은 별도다.
+
 - 작성일: 2026-09-07
 - 상태: 제품 정책·C9-S8의 9개 선택 승인 / 기술 상세 초안 작성 / 4주 상품·D1-A·D2-A 정책 승인(2026-09-07)
 - 구현 상태: 미구현. 이 문서 작성은 PLAN·Jira·코드·배포 승인을 대신하지 않는다.
 - 2026-10-07 [공동 기술 계약 개정안](../contracts/IDENTITY-BILLING-PAYMENT-LIFECYCLE-TECHNICAL-CONTRACT.md) 사용자 승인: 원천 capturedAt+120일, snapshot 최대7일, operation120일·current stream 최소 coverage/폐기 stream120일, 신규 purchase token 최대30분/skew60초 및 발급 fence·snapshot/feed·복구 세대·retry 설계 채택. 이전 동 문서 범위의 미승인 표기는 이 기록으로 갱신한다. 상대 Identity 합의/기술·법적 적합성 검증과 실제 이관·구현 착수/배포/판매/purge 실행·개별 예외 보존 연장은 별도다.
+- 2026-10-12 최초 결제 출시 legacy 범위 승인: 사용자 확인상 기존 구매 계정·purchaseAccountRefId 발급·실제 거래 없음. 과거 전체 탈퇴의 legacy COMPLETE는 최초 출시 필수 조건에서 제외하고 [TMI-204 §2.3](../plans/TMI-204-withdrawal-recovery.md#23-최초-결제-출시의-기존-대상-없음--2026-10-12-승인)의 결제 시작 기준점 이후 capture/발급·token drain/수신·복구 연동을 검증한다. 운영 데이터 직접 검증 완료가 아니며 기존 대상 발견 시 재평가한다. 과거 UNKNOWN을 COMPLETE로 변경하거나 기준점 이후 gap·복원/205 purge gate를 완화하지 않는다. 실제 출시/전체204 구현 승인은 별도다.
 - 2026-10-07 운영 주기 승인: 미구매 탈퇴 계정 삭제 대상 매시간 점검, 미확인 건 매일 재확인, 최초 미해결 판정 후 7일 이내 담당자 검토. 15일 조건부 삭제·거래 확인 선행을 유지하며 개인정보 예외 보존기간/실제 purge 활성화 승인은 아니다. 상세는 탈퇴·purge 설계 §3/5.5를 따른다.
 - 2026-10-07 [탈퇴 수신·구매 계정·대사·purge 설계안](../contracts/PLAN-009-withdrawal-reconciliation-and-purge-contract.md) 작성. 승인된15일 조건부 정책의 기술 제안이며 새 route/보존/운영값 승인이 아니다. §5.10 cursor/activity와 009 반복 무변경 표현의 충돌은 별도 cursor 갱신안으로 보고했으며 합의 전 구현하지 않는다.
 - 2026-10-06 후속 계획 작성: [PLAN-008 전체 로드맵](../plans/PLAN-008-fixed-term-payment-roadmap.md) 및 PLAN-009~013을 검토 대기 상태로 작성했다. public envelope·LC paid source wire·provider 인증/부분 환불 증거·schema manifest의 차이는 Phase 0 동결 대상이며 PLAN 작성만으로 이 ADR의 기술 초안이 최종 승인된 것은 아니다.

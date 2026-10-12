@@ -1,5 +1,9 @@
 # PLAN-009: 탈퇴 수신·구매 계정 상태·거래 확인·삭제 설계
 
+> 최신 승인(2026-10-12): TMI-204 §2.0의 snapshot 중심 재동기화를 따른다. 원본소실 시 현재 탈퇴 상태를 검증해 새 H 이후 feed를 이어가며 과거 이력 불명은 최소 기록으로 분리한다. 상세 gap 목록 누적은 하지 않는다.205는 과거 전체event 불명만을 모든 계정의 영구 삭제 보류 조건으로 쓰지 않고 해당 계정의 탈퇴·거래/환불·보존·동시성 증거로 판정한다. 필수 증거 부족 시 보류하며 snapshot만으로 미구매/삭제를 허용하지 않는다. 아래 과거 미해결gap 표현은 이 승인 범위로 해석하고 provider coverage gate·purge OFF는 유지한다.
+
+> 2026-10-12 후속 계획 변경: [TMI-204](../plans/TMI-204-withdrawal-recovery.md)에서 복구 진행 authority를 Billing local checkpoint/epoch로 통합한다.205는 새 계약 동결 후 remote ACK 대신 local state baseline·실제 feed 적용 범위·미해결 gap과 거래 확인을 사용한다. snapshot baseline은 원event 전체 수신 증거가 아니며 판매 허용과 삭제 허용도 별도다. 본문의 구 공동 계약 참조는 새 exact 완료를 뜻하지 않는다.15일·원천/금융 보존·실제 purge OFF는 유지한다.
+
 - 작성일: 2026-10-07 / 갱신: 2026-10-12 / Jira: TMI-201 PR2(탈퇴 수신), TMI-204(복구), TMI-205(대사/삭제) / 상태: PR2 구현·로컬393개 테스트 완료, 204/205·운영 gate 별도
 - 기준: [ADR-004](../adr/ADR-004-fixed-term-premium-payment-contract.md), [009 기반 계약](PLAN-009-payment-foundation-technical-contract.md), [PLAN-009](../plans/PLAN-009-payment-catalog-and-account.md). Identity는 읽기만 했으며 이 문서는 상대 서버의 구현 완료를 의미하지 않는다.
 

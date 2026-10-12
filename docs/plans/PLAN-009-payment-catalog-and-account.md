@@ -25,7 +25,9 @@
 
 PR1의 lifecycle/cursor 기반은 PR2와 공통 Transaction 경계를 사용한다. PR1만 배포했다고 구매 계정 기능을 활성화하지 않는다. Identity TMI-200 구매 권한 발급 및 TMI-202 durable 탈퇴 전달과 fake fixture로 병행 개발할 수 있지만 실제 연동·활성화에는 상대 구현과 staging 검증이 필요하다.
 
-후속: Identity 복구 API는 TMI-203, Billing 복구 client/generation은 TMI-204, 실제 대사/조건부 purge는 TMI-205와 PLAN-010 거래 증거에 의존한다. 공동 staging은 TMI-206, 판매/삭제 활성화는 PLAN-013의 별도 승인이다. 본 계획에서 결제 검증·기간권 지급·유료 admission·환불·실제 자동삭제를 구현하지 않는다.
+후속: Identity 복구 자료 API는 TMI-203, Billing 복구 client·local checkpoint/epoch는 TMI-204, 실제 대사/조건부 purge는 TMI-205와 PLAN-010 거래 증거에 의존한다. 공동 staging은 TMI-206, 판매/삭제 활성화는 PLAN-013의 별도 승인이다. 본 계획에서 결제 검증·기간권 지급·유료 admission·환불·실제 자동삭제를 구현하지 않는다.
+
+204 전용 구현 계획은 [TMI-204 탈퇴 누락 복구](TMI-204-withdrawal-recovery.md)에 분리했다. 2026-10-12 사용자 요청으로 Billing 단일 진행 authority를 채택해 원격 ACK/Identity consumer generation을 제거하고 local epoch/CAS와 T/H·H2를 유지하도록 개정했다. 새 exact wire·availability·index 공동 동결과 구현/운영 승인은 별도다. 아래 기존 공동 계약 참조를 새 규격 동결 완료로 해석하지 않는다.
 
 | 상품 | 기간초 | 국내 기준 가격 |
 | --- | ---: | ---: |
