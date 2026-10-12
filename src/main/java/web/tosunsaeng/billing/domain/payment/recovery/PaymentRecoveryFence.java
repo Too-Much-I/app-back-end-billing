@@ -52,7 +52,7 @@ public final class PaymentRecoveryFence {
         long version = control.getLong("version");
         require(version < Long.MAX_VALUE);
         Document match = new Document(key()).append("_id", control.get("_id"))
-                .append("schemaVersion", 1L).append("epoch", ticket.epoch())
+                .append("schemaVersion", control.getLong("schemaVersion")).append("epoch", ticket.epoch())
                 .append("version", version).append("barrier", barrier.name());
         require(controls.updateOne(session, match,
                 new Document("$inc", new Document("version", 1L))).getModifiedCount() == 1);
@@ -63,7 +63,7 @@ public final class PaymentRecoveryFence {
     }
     private static void validate(Document control) {
         require(control != null && control.get("schemaVersion") instanceof Long
-                && control.getLong("schemaVersion") == 1L && control.get("version") instanceof Long
+                && Set.of(1L, 2L).contains(control.getLong("schemaVersion")) && control.get("version") instanceof Long
                 && control.getLong("version") > 0);
         require(control.get("epoch") instanceof String && control.get("barrier") instanceof String);
         canonical(control.getString("epoch"));

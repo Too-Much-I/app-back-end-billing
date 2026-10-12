@@ -4875,3 +4875,14 @@
 - 테스트: targeted Mongo/decoder통과. 최종 ./gradlew clean test749개성공/실패0/오류0/skip0(기존724+신규25), XML직접집계. 복구응답14/config1/Mongo신규10 포함. staleepoch·transactionretry재캡처금지·barrier·snapshotfact와진행실패rollback·pushNOOP·versionoverflow·schema drift·동시발급/탈퇴를로컬replica-set검증. git diff --check통과.
 - 유지: public/internal wire/기존4필드event·canonicaldigest·무료/유료/15일/120일보존계약불변, runtime dependency추가없음. 기존test-onlynetworknt변경은이전작업. 실제Identity/AWS/Store/운영DB호출·타서버/Jira/commit/push/배포없음.
 - 위험/다음: flagfalse유지. snapshot/rows/receipt/checkpoint/lease영속처리·자동재동기화·retry/retention/운영installer·SigV4는미구현. decoder단독검증은snapshot전체digest/expiry/HTTP인증증거아님. 공통control쓰기부하·oldworker물리격리·실Mongo/IAM/복원은206 gate. 다음PR2 snapshot영속단계와PR3feed·PR4운영으로이어감.
+
+## 2026-10-12 — TMI-204 PR2 snapshot 영속 처리 코어
+
+- 브랜치: feat/TMI-204-billing-withdrawal-recovery. 목표: 사용자 개발 요청에 따라 이전 커밋 d232d2e 위에서 snapshot 저장·처리 단계 구현. 시작 worktree clean, 착수 전 Jira TMI-204 읽기만 수행.
+- 변경파일: recovery/WithdrawalSnapshotProcessor.java, PaymentSnapshotSchema.java, PaymentRecoveryFence.java; PaymentProperties.java/application.yml; payment-recovery-control-schema.json/payment-recovery-snapshot-schema.json; WithdrawalSnapshotIntegrationTest/RecoveryConfigurationTest; 204계획·foundation runbook·신규 snapshot-processing runbook·CURRENT_STATE/WORKLOG. 예상 밖 변경 없음.
+- 동작: operation 선저장/동일 key 재시도, REQUESTING→POLLING/APPLYING→VERIFYING→COMPLETE와 FAILED/EXPIRED. 최대20행 fact/row/receipt/progress 동일transaction, 가짜inbox 없음. HTTP 밖 dispatch 후 동일 epoch/60초 lease 검증, 늦은 응답·만료 차단. 전체 staging keyset count/digest 검증 후에만 T/H baseline·checkpoint 설치, 기존 C 역행/stream 임의 교체 거절. historicalUncertainty boolean만 저장하며 과거 전체완전성이나 삭제안전성을 선언하지 않음.
+- 스키마: 기존control reader version1/2 허용·snapshot writer version2 요구, 4collection/9index 추가. startup은 exact검증뿐이며 운영DDL/validator 자동수정·epoch자동생성 없음. 명시 migration/drain 필요, PR1 binary 무조건 rollback 불가. snapshot flag 기본OFF, processor는 비등록 step코어이며 scheduler 없음.
+- 보존: source expiry와local시작+7일 중빠른 시점 적용. 만료행/receipt 각20개와빈run 정리메서드, snapshot OFF에서도fence필수로호출가능. 실제 주기실행/overdue경보·120일 operation정리는 후속, 운영활성화 금지.
+- 테스트: 초기 compile accessor와 operation 필수 streamId 누락을 수정한 뒤 targeted13개 성공. source조기만료·checkpoint역행·flag/fence조합 추가 후 ./gradlew clean test **765개 성공/실패0/오류0/skip0**, XML합계 확인(이전749+신규16). Mongo7 replica-set에서응답유실/재시작/빈snapshot/digest실패/페이지중복/원자rollback/lease탈취/epoch교체/expiry/batch정리/transient·unknowncommit/schema drift검증. git diff --check통과.
+- 유지: recovery-r1/scalar-end-1 sharedwire/fixture, 기존public/internal계약과무료권·결제/탈퇴정책불변. dependency추가없음. 실제Identity/AWS/Store/운영DB 호출,타서버수정,Jira쓰기,commit/push/배포 없음.
+- 위험/다음: PR2전체나TMI-204완료아님. BUILDING5분·poll/backoff·실패후추가run예산·전체hashpass의실행시간조율·retention scheduler를연결하고 feed/실HTTP·SigV4·운영installer로이어갈것. count/digest는잔존tombstone snapshot무결성만증명. 실부하/복원/IAM/보존기한운영검증 전 flag와판매/삭제gate유지.

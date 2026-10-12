@@ -13,6 +13,7 @@ billing:
     withdrawal-enabled: ${BILLING_PAYMENT_WITHDRAWAL_ENABLED:false}
     recovery:
       fence-required: ${BILLING_PAYMENT_RECOVERY_FENCE_REQUIRED:false}
+      snapshot-enabled: ${BILLING_PAYMENT_RECOVERY_SNAPSHOT_ENABLED:false}
     environment: ${BILLING_PAYMENT_ENVIRONMENT:}
     catalog-version: ${BILLING_PAYMENT_CATALOG_VERSION:1}
     limiter-key: ${BILLING_PAYMENT_LIMITER_KEY:}

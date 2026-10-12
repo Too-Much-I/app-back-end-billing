@@ -14,6 +14,7 @@ public class PaymentProperties {
     @Getter @Setter
     public static class Recovery {
         private boolean fenceRequired;
+        private boolean snapshotEnabled;
     }
     private String environment = "";
     private long catalogVersion = 1;

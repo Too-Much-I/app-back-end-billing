@@ -1,16 +1,150 @@
 {
   "$jsonSchema": {
     "bsonType": "object",
-    "required": ["_id", "environment", "consumer", "schemaVersion", "epoch", "version", "barrier"],
+    "required": [
+      "_id",
+      "environment",
+      "consumer",
+      "schemaVersion",
+      "epoch",
+      "version",
+      "barrier"
+    ],
     "additionalProperties": false,
     "properties": {
-      "_id": {"bsonType": "string"},
-      "environment": {"enum": ["SANDBOX", "PRODUCTION"]},
-      "consumer": {"enum": ["billing"]},
-      "schemaVersion": {"bsonType": "long", "enum": [1]},
-      "epoch": {"bsonType": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?![\\s\\S])"},
-      "version": {"bsonType": "long", "minimum": 1},
-      "barrier": {"enum": ["OPEN", "PURCHASE_BLOCKED", "ALL_BLOCKED"]}
+      "_id": {
+        "bsonType": "string"
+      },
+      "environment": {
+        "enum": [
+          "SANDBOX",
+          "PRODUCTION"
+        ]
+      },
+      "consumer": {
+        "enum": [
+          "billing"
+        ]
+      },
+      "schemaVersion": {
+        "bsonType": "long",
+        "enum": [
+          1,
+          2
+        ]
+      },
+      "epoch": {
+        "bsonType": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?![\\s\\S])"
+      },
+      "version": {
+        "bsonType": "long",
+        "minimum": 1
+      },
+      "barrier": {
+        "enum": [
+          "OPEN",
+          "PURCHASE_BLOCKED",
+          "ALL_BLOCKED"
+        ]
+      },
+      "snapshotJob": {
+        "bsonType": "object",
+        "required": [
+          "operationId",
+          "streamId",
+          "state",
+          "startedAt",
+          "expiresAt",
+          "leaseId",
+          "leaseUntil",
+          "snapshotId",
+          "version"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "operationId": {
+            "bsonType": "string"
+          },
+          "streamId": {
+            "bsonType": "string"
+          },
+          "state": {
+            "enum": [
+              "REQUESTING",
+              "POLLING",
+              "APPLYING",
+              "VERIFYING",
+              "COMPLETE",
+              "FAILED",
+              "EXPIRED"
+            ]
+          },
+          "startedAt": {
+            "bsonType": "date"
+          },
+          "expiresAt": {
+            "bsonType": "date"
+          },
+          "leaseId": {
+            "bsonType": [
+              "string",
+              "null"
+            ]
+          },
+          "leaseUntil": {
+            "bsonType": "date"
+          },
+          "snapshotId": {
+            "bsonType": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "bsonType": "long",
+            "minimum": 1
+          }
+        }
+      },
+      "baseline": {
+        "bsonType": "object",
+        "required": [
+          "streamId",
+          "tSeconds",
+          "tIncrement",
+          "highWater",
+          "installedAt"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "streamId": {
+            "bsonType": "string"
+          },
+          "tSeconds": {
+            "bsonType": "long",
+            "minimum": 0
+          },
+          "tIncrement": {
+            "bsonType": "long",
+            "minimum": 0
+          },
+          "highWater": {
+            "bsonType": "long",
+            "minimum": 0
+          },
+          "installedAt": {
+            "bsonType": "date"
+          }
+        }
+      },
+      "checkpoint": {
+        "bsonType": "long",
+        "minimum": 0
+      },
+      "historicalUncertainty": {
+        "bsonType": "bool"
+      }
     }
   }
 }

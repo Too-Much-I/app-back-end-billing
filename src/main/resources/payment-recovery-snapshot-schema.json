@@ -1,0 +1,369 @@
+{
+  "revision": 2,
+  "validators": {
+    "payment_recovery_snapshots": {
+      "$jsonSchema": {
+        "bsonType": "object",
+        "required": [
+          "_id",
+          "environment",
+          "consumer",
+          "epoch",
+          "snapshotId",
+          "operationId",
+          "streamId",
+          "tSeconds",
+          "tIncrement",
+          "highWater",
+          "itemCount",
+          "pageCount",
+          "digest",
+          "expiresAt",
+          "receivedCount",
+          "pagesApplied",
+          "lastUserId",
+          "nextCursor",
+          "version",
+          "state"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "_id": {
+            "bsonType": "string"
+          },
+          "environment": {
+            "enum": [
+              "SANDBOX",
+              "PRODUCTION"
+            ]
+          },
+          "consumer": {
+            "enum": [
+              "billing"
+            ]
+          },
+          "epoch": {
+            "bsonType": "string"
+          },
+          "snapshotId": {
+            "bsonType": "string"
+          },
+          "operationId": {
+            "bsonType": "string"
+          },
+          "streamId": {
+            "bsonType": "string"
+          },
+          "tSeconds": {
+            "bsonType": "long",
+            "minimum": 0
+          },
+          "tIncrement": {
+            "bsonType": "long",
+            "minimum": 0
+          },
+          "highWater": {
+            "bsonType": "long",
+            "minimum": 0
+          },
+          "itemCount": {
+            "bsonType": "long",
+            "minimum": 0
+          },
+          "pageCount": {
+            "bsonType": "long",
+            "minimum": 1
+          },
+          "digest": {
+            "bsonType": "string"
+          },
+          "expiresAt": {
+            "bsonType": "date"
+          },
+          "receivedCount": {
+            "bsonType": "long",
+            "minimum": 0
+          },
+          "pagesApplied": {
+            "bsonType": "long",
+            "minimum": 0
+          },
+          "lastUserId": {
+            "bsonType": [
+              "string",
+              "null"
+            ]
+          },
+          "nextCursor": {
+            "bsonType": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "bsonType": "long",
+            "minimum": 1
+          },
+          "state": {
+            "enum": [
+              "APPLYING",
+              "VERIFYING",
+              "INSTALLED"
+            ]
+          }
+        }
+      }
+    },
+    "payment_recovery_snapshot_rows": {
+      "$jsonSchema": {
+        "bsonType": "object",
+        "required": [
+          "_id",
+          "environment",
+          "consumer",
+          "epoch",
+          "snapshotId",
+          "userId",
+          "withdrawnAt",
+          "expiresAt"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "_id": {
+            "bsonType": "string"
+          },
+          "environment": {
+            "enum": [
+              "SANDBOX",
+              "PRODUCTION"
+            ]
+          },
+          "consumer": {
+            "enum": [
+              "billing"
+            ]
+          },
+          "epoch": {
+            "bsonType": "string"
+          },
+          "snapshotId": {
+            "bsonType": "string"
+          },
+          "userId": {
+            "bsonType": "string"
+          },
+          "withdrawnAt": {
+            "bsonType": "string"
+          },
+          "expiresAt": {
+            "bsonType": "date"
+          }
+        }
+      }
+    },
+    "payment_recovery_pages": {
+      "$jsonSchema": {
+        "bsonType": "object",
+        "required": [
+          "_id",
+          "environment",
+          "consumer",
+          "epoch",
+          "kind",
+          "runId",
+          "pageIndex",
+          "receiptDigest",
+          "expiresAt"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "_id": {
+            "bsonType": "string"
+          },
+          "environment": {
+            "enum": [
+              "SANDBOX",
+              "PRODUCTION"
+            ]
+          },
+          "consumer": {
+            "enum": [
+              "billing"
+            ]
+          },
+          "epoch": {
+            "bsonType": "string"
+          },
+          "kind": {
+            "enum": [
+              "SNAPSHOT"
+            ]
+          },
+          "runId": {
+            "bsonType": "string"
+          },
+          "pageIndex": {
+            "bsonType": "long",
+            "minimum": 0
+          },
+          "receiptDigest": {
+            "bsonType": "string"
+          },
+          "expiresAt": {
+            "bsonType": "date"
+          }
+        }
+      }
+    },
+    "payment_recovery_operations": {
+      "$jsonSchema": {
+        "bsonType": "object",
+        "required": [
+          "_id",
+          "environment",
+          "consumer",
+          "epoch",
+          "operationId",
+          "streamId",
+          "state",
+          "createdAt",
+          "retentionExpiresAt"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "_id": {
+            "bsonType": "string"
+          },
+          "environment": {
+            "enum": [
+              "SANDBOX",
+              "PRODUCTION"
+            ]
+          },
+          "consumer": {
+            "enum": [
+              "billing"
+            ]
+          },
+          "epoch": {
+            "bsonType": "string"
+          },
+          "operationId": {
+            "bsonType": "string"
+          },
+          "streamId": {
+            "bsonType": "string"
+          },
+          "state": {
+            "enum": [
+              "ACTIVE",
+              "COMPLETE",
+              "FAILED",
+              "EXPIRED"
+            ]
+          },
+          "createdAt": {
+            "bsonType": "date"
+          },
+          "retentionExpiresAt": {
+            "bsonType": "date"
+          }
+        }
+      }
+    }
+  },
+  "indexes": [
+    {
+      "collection": "payment_recovery_snapshots",
+      "name": "ux_payment_recovery_snapshot",
+      "keys": {
+        "environment": 1,
+        "consumer": 1,
+        "epoch": 1,
+        "snapshotId": 1
+      },
+      "unique": true
+    },
+    {
+      "collection": "payment_recovery_snapshots",
+      "name": "ux_payment_recovery_snapshot_operation",
+      "keys": {
+        "environment": 1,
+        "consumer": 1,
+        "operationId": 1
+      },
+      "unique": true
+    },
+    {
+      "collection": "payment_recovery_snapshots",
+      "name": "ix_payment_recovery_snapshot_expiry",
+      "keys": {
+        "expiresAt": 1,
+        "_id": 1
+      },
+      "unique": false
+    },
+    {
+      "collection": "payment_recovery_snapshot_rows",
+      "name": "ux_payment_recovery_snapshot_user",
+      "keys": {
+        "environment": 1,
+        "consumer": 1,
+        "epoch": 1,
+        "snapshotId": 1,
+        "userId": 1
+      },
+      "unique": true
+    },
+    {
+      "collection": "payment_recovery_snapshot_rows",
+      "name": "ix_payment_recovery_row_expiry",
+      "keys": {
+        "expiresAt": 1,
+        "_id": 1
+      },
+      "unique": false
+    },
+    {
+      "collection": "payment_recovery_pages",
+      "name": "ux_payment_recovery_page",
+      "keys": {
+        "environment": 1,
+        "consumer": 1,
+        "epoch": 1,
+        "kind": 1,
+        "runId": 1,
+        "pageIndex": 1
+      },
+      "unique": true
+    },
+    {
+      "collection": "payment_recovery_pages",
+      "name": "ix_payment_recovery_page_expiry",
+      "keys": {
+        "expiresAt": 1,
+        "_id": 1
+      },
+      "unique": false
+    },
+    {
+      "collection": "payment_recovery_operations",
+      "name": "ux_payment_recovery_operation",
+      "keys": {
+        "environment": 1,
+        "consumer": 1,
+        "operationId": 1
+      },
+      "unique": true
+    },
+    {
+      "collection": "payment_recovery_operations",
+      "name": "ix_payment_recovery_operation_retention",
+      "keys": {
+        "retentionExpiresAt": 1,
+        "_id": 1
+      },
+      "unique": false
+    }
+  ]
+}

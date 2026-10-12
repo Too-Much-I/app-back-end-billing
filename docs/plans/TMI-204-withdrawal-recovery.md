@@ -1,7 +1,7 @@
 # TMI-204: Billing 단일 진행 관리 기반 탈퇴 누락 복구 구현 계획
 
 - 작성·개정일: 2026-10-12 / Jira: TMI-204, 상위 TMI-137
-- 상태: **snapshot 중심 재동기화 승인·scalar-end-1 Billing 기술 수락. 사용자 재개 요청으로 PR1 제어기반(applier/decoder/control fence/header schema)을 구현했다. snapshot/feed worker·진행저장·실환경 검증은 후속이며 전체204 완료 아님.**
+- 상태: **snapshot 중심 재동기화 승인·scalar-end-1 Billing 기술 수락. PR1 제어기반과 PR2 snapshot 영속 처리 코어를 구현했다. 자동 worker·feed·실환경 검증은 후속이며 전체204 완료 아님.**
 - 2026-10-12 추가 승인: 사용자 요청으로 v1 최초 구현·floor+별도 range 방향과 [204 운영 회신](../contracts/TMI-204-OPERATIONS-PROPOSAL.md)의 초기값을 본 계획 및 Jira TMI-204에 반영한다. 수치의 Billing 계획 채택이며 실제 설정 적용·공동 exact 검증 완료는 아니다.
 - 개정 근거: Identity 「TMI-203·204 단순화 공동 검토 회신 — 진행 상태의 Billing 단일 소유」와 [단순화 인계서](../contracts/TMI-203-204-SIMPLIFICATION-HANDOFF.md).
 - 이번 갱신 범위: Billing 계획·작업기록과 Jira TMI-204 본문. Identity203 계획/코드·Jira는 변경하지 않는다. 상대 회신을 기록하며 운영 DB 완전성/배포 완료를 독립 검증한 것은 아니다.
@@ -294,6 +294,8 @@ service/environment/operation(snapshot,feed,apply,install,cleanup)/outcome/durat
 현wire에capturedAt이없으므로withdrawnAt/sequence를원천expiry시각으로대체추정하지않는다.정확consumer별만료위험은Identity원천지표와Billing진행을운영에서대조한다.일반worker와epoch설치/barrier해제운영권한은실제도구·DB접근제어로분리검증한다.
 
 ## 8. 구현 순서
+
+2026-10-12 추가 구현: [snapshot 영속 처리 안내](../runbooks/TMI-204-snapshot-processing.md). 나머지 4collection/9index와 control version2 진행필드, durable operation·lease·페이지 원자 적용·전체 hash 검증·baseline 설치·만료 batch 정리 코어를 추가했다. 자동 scheduler/실HTTP/feed/실패 후 새 run budget/120일 정리는 미구현이며 PR2 전체 운영 완료는 아니다. 기존 중단/미구현 표기는 이 항목의 명시 범위에 한해 갱신한다.
 
 2026-10-12 재개 구현: [PR1 제어기반 규격/검증 안내](../runbooks/TMI-204-recovery-foundation.md). 기존 push applier 추출·snapshot fact 경계, 성공/오류 strict decoder, fakeable client port, ACCOUNT/PUSH/RECOVERY epoch/version CAS와 기본OFF flag, control header v1/index/validator 검증을 추가했다. 5collection 중 control header만 이번에 명세/구현하며 snapshot/rows/pages/operations·control 진행필드는 후속 명시 migration으로 추가한다. 자동복구worker·실HTTP·운영installer/retention·활성화는 없다. 기존 문서의 중단 표기는 이 사용자 재개 요청으로 해제하되 미구현 범위를 완료로 보지 않는다.
 

@@ -1,5 +1,7 @@
 # TMI-204 PR1 제어 기반 구현
 
+> 후속 구현: [snapshot 영속 처리](TMI-204-snapshot-processing.md)에 control version2·4collection·snapshot 코어와 이관 제한을 기록했다. 아래는 PR1 시점 범위이며 최신 미구현 여부는 후속 안내를 따른다.
+
 - 날짜: 2026-10-12 / branch: feat/TMI-204-billing-withdrawal-recovery
 - 상태: 공통 applier·strict 응답 decoder·control fence 구현. 전체204/실제복구worker 완료 아님.
 
