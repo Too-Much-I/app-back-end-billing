@@ -1,5 +1,9 @@
 # ADR-002: VPC Lattice·ECS SigV4 서비스 통신과 production/staging 이관
 
+> 2026-10-13 LC B 구현 승인: 사용자 「어 해줘」로 Billing의 여섯 LC POST JWT 수신 구현·테스트를 승인했다. §20의 verifier/independent flags·TLS OR기동·IAM/TEST/오포트 차단을 기본 OFF 코드에 구현했다. [Billing 로컬 검증](../contracts/LC-BILLING-WORKLOAD-JWT-B-BILLING-VALIDATION-2026-10-13.md)을 따르며 실제 운영 전환과 구분한다. 기존 사용자·Identity JWT·업무 계약은 유지하며 실제 키/ALB/TLS·C 도구·배포/활성화는 별도다. 앞선 문서 동기화 단계의 코드 승인 대기는 당시 기록이다.
+
+> 2026-10-13 LC JWT 문서 동기화 승인: 사용자 요청으로 [LC B 구현 계획](../plans/PLAN-LC-BILLING-WORKLOAD-JWT.md)과 A 확정 계약을 구현 기준에 반영한다. LC→Billing 여섯 POST는 전용 workload JWT로 전환하며 기존 IAM permitAll/다른 port 우회를 제거하는 목표다. Identity·LC TLS는 공유하되 키·principal·목적/활성화는 독립, fallback 금지·기본 OFF다. B 코드 착수·C 도구·배포/활성화는 별도 승인이다. 아래 과거 LC Lattice/SigV4-only 규칙은 이 여섯 route의 승인된 목표에서 대체하며 현재 코드/실환경 전환 완료를 뜻하지 않는다. 사용자 JWT·업무 body/원장/복구 계약·과거 검증 기록은 유지한다.
+
 > 2026-10-13 승인 갱신: Identity–Billing 네 이벤트/네 복구 POST는 workload JWT 단일 인증으로 구현한다. 해당 SigV4 signer·선택설정·IAM 수신 통과 경로를 제거하며, 구 recovery.authentication 설정은 OFF에서도 기동 오류다. 수신 OFF는 해당 네 이벤트를 차단한다. LC/user 인증·body/복구 계약과 과거 검증 기록은 유지한다. 실제 전환은 양측 활성 사용처/키/네트워크 확인 후 별도 승인한다.
 
 > 2026-10-12 승인 보완: Identity–Billing 이벤트4route·복구4POST에 한해 [TMI-204 계획 §2.5](../plans/TMI-204-withdrawal-recovery.md)의 기존 ALB/전용 workload JWT로 전환한다. 아래 Lattice-only/SigV4 규정은 해당 범위의 OFF 구현 목표에 한해 대체하며 LC·사용자 인증은 유지한다. body 서명 없는 Bearer의 보장 차이를 수락한 설계이며 실제 키/환경/ALB·TLS·SG/공동 fixture 검증 전 활성화하지 않는다. 기존 구현·과거 검증 기록은 삭제하지 않는다.
@@ -560,3 +564,26 @@ Codex는 이 저장소 규칙에 따라 GitHub Actions 추가·배포·push를 �
 9. production Billing deploy·caller 단계적 활성화
 
 각 단계는 이전 단계의 rollback 경로와 fail-closed 검증을 통과한 뒤에만 진행한다.
+
+
+## 20. LC–Billing workload JWT 전환 — 2026-10-13 문서 동기화
+
+### 20.1 결정·supersede 범위
+
+[확정 A 계약](../contracts/LC-BILLING-WORKLOAD-AUTH-R1.md)과 [최종 수락](../contracts/LC-BILLING-WORKLOAD-A-ACCEPTANCE-R1.md), [startup 표](../contracts/LC-BILLING-WORKLOAD-SENDER-MAPPING-R1.md)를 LC→Billing 여섯 POST 인증 구현의 기준으로 사용한다. 기존 Lattice-only topology·SigV4 signer/role·IAM permitAll 전제는 이 여섯 route의 목표에서 대체한다. 앞선 본문의 AWS 리소스/정책/과거 검증은 역사적 기록이며 JWT 적용 경로의 신규 배포 지시로 사용하지 않는다.
+
+기존 ALB의 전용 workload routing/target과 Billing TLS connector를 사용한다. public/user chain과 분리하며 Identity/LC가 connector를 공유해도 issuer/key/principal/audience/route/flag는 독립이다. Identity OR LC ON에서 connector 기동, 둘 다 OFF면 미기동이다. OFF/다른 live port404와 미기동 전송 오류를 구분한다. 실제 ALB/TLS/SG·direct 접근 차단은 운영 gate이며 ALB target TLS를 mTLS/인증서 검증 보장으로 해석하지 않는다.
+
+### 20.2 인증·인가·우회 제거
+
+A 명세의 RS256·배포 public JWK·환경별 LC issuer·sub·Reservation/AttemptGroup audience·TTL60/skew30·exact Bearer/query·strict JSON·401/403/404 우선순위를 그대로 따른다. 미검증 issuer는 고정 verifier 선택 힌트뿐이다. 서명 검증되지 않은 토큰을 principal/403으로 취급하지 않는다. ON 서비스의 키만 검증하며 OFF 서비스 key를 읽지 않는다. 원격 fetch/타서비스 key fallback/SigV4/무인증 fallback은 없다.
+
+SecurityConfig의 여섯 LC route용 LATTICE_AWS_IAM permitAll·production legacy TEST 통과를 제거하고 모든 live ingress에서 OFF/오포트 차단을 먼저 수행한다. exact path 외 internal/public/repair 권한을 확대하지 않는다. 로컬 fake 테스트는 배포 인증 우회가 아니다. 다른 route/health/구 mode의 남은 사용처는 별도 확인하며 일괄 삭제하지 않는다.
+
+LC 두 client는 시도마다 새 token/jti를 발급하고 원 operation/event/body/digest·trace/retry를 유지한다. 두 Billing signer만 제거하며 S3 공용 AWS provider/SDK는 보존한다. JWT는 body 서명과 동등하지 않고 jti 단일 사용을 강제하지 않으므로 네트워크/TLS·키 운영을 함께 검증한다.
+
+### 20.3 범위·이행·검증
+
+구체 변경 파일·PR 순서·양측 담당·negative/회귀 테스트는 [B 계획](../plans/PLAN-LC-BILLING-WORKLOAD-JWT.md)을 따른다. 사용자 승인 후 Billing 로컬 수신·HTTP27 검증도 완료했으며 운영 TLS/배포 gate는 남아 있다. 무료권·owner·Reservation TTL/terminal·DTO/원장·Identity 기존 JWT·user JWT는 유지한다. Billing→LC 환불 접근철회 등 다른 방향의 미승인 인증은 이 예외로 전환하지 않는다.
+
+양측 A token/hash73과 Billing1004·LC713은 기존 검증 기록이며 HTTP27/B 완료 증거가 아니다. LC 상세 표 수락/상대 문서·sender 구현 회신을 접수했고 사용자 요청으로 Billing B 코드 착수를 승인받았다. 실제 양측 TLS/운영 연결은 남아 있다. 기본 OFF 구현·회귀 이후에도 C 도구·실제 키/origin/port/SG/TLS·미완료 saga/outbox inventory·배포/활성화는 별도 승인이다. 차단 버전은 기존 LC sender에 영향을 줄 수 있으므로 실제 활성 사용처 확인 없이 배포하지 않는다. Billing 수신 준비 후 LC 발신을 활성화하고 상태 불명은 status-first·원본 보존/승인 복구로 처리한다.

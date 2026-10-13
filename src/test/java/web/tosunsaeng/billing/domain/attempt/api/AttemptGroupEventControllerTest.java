@@ -38,14 +38,14 @@ import web.tosunsaeng.billing.global.config.security.SecurityConfig;
 import web.tosunsaeng.billing.global.observability.TraceCorrelation;
 
 @WebMvcTest(AttemptGroupEventController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, web.tosunsaeng.billing.global.config.security.WorkloadSecurityConfiguration.class, web.tosunsaeng.billing.global.config.security.IdentityJwtMvcSupport.ClockConfig.class})
 @ActiveProfiles("test")
 @TestPropertySource(properties = {
         "billing.internal-ingress.mode=test",
         "billing.trial-eligibility.expected-consumer-scope-id=opaque-scope-v1",
         "billing.attempt-group-events.enabled=true"
 })
-class AttemptGroupEventControllerTest {
+class AttemptGroupEventControllerTest extends web.tosunsaeng.billing.global.config.security.LearningCoreJwtMvcSupport {
 
     private static final String PATH = "/internal/v1/attempt-group-events";
     private static final byte[] JSON = "{\"schemaVersion\":1}".getBytes();
@@ -81,7 +81,7 @@ class AttemptGroupEventControllerTest {
         when(service.process(event)).thenReturn(AttemptGroupEventOutcome.APPLIED);
 
         mockMvc.perform(post(PATH)
-                        .with(user("learning-core").roles("LEARNING_CORE_WORKLOAD"))
+                        .with(learningCoreJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(JSON))
                 .andExpect(status().isNoContent())
@@ -94,14 +94,15 @@ class AttemptGroupEventControllerTest {
     @Test
     void identityAndUnsignedRequestsAreDeniedBeforeDecode() throws Exception {
         mockMvc.perform(post(PATH)
-                        .with(user("identity").roles("IDENTITY_WORKLOAD"))
+                        .with(lcPrincipalJwt("identity-service"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(JSON))
                 .andExpect(status().isForbidden());
         mockMvc.perform(post(PATH)
+                        .with(workloadPort())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(JSON))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
 
         verifyNoInteractions(decoder, service);
     }
@@ -112,7 +113,7 @@ class AttemptGroupEventControllerTest {
         when(service.process(any())).thenThrow(AttemptGroupEventException.projectionNotReady());
 
         mockMvc.perform(post(PATH)
-                        .with(user("learning-core").roles("LEARNING_CORE_WORKLOAD"))
+                        .with(learningCoreJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(JSON))
                 .andExpect(status().isServiceUnavailable())
@@ -130,7 +131,7 @@ class AttemptGroupEventControllerTest {
         when(service.process(any())).thenThrow(AttemptGroupEventException.targetConflict());
 
         mockMvc.perform(post(PATH)
-                        .with(user("learning-core").roles("LEARNING_CORE_WORKLOAD"))
+                        .with(learningCoreJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(JSON))
                 .andExpect(status().isConflict())
@@ -141,13 +142,13 @@ class AttemptGroupEventControllerTest {
     @Test
     void oversizedAndNonJsonRequestsAreInvalid() throws Exception {
         mockMvc.perform(post(PATH)
-                        .with(user("learning-core").roles("LEARNING_CORE_WORKLOAD"))
+                        .with(learningCoreJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(new byte[AttemptGroupEventDecoder.MAX_PAYLOAD_BYTES + 1]))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
         mockMvc.perform(post(PATH)
-                        .with(user("learning-core").roles("LEARNING_CORE_WORKLOAD"))
+                        .with(learningCoreJwt())
                         .contentType(MediaType.TEXT_PLAIN)
                         .content(JSON))
                 .andExpect(status().isBadRequest())

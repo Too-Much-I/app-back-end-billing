@@ -51,14 +51,14 @@ import web.tosunsaeng.billing.domain.reservation.dto.request.ReserveRequest;
 import web.tosunsaeng.billing.domain.reservation.converter.ReservationConverter;
 
 @WebMvcTest(ReservationController.class)
-@Import({SecurityConfig.class, ReservationConverter.class})
+@Import({SecurityConfig.class, ReservationConverter.class, web.tosunsaeng.billing.global.config.security.WorkloadSecurityConfiguration.class, web.tosunsaeng.billing.global.config.security.IdentityJwtMvcSupport.ClockConfig.class})
 @ActiveProfiles("test")
 @TestPropertySource(properties = {
         "billing.internal-ingress.mode=test",
         "billing.trial-eligibility.expected-consumer-scope-id=opaque-scope-v1",
         "billing.owner-rebind.enabled=true"
 })
-class ReservationControllerTest {
+class ReservationControllerTest extends web.tosunsaeng.billing.global.config.security.LearningCoreJwtMvcSupport {
 
     private static final String PATH = "/internal/v1/reservations";
     private static final String KEY = "018f6f36-2f42-4bf5-8c17-0be35de4872c";
@@ -107,7 +107,7 @@ class ReservationControllerTest {
         when(reserveService.reserve(any())).thenReturn(new ReserveResult(snapshot(), false));
 
         mockMvc.perform(post(PATH)
-                        .with(user("learning-core").roles("LEARNING_CORE_WORKLOAD"))
+                        .with(learningCoreJwt())
                         .header("Idempotency-Key", KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(JSON))
@@ -139,7 +139,7 @@ class ReservationControllerTest {
         ));
 
         mockMvc.perform(post(PATH)
-                        .with(user("learning-core").roles("LEARNING_CORE_WORKLOAD"))
+                        .with(learningCoreJwt())
                         .header("Idempotency-Key", KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(JSON))
@@ -165,7 +165,7 @@ class ReservationControllerTest {
         ));
 
         mockMvc.perform(post(PATH + "/continuations/phone")
-                        .with(user("learning-core").roles("LEARNING_CORE_WORKLOAD"))
+                        .with(learningCoreJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isOk())
@@ -176,7 +176,7 @@ class ReservationControllerTest {
 
         when(phoneContinuationService.resolve(request.userId())).thenReturn(Optional.empty());
         mockMvc.perform(post(PATH + "/continuations/phone")
-                        .with(user("learning-core").roles("LEARNING_CORE_WORKLOAD"))
+                        .with(learningCoreJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isNoContent());
@@ -185,7 +185,7 @@ class ReservationControllerTest {
     @Test
     void identityCannotResolvePhoneContinuation() throws Exception {
         mockMvc.perform(post(PATH + "/continuations/phone")
-                        .with(user("identity").roles("IDENTITY_WORKLOAD"))
+                        .with(lcPrincipalJwt("identity-service"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isForbidden());
@@ -196,7 +196,7 @@ class ReservationControllerTest {
     @Test
     void identityPrincipalIsDeniedBeforeController() throws Exception {
         mockMvc.perform(post(PATH)
-                        .with(user("identity").roles("IDENTITY_WORKLOAD"))
+                        .with(lcPrincipalJwt("identity-service"))
                         .header("Idempotency-Key", KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(JSON))
@@ -210,7 +210,7 @@ class ReservationControllerTest {
         when(keyParser.parse(null)).thenThrow(ReservationException.invalidIdempotencyKey());
 
         mockMvc.perform(post(PATH)
-                        .with(user("learning-core").roles("LEARNING_CORE_WORKLOAD"))
+                        .with(learningCoreJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(JSON))
                 .andExpect(status().isBadRequest())
@@ -227,7 +227,7 @@ class ReservationControllerTest {
         when(reserveService.reserve(any())).thenThrow(ReservationException.commandProcessing());
 
         mockMvc.perform(post(PATH)
-                        .with(user("learning-core").roles("LEARNING_CORE_WORKLOAD"))
+                        .with(learningCoreJwt())
                         .header("Idempotency-Key", KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(JSON))
@@ -245,7 +245,7 @@ class ReservationControllerTest {
         byte[] body = new byte[ReserveRequestDecoder.MAX_PAYLOAD_BYTES + 1];
 
         mockMvc.perform(post(PATH)
-                        .with(user("learning-core").roles("LEARNING_CORE_WORKLOAD"))
+                        .with(learningCoreJwt())
                         .header("Idempotency-Key", KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
@@ -270,7 +270,7 @@ class ReservationControllerTest {
         ));
 
         mockMvc.perform(post(PATH + "/" + RESERVATION_ID + "/confirm")
-                        .with(user("learning-core").roles("LEARNING_CORE_WORKLOAD"))
+                        .with(learningCoreJwt())
                         .header("Idempotency-Key", KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
@@ -296,7 +296,7 @@ class ReservationControllerTest {
         ));
 
         mockMvc.perform(post(PATH + "/" + RESERVATION_ID + "/cancel")
-                        .with(user("learning-core").roles("LEARNING_CORE_WORKLOAD"))
+                        .with(learningCoreJwt())
                         .header("Idempotency-Key", KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
@@ -305,7 +305,7 @@ class ReservationControllerTest {
                 .andExpect(jsonPath("$.attemptGroupId").doesNotExist());
 
         mockMvc.perform(post(PATH + "/status")
-                        .with(user("identity").roles("IDENTITY_WORKLOAD"))
+                        .with(lcPrincipalJwt("identity-service"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isForbidden());
@@ -326,7 +326,7 @@ class ReservationControllerTest {
                 ));
 
         mockMvc.perform(post(PATH + "/status")
-                        .with(user("learning-core").roles("LEARNING_CORE_WORKLOAD"))
+                        .with(learningCoreJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isOk())

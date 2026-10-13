@@ -73,6 +73,10 @@ class AttemptGroupTracePropagationIntegrationTest {
     @LocalServerPort
     private int port;
 
+    // Loopback tracing-only harness; real JWT chain is covered by controller/security tests.
+    @MockitoBean(name = "workloadIngressGuard")
+    private org.springframework.boot.web.servlet.FilterRegistrationBean<web.tosunsaeng.billing.global.config.security.WorkloadIngressFilter> tracingOnlyIngress;
+
     @MockitoBean
     private AttemptGroupEventDecoder decoder;
     @MockitoBean
