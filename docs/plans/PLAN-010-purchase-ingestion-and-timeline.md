@@ -2,9 +2,9 @@
 
 > 2026-10-13 단순화 승인: 접수 row 중심 pending 관리, 신규 sync의 durable 접수→공통 background 처리, 1초 configurable poll, cleanup 전용 정책 revision 통합, 고정 lookup 키/keyVersion을 채택한다. 키 교체 자동화는 만들지 않는다. 세부 기준은 purchase-r1의 승인 보충 및 §5.6/5.10을 따른다. 구현·schema 이관·실부하 검증·배포는 미완료이며 아래 전체 구현 승인 대기와 구분한다. 앱 Retry-After:5는 그대로이며 worker 1초와 다르다.
 
-- 작성일: 2026-10-06 / 상태: 단순화 방향 승인·1차 코어 착수 준비 / Jira: [TMI-210](https://to-teacher.atlassian.net/browse/TMI-210) (TMI-137 하위 작업 유형, PLAN-010 첫 slice만)
+- 작성일: 2026-10-06 / 상태: TMI-210 내부 코어 로컬 구현·검증 완료, 나머지 단계 미구현 / Jira: [TMI-210](https://to-teacher.atlassian.net/browse/TMI-210) (TMI-137 하위 작업 유형, PLAN-010 첫 slice만)
 
-2026-10-13: 사용자 요청으로 코드 착수 전 Jira를 우선 생성했다. TMI-210은 저장 규격 마무리·접수/pending·구매/기간권/원장·중복/탈퇴 경합 코어와 fake/Mongo 테스트 범위다. public API·실provider·1초scheduler/부하검증·205 정책revision 이관·배포는 후속이며 이 이슈 완료가 PLAN-010 전체 완료는 아니다. 구현은 사용자 요청으로 대기 중이고 신규 코드 변경은 없다.
+2026-10-13: 사용자 구현 요청으로 TMI-210의 저장 규격·접수/pending·구매/기간권/원장·중복/탈퇴/삭제 경합 코어를 구현했다. [구현 범위·검증](../runbooks/TMI-210-purchase-core.md): 전체 clean test bootJar 1,168통과/실패·오류·skip0. 코어는 명시 생성형으로 HTTP/Spring bean에 연결하지 않았다. public API·실provider·1초scheduler/부하검증·205 정책revision 이관·실금융 reader·배포는 후속이며 PLAN-010 전체 완료가 아니다. Jira 상태 변경은 수행하지 않았다.
 - 선행: [009](PLAN-009-payment-catalog-and-account.md), [ADR-004 §5.4~5.7/5.10/A](../adr/ADR-004-fixed-term-premium-payment-contract.md).
 
 2026-10-13 상세화: [purchase-r1 기술 규격 초안](../contracts/PLAN-010-purchase-technical-spec-r1.md)에 구매/기간권·중복·탈퇴/삭제 경합·sync·통합 조회 DTO 후보·입력 effect/index·flag/구현 순서를 작성했다. 제품 정책은 유지하며 신규 기술값은 검토안이다. 실제 provider 증거·미해결 보존·crypto/worker exact 검증과 구현 승인은 별도다. 이번은 문서 작성이며 코드/manifest/Jira 변경이 아니다.
@@ -65,7 +65,7 @@ verified 관측→immutable transaction key/owner/catalog snapshot 확인→acco
 
 RC v2 read endpoint/허용 host/path·최소 권한은 ADR §5.6. HTTP 외부 호출은 Transaction 밖, connect2초/response5초/sync budget5초,redirect 금지,response1MiB,page100. next_page는 host/project/customer/path 검증 후 cursor만 추출. 429 Retry-After,423/5xx/network backoff,401/403 BLOCKED_AUTH 회로. 합산240회/분·동시4 초기 budget, key 증가로 quota 우회 금지.
 
-inbox/cursor/command lease30초+fencing,scheduler5초,batch100,5초~1시간 jitter/24시간 뒤 dead-letter. PENDING5분, ACTIVE/SCHEDULED6시간, terminal 최근90일 일1회. account cursor로 callback 유실 복구, 최근 활동 우선+bounded 전체 순환. PENDING 응답을 영구 immutable snapshot으로 캐시하지 않음.
+inbox/cursor/command lease30초+fencing, 승인된 due poll 기본1초(configurable),batch100,5초~1시간 jitter/24시간 뒤 dead-letter. poll과 provider 호출 주기는 다르며 이 worker는 TMI-210에 연결하지 않았다. PENDING5분, ACTIVE/SCHEDULED6시간, terminal 최근90일 일1회. account cursor로 callback 유실 복구, 최근 활동 우선+bounded 전체 순환. PENDING 응답을 영구 immutable snapshot으로 캐시하지 않음.
 
 ### 코드·schema·flag
 

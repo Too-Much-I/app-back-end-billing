@@ -292,6 +292,19 @@ reader-first → flag OFF/writer 격리 → 기존 index/row 검증 → 명시 s
 
 ### 6.1 단계별 완료 기준
 
+#### TMI-210 첫 코어 구현 경계 (2026-10-13 사용자 착수 승인)
+
+- 외부 wire/API/worker를 연결하지 않는 명시 생성형 코어로 구현한다. Spring bean/flag/스케줄러를 추가하지 않는다. 실제 provider 검증을 대신하는 공개 입력 경로는 없다.
+- 내부 검증 관측은 environment/store/app, 고정 lookupKeyVersion의 transactionKey·providerEventKey, 원구매자 purchaseAccountRefId, product/time/금액의 최소 정규화 값이다. raw receipt/token/event 전문은 받거나 저장하지 않는다. 키는 길이 구분 UTF-8 tuple의 HMAC-SHA256이며 키 버전이 바뀐 관측을 같은 코어가 혼용하지 않는다. 금액 미상은 null, 알려진 금액은 Decimal128·ISO 통화이며 표시가격으로 채우지 않는다.
+- payment_provider_inbox가 입력 상태를 소유한다. digestVersion/version/attempts는 long, counted는 boolean, 매핑 시 accountId/lifecycleId를 동결한다. receive의 unique source+pending 증가와 apply의 source 완료+pending 감소는 동일 Tx다. 입력 불변 digest는 DB의 현재 매핑/처리 상태와 분리한다.
+- 미매핑/불일치/탈퇴 등 예외는 payment_purchase_cases로 최소 관측을 원자 인계한다. source와 case를 동시에 counted=true로 두지 않는다. 인계는 pending 총수 불변+ lifecycle.version 증가다. case unique(environment,providerEventKey)가 source 만료 후 중복도 방지한다. case 해결/자동 보존 종료는 미구현·운영 gate이며 무기한 보관 정책 승인이 아니다.
+- source retentionDeadline=receivedAt+120일, 완료/인계 뒤에만 purgeAt=retentionDeadline을 설정한다. 미해결 source는 TTL로 증거를 먼저 잃지 않도록 purgeAt을 비운다. 119일 이후 explicit handoff 코어를 제공하고 자동 인계/overdue 경보는 후속 worker 활성화 선행 조건으로 둔다. 운영에서120일 초과를 정상 보존 정책으로 간주하지 않는다.
+- Purchase에는 최초 금융 사실 PURCHASE_OBSERVED, 권리 지급에는 PURCHASE_VERIFIED ledger를 각각 고유하게 남긴다. PURCHASE_BLOCKED에서는 검증 금융 사실만 저장하고 입력을 미완료로 유지한다. OPEN 복귀 후 동일 입력으로 원래 purchasedAt 기반 지급 가능하다. WITHDRAWN/과거 inactive 신규 거래는 NOT_GRANTED·REVIEW_REQUIRED로 남기며 자동 재지급하지 않는다.
+- refund-first는 검증 transactionKey의 REFUNDED/REVOKED·REVOKED tombstone과 관측 원장으로 후속 지급을 막는다. 이미 지급된 구매의 환불은012 미구현 검토 case로만 보존하며 기간권 종료/reflow 완료로 보고하지 않는다. 운영 연결/판매는 계속 불가하다.
+- PAYMENT_INPUT/PAYMENT_APPLY 전용 fence writer는 mandatory epoch/control을 사용한다. ALL_BLOCKED 차단, PURCHASE_BLOCKED 금융 접수/보존 허용·신규 지급 보류. schema 설치는 ALL_BLOCKED+writer 격리 아래 별도 명시 작업이며 기존 initializer/운영 자동 설치와 분리한다.
+- exact collection 필드·index/type는 [PurchaseCoreSchema의 payment-purchase-core-r1 programmatic manifest](../../src/main/java/web/tosunsaeng/billing/domain/payment/purchase/PurchaseCoreSchema.java), 상태 전이/검증은 코어 및 테스트로 고정한다. 기존 무료/계정/cleanup schema를 임의 변경하지 않는다. 접수/case 구조를 검증한 뒤 public sync·실provider·1초worker·205 실증거 연결은 후속이다.
+- 로컬 구현·검증 결과: [TMI-210 안내](../runbooks/TMI-210-purchase-core.md). clean test bootJar 1,168통과/실패·오류·skip0. actual provider 검증/HTTP·worker/012환불·205 실제 coverage·배포는 미완료다.
+
 | 단계 | 산출물 | 완료 기준 |
 | --- | --- | --- |
 | 준비 | 본 초안 검토·DTO/enum·접수/case schema/index·crypto·provider fixture 목록 | 알려지지 않은 지원/보존 가정을 분리, 정본 ADR 동기화와 구현 승인 |

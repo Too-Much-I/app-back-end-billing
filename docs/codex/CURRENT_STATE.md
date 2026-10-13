@@ -1,6 +1,9 @@
 # Billing Service 현재 상태
 
 - 최종 갱신일: 2026-10-13
+- 2026-10-13 다음 작업 안내: TMI-210 코어 검토/사용자 Git 정리 후 PLAN-010 2차 public sync·기존 entitlement 통합 조회의 exact DTO/호환·기본OFF 구현을 권장. 실제 provider/공통worker→205 실금융 연결은 후속. 이번 상태 확인/기록만이며 신규 Jira·구현·테스트 재실행·Git 변경 없음.
+- 2026-10-13 TMI-210 내부 구매 코어 구현·로컬 검증 완료: [범위/규격/검증](../runbooks/TMI-210-purchase-core.md). 정규화 관측·고정 HMAC lookup·접수 중심 pending/case 인계·Purchase/기간권/timeline/원장·mandatory PAYMENT_INPUT/APPLY fence·명시 schema 설치/검증. 중복/5기간/탈퇴/환불선행/삭제 양쪽 순서·장애/동시성 41개 추가, clean test bootJar **1,168통과/실패0/오류0/skip0**. Spring bean/HTTP/worker 미연결, 실제 RC/Store·sync/통합 reader·012 환불·205 실금융 coverage·배포는 후속. Jira/commit/push/타서버 변경 없음. 기존 WORKLOG 반복 기록·별도 RevenueCat 문서는 사용자 요청대로 보존.
+- 2026-10-13 사용자 브랜치 이동 확인: 현재feat/TMI-210-purchase-ingestion-timeline-core, HEAD=d4f290e(PR13 merge), 로컬develop/origin/develop과동일·209최종cfdbf3f포함.210신규커밋/코드변경없어착수기반정상. 점검전WORKLOG에기존기록반복추가115줄과미추적RevenueCat등록문서잔존,임의정리/커밋하지않음. 이번은로컬확인·기록만,fetch/branch전환/구현/commit/push없음.
 - 2026-10-13 PR 생성 완료: [PR #13](https://github.com/Too-Much-I/app-back-end-billing/pull/13), develop←feat/TMI-209-billing-cleanup-foundation. cleanup65bb8dd/LC JWT379d543/결제문서7ebfae8 세범위커밋push·PR생성/연결확인. 전체1,127테스트및bootJar통과. 원문복구백업보존,별도RevenueCat등록문서·기록은미커밋유지. PR병합/배포/210분기·구현/Jira상태변경없음.
 - 2026-10-13 커밋·PR 준비: 이번 작업에 한해 사용자 commit/push/PR 예외 승인. 기존209cleanup/LC JWT/결제문서를범위별커밋으로분리, 전체 clean test bootJar 1,127통과/실패0/오류0/skip0·fixture SHA256검사통과. WORKLOG/LC검토서덮어쓰기복구승인후백업·Git원문/새기록보존.210코어/배포/병합없음. 동시작업의RevenueCat Google등록문서·기록은커밋제외,PR생성은후속결과기록참조.
 - 2026-10-13 변경 분류·Git 예외 범위 확인 중: 사용자「이번작업에 한해서 해줘」의 commit/push 예외 범위를 질문했다.209cleanup,LC JWT,결제문서,clock회귀/공동운영문서로분류 가능하나application.yml·AGENTS·통합계약·기록은hunk단위검토필요. WORKLOG에기존약5005줄삭제/1576줄추가가관측돼과거기록정리는의도확인전커밋대상확정하지않음. 상태기록외파일보존,stage/commit/branch/push없음.
