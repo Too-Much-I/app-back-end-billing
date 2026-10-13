@@ -1,5 +1,10 @@
 # ADR-004: RevenueCat 기반 fixed-term premium 결제 계약
 
+> 2026-10-13 TMI-211 OFF 구현: [2차 계획](../plans/PLAN-010-phase-2-public-sync-and-entitlement-query.md)의 sync exact 요청·202/200/오류·조건부 CONTACT_SUPPORT, 통합 조회 paid/examAvailability·nullable canTakeExam을 채택했다. [구현 안내](../runbooks/TMI-211-public-sync-entitlement-query.md)의 명시 command schema/인덱스·분산 sync12/통합조회60회·동일 snapshot을 따른다. 기존 무료 DTO는 확장 OFF에서 불변. 실제 provider/worker 미연결로 sync ON은 모든 runtime profile에서 기동 거절, paid admission 미연결은 null/PENDING이다. 실거래 검증·보존 운영·배포/판매 승인이 아니다.
+
+> 2026-10-13 사용자 승인 정책 변경: [환불 전 confirm Session 완료 허용](../contracts/PAYMENT-CONFIRMED-SESSION-REFUND-POLICY-2026-10-13.md)을 우선 적용한다. 환불 전 confirm된 exact Session은 기존 제출 기한 안에 완료 허용, 환불 선행 confirm 및 신규/재응시는 차단한다. paid 전용 채점 승인 API는 제외하고 durable revoke 전달·구매별 최소 이용 증거는 유지한다. 기존 reserve 응답 출처 추가 방향이며 exact wire/LC 공동 동결은 별도다. 아래 OPEN 제출·채점 차단/GRADING-only 완료·전용 승인 API·v2 필수의 종전 표현은 이 변경 범위에서 역사적 기록으로 대체된다. 코드·LC 저장소·배포는 이번에 변경하지 않았다.
+
+
 > 2026-10-13 승인 갱신: Identity–Billing 네 이벤트/네 복구 POST는 workload JWT 단일 인증으로 구현한다. 해당 SigV4 signer·선택설정·IAM 수신 통과 경로를 제거하며, 구 recovery.authentication 설정은 OFF에서도 기동 오류다. 수신 OFF는 해당 네 이벤트를 차단한다. LC/user 인증·body/복구 계약과 과거 검증 기록은 유지한다. 실제 전환은 양측 활성 사용처/키/네트워크 확인 후 별도 승인한다.
 
 > 2026-10-12 인증 보완: Identity–Billing 이벤트4route/복구4POST는 [TMI-204 §2.5](../plans/TMI-204-withdrawal-recovery.md)·[workload-auth-r1](../contracts/WORKLOAD-JWT-AUTH-R1.md)의 ALB/전용 JWT로 전환한다. 해당 범위의 SigV4-only 목표만 대체하며 Store/RevenueCat·사용자/LC 인증과 제품 정책은 유지한다. OFF 구현과 공동수락/실환경활성화는 구분한다.

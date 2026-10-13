@@ -1,5 +1,10 @@
 # PLAN-010: 구매 검증·기간권 원장·동기화·복구
 
+> 2026-10-13 사용자 승인 정책 변경: [환불 전 confirm Session 완료 허용](../contracts/PAYMENT-CONFIRMED-SESSION-REFUND-POLICY-2026-10-13.md)을 우선 적용한다. 환불 전 confirm된 exact Session은 기존 제출 기한 안에 완료 허용, 환불 선행 confirm 및 신규/재응시는 차단한다. paid 전용 채점 승인 API는 제외하고 durable revoke 전달·구매별 최소 이용 증거는 유지한다. 기존 reserve 응답 출처 추가 방향이며 exact wire/LC 공동 동결은 별도다. 아래 OPEN 제출·채점 차단/GRADING-only 완료·전용 승인 API·v2 필수의 종전 표현은 이 변경 범위에서 역사적 기록으로 대체된다. 코드·LC 저장소·배포는 이번에 변경하지 않았다.
+
+
+> 2026-10-13 2차 상세 계획: [public sync·통합 entitlement 조회](PLAN-010-phase-2-public-sync-and-entitlement-query.md). TMI-210 이후 API/reader·command·snapshot·기본OFF 범위와 provider/worker 미연결 gate를 정리했다. 작성/검토 단계이며 신규 Jira·코드/배포 변경은 없다.
+
 > 2026-10-13 단순화 승인: 접수 row 중심 pending 관리, 신규 sync의 durable 접수→공통 background 처리, 1초 configurable poll, cleanup 전용 정책 revision 통합, 고정 lookup 키/keyVersion을 채택한다. 키 교체 자동화는 만들지 않는다. 세부 기준은 purchase-r1의 승인 보충 및 §5.6/5.10을 따른다. 구현·schema 이관·실부하 검증·배포는 미완료이며 아래 전체 구현 승인 대기와 구분한다. 앱 Retry-After:5는 그대로이며 worker 1초와 다르다.
 
 - 작성일: 2026-10-06 / 상태: TMI-210 내부 코어 로컬 구현·검증 완료, 나머지 단계 미구현 / Jira: [TMI-210](https://to-teacher.atlassian.net/browse/TMI-210) (TMI-137 하위 작업 유형, PLAN-010 첫 slice만)

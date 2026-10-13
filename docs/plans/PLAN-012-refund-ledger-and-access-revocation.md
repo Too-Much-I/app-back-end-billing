@@ -1,5 +1,8 @@
 # PLAN-012: 전액·부분 환불 원장·기간 재배치·시험 접근 철회
 
+> 2026-10-13 사용자 승인 정책 변경: [환불 전 confirm Session 완료 허용](../contracts/PAYMENT-CONFIRMED-SESSION-REFUND-POLICY-2026-10-13.md)을 우선 적용한다. 환불 전 confirm된 exact Session은 기존 제출 기한 안에 완료 허용, 환불 선행 confirm 및 신규/재응시는 차단한다. paid 전용 채점 승인 API는 제외하고 durable revoke 전달·구매별 최소 이용 증거는 유지한다. 기존 reserve 응답 출처 추가 방향이며 exact wire/LC 공동 동결은 별도다. 아래 OPEN 제출·채점 차단/GRADING-only 완료·전용 승인 API·v2 필수의 종전 표현은 이 변경 범위에서 역사적 기록으로 대체된다. 코드·LC 저장소·배포는 이번에 변경하지 않았다.
+
+
 - 작성일: 2026-10-06 / 상태: 승인 대기 / Jira 미생성
 - 선행: [010](PLAN-010-purchase-ingestion-and-timeline.md), [011](PLAN-011-paid-reservation-and-usage-evidence.md), [ADR-004](../adr/ADR-004-fixed-term-premium-payment-contract.md) §5.7/5.9 및 C9-S10 R1/R2.
 

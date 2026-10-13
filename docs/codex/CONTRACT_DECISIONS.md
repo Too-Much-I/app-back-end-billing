@@ -1,5 +1,8 @@
 # Billing 계약 결정서
 
+> 2026-10-13 사용자 승인 정책 변경: [환불 전 confirm Session 완료 허용](../contracts/PAYMENT-CONFIRMED-SESSION-REFUND-POLICY-2026-10-13.md)을 우선 적용한다. 환불 전 confirm된 exact Session은 기존 제출 기한 안에 완료 허용, 환불 선행 confirm 및 신규/재응시는 차단한다. paid 전용 채점 승인 API는 제외하고 durable revoke 전달·구매별 최소 이용 증거는 유지한다. 기존 reserve 응답 출처 추가 방향이며 exact wire/LC 공동 동결은 별도다. 아래 OPEN 제출·채점 차단/GRADING-only 완료·전용 승인 API·v2 필수의 종전 표현은 이 변경 범위에서 역사적 기록으로 대체된다. 코드·LC 저장소·배포는 이번에 변경하지 않았다.
+
+
 ## 2026-10-13 결제 처리 단순화 승인
 
 - 사용자 승인: 접수 row 중심 관리(별도 범용 payment_evidence_effects 미생성), 공통 background 검증·반영 경로, 초기1초 configurable DB poll, cleanupPolicyVersion 단일화, 고정 lookup 키/keyVersion과 교체 기능 선개발 제외.

@@ -39,6 +39,7 @@ import web.tosunsaeng.billing.global.observability.TraceCorrelation;
 @WebMvcTest
 @Import(SecurityConfig.class)
 class SecurityConfigTest {
+    @MockitoBean private web.tosunsaeng.billing.domain.payment.sync.PaymentSyncDecoder paymentSyncDecoder;
     @MockitoBean private web.tosunsaeng.billing.domain.payment.api.PaymentWithdrawalDecoder paymentWithdrawalDecoder;
     @MockitoBean private web.tosunsaeng.billing.domain.payment.application.PaymentWithdrawalService paymentWithdrawalService;
 

@@ -40,6 +40,10 @@ public class PublicSecurityConfig {
     @Bean
     WebServerFactoryCustomizer<TomcatServletWebServerFactory> publicConnector(EntitlementQueryProperties p,
             TrialEligibilityProperties eligibility, BillingMongoProperties mongo, Environment environment, PaymentProperties payments) {
+        // No live verifier/worker exists yet. An ON flag must not accept permanently pending real purchases.
+        if (payments.isSyncEnabled()) throw new IllegalStateException("Payment sync runtime requires the future verified provider and worker integration");
+        if (payments.isEntitlementQueryEnabled() && (!p.isEnabled() || !payments.getRecovery().isFenceRequired()))
+            throw new IllegalStateException("Paid query requires the existing free reader and recovery control");
         if (p.isPublicConnectorEnabled() && (p.getPublicPort() < 1024 || p.getPublicPort() > 65535
                 || p.getPublicPort() == environment.getProperty("server.port", Integer.class, 8082))) {
             throw new IllegalStateException("Public connector must use a separate port");
@@ -90,6 +94,7 @@ public class PublicSecurityConfig {
                 .authorizeHttpRequests(c -> c.requestMatchers(PublicIngressFilter.PATH).hasAuthority("SCOPE_billing:read")
                         .requestMatchers(PublicIngressFilter.PRODUCTS).hasAuthority("SCOPE_billing:read")
                         .requestMatchers(PublicIngressFilter.ACCOUNT).hasAuthority("SCOPE_billing:purchase")
+                        .requestMatchers(PublicIngressFilter.SYNC).hasAuthority("SCOPE_billing:purchase")
                         .anyRequest().denyAll())
                 .exceptionHandling(c -> c.authenticationEntryPoint((req, res, e) -> writer.routeError(req, res, 401, "UNAUTHENTICATED"))
                         .accessDeniedHandler((req, res, e) -> writer.routeError(req, res, 403, "FORBIDDEN")))

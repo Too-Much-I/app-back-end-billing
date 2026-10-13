@@ -1,5 +1,7 @@
 # PLAN-010 purchase-r1 — 구매·기간권·통합 조회 상세 기술 규격 초안
 
+> 2026-10-13 TMI-211 구현 기준: [2차 계획](../plans/PLAN-010-phase-2-public-sync-and-entitlement-query.md)과 [구현 안내](../runbooks/TMI-211-public-sync-entitlement-query.md)의 sync-command-r1·202/200·조건부 CONTACT_SUPPORT·통합 paid/examAvailability/canTakeExam·분산 quota를 OFF 구현했다. 이 범위의 기술 후보 표기는 현재 코드/안내로 갱신한다. 신규 schema는 PaymentSyncSchema 명시 설치/검증이며 기존 core schema는 변경하지 않는다. 실제 provider/worker 미연결로 sync ON 기동은 거절, terminal120일 정리/미해결 보존·실거래 매핑·운영 활성화는 별도다.
+
 > 2026-10-13 사용자 승인 보충: 아래 접수 중심 상태 관리·공통 background 처리/1초poll·고정 lookup 키 방향은 승인됐다. cleanup은 별도 규격의 단일 cleanupPolicyVersion 목표를 따른다. 나머지 DTO/schema/provider 미확인 사항과 구현·활성화 승인을 일괄 확정한 것은 아니다. 이전 별도 effect/5초tick/즉시 외부조회 권장안은 이 개정으로 대체한다.
 
 - 작성일: 2026-10-13 / 브랜치: feat/TMI-209-billing-cleanup-foundation
@@ -190,7 +192,9 @@ rate limit은 기존 분산 고정1분 방식을 재사용: sync12회/분/user·
 | 추가 영역 | 필수 필드와 null 의미 |
 | --- | --- |
 | paid | status=READY/PENDING; active=boolean 또는 PENDING이면null; activeOfferCode/activeEndsAt/continuousAccessEndsAt/nextStartsAt는 string/Instant 또는null; hasPendingSync=boolean, 해당 저장소 실패는503 |
-| examAvailability | action=ALLOWED/BLOCKED/PENDING; newAttempt/retake=같은enum; preferredSource=PAID/FREE_NEW/FREE_RETAKE 또는null; hasInProgress=boolean 또는null; reasonCodes=문자열 배열(빈 배열 허용) |
+| examAvailability | canTakeExam=boolean 또는null; action=ALLOWED/BLOCKED/PENDING; newAttempt/retake=같은enum; preferredSource=PAID/FREE_NEW/FREE_RETAKE 또는null; hasInProgress=boolean 또는null; reasonCodes=문자열 배열(빈 배열 허용) |
+
+2026-10-13 사용자 요청으로 canTakeExam 요약을 추가한다. action의 ALLOWED→true/BLOCKED→false/PENDING→null로 파생하는 안이며 판단 불명을 false로 숨기지 않는다. 현재 새 시험 시작 또는 승인된 재응시 가능 여부이고 진행 중 시험 존재/기록 열람 여부가 아니다. reserve 최종 판정·기존 무료 필드 의미는 불변이다. 2차 계획의 null/호환 fixture로 검증하며 실제 코드 변경은 후속이다.
 
 reasonCodes 후보: IN_PROGRESS,GRADING_IN_PROGRESS,RESERVATION_PENDING,NO_ENTITLEMENT,ELIGIBILITY_UNKNOWN,OWNER_LINK_UNRESOLVED,RECONCILIATION_PENDING,PAID_STATE_UNKNOWN,ADMISSION_NOT_READY. 문자열 literal은 구현 fixture에서 동결한다. FREE_RETAKE는 원 Session 이어풀기가 아니라 기존 consumption의 새 replacement다. 여러 혜택/그룹을 하나로 줄이지 않고 상세 선택은 기존 benefits/attemptGroups에 남긴다.
 
@@ -205,6 +209,7 @@ reasonCodes 후보: IN_PROGRESS,GRADING_IN_PROGRESS,RESERVATION_PENDING,NO_ENTIT
     "nextStartsAt": null, "hasPendingSync": false
   },
   "examAvailability": {
+    "canTakeExam": true,
     "action": "ALLOWED", "newAttempt": "ALLOWED", "retake": "BLOCKED",
     "preferredSource": "PAID", "hasInProgress": false, "reasonCodes": []
   }

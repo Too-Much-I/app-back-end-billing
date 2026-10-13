@@ -18,6 +18,8 @@ billing:
     tls-key-store: ${BILLING_WORKLOAD_TLS_KEY_STORE:}
     tls-key-store-password: ${BILLING_WORKLOAD_TLS_KEY_STORE_PASSWORD:}
   payment:
+    sync-enabled: ${BILLING_PAYMENT_SYNC_ENABLED:false}
+    entitlement-query-enabled: ${BILLING_PAYMENT_ENTITLEMENT_QUERY_ENABLED:false}
     catalog-enabled: ${BILLING_PAYMENT_CATALOG_ENABLED:false}
     purchase-account-enabled: ${BILLING_PAYMENT_PURCHASE_ACCOUNT_ENABLED:false}
     withdrawal-enabled: ${BILLING_PAYMENT_WITHDRAWAL_ENABLED:false}

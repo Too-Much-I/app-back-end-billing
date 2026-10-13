@@ -15,6 +15,11 @@ import web.tosunsaeng.billing.domain.payment.repository.PaymentStore;
 
 @Service
 public class PaymentRateLimiter {
+    public enum Route {
+        PRODUCTS(60), PURCHASE_ACCOUNT(10), SYNC(12), ENTITLEMENTS(60);
+        final long limit;
+        Route(long limit) { this.limit = limit; }
+    }
     private final PaymentStore store;
     private final PaymentProperties properties;
     private final Clock clock;
@@ -23,12 +28,15 @@ public class PaymentRateLimiter {
     }
     /** 0 means admitted; otherwise returns Retry-After seconds. */
     public long acquire(boolean purchase, String userId) {
+        return acquire(purchase ? Route.PURCHASE_ACCOUNT : Route.PRODUCTS, userId);
+    }
+    public long acquire(Route route, String userId) {
         Instant now = clock.instant(), start = now.truncatedTo(java.time.temporal.ChronoUnit.MINUTES);
         long wait = Math.max(1, (Duration.between(now, start.plusSeconds(60)).toNanos() + 999_999_999L) / 1_000_000_000L);
-        var key = new Document("environment", properties.getEnvironment()).append("routeKey", purchase ? "PURCHASE_ACCOUNT" : "PRODUCTS")
+        var key = new Document("environment", properties.getEnvironment()).append("routeKey", route.name())
                 .append("subjectKey", subjectKey(userId)).append("windowStart", Date.from(start));
         var buckets = store.database().getCollection("payment_rate_limits");
-        var belowLimit = new Document(key).append("count", new Document("$lt", purchase ? 10L : 60L));
+        var belowLimit = new Document(key).append("count", new Document("$lt", route.limit));
         var increment = new Document("$inc", new Document("count", 1L));
         if (buckets.updateOne(belowLimit, increment).getModifiedCount() == 1) return 0;
         try {
