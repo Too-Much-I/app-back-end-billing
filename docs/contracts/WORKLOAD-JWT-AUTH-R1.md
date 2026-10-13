@@ -3,6 +3,8 @@
 - 날짜: 2026-10-12, JWT 단일화 개정 2026-10-13 / TMI-203·204, 영향 TMI-202·206
 - 상태: 사용자 승인 계획의 Billing 로컬 구현. Identity 독립 검증/공동 fixture 수락·배포 완료 아님.
 
+2026-10-13 시간 운영 전제 정합화: 인프라 시각 동기화·모니터링·장애 대응을 전제로 하며, Identity 탈퇴 발신에 별도 clock attestation provider와 그 증명 부재만을 이유로 하는 차단을 요구하지 않는다. JWT의 기존 integer NumericDate·TTL·skew·만료 검증은 그대로다. Billing은 현재 일반 `Clock`을 사용하며 별도 증명 의존성이 없다. 시계 이상은 JWT뿐 아니라 lease·재시도·만료에도 영향을 주므로 JWT 검사만으로 안전성을 보장하지 않는다. 실제 환경 확인과 Identity 발신 수정 후 검증은 별도다. [범위·회신](TMI-204-CLOCK-OPERATING-ASSUMPTION-REPLY-2026-10-13.md).
+
 ## 1. 5줄 결론
 
 1. Identity 이벤트4POST 수신과 Billing recovery4POST 발신에 전용 RS256 JWT를 연결했다.

@@ -24,6 +24,20 @@ class WorkloadConfigurationTest {
         assertThat(factory.getAdditionalTomcatConnectors()).singleElement().satisfies(c->{assertThat(c.getSecure()).isTrue();assertThat(c.getScheme()).isEqualTo("https");assertThat(c.findSslHostConfigs()).hasSize(1);});
         p.setEnvironment("production"); assertThatThrownBy(()->customizer(p,new TomcatServletWebServerFactory())).isInstanceOf(IllegalStateException.class);
     }
+    @Test void independentReceiverFlagsUseOneTlsConnector() {
+        for (boolean identity : new boolean[]{false, true}) for (boolean lc : new boolean[]{false, true}) {
+            var p = new WorkloadJwtProperties(); p.setReceiverEnabled(identity); p.setLearningCoreReceiverEnabled(lc);
+            p.setEnvironment("test"); p.setPort(8444); p.setTlsKeyStore("/fake/keystore.p12"); p.setTlsKeyStorePassword("fake");
+            var factory = new TomcatServletWebServerFactory(); customizer(p, factory);
+            assertThat(factory.getAdditionalTomcatConnectors()).hasSize(identity || lc ? 1 : 0);
+        }
+    }
+    @Test void lcOnlyStillRequiresTlsEnvironmentAndTransactionalSchema() {
+        var p = new WorkloadJwtProperties(); p.setLearningCoreReceiverEnabled(true); p.setEnvironment("test"); p.setPort(8444);
+        assertThatThrownBy(() -> customizer(p, new TomcatServletWebServerFactory())).isInstanceOf(IllegalStateException.class);
+        p.setTlsKeyStore("/fake/keystore.p12"); p.setTlsKeyStorePassword("fake"); p.setEnvironment("production");
+        assertThatThrownBy(() -> customizer(p, new TomcatServletWebServerFactory())).isInstanceOf(IllegalStateException.class);
+    }
     void customizer(WorkloadJwtProperties p,TomcatServletWebServerFactory factory) {
         var payment=new PaymentProperties();payment.setEnvironment("SANDBOX");
         var mongo=new BillingMongoProperties();mongo.setRequireTransactions(true);mongo.setInitializeIndexes(true);

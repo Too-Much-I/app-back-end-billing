@@ -36,7 +36,7 @@ class WorkloadIngressTest {
         for (int port : new int[]{8082,8083,8444}) {
             var r = request(port == 8444 ? "/internal/v1/reservations" : path, port);
             r.addHeader("X-Forwarded-Port", "8444"); r.addHeader("Authorization", "Bearer " + sign(claims()));
-            assertThat(run(r)).isEqualTo(port == 8444 ? 403 : 404);
+            assertThat(run(r)).isEqualTo(404);
         }
         p.setReceiverEnabled(false); assertThat(run(request(path,8444))).isEqualTo(404);
     }
@@ -59,7 +59,7 @@ class WorkloadIngressTest {
             }
         }
     }
-    @Test void oldAuthenticationNeverAuthenticatesAndLcRoutesStillUseTheirOwnChain() throws Exception {
+    @Test void oldAuthenticationNeverAuthenticatesAndLcOffBlocksLegacyIngress() throws Exception {
         for (String path : WorkloadIngressFilter.ROUTES.keySet()) {
             var r = request(path, 8444);
             r.addHeader("Authorization", "AWS4-HMAC-SHA256 fake");
@@ -68,16 +68,17 @@ class WorkloadIngressTest {
         for (boolean enabled : new boolean[]{true, false}) {
             p.setReceiverEnabled(enabled);
             var calls = new AtomicInteger();
-            new WorkloadIngressFilter(p, payment, owner).doFilter(
+            new WorkloadIngressFilter(p, payment, owner, new web.tosunsaeng.billing.domain.attempt.config.AttemptGroupEventProperties()).doFilter(
                     request("/internal/v1/reservations", 8082), new MockHttpServletResponse(),
                     (q, s) -> calls.incrementAndGet());
-            assertThat(calls).hasValue(1);
+            assertThat(calls).hasValue(0);
         }
     }
+    WorkloadJwtVerifierRegistry identityVerifier() { p.setIdentityPublicJwkSet(publicSet(KEY)); return new WorkloadJwtVerifierRegistry(p, CLOCK); }
     int run(MockHttpServletRequest r) throws Exception {
         var response = new MockHttpServletResponse(); AtomicInteger called = new AtomicInteger();
-        new WorkloadIngressFilter(p,payment,owner).doFilter(r,response,(rq,rs) -> {
-            new WorkloadAuthenticationFilter(p,new WorkloadJwtCodec(publicSet(KEY),ISSUER,CLOCK)).doFilter(rq,rs,(q,s) -> { called.incrementAndGet(); ((jakarta.servlet.http.HttpServletResponse)s).setStatus(204); });
+        new WorkloadIngressFilter(p,payment,owner,new web.tosunsaeng.billing.domain.attempt.config.AttemptGroupEventProperties()).doFilter(r,response,(rq,rs) -> {
+            new WorkloadAuthenticationFilter(p,identityVerifier()).doFilter(rq,rs,(q,s) -> { called.incrementAndGet(); ((jakarta.servlet.http.HttpServletResponse)s).setStatus(204); });
         });
         assertThat(called.get()).isEqualTo(response.getStatus() == 204 ? 1 : 0); return response.getStatus();
     }

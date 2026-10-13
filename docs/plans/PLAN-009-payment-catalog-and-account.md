@@ -1,5 +1,7 @@
 # PLAN-009: 결제 상품·구매 계정·public 인증 기반
 
+> 후속 대사·삭제 상세 계획: [TMI-205](TMI-205-withdrawal-reconciliation-and-purge.md). 기반 코어/fake 검증, PLAN-010 실제 거래 연결, 206/013 활성화 gate를 구분한다. 실제 삭제는 기본 OFF다.
+
 > 2026-10-13 승인 갱신: Identity–Billing 네 이벤트/네 복구 POST는 workload JWT 단일 인증으로 구현한다. 해당 SigV4 signer·선택설정·IAM 수신 통과 경로를 제거하며, 구 recovery.authentication 설정은 OFF에서도 기동 오류다. 수신 OFF는 해당 네 이벤트를 차단한다. LC/user 인증·body/복구 계약과 과거 검증 기록은 유지한다. 실제 전환은 양측 활성 사용처/키/네트워크 확인 후 별도 승인한다.
 
 > 2026-10-12 Identity 탈퇴 수신 등 workload 인증은 [TMI-204 §2.5](TMI-204-withdrawal-recovery.md)·[workload-auth-r1](../contracts/WORKLOAD-JWT-AUTH-R1.md)의 승인된 ALB/전용 JWT 전환을 따른다. 사용자 public API JWT와 구매 권한·계정 lifecycle은 변경하지 않는다. 새 workload 구현은 기본 OFF이며 기존 SigV4 문구는 Identity–Billing 범위만 대체한다.

@@ -11,6 +11,13 @@ public class PaymentProperties {
     private boolean purchaseAccountEnabled;
     private boolean withdrawalEnabled;
     private Recovery recovery = new Recovery();
+    private Cleanup cleanup = new Cleanup();
+    @Getter @Setter
+    public static class Cleanup {
+        private boolean reconciliationEnabled;
+        private boolean purgeEnabled;
+        private boolean alertsEnabled;
+    }
     @Getter @Setter
     public static class Recovery {
         private boolean fenceRequired;

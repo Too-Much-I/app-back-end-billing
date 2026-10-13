@@ -1,7 +1,13 @@
 # PLAN-010: 구매 검증·기간권 원장·동기화·복구
 
-- 작성일: 2026-10-06 / 상태: 승인 대기 / Jira 미생성
+> 2026-10-13 단순화 승인: 접수 row 중심 pending 관리, 신규 sync의 durable 접수→공통 background 처리, 1초 configurable poll, cleanup 전용 정책 revision 통합, 고정 lookup 키/keyVersion을 채택한다. 키 교체 자동화는 만들지 않는다. 세부 기준은 purchase-r1의 승인 보충 및 §5.6/5.10을 따른다. 구현·schema 이관·실부하 검증·배포는 미완료이며 아래 전체 구현 승인 대기와 구분한다. 앱 Retry-After:5는 그대로이며 worker 1초와 다르다.
+
+- 작성일: 2026-10-06 / 상태: 단순화 방향 승인·1차 코어 착수 준비 / Jira: [TMI-210](https://to-teacher.atlassian.net/browse/TMI-210) (TMI-137 하위 작업 유형, PLAN-010 첫 slice만)
+
+2026-10-13: 사용자 요청으로 코드 착수 전 Jira를 우선 생성했다. TMI-210은 저장 규격 마무리·접수/pending·구매/기간권/원장·중복/탈퇴 경합 코어와 fake/Mongo 테스트 범위다. public API·실provider·1초scheduler/부하검증·205 정책revision 이관·배포는 후속이며 이 이슈 완료가 PLAN-010 전체 완료는 아니다. 구현은 사용자 요청으로 대기 중이고 신규 코드 변경은 없다.
 - 선행: [009](PLAN-009-payment-catalog-and-account.md), [ADR-004 §5.4~5.7/5.10/A](../adr/ADR-004-fixed-term-premium-payment-contract.md).
+
+2026-10-13 상세화: [purchase-r1 기술 규격 초안](../contracts/PLAN-010-purchase-technical-spec-r1.md)에 구매/기간권·중복·탈퇴/삭제 경합·sync·통합 조회 DTO 후보·입력 effect/index·flag/구현 순서를 작성했다. 제품 정책은 유지하며 신규 기술값은 검토안이다. 실제 provider 증거·미해결 보존·crypto/worker exact 검증과 구현 승인은 별도다. 이번은 문서 작성이며 코드/manifest/Jira 변경이 아니다.
 
 ## 1. 5줄 결론
 
@@ -13,9 +19,11 @@
 
 ## 2. 사용자가 반드시 읽어야 하는 내용
 
-포함: `POST /api/v1/payments/sync`, `GET /api/v1/payments/entitlement`, provider 전용 `POST /api/v1/payments/revenuecat/events`, Purchase/SubscriptionEntitlement/timeline/payment ledger/inbox/commands/cursor, RC REST read adapter. RC SDK completion은 앱 책임이며 Billing은 finish/consume을 중복 수행하지 않는다. paid Reservation은 011, 환불 원장은 012.
+포함: `POST /api/v1/payments/sync`, 기존 `GET /api/v1/entitlements`의 무료·유료 통합 확장, provider 전용 `POST /api/v1/payments/revenuecat/events`, Purchase/SubscriptionEntitlement/timeline/payment ledger/inbox/commands/cursor, RC REST read adapter. RC SDK completion은 앱 책임이며 Billing은 finish/consume을 중복 수행하지 않는다. paid Reservation은 011, 환불 원장은 012.
 
 ## 3. 사용자가 결정해야 하는 사항
+
+2026-10-13 사용자 승인: 유료 전용 `GET /api/v1/payments/entitlement`는 만들지 않고, 기존 `GET /api/v1/entitlements`에 무료·유료·시험 이용 가능성 정보를 통합한다. 이번은 계획/계약 개정이며 현재 무료 reader 코드·OpenAPI·배포 응답 변경은 아니다. [결정서](../codex/CONTRACT_DECISIONS.md)의 통합 조회 기준을 따른다.
 
 009 PublicResponse envelope는 2026-10-06 승인됐다. 나머지 제품 정책은 재선택하지 않는다. 실제 RC HMAC 지원/SDK 식별자/부분 금액 필드가 ADR와 다르면 근거를 보고하고 계약 변경 승인을 받는다. 없는 provider 필드를 fake로 만들어 검증 완료 처리하지 않는다. 본 slice 상세 기술/구현 승인은 별도다.
 
@@ -31,8 +39,17 @@ RC v2 customer/original_customer와 SDK account reference 변환/Store transacti
 
 - sync: billing:purchase+MEMBER, 필수 lowercase UUIDv4 Idempotency-Key, body `{store,transactionId}`만. identifier는 1~255 opaque hint, Google purchaseToken을 받는 route가 아님. 동일 key/의미→같은 command, 다른 의미409. userId/가격/기간/receipt/source 지정 거절.
 - durable 검증 대기202: result `{operationId,status:"PENDING",purchaseId:null,purchaseStatus:null}`, Retry-After:5. 저장 실패503. 성공200 result `{operationId,status:"APPLIED",purchaseId,purchaseStatus}`. APPLIED는 지금 사용 가능이라는 뜻이 아님. 재요청은 current 상태를 읽고 지급 재수행 안 함.
-- paid reader: billing:read, ADR `asOf,paidActive,activeEntitlementId,activeOfferCode,activeEndsAt,continuousAccessEndsAt,nextStartsAt,hasPendingSync`를 009 envelope로 반환 제안. 무료 reader는 별도 유지, 합산 수량 없음. 조회 무변경/no-store, 장애503. Guest 구매 금지와 본인 조회를 혼동하지 않음.
+- 통합 reader: 기존 `GET /api/v1/entitlements`를 확장한다. billing:read·JWT sub·Guest/MEMBER 본인 조회·현재 envelope와 무료 필드 의미를 유지한다. 무료 수량/재응시/진행 상태와 paidActive/이용 종료·연속 종료·다음 시작/hasPendingSync 및 시험 이용 가능성 요약을 한 응답에서 제공한다. 유료 기간과 무료 수량은 합산하지 않으며 paid-first/free-preserve를 따른다. 정확한 추가 DTO·nullable/enum은 아래 호환 규격으로 후속 동결한다. 조회 무변경/no-store, 저장소 장애503, 자격 불명은 확인 불가로 구분한다. 실제 시작 허용은 reserve에서 최종 판정한다.
 - public strict16KiB, provider256KiB 예외. HTTP 오류/기본 rate limit은 ADR §5.3 및 009 envelope. 최종 `purchaseStatus` partial-money 표현은 012 모델과 함께 동결하고 active/revoked 판단을 금액 상태에 종속시키지 않음.
+
+### 통합 조회 호환·판정 규격
+
+- 기존 `asOf,consistency,status,benefits`와 benefit별 `availableQuantity,newAttempt,retake,hasInProgress,attemptGroups`의 이름/타입/무료 의미를 유지한다. 기존 status를 유료 포함 종합 가능 여부로 재해석하지 않는다. 신규 paid 영역과 종합 이용 가능성 영역을 추가하는 방식을 우선 검토하고 exact 필드/null/생략·enum은 구현 전 동결한다.
+- 신규 요약은 시험 이용 가능/불가/확인 불가, 이용 근거(유료/새 무료/기존 그룹 재응시), 진행 상태를 구분한다. 무료 수량과 유료 기간은 합산하지 않는다. 진행 중 Session 또는 GRADING이 있으면 유효 유료권만 보고 '새 시험 시작 가능'으로 확정하지 않는다.010은 조회 정보를 구성하고011에서 공통 guard/paid resolver와 동일한 판단 규칙으로 검증한다. reserve가 최종 권한 판정이며 별도 시험 시작 승인 token을 발급하지 않는다.
+- 재응시를 화면에서 '1회 남음'으로 보여주는 기존 방향은 가능하되, 신규 무료 수량에 재응시를 더해 원래 availableQuantity 의미를 바꾸지 않는다. 내부/DTO의 신규와 재응시 근거를 유지하고 프론트 표시로 조합한다.
+- 조회 중 계정/ref/Claim/Grant/기간권 생성·hold/차감·owner 변경이나 provider 동기화를 하지 않는다. 무료·유료를 가능한 동일 조회 기준시각과 일관된 로컬 snapshot으로 읽고 상세 consistency는 구현 규격에서 확정한다. 특정 결제 확인은 sync가 계속 담당한다.
+- paid 확장 flag OFF/연동 미준비를 '유료권 없음'으로 꾸미지 않는다. 기존 무료-only 응답 유지와 신규 프론트의 확장 미지원 처리/활성화 순서를 exact 계약으로 고정한다. 유료가 꺼졌다고 기존 무료 route까지 차단하지 않는다. 기존 무료 PENDING은 의미를 유지하며 통합 판단의 미확인을 false/0으로 숨기지 않는다. 저장소 장애는503·Cache-Control:no-store다.
+- frontend의 추가필드/unknown enum 허용 여부를 계약 테스트로 확인한 뒤 additive 배포한다. 기존 성공 envelope·무료 응답 의미 회귀, Guest 본인 조회/구매 거절, 유료 유효+무료 보존, 진행/재응시, PENDING/지연·만료·환불·동시 reserve, 확장 OFF/ON을 검증한다. 제거하는 paid 전용 route의 controller/ingress allowlist/독립 reader flag는 만들지 않는다.
 
 ### 수신·정규화·Transaction
 
@@ -52,7 +69,7 @@ inbox/cursor/command lease30초+fencing,scheduler5초,batch100,5초~1시간 jitt
 
 ### 코드·schema·flag
 
-domain/payment의 provider port/fake와 RevenueCat adapter, PurchaseApplicationService/TimelineService/SyncService/reader/worker를 분리한다. 신규 의존성이 필요하면 사전 승인. ADR A.2 구매 unique·sequence·ledger effect·inbox/command/cursor index 검증. Transaction 없는 Mongo는 기동 실패. `sync-enabled`,`paid-reader-enabled`,`provider-ingress-enabled`,`provider-worker-enabled`,`reconciliation-enabled` 기본 OFF 제안; 판매 gate와 회수/복구 flag는 분리한다.
+domain/payment의 provider port/fake와 RevenueCat adapter, PurchaseApplicationService/TimelineService/SyncService/reader/worker를 분리한다. 신규 의존성이 필요하면 사전 승인. ADR A.2 구매 unique·sequence·ledger effect·inbox/command/cursor index 검증. Transaction 없는 Mongo는 기동 실패. `sync-enabled`,통합 조회의 paid 정보 확장용 독립 flag(정확 이름 후속 동결),`provider-ingress-enabled`,`provider-worker-enabled`,`reconciliation-enabled` 기본 OFF 제안; 판매 gate와 회수/복구 flag는 분리한다.
 
 ## 6. 부록 — 완료 기준/테스트
 

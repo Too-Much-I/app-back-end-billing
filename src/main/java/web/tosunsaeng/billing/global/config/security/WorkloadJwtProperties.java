@@ -9,6 +9,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties("billing.workload-jwt")
 public class WorkloadJwtProperties {
     private boolean receiverEnabled;
+    private boolean learningCoreReceiverEnabled;
+    private String learningCorePublicJwkSet = "";
     private int port;
     private String environment = "";
     private String identityPublicJwkSet = "";
@@ -20,6 +22,8 @@ public class WorkloadJwtProperties {
                 || "production".equals(environment) && "PRODUCTION".equals(paymentEnvironment);
         if (!valid) throw new IllegalStateException("Invalid workload environment mapping");
     }
+    public boolean anyReceiverEnabled() { return receiverEnabled || learningCoreReceiverEnabled; }
+    public String learningCoreIssuer() { return "urn:tosunsaeng:workload:learning-core:" + environment; }
     public String identityIssuer() { return "urn:tosunsaeng:workload:identity:" + environment; }
     public String billingIssuer() { return "urn:tosunsaeng:workload:billing:" + environment; }
     public String recoveryAudience() { return "tosunsaeng-identity:withdrawal-recovery:" + environment; }

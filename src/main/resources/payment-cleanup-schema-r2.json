@@ -1,0 +1,451 @@
+{
+  "subset": "payment-cleanup-r2",
+  "validator": {
+    "$and": [
+      {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "environment",
+            "userId",
+            "lifecycleId",
+            "accountId",
+            "eligibleAt",
+            "createdAt",
+            "state",
+            "version"
+          ],
+          "properties": {
+            "_id": {
+              "bsonType": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?![\\s\\S])"
+            },
+            "environment": {
+              "enum": [
+                "SANDBOX",
+                "PRODUCTION"
+              ]
+            },
+            "userId": {
+              "bsonType": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\\s\\S])"
+            },
+            "lifecycleId": {
+              "bsonType": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?![\\s\\S])"
+            },
+            "accountId": {
+              "bsonType": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?![\\s\\S])"
+            },
+            "eligibleAt": {
+              "bsonType": "date"
+            },
+            "createdAt": {
+              "bsonType": "date"
+            },
+            "state": {
+              "enum": [
+                "WAITING",
+                "VERIFYING",
+                "BLOCKED",
+                "FINANCIAL_RETAINED",
+                "READY"
+              ]
+            },
+            "version": {
+              "bsonType": "long",
+              "minimum": 1
+            },
+            "nextAttemptAt": {
+              "bsonType": "date"
+            },
+            "cleanup": {
+              "bsonType": "object",
+              "additionalProperties": false,
+              "required": [
+                "schemaVersion",
+                "epoch"
+              ],
+              "properties": {
+                "schemaVersion": {
+                  "bsonType": "long",
+                  "enum": [
+                    1
+                  ]
+                },
+                "epoch": {
+                  "bsonType": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?![\\s\\S])"
+                },
+                "lease": {
+                  "bsonType": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "token",
+                    "until"
+                  ],
+                  "properties": {
+                    "token": {
+                      "bsonType": "string",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?![\\s\\S])"
+                    },
+                    "until": {
+                      "bsonType": "date"
+                    }
+                  }
+                },
+                "reason": {
+                  "enum": [
+                    "PURCHASE_FOUND",
+                    "PENDING_EVIDENCE",
+                    "LOCAL_EVIDENCE_UNAVAILABLE",
+                    "PROVIDER_UNAVAILABLE",
+                    "PROVIDER_AUTH_ERROR",
+                    "PROVIDER_CONTRACT_ERROR",
+                    "PROVIDER_INCOMPLETE",
+                    "COVERAGE_UNPROVEN",
+                    "DRAIN_UNPROVEN",
+                    "VERSION_CHANGED",
+                    "PROOF_EXPIRED",
+                    "RECOVERY_BLOCKED",
+                    "DOCUMENT_LIMIT",
+                    "DATA_INCONSISTENT",
+                    "SCHEMA_MISMATCH"
+                  ]
+                },
+                "lastCheckedAt": {
+                  "bsonType": "date"
+                },
+                "firstUnresolvedAt": {
+                  "bsonType": "date"
+                },
+                "reviewDueAt": {
+                  "bsonType": "date"
+                },
+                "lastReviewedAt": {
+                  "bsonType": "date"
+                },
+                "proof": {
+                  "bsonType": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "checkedAt",
+                    "validUntil",
+                    "epoch",
+                    "lifecycleVersion",
+                    "accountVersion",
+                    "cursorActivityAt",
+                    "adapterVersion",
+                    "coverageVersion",
+                    "drainPolicyVersion",
+                    "result"
+                  ],
+                  "properties": {
+                    "checkedAt": {
+                      "bsonType": "date"
+                    },
+                    "validUntil": {
+                      "bsonType": "date"
+                    },
+                    "epoch": {
+                      "bsonType": "string",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?![\\s\\S])"
+                    },
+                    "lifecycleVersion": {
+                      "bsonType": "long",
+                      "minimum": 1
+                    },
+                    "accountVersion": {
+                      "bsonType": [
+                        "long",
+                        "null"
+                      ],
+                      "minimum": 1
+                    },
+                    "cursorActivityAt": {
+                      "bsonType": [
+                        "date",
+                        "null"
+                      ]
+                    },
+                    "adapterVersion": {
+                      "bsonType": "string",
+                      "pattern": "^[A-Za-z0-9._-]{1,64}(?![\\s\\S])"
+                    },
+                    "coverageVersion": {
+                      "bsonType": "string",
+                      "pattern": "^[A-Za-z0-9._-]{1,64}(?![\\s\\S])"
+                    },
+                    "drainPolicyVersion": {
+                      "bsonType": "string",
+                      "pattern": "^[A-Za-z0-9._-]{1,64}(?![\\s\\S])"
+                    },
+                    "result": {
+                      "enum": [
+                        "NO_PURCHASE_CONFIRMED"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "$or": [
+          {
+            "state": "WAITING"
+          },
+          {
+            "cleanup": {
+              "$exists": true
+            }
+          }
+        ]
+      },
+      {
+        "$or": [
+          {
+            "state": "FINANCIAL_RETAINED",
+            "nextAttemptAt": {
+              "$exists": false
+            }
+          },
+          {
+            "state": {
+              "$ne": "FINANCIAL_RETAINED"
+            },
+            "nextAttemptAt": {
+              "$type": "date"
+            }
+          }
+        ]
+      },
+      {
+        "$or": [
+          {
+            "state": "VERIFYING",
+            "cleanup.lease": {
+              "$exists": true
+            }
+          },
+          {
+            "state": {
+              "$ne": "VERIFYING"
+            },
+            "cleanup.lease": {
+              "$exists": false
+            }
+          },
+          {
+            "state": "READY"
+          }
+        ]
+      },
+      {
+        "$or": [
+          {
+            "state": "READY",
+            "cleanup.proof": {
+              "$exists": true
+            }
+          },
+          {
+            "state": {
+              "$ne": "READY"
+            },
+            "cleanup.proof": {
+              "$exists": false
+            }
+          }
+        ]
+      },
+      {
+        "$or": [
+          {
+            "cleanup.firstUnresolvedAt": {
+              "$exists": false
+            },
+            "cleanup.reviewDueAt": {
+              "$exists": false
+            }
+          },
+          {
+            "cleanup.firstUnresolvedAt": {
+              "$type": "date"
+            },
+            "cleanup.reviewDueAt": {
+              "$type": "date"
+            }
+          }
+        ]
+      },
+      {
+        "$or": [
+          {
+            "state": {
+              "$ne": "BLOCKED"
+            }
+          },
+          {
+            "state": "BLOCKED",
+            "cleanup.firstUnresolvedAt": {
+              "$exists": true
+            },
+            "cleanup.reason": {
+              "$exists": true
+            }
+          }
+        ]
+      },
+      {
+        "$expr": {
+          "$and": [
+            {
+              "$cond": [
+                {
+                  "$eq": [
+                    "$state",
+                    "READY"
+                  ]
+                },
+                {
+                  "$and": [
+                    {
+                      "$lt": [
+                        "$cleanup.proof.checkedAt",
+                        "$cleanup.proof.validUntil"
+                      ]
+                    },
+                    {
+                      "$lte": [
+                        "$cleanup.proof.validUntil",
+                        {
+                          "$add": [
+                            "$cleanup.proof.checkedAt",
+                            3600000
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "$eq": [
+                        "$cleanup.epoch",
+                        "$cleanup.proof.epoch"
+                      ]
+                    },
+                    {
+                      "$cond": [
+                        {
+                          "$eq": [
+                            "$accountId",
+                            null
+                          ]
+                        },
+                        {
+                          "$and": [
+                            {
+                              "$eq": [
+                                "$cleanup.proof.accountVersion",
+                                null
+                              ]
+                            },
+                            {
+                              "$eq": [
+                                "$cleanup.proof.cursorActivityAt",
+                                null
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "$and": [
+                            {
+                              "$eq": [
+                                {
+                                  "$type": "$cleanup.proof.accountVersion"
+                                },
+                                "long"
+                              ]
+                            },
+                            {
+                              "$eq": [
+                                {
+                                  "$type": "$cleanup.proof.cursorActivityAt"
+                                },
+                                "date"
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                true
+              ]
+            },
+            {
+              "$cond": [
+                {
+                  "$eq": [
+                    {
+                      "$type": "$cleanup.firstUnresolvedAt"
+                    },
+                    "date"
+                  ]
+                },
+                {
+                  "$eq": [
+                    "$cleanup.reviewDueAt",
+                    {
+                      "$add": [
+                        "$cleanup.firstUnresolvedAt",
+                        604800000
+                      ]
+                    }
+                  ]
+                },
+                true
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "indexes": [
+    {
+      "name": "ux_payment_cleanup_subject",
+      "keys": {
+        "environment": 1,
+        "userId": 1
+      },
+      "unique": true
+    },
+    {
+      "name": "ix_payment_cleanup_due",
+      "keys": {
+        "state": 1,
+        "nextAttemptAt": 1,
+        "_id": 1
+      },
+      "unique": false
+    },
+    {
+      "name": "ix_payment_cleanup_review",
+      "keys": {
+        "state": 1,
+        "cleanup.reviewDueAt": 1,
+        "_id": 1
+      },
+      "unique": false
+    }
+  ]
+}

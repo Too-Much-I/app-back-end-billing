@@ -13,7 +13,7 @@ import static web.tosunsaeng.billing.domain.payment.exception.PaymentException.r
  */
 public final class PaymentRecoveryFence {
     public static final String COLLECTION = "payment_recovery_controls";
-    public enum Writer { ACCOUNT, PUSH, RECOVERY }
+    public enum Writer { ACCOUNT, PUSH, RECOVERY, CLEANUP, PURGE }
     public enum Barrier { OPEN, PURCHASE_BLOCKED, ALL_BLOCKED }
     public record Ticket(String epoch) {
         public Ticket { canonical(epoch); }
@@ -38,7 +38,7 @@ public final class PaymentRecoveryFence {
         require(session != null && session.hasActiveTransaction());
         if (!properties.getRecovery().isFenceRequired()) {
             // Recovery can never run without its mandatory fence.
-            require(ticket == null && writer != Writer.RECOVERY);
+            require(ticket == null && writer != Writer.RECOVERY && writer != Writer.CLEANUP && writer != Writer.PURGE);
             return;
         }
         require(ticket != null && writer != null);
@@ -48,7 +48,7 @@ public final class PaymentRecoveryFence {
         require(control.getString("epoch").equals(ticket.epoch()));
         Barrier barrier = Barrier.valueOf(control.getString("barrier"));
         require(barrier != Barrier.ALL_BLOCKED);
-        require(writer != Writer.ACCOUNT || barrier == Barrier.OPEN);
+        require((writer != Writer.ACCOUNT && writer != Writer.PURGE) || barrier == Barrier.OPEN);
         long version = control.getLong("version");
         require(version < Long.MAX_VALUE);
         Document match = new Document(key()).append("_id", control.get("_id"))

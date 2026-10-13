@@ -9,6 +9,8 @@ spring:
 billing:
   workload-jwt:
     receiver-enabled: ${BILLING_WORKLOAD_JWT_RECEIVER_ENABLED:false}
+    learning-core-receiver-enabled: ${BILLING_WORKLOAD_LEARNING_CORE_RECEIVER_ENABLED:false}
+    learning-core-public-jwk-set: ${BILLING_WORKLOAD_LEARNING_CORE_PUBLIC_JWK_SET:}
     port: ${BILLING_WORKLOAD_JWT_PORT:0}
     environment: ${BILLING_WORKLOAD_JWT_ENVIRONMENT:}
     identity-public-jwk-set: ${BILLING_WORKLOAD_IDENTITY_PUBLIC_JWK_SET:}
@@ -19,6 +21,10 @@ billing:
     catalog-enabled: ${BILLING_PAYMENT_CATALOG_ENABLED:false}
     purchase-account-enabled: ${BILLING_PAYMENT_PURCHASE_ACCOUNT_ENABLED:false}
     withdrawal-enabled: ${BILLING_PAYMENT_WITHDRAWAL_ENABLED:false}
+    cleanup:
+      reconciliation-enabled: ${BILLING_PAYMENT_CLEANUP_RECONCILIATION_ENABLED:false}
+      purge-enabled: ${BILLING_PAYMENT_CLEANUP_PURGE_ENABLED:false}
+      alerts-enabled: ${BILLING_PAYMENT_CLEANUP_ALERTS_ENABLED:false}
     recovery:
       fence-required: ${BILLING_PAYMENT_RECOVERY_FENCE_REQUIRED:false}
       snapshot-enabled: ${BILLING_PAYMENT_RECOVERY_SNAPSHOT_ENABLED:false}

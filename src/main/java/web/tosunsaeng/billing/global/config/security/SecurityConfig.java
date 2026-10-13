@@ -5,7 +5,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
@@ -56,49 +55,8 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> {
                     authorize.requestMatchers("/actuator/health", "/actuator/health/**").permitAll();
-                    if (ingressProperties.getMode() == InternalIngressProperties.Mode.TEST) {
-                        if (ownerRebindProperties.isEnabled()) {
-                            authorize.requestMatchers(
-                                    HttpMethod.POST,
-                                    "/internal/v1/reservations/continuations/phone"
-                            ).hasRole("LEARNING_CORE_WORKLOAD");
-                        }
-                        authorize.requestMatchers(
-                                HttpMethod.POST,
-                                "/internal/v1/reservations",
-                                "/internal/v1/reservations/status",
-                                "/internal/v1/reservations/*/confirm",
-                                "/internal/v1/reservations/*/cancel"
-                        ).hasRole("LEARNING_CORE_WORKLOAD");
-                        if (attemptGroupEventProperties.isEnabled()) {
-                            authorize.requestMatchers(
-                                    HttpMethod.POST,
-                                    "/internal/v1/attempt-group-events"
-                            ).hasRole("LEARNING_CORE_WORKLOAD");
-                        }
-                    } else if (ingressProperties.getMode()
-                            == InternalIngressProperties.Mode.LATTICE_AWS_IAM) {
-                        // IAM authentication/route authorization is enforced by Lattice; isolated task ingress is mandatory.
-                        if (ownerRebindProperties.isEnabled()) {
-                            authorize.requestMatchers(
-                                    HttpMethod.POST,
-                                    "/internal/v1/reservations/continuations/phone"
-                            ).permitAll();
-                        }
-                        if (attemptGroupEventProperties.isEnabled()) {
-                            authorize.requestMatchers(
-                                    HttpMethod.POST,
-                                    "/internal/v1/attempt-group-events"
-                            ).permitAll();
-                        }
-                        authorize.requestMatchers(
-                                HttpMethod.POST,
-                                "/internal/v1/reservations",
-                                "/internal/v1/reservations/status",
-                                "/internal/v1/reservations/*/confirm",
-                                "/internal/v1/reservations/*/cancel"
-                        ).permitAll();
-                    }
+                    // All Identity/LC workload routes are guarded and authenticated on the dedicated TLS chain.
+                    // TEST roles and externally authenticated Lattice modes cannot bypass that chain.
                     authorize.anyRequest().denyAll();
                 })
                 .build();

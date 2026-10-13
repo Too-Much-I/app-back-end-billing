@@ -1,5 +1,9 @@
 # 토선생 Billing Service Codex 작업 규칙
 
+> 2026-10-13 LC B 구현 승인: 사용자 「어 해줘」로 Billing 수신 코드·관련 테스트 구현을 승인했다. LC 여섯 POST는 전용 RS256 JWT 단일 인증/목적 인가, 독립 LC key/receiver flag와 공유 TLS OR기동으로 구현하며 기존 IAM permitAll/TEST 역할/다른 port 우회를 제거한다. 기본 OFF·실키 빈 값, Identity/user·업무 wire/원장/복구 불변이다. 타 저장소 코드·C 도구·배포/활성화는 이번 승인에 포함하지 않는다. 아래 B 착수 승인 대기 표현은 과거 준비 기록이다.
+
+> 2026-10-13 LC JWT 문서 동기화 승인: 사용자 요청으로 [LC B 구현 계획](docs/plans/PLAN-LC-BILLING-WORKLOAD-JWT.md)과 A 확정 계약을 구현 기준에 반영한다. LC→Billing 여섯 POST는 전용 workload JWT로 전환하며 기존 IAM permitAll/다른 port 우회를 제거하는 목표다. Identity·LC TLS는 공유하되 키·principal·목적/활성화는 독립, fallback 금지·기본 OFF다. B 코드 착수·C 도구·배포/활성화는 별도 승인이다. 아래 과거 LC Lattice/SigV4-only 규칙은 이 여섯 route의 승인된 목표에서 대체하며 현재 코드/실환경 전환 완료를 뜻하지 않는다. 사용자 JWT·업무 body/원장/복구 계약·과거 검증 기록은 유지한다.
+
 > 2026-10-13 승인 갱신: Identity–Billing 네 이벤트/네 복구 POST는 workload JWT 단일 인증으로 구현한다. 해당 SigV4 signer·선택설정·IAM 수신 통과 경로를 제거하며, 구 recovery.authentication 설정은 OFF에서도 기동 오류다. 수신 OFF는 해당 네 이벤트를 차단한다. LC/user 인증·body/복구 계약과 과거 검증 기록은 유지한다. 실제 전환은 양측 활성 사용처/키/네트워크 확인 후 별도 승인한다.
 
 이 규칙은 저장소 전체에 적용한다. 이 저장소는 토선생 앱의 Billing/Entitlement Service이며, 아래 도메인 경계와 계약을 유지한다.
@@ -120,7 +124,7 @@ PLAN-007 §8 구현: 세션 귀속은 기본 7일 command TTL에 의존하지 �
 - RevenueCat은 결제 연동·검증 데이터 공급 계층이며 Billing entitlement의 source of truth가 아니다. consumable을 RevenueCat Entitlement에 연결해 기간 권리를 판정하지 않고, Billing catalog·Purchase·SubscriptionEntitlement·ledger가 24·72·168·336·672시간과 stacking을 결정한다.
 - RevenueCat 표준 SDK가 Apple transaction finish와 Google consumable completion을 담당한다. Store 결제가 완료됐지만 Billing 반영이 지연되면 client callback으로 권리를 지급하지 않고 `PENDING`으로 표시하며 HMAC webhook·event ID 멱등성·REST API reconciliation으로 최종 수렴한다.
 - RevenueCat custom App User ID에는 실제 userId가 아니라 사용자·환경별 stable `purchaseAccountRefId`를 사용한다. 익명 상태 구매와 RevenueCat alias/restore에 의한 다른 토선생 계정으로의 구매·권리 자동 이전을 허용하지 않는다.
-- 결제 public route는 `GET /api/v1/payments/products`, `POST /api/v1/payments/purchase-account`, `POST /api/v1/payments/sync`, `GET /api/v1/payments/entitlement`로 분리한다. sync는 필수 lowercase UUID v4 `Idempotency-Key`와 untrusted Store transaction hint를 사용하며 미확인은 `202 PENDING`과 `Retry-After`로 fail-closed한다.
+- 결제 public route는 `GET /api/v1/payments/products`, `POST /api/v1/payments/purchase-account`, `POST /api/v1/payments/sync`, 권리 조회는 기존 `GET /api/v1/entitlements`의 무료·유료 통합 확장으로 제공한다. 유료 전용 `/api/v1/payments/entitlement`는 신설하지 않는다. sync는 필수 lowercase UUID v4 `Idempotency-Key`와 untrusted Store transaction hint를 사용하며 미확인은 `202 PENDING`과 `Retry-After`로 fail-closed한다.
 - RevenueCat webhook은 Authorization header와 raw-body HMAC, 5분 timestamp window를 모두 검증하고 최소 inbox를 durable commit한 뒤 200을 반환해 worker가 처리한다. optional unknown field는 허용하고 인증된 unknown event type은 durable ignored disposition으로 수렴한다.
 - 같은 RevenueCat project의 webhook을 SANDBOX→staging, PRODUCTION→production으로 분리하고 URL·Authorization·HMAC secret을 환경별로 다르게 사용한다. `Track new purchases from server-to-server notifications`와 자동 `Refund request handling`은 최초 출시에서 OFF다.
 - 정상 인증 webhook은 직접 정규화·반영하고 RevenueCat API는 client sync·모호한 event·reconciliation에 사용한다. refund/revoke Learning Core 차단은 AttemptGroup별 durable outbox와 Lattice SigV4 event로 비동기 전달한다.
@@ -170,6 +174,8 @@ PLAN-002 Reservation을 구현할 때 다음 계약을 유지한다.
 
 ## 사용자 및 서비스 인증 규칙
 
+- 2026-10-13 LC 목표 동기화: `docs/contracts/LC-BILLING-WORKLOAD-AUTH-R1.md`·수락 기록·startup 표와 `docs/plans/PLAN-LC-BILLING-WORKLOAD-JWT.md`를 따른다. 대상은 reserve/confirm/cancel/status/phone continuation/AttemptGroup event 여섯 POST이며 LC issuer/sub·두 목적 audience로 exact 인가한다. 기존 LC IAM permitAll 및 production legacy TEST 통과/다른 port 우회는 B 구현에서 제거한다. 기존 Identity receiver-enabled 의미는 유지하고 LC receiver flag/key를 분리한다. 2026-10-13 사용자 「어 해줘」로 Billing B 코드·테스트 구현이 승인됐다. C/실환경·배포 활성화는 별도다. LC 저장소는 기본 읽기 대상이며 별도 요청 없이 LC 코드/설정/AGENTS를 수정하지 않는다.
+
 - 2026-10-12 사용자 승인 예외: Identity–Billing의 4개 이벤트와 Billing→Identity recovery4POST는 기존 ALB + 별도 connector/security chain + 전용 RS256 workload JWT로 전환한다. TMI-204 계획 §2.5 및 인증 보완 계약을 따른다. 아래 SigV4-only 규칙은 이 범위의 승인된 OFF 구현에 한해 대체한다. LC/user JWT 계약은 불변이며 실제 환경/키/공동 fixture·ALB/SG 검증 전 활성화하지 않는다. JWT는 body 서명과 동등하지 않고 실패 시 SigV4/무인증 fallback은 금지한다.
 
 - 실제 사용자 ID는 UUID 문자열이며 JWT `sub`에서 가져온다.
@@ -177,7 +183,7 @@ PLAN-002 Reservation을 구현할 때 다음 계약을 유지한다.
 - 예외적으로 인증된 Identity eligibility event와 인증된 Learning Core internal route는 각 서비스가 확정한 lowercase canonical UUID `userId`를 body로 전달한다. 다른 principal, public path, query parameter 또는 임의 identity header의 userId는 신뢰하지 않는다.
 - 결제 사용자 API를 추가할 때는 Identity만 사용자 token을 발급한다. Billing은 RS256 signature, exact issuer/JWKS, `tosunsaeng-billing` audience, expiry·iat·jti, lowercase UUID `sub`, 최대 60초 clock skew와 route별 scope를 검증한다.
 - Identity는 Guest에 최대 `billing:read`, ACTIVE MEMBER에 `billing:read billing:purchase`를 발급한다. Billing은 client body/path/query/header의 account type이나 userId를 신뢰하지 않는다.
-- 현재 내부 workload API는 VPC Lattice `AWS_IAM`, ECS task role과 SigV4를 사용한다. 별도 shared secret, API key 또는 workload JWT를 임의로 추가하지 않는다.
+- LC 여섯 route의 수신은 승인된 workload JWT 단일 인증으로 구현한다. VPC Lattice `AWS_IAM`/TEST 역할은 해당 route를 인증하거나 우회 허용하지 않는다. 과거 SigV4 설명은 역사적 기록이며 다른 미승인 방향의 인증은 임의로 바꾸지 않는다. 그 외 shared secret/API key/workload JWT를 임의로 추가하지 않는다.
 - Identity task role은 Trial eligibility와 승인된 Billing owner rebind event route만, Learning Core task role은 Reservation·status·AttemptGroup route만 호출할 수 있도록 최소 권한을 적용한다. `TrialOwnerRebindApproved`는 Learning Core에 전달하지 않는다.
 - repair route는 일반 workload role과 분리된 운영 role만 허용한다.
 - unsigned 요청, 다른 환경 role, 권한 없는 route와 direct task 우회는 거절한다.

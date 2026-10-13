@@ -139,3 +139,8 @@ Reservation status가 RESERVED이면 기존 TTL·Session commit 증거에 따라
 5. 실제 HTTPS/네트워크/키·동시 전환 inventory와404 보존/복구 runbook 검증 후 staging E2E. Billing 수신 준비 확인 뒤 LC 발신을 활성화한다. 날짜/배포 가능 시점은 현재 미확정이며 코드 테스트 완료와 운영 활성화 완료를 분리한다.
 
 이번 작업은 Billing 코드/설정·Identity/LC 저장소·AWS·Jira 변경이나 외부 회신 전송을 수행하지 않았다. 기존 미커밋 변경을 보존한 문서 검토다.
+
+
+## 2026-10-13 원문 복구 및 최신 상태 안내
+
+이 문서는 초기 검토 원문이다. 커밋 전 다른 통합계약 내용으로 덮인 상태를 확인해 사용자 승인과 별도 백업 후 Git 원문을 복구했다. 최신 A 수락과 B 구현 결과는 [A 수락 기록](LC-BILLING-WORKLOAD-A-ACCEPTANCE-R1.md), [인증 계약](LC-BILLING-WORKLOAD-AUTH-R1.md), [B 검증 결과](LC-BILLING-WORKLOAD-JWT-B-BILLING-VALIDATION-2026-10-13.md)를 따른다. 실제 배포·활성화는 별도다.

@@ -1,5 +1,7 @@
 # ADR-001: 무료 모의고사 내부 API와 MongoDB 계약
 
+> 2026-10-13 인증 목표 동기화: LC→Billing 여섯 POST의 Lattice/SigV4-only 인증 전제는 [ADR-002 §20](ADR-002-vpc-lattice-ecs-sigv4-and-environment-migration.md#20-lcbilling-workload-jwt-전환--2026-10-13-문서-동기화)와 A 확정 workload JWT 계약으로 대체한다. 이는 B 계획/문서 기준이며 코드/배포 완료가 아니다. 본 ADR의 DTO·업무 userId·멱등성·Transaction/원장·복구 규칙은 유지한다.
+
 - 상태: 승인된 제품 계약을 구현하기 위한 기술 기준
 - 작성일: 2026-08-26
 - 대상 릴리스: 결제 제외 `FREE_EXAM_ONCE` MVP
@@ -36,7 +38,7 @@
 | `subjectRefId` | Billing | lowercase UUID v4 | 삭제 가능한 user mapping과 immutable audit core 사이의 간접 참조 |
 | `eventId` | event producer | lowercase UUID v4 | at-least-once event 멱등성 |
 
-`userId`는 public client가 Billing에 보내는 값이 아니다. Billing은 Lattice에서 인증된 Learning Core route에서만 Learning Core가 JWT `sub`로 확정한 `userId`를 받는다. Identity event의 `userId`는 인증된 Identity route에서만 받는다. 다른 principal, public path, query parameter 또는 임의 identity header의 `userId`는 신뢰하지 않는다.
+`userId`는 public client가 Billing에 보내는 값이 아니다. Billing은 승인된 workload 인증을 통과한 Learning Core route에서만 Learning Core가 사용자 JWT `sub`로 확정한 `userId`를 받는다. 서비스 JWT sub는 `learning-core-service`이며 사용자 ID가 아니다. Identity event의 `userId`는 인증된 Identity route에서만 받는다. 다른 principal, public path, query parameter 또는 임의 identity header의 `userId`는 신뢰하지 않는다.
 
 모든 시각은 RFC 3339 UTC `Z`와 millisecond precision으로 주고받고 DB에는 BSON Date/`Instant`로 저장한다. JSON duplicate field, 숫자 coercion과 잘못된 UUID casing은 validation 단계에서 거절한다.
 

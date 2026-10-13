@@ -77,7 +77,7 @@ Store 공식 지원과 실제 RC 데이터 전달은 다르다. Phase 0에서 �
 | --- | --- |
 | Identity | ACTIVE MEMBER purchase scope, REFUND 문의·userId 자동 귀속/예외 지원, 로그아웃·탈퇴/정지 토큰 정책 협의 |
 | Learning Core | source reader-first, paid GRADING gate, durable revoke consumer/deny tombstone, 삭제 후 최소 증거 일관성 |
-| 앱 | RC identify/계정 전환·표준 completion, sync PENDING, 두 entitlement 조회, 환불 문의/Store 안내·약관 |
+| 앱 | RC identify/계정 전환·표준 completion, sync PENDING, 기존 /api/v1/entitlements 무료·유료 통합 조회, 환불 문의/Store 안내·약관 |
 | 운영 | Store 실제 환불·대사, IAM/ALB/Lattice, Secret, backup/복구, 신고·환불 응대 |
 
 2026-10-06 상태 확인: Identity 로컬 `cc076442`에서 REFUND 분류·인증된 userId 자동 귀속·익명401/본문 userId400과 관련 테스트 구현을 확인했다. 이 인계는 신규 구현이 아니라 배포/프론트·구매 연결 통합 확인 단계다. ACTIVE Guest도 문의 가능하나 구매 권한/소유권을 부여하지 않는다. billing:purchase 발급은 별도 후속이다. 테스트는 이번에 실행하지 않았으며 실제 문의/Slack flag 활성화는 미확인이다.

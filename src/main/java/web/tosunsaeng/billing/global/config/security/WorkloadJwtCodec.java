@@ -35,6 +35,15 @@ public final class WorkloadJwtCodec {
             keys = Map.copyOf(result);
         } catch (Exception invalid) { throw new IllegalStateException("Invalid workload public key configuration"); }
     }
+    /** Untrusted routing hint only. The selected verifier must validate signature and issuer again. */
+    static String unverifiedIssuer(String token) {
+        try {
+            check(token != null && token.length() <= 16384);
+            String[] parts = token.split("\\.", -1); check(parts.length == 3);
+            for (String part : parts) check(part.matches("[A-Za-z0-9_-]+"));
+            return text(parse(Base64.getUrlDecoder().decode(parts[1]), 16384), "iss");
+        } catch (Exception invalid) { throw new InvalidToken(); }
+    }
     public Principal authenticate(String token) {
         try {
             check(token != null && token.length() <= 16384);

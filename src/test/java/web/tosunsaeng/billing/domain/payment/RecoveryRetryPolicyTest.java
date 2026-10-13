@@ -8,6 +8,17 @@ import static org.assertj.core.api.Assertions.*;
 
 class RecoveryRetryPolicyTest {
     private final Instant now = Instant.parse("2026-10-12T00:00:00Z");
+    @Test void retryAfterPreservesPastAndOneDayBoundariesUsingOrdinaryClock() {
+        var past = RecoveryRetryPolicy.retryAfter(List.of("Sun, 11 Oct 2026 23:59:59 GMT"), now);
+        assertThat(past.invalid()).isFalse();
+        assertThat(past.notBefore()).isEqualTo(now.minusSeconds(1));
+        assertThat(past.overOneDay()).isFalse();
+        assertThat(RecoveryRetryPolicy.retryAfter(List.of("0"), now).notBefore()).isEqualTo(now);
+        assertThat(RecoveryRetryPolicy.retryAfter(List.of("86400"), now).overOneDay()).isFalse();
+        assertThat(RecoveryRetryPolicy.retryAfter(List.of("86401"), now).overOneDay()).isTrue();
+        assertThat(RecoveryRetryPolicy.retryAfter(List.of("Tue, 13 Oct 2026 00:00:01 GMT"), now).overOneDay()).isTrue();
+        assertThat(RecoveryRetryPolicy.retryAfter(List.of("0", "0"), now).invalid()).isTrue();
+    }
     @Test void backoffProbeAndPollAreBoundedWithoutOverflow() {
         var policy = new RecoveryRetryPolicy(() -> 0.5);
         assertThat(policy.failed(now, 1)).isEqualTo(now.plusSeconds(1));

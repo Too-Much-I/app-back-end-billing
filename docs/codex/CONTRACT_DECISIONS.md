@@ -1,5 +1,20 @@
 # Billing 계약 결정서
 
+## 2026-10-13 결제 처리 단순화 승인
+
+- 사용자 승인: 접수 row 중심 관리(별도 범용 payment_evidence_effects 미생성), 공통 background 검증·반영 경로, 초기1초 configurable DB poll, cleanupPolicyVersion 단일화, 고정 lookup 키/keyVersion과 교체 기능 선개발 제외.
+- 미처리 pending 카운터와 source terminal CAS는 동일 Tx, 미매핑·보존 인계 case 및 지급 ledger 고유성은 유지한다. 신규 sync는 durable 접수 후202, 이미 검증·반영된 거래만 귀속 확인 후200; 요청 thread에서 외부 검증하지 않는다.
+- 1초는 bounded due 조회 주기다. 빈큐 무외부호출/무업무갱신, 중첩 방지·lease, 재시도 backoff·합산quota 유지. 앱 Retry-After:5/요청제한은 변경하지 않으며 UI 완료시간 SLA가 아니다. staging 부하 측정 후2초/5초로 조정 가능하다.
+- 삭제 세 버전→단일 정책은 새 schema revision/호환 이관·기존 proof 재확인이 필요하며 아직 코드/manifest 미반영이다. 거래 조회/미결 보호·삭제 최종 확인을 제거하지 않는다.
+- 키 대상은 거래 lookup hash이며 JWT 키 정책은 불변이다. 실제 교체 필요 시 관련 작업 중단·입력 유실 방지·데이터 이관 검증 후 재개를 별도 설계한다. 설정만 바꾸지 않는다.
+- [010 상세 규격](../contracts/PLAN-010-purchase-technical-spec-r1.md), [205 규격](../contracts/TMI-205-cleanup-technical-spec-r1.md)에 반영. 코드 구현·provider 지원 검증·실부하/배포/판매·자동삭제 활성화는 미완료다.
+
+## 2026-10-13 무료·유료 통합 조회 승인
+
+`GET /api/v1/payments/entitlement` 신설 계획을 폐기하고 기존 `GET /api/v1/entitlements`를 확장한다. billing:read/JWT sub·Guest/MEMBER 본인조회·no-store·조회 무변경을 유지한다. 무료 수량/진행·재응시와 유료 종료/연속기간/대기구매 정보를 함께 제공하며 종합 시험 이용 가능성은 가능/불가/확인 불가를 구분한다. 단위가 다른 권리를 총수량으로 합치지 않고 paid-first/free-preserve를 유지한다. 실제 시험 시작은 reserve가 최종 판정한다.
+
+기존 무료 `asOf,consistency,status,benefits` 및 하위 필드 의미는 보존하고 paid/종합 정보를 호환 확장한다. 재응시의 '1회 남음' UI가 신규 availableQuantity를 덮어쓰거나 이중 집계하지 않도록 근거를 분리한다. 정확 DTO·null/enum·확장 flag/프론트 rollout은 [PLAN-010](../plans/PLAN-010-purchase-ingestion-and-timeline.md)의 후속 기술 계약이다. 기존 무료 코드/OpenAPI는 아직 미변경이다. `POST /api/v1/payments/sync`는 특정 구매 확인/PENDING·반영 상태 동기화로 유지하며 통합 GET이 이를 실행하지 않는다.
+
 > 2026-10-13 승인 갱신: Identity–Billing 네 이벤트/네 복구 POST는 workload JWT 단일 인증으로 구현한다. 해당 SigV4 signer·선택설정·IAM 수신 통과 경로를 제거하며, 구 recovery.authentication 설정은 OFF에서도 기동 오류다. 수신 OFF는 해당 네 이벤트를 차단한다. LC/user 인증·body/복구 계약과 과거 검증 기록은 유지한다. 실제 전환은 양측 활성 사용처/키/네트워크 확인 후 별도 승인한다.
 
 > 2026-10-12 승인 보완: Identity–Billing 이벤트4route·복구4POST는 [TMI-204 §2.5](../plans/TMI-204-withdrawal-recovery.md)의 ALB/전용 RS256 workload JWT 방향으로 전환한다. [workload-auth-r1](../contracts/WORKLOAD-JWT-AUTH-R1.md)에 Billing OFF 구현 규격과 검증 경계를 기록한다. 과거 SigV4-only 문구는 해당 범위만 대체하며 LC/user·도메인wire/보존 불변. 양 서버 auth fixture 최종 수락/실환경 확인/활성화는 별도다.
@@ -135,7 +150,7 @@
 - 미수신 eligibility·미해결 owner 연결은 200 PENDING/null, 저장소·불변식 실패는 503 result=null이다. 같은 전화번호 retained 사용 완료는 0이며 재가입으로 초기화하지 않는다.
 - 이 조회 한 개에 한해 기존 무료-only public Billing 없음 전제를 확장한다. 별도 public connector/ALB exact allowlist와 사용자 JWT chain을 준비하고 internal Lattice AWS_IAM·SigV4/DTO는 유지한다. 결제 route 전체를 미리 열지 않는다.
 - Identity account_type PR #39 병합과 Billing audience/read 발급은 별개다. Billing OFF 배포 → Identity aud/read 후속 → staging → reader ON → 앱 순서다. paid scope/SDK/collection은 포함하지 않는다.
-- paid `/api/v1/payments/entitlement`는 별도 후속 조회다. ADR-004의 direct DTO 초안과 이번 public envelope 차이는 결제 구현 전에 검토하며 이번 계획으로 paid wire를 변경하지 않는다.
+- 2026-10-13 승인으로 paid 전용 `/api/v1/payments/entitlement` 신설 계획을 폐기하고 기존 `/api/v1/entitlements`를 무료·유료 통합 조회로 확장한다. 현재 무료 코드/배포 응답은 미변경이며 기존 envelope/필드 의미와 프론트 호환을 유지한다. exact 추가 DTO는 PLAN-010에서 동결한다.
 - 사용자가 보완 계획의 구현을 승인해 reader·JWT·포트 격리·durable attribution을 구현했다. Jira·실제 migration·production 활성화는 수행하지 않았으며 별도 승인/gate가 필요하다. [OpenAPI](../openapi/free-entitlements.yaml), [배포·이관](../runbooks/PLAN-007-public-reader-rollout.md)을 따른다.
 - 2026-09-07 검토 보완: PLAN-007 §8.2~8.5에 command TTL 독립적인 sessionOwnerEpoch 증빙·쓰기 Transaction CAS·legacy 이관 gate를 추가했다. PHONE_REJOIN과 실제 USER_MERGED의 의미를 구분하며 기존 source Session을 새 owner의 epoch로 덮어쓰지 않는다. Guest ELIGIBILITY_UNKNOWN은 실제 처리 job이 있다는 뜻이 아니므로 프론트 안내를 '사용 가능 여부를 확인할 수 없습니다'로 구분한다. Identity 9.2의 aud/read 발급 인계는 그대로 유지한다.
 
@@ -501,7 +516,7 @@ promotional credit끼리는 만료 임박순, paid credit끼리는 오래된 gra
 
 #### C9-S8. ADR-004 RevenueCat·public API·revoke 세부 선택 — 확정
 
-- public 사용자 route는 `GET /api/v1/payments/products`, `POST /api/v1/payments/purchase-account`, `POST /api/v1/payments/sync`, `GET /api/v1/payments/entitlement`로 기능별 분리한다. JWT `sub`만 actor로 사용하고 조회는 `billing:read`, account 발급과 sync는 `billing:purchase`를 요구한다.
+- public 사용자 route는 `GET /api/v1/payments/products`, `POST /api/v1/payments/purchase-account`, `POST /api/v1/payments/sync`, 권리 조회는 기존 `GET /api/v1/entitlements`를 확장한다(2026-10-13 승인). 유료 전용 `/api/v1/payments/entitlement`는 신설하지 않는다. JWT `sub`만 actor로 사용하고 조회는 `billing:read`, account 발급과 sync는 `billing:purchase`를 요구한다.
 - purchase account 발급은 body 없는 idempotent get-or-create로 사용자·환경별 stable lowercase UUID v4 하나에 수렴한다. purchase sync는 lowercase UUID v4 `Idempotency-Key`와 SDK의 Store/transaction identifier를 untrusted lookup hint로 받되 userId·가격·기간·receipt·purchase token을 받지 않는다.
 - sync에서 RevenueCat 검증과 local entitlement commit이 끝나면 200, 아직 RevenueCat에서 transaction을 확인할 수 없으면 `202 PENDING`과 `Retry-After`를 반환한다. 앱은 같은 key로 재시도하며 PENDING 동안 유료 권리를 추측해 열지 않는다.
 - RevenueCat webhook은 별도 Authorization header와 HMAC signing을 모두 검증한다. `X-RevenueCat-Webhook-Signature`의 timestamp·raw body HMAC-SHA256을 constant-time compare하고 5분 replay window를 적용한 뒤 최소 inbox를 durable commit하고 빠르게 200을 반환하며 실제 원장 반영은 worker가 수행한다.
