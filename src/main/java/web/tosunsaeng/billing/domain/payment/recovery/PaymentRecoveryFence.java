@@ -63,7 +63,7 @@ public final class PaymentRecoveryFence {
     }
     private static void validate(Document control) {
         require(control != null && control.get("schemaVersion") instanceof Long
-                && Set.of(1L, 2L).contains(control.getLong("schemaVersion")) && control.get("version") instanceof Long
+                && Set.of(1L, 2L, 3L, 4L).contains(control.getLong("schemaVersion")) && control.get("version") instanceof Long
                 && control.getLong("version") > 0);
         require(control.get("epoch") instanceof String && control.get("barrier") instanceof String);
         canonical(control.getString("epoch"));

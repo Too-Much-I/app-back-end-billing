@@ -1,5 +1,9 @@
 # TMI-204 snapshot 영속 처리 구현
 
+> 2026-10-13 갱신: hash는200행/30초마다양보하고 exactlease로재개하며 process소실시처음부터재검증한다. 운영도구·scheduler·validator확장은 [새 runbook](TMI-204-operator-and-bounded-verification.md)을 따른다. 외부wire/hash/기존checkpoint설치조건은유지한다.
+
+> 후속: [feed·영속 재시도](TMI-204-feed-processing.md)에서 control version3·FEED receipt 및 기본OFF worker를 추가했다. 아래 version2·미구현 설명은 이 후속 범위를 함께 읽는다. snapshot 자동 조율은 여전히 후속이다.
+
 - 날짜: 2026-10-12 / branch: feat/TMI-204-billing-withdrawal-recovery
 - 범위: PR2의 저장·단계 처리 코어. 자동 실행과 전체 TMI-204 완료는 아니다.
 

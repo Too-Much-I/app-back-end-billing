@@ -99,6 +99,167 @@ class WithdrawalSnapshotIntegrationTest {
         assertThat(processor.state()).isEqualTo("COMPLETE");
     }
 
+    @Test void verificationYieldsAndResumesSameLeaseWithoutInstallingPartialDigest() throws Exception {
+        source(facts(241)); processor.start(STREAM, OP, true);
+        while (!"VERIFYING".equals(processor.state())) processor.step();
+        assertThat(processor.step()).isEqualTo("VERIFYING"); // First 200 rows only.
+        String lease = control().get("snapshotJob", Document.class).getString("leaseId");
+        assertThat(lease).isNotNull();
+        assertThat(control()).doesNotContainKey("baseline");
+        var anotherWorker = new WithdrawalSnapshotProcessor(store, props, clock, remote);
+        assertThat(anotherWorker.step()).isEqualTo("VERIFYING");
+        assertThat(control().get("snapshotJob", Document.class).getString("leaseId")).isEqualTo(lease);
+        assertThat(processor.step()).isEqualTo("COMPLETE");
+        assertThat(control().getLong("checkpoint")).isEqualTo(100);
+    }
+
+    @Test void crashedHashRestartsAfterLeaseAndDetectsEarlierRowTampering() throws Exception {
+        source(facts(221)); processor.start(STREAM, OP, true);
+        while (!"VERIFYING".equals(processor.state())) processor.step();
+        processor.step();
+        db.getCollection(ROWS).updateOne(new Document("userId", facts(1).getFirst().userId()),
+                new Document("$set", new Document("withdrawnAt", NOW.minusSeconds(60).toString())));
+        clock.now = NOW.plusSeconds(61);
+        processor = new WithdrawalSnapshotProcessor(store, props, clock, remote);
+        assertThat(processor.step()).isEqualTo("VERIFYING");
+        assertThatThrownBy(processor::step).isInstanceOf(RecoveryContractException.class);
+        assertThat(control()).doesNotContainKey("baseline");
+    }
+
+    @Test void oldHashContinuationCannotInstallIntoNewEpoch() throws Exception {
+        source(facts(221)); processor.start(STREAM, OP, true);
+        while (!"VERIFYING".equals(processor.state())) processor.step();
+        processor.step();
+        var op = new RecoveryOperator(store, props, clock);
+        op.execute(operatorCommand(RecoveryOperator.Action.BLOCK, false), true);
+        op.execute(operatorCommand(RecoveryOperator.Action.ROTATE, false), true);
+        op.execute(operatorCommand(RecoveryOperator.Action.RECOVER, false), true);
+        assertThatThrownBy(processor::step).isInstanceOf(RuntimeException.class);
+        assertThat(control()).doesNotContainKeys("baseline", "checkpoint");
+        assertThat(db.getCollection("payment_account_lifecycles").countDocuments()).isEqualTo(221);
+    }
+
+    @Test void operatorReceiptsDoNotConsumeAutomaticSnapshotRunBudget() throws Exception {
+        db.getCollection(PaymentRecoveryFence.COLLECTION).updateOne(new Document("_id", "control"),
+                new Document("$set", new Document("schemaVersion", 4L)));
+        var op = new RecoveryOperator(store, props, clock);
+        for (int i=0; i<3; i++) {
+            op.execute(operatorCommand(RecoveryOperator.Action.BLOCK, false), true);
+            op.execute(operatorCommand(RecoveryOperator.Action.RECOVER, false), true);
+        }
+        source(List.of()); processor.start(STREAM, OP, true); complete();
+        // Metadata remains append-only without being mistaken for six extra remote snapshot creations.
+        assertThat(db.getCollection(OPERATIONS).countDocuments(new Document("operator", new Document("$exists", true)))).isEqualTo(6);
+        assertThat(db.getCollection(OPERATIONS).countDocuments(new Document("operator", new Document("$exists", false)))).isEqualTo(1);
+    }
+
+    @Test void operatorDryRunDuplicateConflictAndInitialBlockedInstallation() {
+        db.getCollection(PaymentRecoveryFence.COLLECTION).deleteOne(new Document("_id", "control"));
+        var op = new RecoveryOperator(store, props, clock);
+        var command = new RecoveryOperator.Command(RecoveryOperator.Action.INITIAL, OP, null, 0,
+                UUID.randomUUID().toString(), STREAM, false);
+        assertThat(op.execute(command, false)).isEqualTo("DRY_RUN");
+        assertThat(control()).isNull();
+        assertThat(db.getCollection(OPERATIONS).countDocuments()).isZero();
+        assertThat(op.execute(command, true)).isEqualTo("APPLIED");
+        assertThat(op.execute(command, true)).isEqualTo("ALREADY_APPLIED");
+        assertThat(control().getString("barrier")).isEqualTo("ALL_BLOCKED");
+        var different = new RecoveryOperator.Command(RecoveryOperator.Action.INITIAL, OP, null, 0,
+                UUID.randomUUID().toString(), STREAM, false);
+        assertThatThrownBy(() -> op.execute(different, true)).isInstanceOf(RuntimeException.class);
+        assertThat(db.getCollection(OPERATIONS).countDocuments()).isEqualTo(1);
+    }
+
+    @Test void operatorReceiptFailureRollsBackBarrierAndUnknownCommitIsIdempotent() {
+        var op = new RecoveryOperator(store, props, clock);
+        var command = operatorCommand(RecoveryOperator.Action.BLOCK, false);
+        var before = control();
+        mongo.getDatabase("admin").runCommand(new Document("configureFailPoint", "failCommand").append("mode", new Document("times", 1))
+                .append("data", new Document("failCommands", List.of("insert")).append("errorCode", 121)));
+        assertThatThrownBy(() -> op.execute(command, true)).isInstanceOf(RuntimeException.class);
+        assertThat(control()).isEqualTo(before);
+        assertThat(db.getCollection(OPERATIONS).countDocuments()).isZero();
+        mongo.getDatabase("admin").runCommand(new Document("configureFailPoint", "failCommand").append("mode", new Document("times", 1))
+                .append("data", new Document("failCommands", List.of("commitTransaction")).append("errorCode", 1)
+                        .append("errorLabels", List.of("UnknownTransactionCommitResult"))));
+        assertThat(op.execute(command, true)).isEqualTo("APPLIED");
+        assertThat(op.execute(command, true)).isEqualTo("ALREADY_APPLIED");
+        assertThat(db.getCollection(OPERATIONS).countDocuments()).isEqualTo(1);
+    }
+
+    RecoveryOperator.Command operatorCommand(RecoveryOperator.Action action, boolean preserve) {
+        Document c = control();
+        return new RecoveryOperator.Command(action, UUID.randomUUID().toString(), c.getString("epoch"), c.getLong("version"),
+                action == RecoveryOperator.Action.ROTATE ? UUID.randomUUID().toString() : null, STREAM, preserve);
+    }
+    @Test void restoreRotationFencesOldTicketsAndPreservesOnlyApprovedBaseline() throws Exception {
+        source(facts(1)); processor.start(STREAM, OP, true); complete();
+        var op = new RecoveryOperator(store, props, clock);
+        var old = new PaymentRecoveryFence(store, props).capture();
+        assertThatThrownBy(() -> op.execute(operatorCommand(RecoveryOperator.Action.ROTATE, true), true)).isInstanceOf(RuntimeException.class);
+        op.execute(operatorCommand(RecoveryOperator.Action.BLOCK, false), true);
+        var rotation = operatorCommand(RecoveryOperator.Action.ROTATE, true);
+        op.execute(rotation, true);
+        assertThat(control().getLong("checkpoint")).isEqualTo(100);
+        assertThat(control()).doesNotContainKeys("snapshotJob", "feedJob");
+        assertThat(control().getString("barrier")).isEqualTo("ALL_BLOCKED");
+        op.execute(operatorCommand(RecoveryOperator.Action.RECOVER, false), true);
+        assertThatThrownBy(() -> store.transaction(s -> { new PaymentRecoveryFence(store, props)
+                .acquire(s, old, PaymentRecoveryFence.Writer.PUSH); return null; })).isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> op.execute(operatorCommand(RecoveryOperator.Action.OPEN, false), true)).isInstanceOf(RuntimeException.class);
+        assertThat(db.getCollection("payment_account_lifecycles").countDocuments()).isEqualTo(1);
+    }
+
+    @Test void openRequiresSameEpochVerifiedFeedAndKeepsHistoricalUncertainty() throws Exception {
+        source(facts(1)); processor.start(STREAM, OP, true); complete();
+        db.getCollection(PaymentRecoveryFence.COLLECTION).updateOne(new Document("_id", "control"),
+                new Document("$set", new Document("schemaVersion", 4L)));
+        props.getRecovery().setFeedEnabled(true);
+        when(remote.feedPage(STREAM, 100, null, null)).thenReturn(new FeedPage(List.of(), "opaque",
+                100, 100, 100, true, new Availability(STREAM, 0, 100, 100, 100, NOW)));
+        new WithdrawalFeedProcessor(store, props, clock, remote, new RecoveryRetryPolicy(() -> .5)).tick();
+        var operator = new RecoveryOperator(store, props, clock);
+        assertThat(operator.execute(operatorCommand(RecoveryOperator.Action.OPEN, false), true)).isEqualTo("APPLIED");
+        assertThat(control().getString("barrier")).isEqualTo("OPEN");
+        assertThat(control().getBoolean("historicalUncertainty")).isTrue();
+    }
+
+    @Test void concurrentOperatorsCannotInstallTwoEpochsAndResnapshotDoesNotEraseFacts() throws Exception {
+        source(facts(1)); processor.start(STREAM, OP, true); complete();
+        var op = new RecoveryOperator(store, props, clock);
+        op.execute(operatorCommand(RecoveryOperator.Action.BLOCK, false), true);
+        var a = operatorCommand(RecoveryOperator.Action.ROTATE, false);
+        var b = operatorCommand(RecoveryOperator.Action.ROTATE, false);
+        var gate = new java.util.concurrent.CountDownLatch(1);
+        try (var pool = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var results = new ArrayList<java.util.concurrent.Future<Boolean>>();
+            for (var c : List.of(a,b)) results.add(pool.submit(() -> {
+                gate.await(); try { op.execute(c, true); return true; } catch (RuntimeException refused) { return false; }
+            }));
+            gate.countDown();
+            int wins = 0; for (var result : results) if (result.get()) wins++;
+            assertThat(wins).isEqualTo(1);
+        }
+        assertThat(control()).doesNotContainKeys("baseline", "checkpoint", "snapshotJob", "feedJob");
+        assertThat(control().getBoolean("historicalUncertainty")).isTrue();
+        assertThat(db.getCollection("payment_account_lifecycles").countDocuments()).isEqualTo(1);
+    }
+
+    @Test void schemaMigrationRecognizesOnlyPreviousValidatorAndIsResumable() {
+        var op = new RecoveryOperator(store, props, clock);
+        op.execute(operatorCommand(RecoveryOperator.Action.BLOCK, false), true);
+        var meta = db.listCollections().filter(new Document("name", OPERATIONS)).first();
+        var old = meta.get("options", Document.class).get("validator", Document.class);
+        old.get("$jsonSchema", Document.class).get("properties", Document.class).remove("operator");
+        db.runCommand(new Document("collMod", OPERATIONS).append("validator", old));
+        assertThatThrownBy(() -> PaymentSnapshotSchema.verify(db)).isInstanceOf(IllegalStateException.class);
+        RecoveryOperatorCli.migrateSchema(store); RecoveryOperatorCli.migrateSchema(store);
+        PaymentSnapshotSchema.verify(db);
+        old.get("$jsonSchema", Document.class).put("additionalProperties", true);
+        db.runCommand(new Document("collMod", OPERATIONS).append("validator", old));
+        assertThatThrownBy(() -> RecoveryOperatorCli.migrateSchema(store)).isInstanceOf(IllegalStateException.class);
+    }
+
     @Test void multiPageRestartInstallsOnlyVerifiedBaselineWithoutInventingInbox() throws Exception {
         source(facts(27)); processor.start(STREAM, OP, true);
         processor.start(STREAM, OP, true); // Same operation is a no-op, not a new run.
@@ -271,5 +432,151 @@ class WithdrawalSnapshotIntegrationTest {
         assertThat(control().getLong("checkpoint")).isEqualTo(101);
         assertThat(control().get("baseline")).isEqualTo(baseline);
         assertThat(processor.state()).isEqualTo("FAILED");
+    }
+    void automatic() {
+        props.getRecovery().setSnapshotWorkerEnabled(true);
+        db.getCollection(PaymentRecoveryFence.COLLECTION).updateOne(new Document(), new Document("$set", new Document("schemaVersion", 4L)));
+    }
+    Document job() { return control().get("snapshotJob", Document.class); }
+    void due() { clock.now = job().getDate("nextAttemptAt").toInstant(); }
+    @Test void automaticBuildingUsesFiveSecondPollAndDoesNotRecreateAtFiveMinutes() {
+        automatic();
+        when(remote.createSnapshot(STREAM, OP)).thenReturn(new SnapshotStatus(SNAPSHOT, "BUILDING", null, null));
+        when(remote.snapshotStatus(SNAPSHOT, STREAM)).thenReturn(new SnapshotStatus(SNAPSHOT, "BUILDING", null, null));
+        processor.start(STREAM, OP, false); processor.tick();
+        assertThat(job().getDate("nextAttemptAt").toInstant()).isEqualTo(NOW.plusSeconds(5));
+        processor.tick(); verify(remote, never()).snapshotStatus(anyString(), anyString());
+        clock.now = NOW.plusSeconds(300); processor.tick();
+        assertThat(job().getBoolean("buildOverdue")).isTrue();
+        assertThat(db.getCollection(OPERATIONS).countDocuments()).isEqualTo(1);
+        assertThat(job().getLong("failures")).isZero();
+    }
+    @Test void automaticTimeoutRetriesTwiceThenStopsEvenAfterRollingWindow() {
+        automatic();
+        when(remote.createSnapshot(eq(STREAM), anyString())).thenAnswer(inv -> new SnapshotStatus(
+                UUID.randomUUID().toString(), "FAILED", null, "SNAPSHOT_BUILD_TIMEOUT"));
+        processor.start(STREAM, OP, false); processor.tick();
+        assertThat(processor.state()).isEqualTo("FAILED");
+        assertThat(job().getDate("nextAttemptAt").toInstant()).isEqualTo(NOW.plusSeconds(60));
+        processor.tick(); assertThat(db.getCollection(OPERATIONS).countDocuments()).isEqualTo(1);
+        due(); processor.tick();
+        assertThat(job().getLong("runNumber")).isEqualTo(2);
+        assertThat(job().getDate("nextAttemptAt").toInstant()).isEqualTo(clock.now.plusSeconds(300));
+        due(); processor.tick(); processor.tick();
+        assertThat(job().getBoolean("blocked")).isTrue();
+        assertThat(job().getString("failureCode")).isEqualTo("RUN_BUDGET_EXHAUSTED");
+        clock.now = NOW.plus(Duration.ofDays(2)); processor.tick();
+        assertThat(db.getCollection(OPERATIONS).countDocuments()).isEqualTo(3);
+        verify(remote, times(3)).createSnapshot(eq(STREAM), anyString());
+    }
+    @Test void successfulBuildingRetryAfterSurvivesProcessorRestart() {
+        automatic();
+        Instant retryAt = NOW.plusSeconds(90000);
+        when(remote.createSnapshot(STREAM, OP)).thenReturn(new SnapshotStatus(SNAPSHOT, "BUILDING", null, null, retryAt));
+        processor.start(STREAM, OP, false); processor.tick();
+        assertThat(job().getDate("nextAttemptAt").toInstant()).isEqualTo(retryAt);
+        processor = new WithdrawalSnapshotProcessor(store, props, clock, remote);
+        clock.now = retryAt.minusSeconds(1); processor.tick();
+        verify(remote, never()).snapshotStatus(anyString(), anyString());
+        when(remote.snapshotStatus(SNAPSHOT, STREAM)).thenReturn(new SnapshotStatus(SNAPSHOT, "BUILDING", null, null));
+        clock.now = retryAt; processor.tick();
+        verify(remote).snapshotStatus(SNAPSHOT, STREAM);
+    }
+    @Test void httpEnabledManualStepAlsoHonorsDurableWaitAndRequiresNewSchema() {
+        props.getRecovery().setHttpEnabled(true);
+        assertThatThrownBy(() -> new PaymentSnapshotSchema(store, props).run(null)).isInstanceOf(IllegalStateException.class);
+        db.getCollection(PaymentRecoveryFence.COLLECTION).updateOne(new Document(), new Document("$set", new Document("schemaVersion", 4L)));
+        new PaymentSnapshotSchema(store, props).run(null);
+        when(remote.createSnapshot(STREAM, OP)).thenReturn(new SnapshotStatus(SNAPSHOT, "BUILDING", null, null, NOW.plusSeconds(90)));
+        processor.start(STREAM, OP, false); processor.step(); processor.step();
+        verify(remote, never()).snapshotStatus(anyString(), anyString());
+        assertThat(job().getDate("nextAttemptAt").toInstant()).isEqualTo(NOW.plusSeconds(90));
+        assertThat(job().getLong("attempts")).isEqualTo(1);
+    }
+    @Test void automaticUnknownFailureAndLocalExpiryDoNotCreateNewRun() {
+        automatic();
+        when(remote.createSnapshot(STREAM, OP)).thenReturn(new SnapshotStatus(SNAPSHOT, "FAILED", null, "SNAPSHOT_BUILD_FAILED"));
+        processor.start(STREAM, OP, false); processor.tick();
+        clock.now = NOW.plusSeconds(600); processor.tick();
+        assertThat(db.getCollection(OPERATIONS).countDocuments()).isEqualTo(1);
+        assertThat(job().getString("failureCode")).isEqualTo("SNAPSHOT_BUILD_FAILED");
+    }
+    @Test void automaticAuthStopsAndLongWaitSurvivesRestart() {
+        automatic();
+        when(remote.createSnapshot(STREAM, OP)).thenThrow(RecoveryRemoteException.transientFailure(NOW.plusSeconds(172800)));
+        processor.start(STREAM, OP, false); processor.tick();
+        processor = new WithdrawalSnapshotProcessor(store, props, clock, remote);
+        clock.now = NOW.plusSeconds(1000); processor.tick();
+        verify(remote, times(1)).createSnapshot(STREAM, OP);
+        clock.now = NOW.plusSeconds(172800);
+        doThrow(RecoveryRemoteException.auth()).when(remote).createSnapshot(STREAM, OP);
+        processor.tick(); processor.tick();
+        assertThat(job().getBoolean("blocked")).isTrue();
+        assertThat(job().getString("failureCode")).isEqualTo("AUTH");
+        assertThat(job().getLong("attempts")).isEqualTo(2);
+    }
+    @Test void automaticTwentyFailuresPersistAndSuccessfulResponseResets() throws Exception {
+        automatic();
+        when(remote.createSnapshot(STREAM, OP)).thenThrow(RecoveryRemoteException.transientFailure(null));
+        processor.start(STREAM, OP, false);
+        for (int i=1; i<=20; i++) {
+            processor.tick(); assertThat(job().getLong("failures")).isEqualTo(i);
+            processor = new WithdrawalSnapshotProcessor(store, props, clock, remote);
+            if (i < 20) due();
+        }
+        assertThat(Duration.between(clock.now, job().getDate("nextAttemptAt").toInstant()).toSeconds()).isBetween(240L, 360L);
+        doReturn(new SnapshotStatus(SNAPSHOT, "READY", manifest(List.of()), null)).when(remote).createSnapshot(STREAM, OP);
+        due(); processor.tick();
+        assertThat(job().getLong("failures")).isZero();
+        assertThat(db.getCollection(OPERATIONS).countDocuments()).isEqualTo(1);
+    }
+    @Test void retentionWorksWithExecutionOffAndDeletesOnlyRecoveryMaterial() throws Exception {
+        automatic(); source(facts(2)); processor.start(STREAM, OP, false); complete();
+        props.getRecovery().setSnapshotEnabled(false);
+        props.getRecovery().setSnapshotWorkerEnabled(false);
+        var retention = new web.tosunsaeng.billing.domain.payment.recovery.PaymentRecoveryRetention(store, props, clock);
+        clock.now = NOW.plus(Duration.ofDays(7)); retention.batch();
+        assertThat(db.getCollection(ROWS).countDocuments()).isZero();
+        assertThat(db.getCollection(RUNS).countDocuments()).isZero();
+        assertThat(db.getCollection(OPERATIONS).countDocuments()).isEqualTo(1);
+        clock.now = NOW.plus(Duration.ofDays(120)); retention.batch();
+        assertThat(db.getCollection(OPERATIONS).countDocuments()).isZero();
+        assertThat(control()).doesNotContainKey("snapshotJob");
+        assertThat(control().getLong("checkpoint")).isEqualTo(100);
+        assertThat(db.getCollection("payment_account_lifecycles").countDocuments()).isEqualTo(2);
+    }
+    @Test void monitorSuppressesRepeatedSignalsAndEmitsResolutionWithoutIds() {
+        automatic();
+        when(remote.createSnapshot(STREAM, OP)).thenThrow(RecoveryRemoteException.auth());
+        processor.start(STREAM, OP, false); processor.tick();
+        var metrics = new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
+        var monitor = new PaymentRecoveryMonitor(store, props, clock, metrics);
+        monitor.sample(); monitor.sample();
+        assertThat(metrics.get("billing.recovery.alert").tags("reason", "AUTH", "severity", "CRITICAL").counter().count()).isEqualTo(1);
+        clock.now = NOW.plusSeconds(3600); monitor.sample();
+        assertThat(metrics.get("billing.recovery.alert").tags("reason", "AUTH", "severity", "CRITICAL").counter().count()).isEqualTo(2);
+        db.getCollection(PaymentRecoveryFence.COLLECTION).updateOne(new Document(),
+                new Document("$set", new Document("snapshotJob.blocked", false).append("snapshotJob.failureCode", null)));
+        monitor.sample();
+        assertThat(metrics.get("billing.recovery.alert").tags("reason", "AUTH", "severity", "RESOLVED").counter().count()).isEqualTo(1);
+        assertThat(metrics.getMeters()).allSatisfy(m -> assertThat(m.getId().getTags().toString())
+                .doesNotContain(OP, SNAPSHOT, STREAM));
+    }
+    @Test void sourceExpiredIsRetryableButLocalExpiryDoesNotInventRemoteConfirmation() {
+        automatic();
+        when(remote.createSnapshot(STREAM, OP)).thenReturn(new SnapshotStatus(SNAPSHOT, "EXPIRED", null, null));
+        when(remote.createSnapshot(eq(STREAM), argThat(id -> !OP.equals(id))))
+                .thenReturn(new SnapshotStatus(UUID.randomUUID().toString(), "BUILDING", null, null));
+        processor.start(STREAM, OP, false); processor.tick(); due(); processor.tick();
+        assertThat(job().getLong("runNumber")).isEqualTo(2);
+        clock.now = job().getDate("expiresAt").toInstant(); processor.tick(); processor.tick();
+        assertThat(job().getString("failureCode")).isEqualTo("LOCAL_EXPIRED");
+        assertThat(db.getCollection(OPERATIONS).countDocuments()).isEqualTo(2);
+    }
+    @Test void automaticStartupRejectsLegacyJobWithoutRetryEvidence() {
+        automatic(); processor.start(STREAM, OP, false);
+        db.getCollection(PaymentRecoveryFence.COLLECTION).updateOne(new Document(),
+                new Document("$unset", new Document("snapshotJob.attempts", "")));
+        assertThatThrownBy(() -> new PaymentSnapshotSchema(store, props).run(null)).isInstanceOf(IllegalStateException.class);
     }
 }

@@ -19,13 +19,24 @@ public final class PaymentSnapshotSchema implements ApplicationRunner {
         this.store = store; this.properties = properties;
     }
     @Override public void run(ApplicationArguments args) {
-        if (!properties.getRecovery().isSnapshotEnabled()) return;
+        if (!properties.getRecovery().isSnapshotEnabled() && !properties.getRecovery().isFeedEnabled()
+                && !properties.getRecovery().isSnapshotWorkerEnabled() && !properties.getRecovery().isRetentionEnabled()
+                && !properties.getRecovery().isHttpEnabled()) return;
         if (!properties.getRecovery().isFenceRequired()) throw mismatch();
+        if (properties.getRecovery().isSnapshotWorkerEnabled() && !properties.getRecovery().isSnapshotEnabled()) throw mismatch();
         PaymentRecoverySchema.verify(store.database());
         verify(store.database());
         Document control = store.database().getCollection(PaymentRecoveryFence.COLLECTION)
                 .find(new Document("environment", properties.getEnvironment()).append("consumer", "billing")).first();
-        if (control == null || !Long.valueOf(2).equals(control.get("schemaVersion"))) throw mismatch();
+        if (control == null || !Set.of(2L, 3L, 4L).contains(control.get("schemaVersion"))) throw mismatch();
+        if (properties.getRecovery().isFeedEnabled() && !Set.of(3L, 4L).contains(control.get("schemaVersion"))) throw mismatch();
+        if ((properties.getRecovery().isSnapshotWorkerEnabled() || properties.getRecovery().isRetentionEnabled() || properties.getRecovery().isHttpEnabled())
+                && !Long.valueOf(4).equals(control.get("schemaVersion"))) throw mismatch();
+        Document job = control.get("snapshotJob", Document.class);
+        if ((properties.getRecovery().isSnapshotWorkerEnabled() || properties.getRecovery().isHttpEnabled()) && job != null
+                && (!(job.get("attempts") instanceof Long) || !(job.get("runNumber") instanceof Long)
+                || !(job.get("failures") instanceof Long) || !(job.get("automatic") instanceof Boolean)
+                || !(job.get("blocked") instanceof Boolean) || !(job.get("nextAttemptAt") instanceof Date))) throw mismatch();
     }
     static Document manifest() {
         try (var in = PaymentSnapshotSchema.class.getResourceAsStream("/payment-recovery-snapshot-schema.json")) {

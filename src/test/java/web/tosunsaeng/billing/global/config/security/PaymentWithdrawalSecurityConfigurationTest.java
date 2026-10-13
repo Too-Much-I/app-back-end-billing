@@ -1,29 +1,32 @@
 package web.tosunsaeng.billing.global.config.security;
 
 import org.junit.jupiter.api.Test;
-import web.tosunsaeng.billing.domain.payment.config.PaymentProperties;
-import web.tosunsaeng.billing.global.config.mongodb.BillingMongoProperties;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.core.env.*;
+import java.util.Map;
 import static org.assertj.core.api.Assertions.*;
 
 class PaymentWithdrawalSecurityConfigurationTest {
-    @Test void withdrawalRequiresEnvironmentTransactionalSchemaAndInternalIngress() {
-        var p = new PaymentProperties(); p.setWithdrawalEnabled(true); p.setEnvironment("SANDBOX");
-        var ingress = new InternalIngressProperties();
-        var mongo = new BillingMongoProperties(); mongo.setInitializeIndexes(true); mongo.setRequireTransactions(true);
-        assertThatThrownBy(() -> SecurityConfig.validateWithdrawal(ingress, p, mongo)).isInstanceOf(IllegalStateException.class);
-        ingress.setMode(InternalIngressProperties.Mode.TEST);
-        SecurityConfig.validateWithdrawal(ingress, p, mongo);
-        mongo.setRequireTransactions(false);
-        assertThatThrownBy(() -> SecurityConfig.validateWithdrawal(ingress, p, mongo)).isInstanceOf(IllegalStateException.class);
-        mongo.setRequireTransactions(true); mongo.setInitializeIndexes(false);
-        assertThatThrownBy(() -> SecurityConfig.validateWithdrawal(ingress, p, mongo)).isInstanceOf(IllegalStateException.class);
-        mongo.setInitializeIndexes(true); ingress.setMode(InternalIngressProperties.Mode.LATTICE_AWS_IAM); ingress.setEnvironment("production");
-        assertThatThrownBy(() -> SecurityConfig.validateWithdrawal(ingress, p, mongo)).isInstanceOf(IllegalStateException.class);
-        p.setEnvironment("PRODUCTION");
-        SecurityConfig.validateWithdrawal(ingress, p, mongo);
-        p.setEnvironment("SANDBOX"); ingress.setEnvironment("staging");
-        SecurityConfig.validateWithdrawal(ingress, p, mongo);
-        // Withdrawal-only startup does not require enabling the public APIs/limiter/JWT connector.
-        assertThat(p.enabled()).isFalse();
+    @ParameterizedTest @ValueSource(strings = {"sigv4", "workload-jwt", "", "unknown"})
+    void retiredSelectorFailsEvenWhenFeaturesOff(String value) {
+        new ApplicationContextRunner().withUserConfiguration(RetiredRecoveryAuthenticationConfiguration.class)
+                .withPropertyValues("billing.payment.recovery.authentication=" + value)
+                .run(c -> {
+                    assertThat(c).hasFailed();
+                    assertThat(c.getStartupFailure()).hasRootCauseMessage(
+                        "Remove retired recovery authentication setting; workload JWT is the only supported authentication");
+                });
+    }
+    @Test void retiredEnvironmentVariableAlsoRejected() {
+        var env = new StandardEnvironment();
+        env.getPropertySources().addFirst(new SystemEnvironmentPropertySource("fake",
+                Map.of("BILLING_PAYMENT_RECOVERY_AUTHENTICATION", "sigv4")));
+        assertThatThrownBy(() -> new RetiredRecoveryAuthenticationConfiguration(env)).isInstanceOf(IllegalStateException.class);
+    }
+    @Test void noSelectorAndDisabledFeaturesNeedNoSecrets() {
+        new ApplicationContextRunner().withUserConfiguration(RetiredRecoveryAuthenticationConfiguration.class)
+                .run(c -> assertThat(c).hasNotFailed());
     }
 }

@@ -1,7 +1,10 @@
 # TMI-204: Billing 단일 진행 관리 기반 탈퇴 누락 복구 구현 계획
 
 - 작성·개정일: 2026-10-12 / Jira: TMI-204, 상위 TMI-137
-- 상태: **snapshot 중심 재동기화 승인·scalar-end-1 Billing 기술 수락. PR1 제어기반과 PR2 snapshot 영속 처리 코어를 구현했다. 자동 worker·feed·실환경 검증은 후속이며 전체204 완료 아님.**
+- 2026-10-13 잔여 로컬 구현: [운영 도구·분할 검증 runbook](../runbooks/TMI-204-operator-and-bounded-verification.md). offline dry-run/CAS/멱등 epoch·barrier 설치, 알려진 validator의 명시 이관,200행/30초 hash 양보·lease 재개/재시작 재검증·snapshot scheduler 격리, privacy-safe CLIENT span 구현. optional operator receipt validator 확장(기존 index/외부 wire 불변), 운영 실행/격리·실부하/공동연동·watchdog는206 gate. clean test+bootJar **931통과/실패0/오류0/skip0**. 아래 과거 installer/trace/hash 미구현 표기는 이 로컬 범위에 한해 대체한다.
+- 상태: **PR1 기반·snapshot/feed·영속 retry·자동snapshot 조율·독립retention·관측지표·JWT 단일 HTTP client를 로컬 구현했다. 실제 Identity/AWS 연동·운영이관/복원·외부경보 검증은 후속이며 전체204 완료 아님.**
+- 최신 인증 승인: **2026-10-12 사용자가 기존 ALB + 전용 workload JWT 및 Identity 검토 반영안을 계획 기준으로 승인했다.** 기존 SigV4 검증 기록은 역사로 보존하며 운영 구현은 2026-10-13 제거 대상으로 승인됐다. 새로운 인증 목표는 아래 §2.5를 따른다. 공동 auth fixture 수락·실제 환경 확인·OFF 구현/배포는 아직 완료되지 않았다.
+- 후속 구현: 사용자 구현재개 요청으로 [workload-auth-r1](../contracts/WORKLOAD-JWT-AUTH-R1.md)의 Billing 발급/검증·전용TLS connector/인가chain·JWT recovery wrapper를 기본OFF로 구현했다. 2026-10-13 추가 승인으로 Identity–Billing SigV4 코드/선택설정/SDK 및 수신 IAM 우회 경로를 제거하고 JWT 단일화한다. 구 선택설정은 명시 오류이며 LC 인증은 유지한다. Identity 공동fixture수락/수신구현·실TLS/ALB/SG/운영활성화는여전히별도다. 위 OFF 구현 대기 표기는 이 로컬 범위에 한해 갱신한다.
 - 2026-10-12 추가 승인: 사용자 요청으로 v1 최초 구현·floor+별도 range 방향과 [204 운영 회신](../contracts/TMI-204-OPERATIONS-PROPOSAL.md)의 초기값을 본 계획 및 Jira TMI-204에 반영한다. 수치의 Billing 계획 채택이며 실제 설정 적용·공동 exact 검증 완료는 아니다.
 - 개정 근거: Identity 「TMI-203·204 단순화 공동 검토 회신 — 진행 상태의 Billing 단일 소유」와 [단순화 인계서](../contracts/TMI-203-204-SIMPLIFICATION-HANDOFF.md).
 - 이번 갱신 범위: Billing 계획·작업기록과 Jira TMI-204 본문. Identity203 계획/코드·Jira는 변경하지 않는다. 상대 회신을 기록하며 운영 DB 완전성/배포 완료를 독립 검증한 것은 아니다.
@@ -14,7 +17,7 @@
 2. 원격 복구 완료 ACK, Identity 발급 consumer generation, 양쪽 checkpoint 대사를 제거한다. 기존202 push의204 응답은 유지한다.
 3. 고정 T/H snapshot·digest, 고정 H2 cursor, Billing 로컬 CAS·복원 격리는 유지해 누락과 오래된 작업의 덮어쓰기를 막는다.
 4. 정상 운영은 push+주기 feed이고 snapshot은 최초 초기화·기준점 상실 등에 사용한다. 일시 지연을 전체 판매 차단이나 건별 수동 심사에 자동 연결하지 않는다.
-5. 실제 거래 확인·계정 물리 삭제·결제 지급/환불은 별도다. 모든 신규 기능은 기본 OFF, 공동 exact·실제 Mongo/IAM/복원 검증 후 활성화한다.
+5. 실제 거래 확인·계정 물리 삭제·결제 지급/환불은 별도다. 모든 신규 기능은 기본 OFF, 공동 exact·실제 Mongo/ALB·workload JWT/복원 검증 후 활성화한다.
 
 ## 2. 사용자가 반드시 읽어야 하는 내용
 
@@ -68,7 +71,7 @@ checkpoint가 없거나 신뢰할 수 없으면 고정 시점 snapshot을 검증
 | TMI-205 | Billing 로컬 복구 증거와 거래 확인을 사용한 조건부 purge |
 | TMI-206/PLAN-013 | 실제 연동·복원·판매/삭제 활성화 gate |
 
-Identity의 recoveries/checkpoints/checkpoints-status 3개 API와 consumer control/operation/checkpoint 저장소를 새 계약에서 제거한다. Billing의 ACK worker/outbox·remote confirmation·별도 scan collection도 제거한다. source stream/run 보호는 그대로다. IAM 인증이나 기존 push 성공 응답을 없애지 않는다.
+Identity의 recoveries/checkpoints/checkpoints-status 3개 API와 consumer control/operation/checkpoint 저장소를 새 계약에서 제거한다. Billing의 ACK worker/outbox·remote confirmation·별도 scan collection도 제거한다. source stream/run 보호와 기존 push 성공 응답은 유지한다. Identity–Billing 인증은 §2.5의 ALB/workload JWT 전환 계획을 따르고 다른 서비스 IAM 계약을 자동 변경하지 않는다.
 
 ### 2.3 최초 결제 출시의 기존 대상 없음 — 2026-10-12 승인
 
@@ -91,6 +94,41 @@ Identity의 recoveries/checkpoints/checkpoints-status 3개 API와 consumer contr
 
 유효한 로컬 증거가 남아 있는 이미 적용 구간의 정상 source 만료는 그 증거를 무효화하지 않는다. 반대로 필요한 미적용 구간의 만료는 GAP다. snapshot 상태 수렴과 원사건 이력 복원을 혼동해205 삭제를 허가하지 않는다.
 
+### 2.5 최신 승인 — ALB·전용 workload JWT 전환
+
+사용자 “좋아 그렇게 하는 걸로 계획서랑 지라 수정해줘”에 따라 [Billing 회신 §3·§7](../contracts/TMI-203-204-ALB-WORKLOAD-JWT-BILLING-REPLY-2026-10-12.md)의 권장안을 Billing 계획 기준으로 채택한다. 상대의 검토 의견을 공동 fixture 최종 수락으로 확대하지 않는다. 이 절은 본 계획의 Identity–Billing SigV4-only 목표를 대체하며 현행 코드/AGENTS/ADR 전체를 자동 개정하지 않는다.
+
+#### 승인한 설계
+
+- 기존 ALB 재사용, 양쪽 workload 전용 connector/target group/security chain. 해당 포트에서 exact POST+JWT를 검사하고 public/다른 포트에서 workload 경로를 거절한다. Billing Lattice permitAll에 ALB를 연결하지 않는다. 사용자/LC JWT·LC Reservation/Attempt 경로는 전환 범위 밖이다.
+- Identity→Billing은 탈퇴 `/internal/v1/payments/accounts/withdrawal/events`, 자격 `/internal/v1/eligibility/trial/events`, phone owner `/internal/v1/eligibility/trial/owner/events`, merge `/internal/v1/owners/merge/events`의4route. Billing→Identity는 기존 recovery4POST. body/hash/strict decoder/16KiB/204·멱등성/복구·보존은 불변이다.
+- test/staging/production은 별도 workload 신뢰영역이다. issuer/audience/key/origin을 분리한다. Billing payment 환경은 test/staging 모두 SANDBOX, production은 PRODUCTION으로 대응하되 별도 trust 설정을 둔다. 같은 DB에 SANDBOX 두 환경을 섞지 않고 DB 분리 또는 한 쌍 선활성화한다. Identity source 환경/stream/cursor 값을 인증 전환 때문에 바꾸지 않는다.
+- 회신의 환경별 URN issuer와 목적별 단일 문자열 audience·sub 후보를 계획 기준으로 채택하고 공동 fixture에 고정한다. Identity sub=identity-service, Billing sub=billing-service. 실제 endpoint와 issuer 식별자를 혼동하지 않는다.
+- RS256/kid, 각 서버 자체 private key, 상대에는 배포 public JWK set만 제공. 사용자키/HMAC키와 분리, 임의 jku/x5u/원격조회/fallback 금지. RSA최소2048·유일kid·alg=RS256/use=sig/key_ops=[verify]·private field 거절, 설정 손상은 startup 실패.
+- TTL1~60초/skew30초, iat/exp/jti 및 정확 issuer/sub/aud 필수. 시간값은 비음수 int64 JSON integer token. optional nbf는 iat<=nbf<exp. 시간경계/overflow/중복claim은 회신 §7.3대로 인증 fixture에 고정한다. 매 시도 새 JWT, eventId/operationId/body는 동일하게 유지한다.
+- 인증 불가/형식 오류401, 검증된 토큰의 다른 subject/audience/method/route403. 잘못된 connector/flag OFF 경로404. 인프라 오류에 recovery JSON을 강제하지 않고 기존 BLOCKED_AUTH·조치후재개/Retry-After 정책을 유지한다.
+- 별도 body 서명 없는 TLS+짧은 Bearer JWT+route 권한+멱등성을 채택한다. SigV4와 달리 body/method/path를 암호학적으로 묶지 않으며 jti만으로 replay를 막지 못함을 명시한다. 기존 payload 검증함수를 no-op으로 바꿔 같은 보장이라 주장하지 않는다.
+- 정상 rotation: receiver old+new 배포확인→sender new 전환/old 발급종료확인→최소120초·clock조건확인→old 제거. 유출 시 긴급 신뢰폐기 우선. 무기한 폐기키 신뢰 금지.
+
+#### 운영 확인값 — 아직 동결하지 않음
+
+| 항목 | 확인/완료 조건 |
+| --- | --- |
+| 실제 배포환경 | Identity workflow main=staging tag/develop=test는 정적 사실. 실제 production 대상과 Billing DB/환경/WITHDRAWAL_ENVIRONMENT/stream 대응 확인 |
+| 주소·포트·네트워크 | 양방향 HTTPS origin, connector 번호, target group/SG/private task·public 노출 허용 여부 확인 |
+| ALB→task 구간 | HTTPS target 권장. 실제 적용 여부·인증서 운영은 미결이며 ALB가 target 인증서를 검증하는 mTLS라고 간주하지 않음. 기존 HTTP 유지 시 별도 위험 수락 필요 |
+| 키 운영 | 담당자/대체자·배포형 JWK 전달·전체 replica 교체 확인·긴급 폐기 소요시간 검증 |
+| 공동 규격 | 신규 auth fixture와 정확 issuer/audience/오류경계 양 서버 수락; 기존 body fixture/hash 보존 |
+
+#### 변경 순서와 완료 조건
+
+1. 인증 전용 revision/fixture와 ADR-002·관련 공동계약/결정서/AGENTS의 **Identity–Billing 범위만** 명시 개정. 기존 SigV4 사용/배포 inventory를 확인한다.
+2. Billing Identity-event receiver4route와 전용 connector/JWT 검증기를 OFF 구현, Identity recovery receiver도 동일 경계 준비. 사용자/LC/public/direct 접근 음성 테스트.
+3. Billing recovery JWT 발급·전송 및 Identity 이벤트 sender 전환을 OFF 구현. 기존 bounded HTTP/재시도/DB 코어 재사용, 인증 실패 시 SigV4/JWT 자동 fallback 없음.
+4. staging ALB/TLS/SG·키rotation/긴급폐기·clock·응답유실/중복/401·403 중단재개·복원 검증 후 기능별 승인 활성화. 기존 SigV4 제거는 실제 미사용 확인/rollback 계획 후 별도 변경.
+
+이번 요청은 계획·TMI-204 본문 갱신이다. 인증 코드/SDK 제거·AWS/키생성·배포/판매/자동삭제 실행은 하지 않는다. Identity203 및 다른 Jira는 수정하지 않는다.
+
 ## 3. 사용자가 결정해야 하는 사항
 
 2026-10-12 추가 확인: 사용자는 Billing 내부 5개 collection 유지와 필드/상태/index 명세 방향, 단순 지연은 정상 이용을 유지하고 복원·control 소실 시 관련 쓰기를 막되 승인 복구를 허용하는 방향을 승인했다. 이어 §2.0의 snapshot 중심 재동기화·과거 이력 불명 최소 기록을 승인하여 상세 GAP 배열/상한 설계를 대체했다. 정확 local schema/전이표 작성은 남아 있으며 구현 중단 상태를 유지한다.
@@ -102,7 +140,7 @@ Identity의 recoveries/checkpoints/checkpoints-status 3개 API와 consumer contr
 1. 주소는 사용자 미구현 전제에 따라 예정 `/internal/v1/billing/withdrawals`를 유지한다. 새 문서/fixture revision은 별도로 동결한다. 실제 기존 consumer가 발견되면 그 영향 범위만 재검토하며 운영 미배포를 독립 검증했다고 주장하지 않는다.
 2. availability의 정확 필드·null·오류·상한·관측 일관성과410 응답에서도 필요한 재생 범위를 얻는 방법.
 3. 아래 로컬 모델/index·최소 operation 보존과205 증거 소비 규격. retry/circuit 초기값은 §7의 사용자 채택값을 사용하고 실제 부하·공동 호환성을 검증한다.
-4. AWS SDK v2 signer의 정확 module/version·credential provider·HTTP client. 명시 승인 없이 새 운영 의존성을 추가하지 않는다.
+4. 인증 방향은 §2.5의 ALB/workload JWT로 승인됐다. 기존 BOM2.29.52/auth/http-auth-aws·SigV4 client는 과거 구현 기록이다. 실제 운영값과 공동 auth fixture, 범위 한정 규칙 개정이 남아 있다.
 
 담당자·알림·Identity trusted 주소·현재 streamId·task/운영 역할은 운영 입력이며 실제 값/Secret은 문서에 넣지 않는다. 신규 public repair API는 만들지 않는 안이다.
 
@@ -164,7 +202,7 @@ worker 재시작·timeout·cursor 만료는 같은 epoch에서 재개한다. 새
 
 새 계약에는 /recoveries, /checkpoints, /checkpoints/status 호출이나 X-Consumer-Recovery-Generation을 넣지 않는다. Identity snapshot operation은 unique(environment,consumer,requestOperationId)이며 streamId는 canonical 요청 binding으로 따로 비교한다. 같은 key/new stream은 OPERATION_CONFLICT, 동일 key/body의 inactive stream은 STREAM_REPLACED로 구분하는 새 exact 후보를 따른다. local epoch는 인증 수단이나 Identity authority가 아니다. snapshot 생성은 DB run을 만드는 POST다.
 
-Lattice AWS_IAM/SigV4, role/환경/route allowlist, unsigned/JWT fallback 금지를 유지한다. 요청 bytes/header/traceparent를 확정한 뒤 최종 서명하고 baggage는 전파하지 않는다. trusted base URL만 사용하며 redirect NEVER, cursor를 URL로 해석하지 않는다.
+Identity–Billing은 §2.5의 ALB/workload JWT·환경/목적/route allowlist를 사용하도록 전환한다. 무인증 및 SigV4/JWT 자동 fallback은 금지한다. 요청 body/header/traceparent를 전송 전에 고정하고 baggage는 전파하지 않는다. trusted HTTPS origin만 사용하며 redirect NEVER, cursor를 URL로 해석하지 않는다. JWT가 body를 서명한다고 주장하지 않는다.
 
 strict decoder는 duplicate/unknown/trailing/coercion, 필수-null/생략, 잘못된 UUID casing을 거절한다. D0/D1 canonical decimal→BSON int64, T의 U32 pair→BSON Timestamp, UUID userId는v4로 제한하지 않는다.16KiB·page최대20을 유지한다. manifest binding은 digest 외에도 별도 확인한다.
 
@@ -276,7 +314,7 @@ worker ON은 index/transaction/fence/trusted 설정과 exact 호환성이 선행
 
 ### 7.3 관측
 
-service/environment/operation(snapshot,feed,apply,install,cleanup)/outcome/durationMs/traceId/spanId 유지. userId/ref/payload/cursor/digest/SigV4 credential 비로깅, stream/epoch/runId는 metric tag 금지.
+service/environment/operation(snapshot,feed,apply,install,cleanup)/outcome/durationMs/traceId/spanId 유지. userId/ref/payload/cursor/digest/credential/JWT/Authorization 비로깅, stream/epoch/runId는 metric tag 금지.
 
 마지막 성공 poll·checkpoint lag·heartbeat·원천 만료 위험·UNKNOWN/GAP·BLOCKED_AUTH·circuit·stale epoch·lease 재획득·임시자료 overdue 관측. remote ACK lag는 제거한다. Identity는 source 가용성/expiry를, Billing은 consumer lag를 담당한다. Billing 중단도 감지할 외부 watchdog을 실제 배포 gate에 포함한다.205의 매시간/매일/7일 검토 기준을 모든 feed 오류의 수동 승인으로 확대하지 않는다.
 
@@ -295,6 +333,12 @@ service/environment/operation(snapshot,feed,apply,install,cleanup)/outcome/durat
 
 ## 8. 구현 순서
 
+2026-10-12 SigV4 추가: [Identity HTTP client](../runbooks/TMI-204-identity-sigv4-client.md). 승인된 SDK v2·4개 exact POST·환경별 HTTPS host pin·3/5초·16KiB·오류 분류·Retry-After 연결을 구현했다. HTTP flag는 기본 OFF, control4/retry metadata 검증 필수. 로컬 wire 서명 검산과 fake server/Mongo 테스트이며 실제 Identity/AWS·outbound trace·운영 이관 완료가 아니다.
+
+2026-10-12 자동조율 추가: [자동snapshot·보존·관측](../runbooks/TMI-204-automation-and-retention.md). control version4·재생성budget index, BUILDING5초/5분신호·추가2run·반복GAP차단·독립retention·경보지표/heartbeat 구현. 후속 승인으로 SigV4 client를 추가했으며 IdentityHTTP연결확인·대용량hash실행조율·운영installer/외부watchdog은후속이다.
+
+2026-10-12 feed 추가 구현: [feed·영속 재시도 안내](../runbooks/TMI-204-feed-processing.md). control version3/feedJob·FEED receipt·inbox/C 원자적용,고정H2/cursor1시간·epoch/lease·dispatch실패count·20회circuit/probe·긴Retry-After·10page/30초양보·기본OFF scheduler 구현. source소실은SNAPSHOT_REQUIRED에멈추며새snapshot자동조율/실client/운영retention·경보는후속이다. 이전미구현표기는이범위에한해갱신한다.
+
 2026-10-12 추가 구현: [snapshot 영속 처리 안내](../runbooks/TMI-204-snapshot-processing.md). 나머지 4collection/9index와 control version2 진행필드, durable operation·lease·페이지 원자 적용·전체 hash 검증·baseline 설치·만료 batch 정리 코어를 추가했다. 자동 scheduler/실HTTP/feed/실패 후 새 run budget/120일 정리는 미구현이며 PR2 전체 운영 완료는 아니다. 기존 중단/미구현 표기는 이 항목의 명시 범위에 한해 갱신한다.
 
 2026-10-12 재개 구현: [PR1 제어기반 규격/검증 안내](../runbooks/TMI-204-recovery-foundation.md). 기존 push applier 추출·snapshot fact 경계, 성공/오류 strict decoder, fakeable client port, ACCOUNT/PUSH/RECOVERY epoch/version CAS와 기본OFF flag, control header v1/index/validator 검증을 추가했다. 5collection 중 control header만 이번에 명세/구현하며 snapshot/rows/pages/operations·control 진행필드는 후속 명시 migration으로 추가한다. 자동복구worker·실HTTP·운영installer/retention·활성화는 없다. 기존 문서의 중단 표기는 이 사용자 재개 요청으로 해제하되 미구현 범위를 완료로 보지 않는다.
@@ -307,7 +351,8 @@ service/environment/operation(snapshot,feed,apply,install,cleanup)/outcome/durat
 | PR1 기반 | fake client/strict decoder·신규 schema·공통 applier/control CAS, 기존201 회귀·기본OFF |
 | PR2 snapshot | bounded 적용/staging hash/로컬 baseline, expiry/재시작/실패 후 새 run 검증 |
 | PR3 feed | inbox와 C 원자 commit·H2·availability/GAP·자동 retry/circuit; 원격 ACK 없음 |
-| PR4 운영 | local epoch installer·복원/격리 runbook·retention·readiness/관측·승인된 SigV4 adapter |
+| 인증 전환 | §2.5 공동규격/fixture·범위한정규칙개정→양쪽JWT수신/전용connector→발신OFF구현→staging/rotation 검증 |
+| PR4 운영 | local epoch installer·복원/격리 runbook·retention·readiness/관측·승인된 ALB/workload JWT adapter와 실제 연동 |
 
 코드 구현/신규 의존성/실제 이관·판매·삭제 활성화는 이번 계획 수정에 포함하지 않는다. Identity203 저장소나 Jira를 자동 수정하지 않는다.
 
@@ -315,7 +360,7 @@ service/environment/operation(snapshot,feed,apply,install,cleanup)/outcome/durat
 
 - 기존4필드 UserWithdrawn·canonical digest/numeric39개/Long.MAX_VALUE·overflow·D0/D1/U32 회귀. 새 revision fixture는 기존199 파일을 조용히 덮어쓰지 않는다.
 - snapshot golden: empty/page1, UTF-8 prefix, 고정밀 시각, 페이지 분할과 무관한 digest, metadata mismatch 별도 거절.
-- strict unknown/duplicate/trailing/coercion·nullable·16KiB/page20·서명 bytes/traceparent 순서·baggage 미전파·wrong role/환경/direct bypass/redirect.
+- strict unknown/duplicate/trailing/coercion·nullable·16KiB/page20·baggage 미전파·wrong service/환경/direct bypass/redirect. JWT 사용자/LC격리·issuer/aud/sub/alg/kid/시간·중복Authorization/claim·잘못된port·OFF·rotation/폐기·인증장애 fixture를 별도 검증하며 기존SigV4테스트를 새인증증거로 재사용하지 않는다.
 - replica-set: epoch 설치와 account/push/page/NOOP/marker의 CAS 경합; page 일부 실패 rollback; commit 불명·crash 후 C/receipt 수렴.
 - push 선행/후행/중복 feed·eventId payload conflict에서 checkpoint 진행 금지. snapshot에는 가짜 inbox 없음. 무료/owner/paid 미이전 불변.
 - snapshot partial/count/order/digest/expiry/history 실패에 baseline 금지; cleanup과 검증 경합; 자동 새 run의 key/실패 보존·기간 비연장.
@@ -328,7 +373,7 @@ service/environment/operation(snapshot,feed,apply,install,cleanup)/outcome/durat
 - 가짜시계로5초/빈30초·catch-up10page/30초·20회실패후5분probe·lease60/갱신20·추가snapshot2run/24시간을검증한다. 긴Retry-After의조기호출금지·500nonretryable·BUILDING실패분리·중복경보/해소·heartbeat/watchdog경계도포함한다. 정상지연건별승인/일괄차단없음,실제restore/GAP우회없음.
 - index/validator drift·unique 경합·7일/120일 cleanup·기존201 public/internal 회귀. 모든 구현 후 ./gradlew clean test.
 
-로컬 완료는 코드/manifest/runbook·fake 계약·replica-set 검증과 작업 기록까지다. 실제203 지원·고정T/history window·운영 동등 DB·IAM/부하·복원/이관 시간·watchdog는206에서 별도 검증한다. 판매/삭제 활성화는 별도 승인이다.
+로컬 완료는 코드/manifest/runbook·fake 계약·replica-set 검증과 작업 기록까지다. 실제203 지원·고정T/history window·운영 동등 DB·ALB/JWT/키운영/부하·복원/이관 시간·watchdog는206에서 별도 검증한다. 판매/삭제 활성화는 별도 승인이다.
 
 ## 10. 공동 계약 변경·인계 체크리스트
 
@@ -337,7 +382,7 @@ service/environment/operation(snapshot,feed,apply,install,cleanup)/outcome/durat
 - Identity202: capture/push는 유지, cleanup Evidence/monitor·PurchaseActivationEvidence에서 remote consumer 의존 제거. boolean true로 gate를 대체하지 않는다.
 - Billing204: local epoch·C·baseline/feed range,5개 후보 schema·retry·source 관측 규격 동결.
 - Billing205: remote ACK 아닌 해당 계정의 탈퇴 사실·거래/환불·보존/동시성 증거를 확인한다. 과거 전체event 불명만으로 전계정 영구 보류하지 않으며 계정별 필수 증거 부족은 보류한다.
-- IAM/206:4개 복구 기능 allowlist·운영 epoch 설치 권한·구프로세스 격리·현재 stream 운영 전달. discovery API 임의 추가 없음.
+- 인증/206:4개 복구 기능 JWT/connector allowlist·ALB/SG·운영 epoch 설치 권한·구프로세스 격리·현재 stream 운영 전달. discovery API 임의 추가 없음.
 - 기존199 identity index13개 중 remote3개 제거·snapshot operation index 변경 및별도source range 추가index는 **새 manifest**에서 정의. 이전10개예상총수/이름의v2표기는확정기준아니다. 배포 여부 조사 없이 기존 index drop 금지.
 - Identity 인계: Billing 원본소실→snapshot 상태수렴→H 이후 feed와 과거 불명 최소표시를 공유한다. recovery-r1/scalar-end-1·4route·T/H·count/digest/expiry·source floor/range·보존계약 변경 요청은 없다. snapshot 포함 범위는 §2.1 회신으로 확인했으며 실제 DB/API 검증은 별도다.
 - 다음: 최소 local schema/재동기화 전이·구 공동본문 정합화 → 중단 PR1 재개 범위 확인 → 실제203 연동 및206 환경 gate. 본 갱신은 코드재개/배포승인이 아니다.

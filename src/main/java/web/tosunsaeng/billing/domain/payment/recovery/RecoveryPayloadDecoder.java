@@ -109,7 +109,10 @@ public final class RecoveryPayloadDecoder {
         public Manifest { knownGaps = List.copyOf(knownGaps); }
         @Override public String toString() { return "Manifest[REDACTED]"; }
     }
-    public record SnapshotStatus(String snapshotId, String status, Manifest manifest, String failureCode) {
+    public record SnapshotStatus(String snapshotId, String status, Manifest manifest, String failureCode, Instant retryAt) {
+        public SnapshotStatus(String snapshotId, String status, Manifest manifest, String failureCode) {
+            this(snapshotId, status, manifest, failureCode, null);
+        }
         @Override public String toString() { return "SnapshotStatus[REDACTED]"; }
     }
 

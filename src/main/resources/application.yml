@@ -7,6 +7,14 @@ spring:
       auto-index-creation: false
 
 billing:
+  workload-jwt:
+    receiver-enabled: ${BILLING_WORKLOAD_JWT_RECEIVER_ENABLED:false}
+    port: ${BILLING_WORKLOAD_JWT_PORT:0}
+    environment: ${BILLING_WORKLOAD_JWT_ENVIRONMENT:}
+    identity-public-jwk-set: ${BILLING_WORKLOAD_IDENTITY_PUBLIC_JWK_SET:}
+    billing-private-jwk: ${BILLING_WORKLOAD_PRIVATE_JWK:}
+    tls-key-store: ${BILLING_WORKLOAD_TLS_KEY_STORE:}
+    tls-key-store-password: ${BILLING_WORKLOAD_TLS_KEY_STORE_PASSWORD:}
   payment:
     catalog-enabled: ${BILLING_PAYMENT_CATALOG_ENABLED:false}
     purchase-account-enabled: ${BILLING_PAYMENT_PURCHASE_ACCOUNT_ENABLED:false}
@@ -14,6 +22,13 @@ billing:
     recovery:
       fence-required: ${BILLING_PAYMENT_RECOVERY_FENCE_REQUIRED:false}
       snapshot-enabled: ${BILLING_PAYMENT_RECOVERY_SNAPSHOT_ENABLED:false}
+      feed-enabled: ${BILLING_PAYMENT_RECOVERY_FEED_ENABLED:false}
+      snapshot-worker-enabled: ${BILLING_PAYMENT_RECOVERY_SNAPSHOT_WORKER_ENABLED:false}
+      retention-enabled: ${BILLING_PAYMENT_RECOVERY_RETENTION_ENABLED:false}
+      http-enabled: ${BILLING_PAYMENT_RECOVERY_HTTP_ENABLED:false}
+      identity-base-url: ${BILLING_PAYMENT_RECOVERY_IDENTITY_BASE_URL:}
+      identity-allowed-host: ${BILLING_PAYMENT_RECOVERY_IDENTITY_ALLOWED_HOST:}
+      identity-environment: ${BILLING_PAYMENT_RECOVERY_IDENTITY_ENVIRONMENT:}
     environment: ${BILLING_PAYMENT_ENVIRONMENT:}
     catalog-version: ${BILLING_PAYMENT_CATALOG_VERSION:1}
     limiter-key: ${BILLING_PAYMENT_LIMITER_KEY:}

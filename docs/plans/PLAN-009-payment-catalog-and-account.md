@@ -1,5 +1,9 @@
 # PLAN-009: 결제 상품·구매 계정·public 인증 기반
 
+> 2026-10-13 승인 갱신: Identity–Billing 네 이벤트/네 복구 POST는 workload JWT 단일 인증으로 구현한다. 해당 SigV4 signer·선택설정·IAM 수신 통과 경로를 제거하며, 구 recovery.authentication 설정은 OFF에서도 기동 오류다. 수신 OFF는 해당 네 이벤트를 차단한다. LC/user 인증·body/복구 계약과 과거 검증 기록은 유지한다. 실제 전환은 양측 활성 사용처/키/네트워크 확인 후 별도 승인한다.
+
+> 2026-10-12 Identity 탈퇴 수신 등 workload 인증은 [TMI-204 §2.5](TMI-204-withdrawal-recovery.md)·[workload-auth-r1](../contracts/WORKLOAD-JWT-AUTH-R1.md)의 승인된 ALB/전용 JWT 전환을 따른다. 사용자 public API JWT와 구매 권한·계정 lifecycle은 변경하지 않는다. 새 workload 구현은 기본 OFF이며 기존 SigV4 문구는 Identity–Billing 범위만 대체한다.
+
 - 작성일: 2026-10-06 / 갱신: 2026-10-12 / Jira: [TMI-201](https://to-teacher.atlassian.net/browse/TMI-201) / 상태: 사용자 요청으로 PR1·PR2 구현·로컬393개 테스트 완료. 병합·Jira 종료·배포 별도
 - 선행: [PLAN-008 Phase 0](PLAN-008-fixed-term-payment-roadmap.md), [ADR-004 §5.1~5.3](../adr/ADR-004-fixed-term-premium-payment-contract.md).
 - 세부 기준: [상품·계정 기술 계약](../contracts/PLAN-009-payment-foundation-technical-contract.md), [탈퇴 수신·후속 대사 설계](../contracts/PLAN-009-withdrawal-reconciliation-and-purge-contract.md), [공동 계약](../contracts/IDENTITY-BILLING-PAYMENT-LIFECYCLE-TECHNICAL-CONTRACT.md), [수락된 exact 규격](../contracts/TMI-199-EXACT-WIRE-AND-INDEX-SPEC.md). [PR1 구현·검증 안내](../runbooks/TMI-201-payment-foundation.md). 구현 완료는 배포·활성화 승인이 아니다.

@@ -7,6 +7,14 @@ plugins {
 group = 'web.tosunsaeng'
 version = '0.0.1-SNAPSHOT'
 
+springBoot { mainClass = 'web.tosunsaeng.billing.BillingApplication' }
+
+// Explicit offline operator process; never executed during boot/build/test or via HTTP.
+tasks.register('recoveryOperator', JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'web.tosunsaeng.billing.domain.payment.recovery.RecoveryOperatorCli'
+}
+
 java {
 	toolchain {
 		languageVersion = JavaLanguageVersion.of(21)

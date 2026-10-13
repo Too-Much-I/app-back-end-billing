@@ -1,5 +1,9 @@
 # Billing 계약 결정서
 
+> 2026-10-13 승인 갱신: Identity–Billing 네 이벤트/네 복구 POST는 workload JWT 단일 인증으로 구현한다. 해당 SigV4 signer·선택설정·IAM 수신 통과 경로를 제거하며, 구 recovery.authentication 설정은 OFF에서도 기동 오류다. 수신 OFF는 해당 네 이벤트를 차단한다. LC/user 인증·body/복구 계약과 과거 검증 기록은 유지한다. 실제 전환은 양측 활성 사용처/키/네트워크 확인 후 별도 승인한다.
+
+> 2026-10-12 승인 보완: Identity–Billing 이벤트4route·복구4POST는 [TMI-204 §2.5](../plans/TMI-204-withdrawal-recovery.md)의 ALB/전용 RS256 workload JWT 방향으로 전환한다. [workload-auth-r1](../contracts/WORKLOAD-JWT-AUTH-R1.md)에 Billing OFF 구현 규격과 검증 경계를 기록한다. 과거 SigV4-only 문구는 해당 범위만 대체하며 LC/user·도메인wire/보존 불변. 양 서버 auth fixture 최종 수락/실환경 확인/활성화는 별도다.
+
 - 최초 작성일: 2026-08-24
 - 상태: 결제 제품 정책·C9-S1~S9 승인, C9-S10 Store 중심 환불 창구 승인(2026-09-09). 국내 판매가격 기록 완료; ADR-004 기술 초안 작성, 실제 Store 설정·기술 검증·별도 PLAN은 대기
 - Jira: 무료/owner lifecycle 관련 `TMI-120` 구현은 병합 완료; 결제 PLAN·Jira 생성 대기

@@ -1,5 +1,9 @@
 # ADR-002: VPC Lattice·ECS SigV4 서비스 통신과 production/staging 이관
 
+> 2026-10-13 승인 갱신: Identity–Billing 네 이벤트/네 복구 POST는 workload JWT 단일 인증으로 구현한다. 해당 SigV4 signer·선택설정·IAM 수신 통과 경로를 제거하며, 구 recovery.authentication 설정은 OFF에서도 기동 오류다. 수신 OFF는 해당 네 이벤트를 차단한다. LC/user 인증·body/복구 계약과 과거 검증 기록은 유지한다. 실제 전환은 양측 활성 사용처/키/네트워크 확인 후 별도 승인한다.
+
+> 2026-10-12 승인 보완: Identity–Billing 이벤트4route·복구4POST에 한해 [TMI-204 계획 §2.5](../plans/TMI-204-withdrawal-recovery.md)의 기존 ALB/전용 workload JWT로 전환한다. 아래 Lattice-only/SigV4 규정은 해당 범위의 OFF 구현 목표에 한해 대체하며 LC·사용자 인증은 유지한다. body 서명 없는 Bearer의 보장 차이를 수락한 설계이며 실제 키/환경/ALB·TLS·SG/공동 fixture 검증 전 활성화하지 않는다. 기존 구현·과거 검증 기록은 삭제하지 않는다.
+
 - 상태: 승인된 인프라 계약의 구현 기준; AWS 실제 ID는 배포 전 inventory로 주입
 - 작성일: 2026-08-26
 - 대상 릴리스: 결제 제외 `FREE_EXAM_ONCE` MVP

@@ -65,6 +65,11 @@ class OwnerRebindTracePropagationIntegrationTest {
     @Autowired private CapturingSpanProcessor spanProcessor;
     @LocalServerPort private int port;
 
+    // This existing loopback test isolates tracing, not workload authentication.
+    // Authentication and OFF/port isolation are exercised by real-chain MVC tests.
+    @MockitoBean(name = "workloadIngressGuard")
+    private org.springframework.boot.web.servlet.FilterRegistrationBean<web.tosunsaeng.billing.global.config.security.WorkloadIngressFilter> tracingOnlyIngress;
+
     @MockitoBean private UserMergedEventDecoder mergeDecoder;
     @MockitoBean private PhoneOwnerRebindEventDecoder phoneDecoder;
     @MockitoBean private OwnerRebindService service;

@@ -15,6 +15,13 @@ public class PaymentProperties {
     public static class Recovery {
         private boolean fenceRequired;
         private boolean snapshotEnabled;
+        private boolean feedEnabled;
+        private boolean snapshotWorkerEnabled;
+        private boolean retentionEnabled;
+        private boolean httpEnabled;
+        private String identityBaseUrl = "";
+        private String identityAllowedHost = "";
+        private String identityEnvironment = "";
     }
     private String environment = "";
     private long catalogVersion = 1;

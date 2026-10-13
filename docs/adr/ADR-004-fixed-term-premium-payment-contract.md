@@ -1,5 +1,9 @@
 # ADR-004: RevenueCat 기반 fixed-term premium 결제 계약
 
+> 2026-10-13 승인 갱신: Identity–Billing 네 이벤트/네 복구 POST는 workload JWT 단일 인증으로 구현한다. 해당 SigV4 signer·선택설정·IAM 수신 통과 경로를 제거하며, 구 recovery.authentication 설정은 OFF에서도 기동 오류다. 수신 OFF는 해당 네 이벤트를 차단한다. LC/user 인증·body/복구 계약과 과거 검증 기록은 유지한다. 실제 전환은 양측 활성 사용처/키/네트워크 확인 후 별도 승인한다.
+
+> 2026-10-12 인증 보완: Identity–Billing 이벤트4route/복구4POST는 [TMI-204 §2.5](../plans/TMI-204-withdrawal-recovery.md)·[workload-auth-r1](../contracts/WORKLOAD-JWT-AUTH-R1.md)의 ALB/전용 JWT로 전환한다. 해당 범위의 SigV4-only 목표만 대체하며 Store/RevenueCat·사용자/LC 인증과 제품 정책은 유지한다. OFF 구현과 공동수락/실환경활성화는 구분한다.
+
 - 2026-10-12 복구 단순화 계획 반영: [TMI-204 개정안](../plans/TMI-204-withdrawal-recovery.md)은 Billing local checkpoint/epoch를 단일 authority로 두고 원격 ACK/Identity consumer generation을 제거한다. 아래 과거 승인 문구 중 원격 세대/ACK는 구 exact 기준이며 신규 revision·availability/index·배포 호환 공동 동결 전 변경 구현은 보류한다. T/H·digest·H2·local CAS/복원 격리·보존 및 제품 정책은 유지, 코드/판매/삭제 실행 승인은 별도다.
 
 - 작성일: 2026-09-07

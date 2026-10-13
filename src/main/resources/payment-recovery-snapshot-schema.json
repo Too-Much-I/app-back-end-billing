@@ -1,5 +1,5 @@
 {
-  "revision": 2,
+  "revision": 4,
   "validators": {
     "payment_recovery_snapshots": {
       "$jsonSchema": {
@@ -196,7 +196,8 @@
           },
           "kind": {
             "enum": [
-              "SNAPSHOT"
+              "SNAPSHOT",
+              "FEED"
             ]
           },
           "runId": {
@@ -267,6 +268,57 @@
           },
           "retentionExpiresAt": {
             "bsonType": "date"
+          },
+          "operator": {
+            "bsonType": "object",
+            "additionalProperties": false,
+            "required": [
+              "action",
+              "expectedEpoch",
+              "expectedVersion",
+              "newEpoch",
+              "preserveBaseline"
+            ],
+            "properties": {
+              "action": {
+                "enum": [
+                  "INITIAL",
+                  "ROTATE",
+                  "BLOCK",
+                  "RECOVER",
+                  "OPEN"
+                ]
+              },
+              "expectedEpoch": {
+                "bsonType": [
+                  "string",
+                  "null"
+                ]
+              },
+              "expectedVersion": {
+                "bsonType": "long",
+                "minimum": 0
+              },
+              "newEpoch": {
+                "bsonType": [
+                  "string",
+                  "null"
+                ]
+              },
+              "preserveBaseline": {
+                "bsonType": "bool"
+              },
+              "previousStreamId": {
+                "bsonType": "string"
+              },
+              "previousCheckpoint": {
+                "bsonType": [
+                  "long",
+                  "null"
+                ],
+                "minimum": 0
+              }
+            }
           }
         }
       }
@@ -362,6 +414,16 @@
       "keys": {
         "retentionExpiresAt": 1,
         "_id": 1
+      },
+      "unique": false
+    },
+    {
+      "collection": "payment_recovery_operations",
+      "name": "ix_payment_recovery_operation_budget",
+      "keys": {
+        "environment": 1,
+        "consumer": 1,
+        "createdAt": 1
       },
       "unique": false
     }

@@ -1,5 +1,9 @@
 # Identity–Billing 공동 기술 계약: 구매 권한·탈퇴 capture·복구·재개
 
+> 2026-10-13 승인 갱신: Identity–Billing 네 이벤트/네 복구 POST는 workload JWT 단일 인증으로 구현한다. 해당 SigV4 signer·선택설정·IAM 수신 통과 경로를 제거하며, 구 recovery.authentication 설정은 OFF에서도 기동 오류다. 수신 OFF는 해당 네 이벤트를 차단한다. LC/user 인증·body/복구 계약과 과거 검증 기록은 유지한다. 실제 전환은 양측 활성 사용처/키/네트워크 확인 후 별도 승인한다.
+
+> 2026-10-12 인증 보완: 사용자 승인에 따라 Identity–Billing 통신은 ALB/전용 workload JWT로 전환한다. [workload-auth-r1](WORKLOAD-JWT-AUTH-R1.md)은 Billing OFF 구현의 정확한 경계이며 Identity 공동수락/구현 완료를 뜻하지 않는다. 아래 SigV4-only 문구는 승인된 Identity–Billing 전환 범위에서 대체하고 기존 LC/user 인증·event body/hash·복구 보존 의미는 유지한다.
+
 > 2026-10-12 개정 예정 범위: 사용자 요청으로 [TMI-204 계획](../plans/TMI-204-withdrawal-recovery.md)에 Billing local checkpoint/epoch 단일 authority를 채택했다. 아래 §5의 원격 ACK/consumer generation·remote coverage/cleanup 의존은 **구 exact 기준**이며 새 구현에 그대로 적용하지 않는다. 신규 revision·availability·index·전환 방식은 공동 동결 전이다. 본문은 기존 수락 이력으로 보존하고, 변경 부분의 구현은 새 exact 수락 후 진행한다. T/H·digest·H2·기존 push·보존·로컬 복원 보호는 유지한다.
 
 - 작성일: 2026-10-07 / 상태: 정책·기술 설계 사용자 승인, 아래 후속 exact 규격 상대 수락·운영 검증 별도 / Jira TMI-199 (에픽 TMI-137)
