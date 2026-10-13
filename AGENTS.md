@@ -1,5 +1,7 @@
 # 토선생 Billing Service Codex 작업 규칙
 
+> 2026-10-13 승인 갱신: Identity–Billing 네 이벤트/네 복구 POST는 workload JWT 단일 인증으로 구현한다. 해당 SigV4 signer·선택설정·IAM 수신 통과 경로를 제거하며, 구 recovery.authentication 설정은 OFF에서도 기동 오류다. 수신 OFF는 해당 네 이벤트를 차단한다. LC/user 인증·body/복구 계약과 과거 검증 기록은 유지한다. 실제 전환은 양측 활성 사용처/키/네트워크 확인 후 별도 승인한다.
+
 이 규칙은 저장소 전체에 적용한다. 이 저장소는 토선생 앱의 Billing/Entitlement Service이며, 아래 도메인 경계와 계약을 유지한다.
 
 명시적인 요청이 없으면 현재 Billing 저장소의 코드와 문서만 변경한다. Identity와 Learning Core는 계약 확인을 위한 읽기 대상으로만 사용하고, 각 저장소의 코드·설정·배포를 함께 수정하지 않는다.
@@ -167,6 +169,8 @@ PLAN-002 Reservation을 구현할 때 다음 계약을 유지한다.
 - confirm이 CANCELED 또는 EXPIRED 상태에 도착하면 자동 repair-confirm하지 않는다. privileged repair route는 별도 계약 전까지 열지 않는다.
 
 ## 사용자 및 서비스 인증 규칙
+
+- 2026-10-12 사용자 승인 예외: Identity–Billing의 4개 이벤트와 Billing→Identity recovery4POST는 기존 ALB + 별도 connector/security chain + 전용 RS256 workload JWT로 전환한다. TMI-204 계획 §2.5 및 인증 보완 계약을 따른다. 아래 SigV4-only 규칙은 이 범위의 승인된 OFF 구현에 한해 대체한다. LC/user JWT 계약은 불변이며 실제 환경/키/공동 fixture·ALB/SG 검증 전 활성화하지 않는다. JWT는 body 서명과 동등하지 않고 실패 시 SigV4/무인증 fallback은 금지한다.
 
 - 실제 사용자 ID는 UUID 문자열이며 JWT `sub`에서 가져온다.
 - 클라이언트가 Request Body, Path, Query로 보낸 `userId`를 신뢰하지 않는다.

@@ -1,0 +1,291 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "required": [
+      "_id",
+      "environment",
+      "consumer",
+      "schemaVersion",
+      "epoch",
+      "version",
+      "barrier"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "_id": {
+        "bsonType": "string"
+      },
+      "environment": {
+        "enum": [
+          "SANDBOX",
+          "PRODUCTION"
+        ]
+      },
+      "consumer": {
+        "enum": [
+          "billing"
+        ]
+      },
+      "schemaVersion": {
+        "bsonType": "long",
+        "enum": [
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      "epoch": {
+        "bsonType": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?![\\s\\S])"
+      },
+      "version": {
+        "bsonType": "long",
+        "minimum": 1
+      },
+      "barrier": {
+        "enum": [
+          "OPEN",
+          "PURCHASE_BLOCKED",
+          "ALL_BLOCKED"
+        ]
+      },
+      "snapshotJob": {
+        "bsonType": "object",
+        "required": [
+          "operationId",
+          "streamId",
+          "state",
+          "startedAt",
+          "expiresAt",
+          "leaseId",
+          "leaseUntil",
+          "snapshotId",
+          "version"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "operationId": {
+            "bsonType": "string"
+          },
+          "streamId": {
+            "bsonType": "string"
+          },
+          "state": {
+            "enum": [
+              "REQUESTING",
+              "POLLING",
+              "APPLYING",
+              "VERIFYING",
+              "COMPLETE",
+              "FAILED",
+              "EXPIRED"
+            ]
+          },
+          "startedAt": {
+            "bsonType": "date"
+          },
+          "expiresAt": {
+            "bsonType": "date"
+          },
+          "leaseId": {
+            "bsonType": [
+              "string",
+              "null"
+            ]
+          },
+          "leaseUntil": {
+            "bsonType": "date"
+          },
+          "snapshotId": {
+            "bsonType": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "bsonType": "long",
+            "minimum": 1
+          },
+          "automatic": {
+            "bsonType": "bool"
+          },
+          "runNumber": {
+            "bsonType": "long",
+            "minimum": 1,
+            "maximum": 3
+          },
+          "failures": {
+            "bsonType": "long",
+            "minimum": 0,
+            "maximum": 20
+          },
+          "attempts": {
+            "bsonType": "long",
+            "minimum": 0
+          },
+          "blocked": {
+            "bsonType": "bool"
+          },
+          "failureCode": {
+            "bsonType": [
+              "string",
+              "null"
+            ]
+          },
+          "nextAttemptAt": {
+            "bsonType": "date"
+          },
+          "buildOverdue": {
+            "bsonType": "bool"
+          }
+        }
+      },
+      "baseline": {
+        "bsonType": "object",
+        "required": [
+          "streamId",
+          "tSeconds",
+          "tIncrement",
+          "highWater",
+          "installedAt"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "streamId": {
+            "bsonType": "string"
+          },
+          "tSeconds": {
+            "bsonType": "long",
+            "minimum": 0
+          },
+          "tIncrement": {
+            "bsonType": "long",
+            "minimum": 0
+          },
+          "highWater": {
+            "bsonType": "long",
+            "minimum": 0
+          },
+          "installedAt": {
+            "bsonType": "date"
+          }
+        }
+      },
+      "checkpoint": {
+        "bsonType": "long",
+        "minimum": 0
+      },
+      "historicalUncertainty": {
+        "bsonType": "bool"
+      },
+      "feedJob": {
+        "bsonType": "object",
+        "required": [
+          "epoch",
+          "streamId",
+          "version",
+          "failures",
+          "attempts",
+          "state",
+          "nextAttemptAt",
+          "leaseId",
+          "leaseUntil",
+          "lastSuccessAt",
+          "runId",
+          "scanStart",
+          "pageIndex",
+          "target",
+          "cursor",
+          "cursorExpiresAt",
+          "scanStartedAt"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "epoch": {
+            "bsonType": "string"
+          },
+          "streamId": {
+            "bsonType": "string"
+          },
+          "version": {
+            "bsonType": "long",
+            "minimum": 1
+          },
+          "failures": {
+            "bsonType": "long",
+            "minimum": 0,
+            "maximum": 20
+          },
+          "attempts": {
+            "bsonType": "long",
+            "minimum": 0
+          },
+          "state": {
+            "enum": [
+              "READY",
+              "RETRY",
+              "CIRCUIT",
+              "CAUGHT_UP",
+              "BLOCKED_AUTH",
+              "BLOCKED_CONTRACT",
+              "SNAPSHOT_REQUIRED",
+              "STREAM_REPLACED"
+            ]
+          },
+          "nextAttemptAt": {
+            "bsonType": "date"
+          },
+          "leaseId": {
+            "bsonType": [
+              "string",
+              "null"
+            ]
+          },
+          "leaseUntil": {
+            "bsonType": "date"
+          },
+          "lastSuccessAt": {
+            "bsonType": [
+              "date",
+              "null"
+            ]
+          },
+          "runId": {
+            "bsonType": "string"
+          },
+          "scanStart": {
+            "bsonType": "long",
+            "minimum": 0
+          },
+          "pageIndex": {
+            "bsonType": "long",
+            "minimum": 0
+          },
+          "target": {
+            "bsonType": [
+              "long",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "cursor": {
+            "bsonType": [
+              "string",
+              "null"
+            ]
+          },
+          "cursorExpiresAt": {
+            "bsonType": [
+              "date",
+              "null"
+            ]
+          },
+          "scanStartedAt": {
+            "bsonType": "date"
+          }
+        }
+      }
+    }
+  }
+}

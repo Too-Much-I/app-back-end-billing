@@ -33,19 +33,19 @@ import web.tosunsaeng.billing.domain.ownerrebind.application.OwnerRebindTracing;
 import web.tosunsaeng.billing.domain.ownerrebind.domain.enums.OwnerRebindEventKind;
 import web.tosunsaeng.billing.domain.ownerrebind.domain.model.OwnerRebindCommand;
 import web.tosunsaeng.billing.domain.ownerrebind.exception.OwnerRebindException;
-import web.tosunsaeng.billing.global.config.security.SecurityConfig;
+import web.tosunsaeng.billing.global.config.security.*;
 import web.tosunsaeng.billing.global.exception.InternalApiException;
 import web.tosunsaeng.billing.global.observability.TraceCorrelation;
 
 @WebMvcTest(OwnerRebindEventController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, WorkloadSecurityConfiguration.class, IdentityJwtMvcSupport.ClockConfig.class})
 @ActiveProfiles("test")
 @TestPropertySource(properties = {
         "billing.internal-ingress.mode=test",
         "billing.trial-eligibility.expected-consumer-scope-id=opaque-scope-v1",
         "billing.owner-rebind.enabled=true"
 })
-class OwnerRebindEventControllerTest {
+class OwnerRebindEventControllerTest extends IdentityJwtMvcSupport {
 
     @Autowired
     private MockMvc mockMvc;
@@ -80,13 +80,13 @@ class OwnerRebindEventControllerTest {
         when(service.process(any())).thenReturn(OwnerRebindOutcome.APPLIED);
 
         mockMvc.perform(post(OwnerRebindEventController.PHONE_PATH)
-                        .with(user("identity").roles("IDENTITY_WORKLOAD"))
+                        .with(identityJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isNoContent())
                 .andExpect(content().string(""));
         mockMvc.perform(post(OwnerRebindEventController.MERGE_PATH)
-                        .with(user("identity").roles("IDENTITY_WORKLOAD"))
+                        .with(identityJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isNoContent());
@@ -101,7 +101,7 @@ class OwnerRebindEventControllerTest {
 
         for (int attempt = 0; attempt < 2; attempt++) {
             mockMvc.perform(post(OwnerRebindEventController.PHONE_PATH)
-                            .with(user("identity").roles("IDENTITY_WORKLOAD"))
+                            .with(identityJwt())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{}"))
                     .andExpect(status().isNoContent())
@@ -112,14 +112,15 @@ class OwnerRebindEventControllerTest {
     @Test
     void learningCoreAndUnsignedAreDeniedBeforeDecode() throws Exception {
         mockMvc.perform(post(OwnerRebindEventController.PHONE_PATH)
-                        .with(user("learning").roles("LEARNING_CORE_WORKLOAD"))
+                        .with(principalJwt("learning-core-service"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isForbidden());
         mockMvc.perform(post(OwnerRebindEventController.MERGE_PATH)
+                        .with(r -> { r.setLocalPort(8444); return r; })
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
 
         verifyNoInteractions(phoneDecoder, mergeDecoder, service);
     }
@@ -130,7 +131,7 @@ class OwnerRebindEventControllerTest {
         when(service.process(any())).thenThrow(OwnerRebindException.pending(300));
 
         mockMvc.perform(post(OwnerRebindEventController.PHONE_PATH)
-                        .with(user("identity").roles("IDENTITY_WORKLOAD"))
+                        .with(identityJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isServiceUnavailable())
@@ -148,19 +149,19 @@ class OwnerRebindEventControllerTest {
         when(service.process(any())).thenThrow(OwnerRebindException.ownerConflict());
 
         mockMvc.perform(post(OwnerRebindEventController.PHONE_PATH)
-                        .with(user("identity").roles("IDENTITY_WORKLOAD"))
+                        .with(identityJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
         mockMvc.perform(post(OwnerRebindEventController.PHONE_PATH)
-                        .with(user("identity").roles("IDENTITY_WORKLOAD"))
+                        .with(identityJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("UNSUPPORTED_CONTRACT"));
         mockMvc.perform(post(OwnerRebindEventController.PHONE_PATH)
-                        .with(user("identity").roles("IDENTITY_WORKLOAD"))
+                        .with(identityJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isConflict())

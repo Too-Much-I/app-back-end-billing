@@ -1,5 +1,11 @@
 # Identity–Billing 공동 기술 계약: 구매 권한·탈퇴 capture·복구·재개
 
+> 2026-10-13 승인 갱신: Identity–Billing 네 이벤트/네 복구 POST는 workload JWT 단일 인증으로 구현한다. 해당 SigV4 signer·선택설정·IAM 수신 통과 경로를 제거하며, 구 recovery.authentication 설정은 OFF에서도 기동 오류다. 수신 OFF는 해당 네 이벤트를 차단한다. LC/user 인증·body/복구 계약과 과거 검증 기록은 유지한다. 실제 전환은 양측 활성 사용처/키/네트워크 확인 후 별도 승인한다.
+
+> 2026-10-12 인증 보완: 사용자 승인에 따라 Identity–Billing 통신은 ALB/전용 workload JWT로 전환한다. [workload-auth-r1](WORKLOAD-JWT-AUTH-R1.md)은 Billing OFF 구현의 정확한 경계이며 Identity 공동수락/구현 완료를 뜻하지 않는다. 아래 SigV4-only 문구는 승인된 Identity–Billing 전환 범위에서 대체하고 기존 LC/user 인증·event body/hash·복구 보존 의미는 유지한다.
+
+> 2026-10-12 개정 예정 범위: 사용자 요청으로 [TMI-204 계획](../plans/TMI-204-withdrawal-recovery.md)에 Billing local checkpoint/epoch 단일 authority를 채택했다. 아래 §5의 원격 ACK/consumer generation·remote coverage/cleanup 의존은 **구 exact 기준**이며 새 구현에 그대로 적용하지 않는다. 신규 revision·availability·index·전환 방식은 공동 동결 전이다. 본문은 기존 수락 이력으로 보존하고, 변경 부분의 구현은 새 exact 수락 후 진행한다. T/H·digest·H2·기존 push·보존·로컬 복원 보호는 유지한다.
+
 - 작성일: 2026-10-07 / 상태: 정책·기술 설계 사용자 승인, 아래 후속 exact 규격 상대 수락·운영 검증 별도 / Jira TMI-199 (에픽 TMI-137)
 - 최신 수락: 2026-10-07 Identity가 [exact wire/index §5~6](TMI-199-EXACT-WIRE-AND-INDEX-SPEC.md)을 수락하고 신규42건 독립 검증을 회신했다(해당 문서 §8). 본문에 남은 이 버전 exact 규격 상대 수락 대기는 해소됐다. 실제 구현·운영 검증 및 병합/Jira 종료 승인은 별도다.
 - 개정: 2026-10-07 R1~R5 및 추가 명세 보완. baseline/scan/coverage·control 이관·경로별 commit 불명 처리·durability/restore·보존 기산·retry/canonical 규격을 구체화했다. 개정은 승인 상태를 변경하지 않는다.
@@ -198,6 +204,8 @@ ACK의 `contentDigest`는 §5.3 C의 item stream SHA-256과 동일하며 READY s
 최종 coverage 결과는 `{legacy:COMPLETE|PARTIAL|UNKNOWN, stream:UNKNOWN|CAUGHT_UP|LAGGING|GAP, throughSequence, assessedAt}`다. **legacy COMPLETE**는 고정 snapshot scan 성공에 더해 authoritative User history가 필요한 과거 범위에서 삭제/유실되지 않았다는 운영 증거와 gap 부재가 필요하다. 증거가 없으면 PARTIAL/UNKNOWN이며 tombstone 전체를 읽었다는 이유로 승격하지 않는다. 향후 새 commit은 정상 lag일 수 있고 이를 이미 확인된 H2 범위의 gap과 혼동하지 않는다.
 
 모든 과거 coverage가 필요하지 않은 별도 cohort 활성화는 영향 분석/승인 후에만 가능하다. 초기 구현에서 gap 사용자를 추정으로 건너뛰어 전역 purge를 켜지 않는다.
+
+2026-10-12 최초 결제 출시 한정 승인: 사용자가 기존 구매 계정·연결 ID 발급·실제 거래가 없음을 확인하고, 과거 전체 legacy COMPLETE를 최초 출시 필수 조건에서 제외하는 방향을 승인했다. [TMI-204 §2.3](../plans/TMI-204-withdrawal-recovery.md#23-최초-결제-출시의-기존-대상-없음--2026-10-12-승인)에 따라 결제 시작 기준점/capture·발급 fence·token drain·snapshot/feed 연동을 검증한다. 사용자 확인은 운영 DB/Store 직접 검증 결과가 아니다. legacy enum/ACK wire/완전성의 의미는 변경하지 않으며 기준점 이후 GAP/UNKNOWN과 복원 보호·205 purge 조건을 우회하지 않는다. 기존 대상 발견 시 영향 범위를 재평가한다. Identity 상대 구현·실제 판매·삭제 승인은 별도다.
 
 ### 5.4 실패·중단·재개 exact 권장값
 

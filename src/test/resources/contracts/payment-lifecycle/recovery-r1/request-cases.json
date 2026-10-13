@@ -1,0 +1,145 @@
+{
+  "revision": "recovery-r1",
+  "synthetic": true,
+  "cases": [
+    {
+      "name": "create",
+      "route": "CREATE",
+      "header": "00000000-0000-4000-8000-000000000002",
+      "body": "{\"streamId\":\"00000000-0000-4000-8000-000000000001\"}",
+      "expect": "ACCEPT"
+    },
+    {
+      "name": "status",
+      "route": "STATUS",
+      "body": "{\"snapshotId\":\"00000000-0000-4000-8000-000000000002\"}",
+      "expect": "ACCEPT"
+    },
+    {
+      "name": "first-snapshot-page",
+      "route": "SNAPSHOT_PAGE",
+      "body": "{\"snapshotId\":\"00000000-0000-4000-8000-000000000002\",\"cursor\":null}",
+      "expect": "ACCEPT"
+    },
+    {
+      "name": "first-feed",
+      "route": "FEED_PAGE",
+      "body": "{\"streamId\":\"00000000-0000-4000-8000-000000000001\",\"afterSequence\":\"0\",\"scanCursor\":null}",
+      "expect": "ACCEPT"
+    },
+    {
+      "name": "max-feed",
+      "route": "FEED_PAGE",
+      "body": "{\"streamId\":\"00000000-0000-4000-8000-000000000001\",\"afterSequence\":\"9223372036854775807\",\"scanCursor\":\"synthetic.cursor\"}",
+      "expect": "ACCEPT"
+    },
+    {
+      "name": "missing-nullable-cursor",
+      "route": "FEED_PAGE",
+      "body": "{\"streamId\":\"00000000-0000-4000-8000-000000000001\",\"afterSequence\":\"0\"}",
+      "expect": "INVALID_REQUEST"
+    },
+    {
+      "name": "numeric-coercion",
+      "route": "FEED_PAGE",
+      "body": "{\"streamId\":\"00000000-0000-4000-8000-000000000001\",\"afterSequence\":0,\"scanCursor\":null}",
+      "expect": "INVALID_REQUEST"
+    },
+    {
+      "name": "max-overflow",
+      "route": "FEED_PAGE",
+      "body": "{\"streamId\":\"00000000-0000-4000-8000-000000000001\",\"afterSequence\":\"9223372036854775808\",\"scanCursor\":null}",
+      "expect": "INVALID_REQUEST"
+    },
+    {
+      "name": "leading-zero",
+      "route": "FEED_PAGE",
+      "body": "{\"streamId\":\"00000000-0000-4000-8000-000000000001\",\"afterSequence\":\"01\",\"scanCursor\":null}",
+      "expect": "INVALID_REQUEST"
+    },
+    {
+      "name": "explicit-plus",
+      "route": "FEED_PAGE",
+      "body": "{\"streamId\":\"00000000-0000-4000-8000-000000000001\",\"afterSequence\":\"+1\",\"scanCursor\":null}",
+      "expect": "INVALID_REQUEST"
+    },
+    {
+      "name": "negative",
+      "route": "FEED_PAGE",
+      "body": "{\"streamId\":\"00000000-0000-4000-8000-000000000001\",\"afterSequence\":\"-1\",\"scanCursor\":null}",
+      "expect": "INVALID_REQUEST"
+    },
+    {
+      "name": "fraction",
+      "route": "FEED_PAGE",
+      "body": "{\"streamId\":\"00000000-0000-4000-8000-000000000001\",\"afterSequence\":\"1.0\",\"scanCursor\":null}",
+      "expect": "INVALID_REQUEST"
+    },
+    {
+      "name": "exponent",
+      "route": "FEED_PAGE",
+      "body": "{\"streamId\":\"00000000-0000-4000-8000-000000000001\",\"afterSequence\":\"1e0\",\"scanCursor\":null}",
+      "expect": "INVALID_REQUEST"
+    },
+    {
+      "name": "duplicate",
+      "route": "CREATE",
+      "header": "00000000-0000-4000-8000-000000000002",
+      "body": "{\"streamId\":\"00000000-0000-4000-8000-000000000001\",\"streamId\":\"00000000-0000-4000-8000-000000000001\"}",
+      "expect": "INVALID_REQUEST"
+    },
+    {
+      "name": "trailing-json",
+      "route": "CREATE",
+      "header": "00000000-0000-4000-8000-000000000002",
+      "body": "{\"streamId\":\"00000000-0000-4000-8000-000000000001\"}{}",
+      "expect": "INVALID_REQUEST"
+    },
+    {
+      "name": "extra",
+      "route": "CREATE",
+      "header": "00000000-0000-4000-8000-000000000002",
+      "body": "{\"streamId\":\"00000000-0000-4000-8000-000000000001\",\"generation\":\"1\"}",
+      "expect": "INVALID_REQUEST"
+    },
+    {
+      "name": "missing-header",
+      "route": "CREATE",
+      "body": "{\"streamId\":\"00000000-0000-4000-8000-000000000001\"}",
+      "expect": "INVALID_REQUEST"
+    },
+    {
+      "name": "wrong-version",
+      "route": "CREATE",
+      "header": "00000000-0000-4000-8000-000000000002",
+      "body": "{\"streamId\":\"00000000-0000-1000-8000-000000000001\"}",
+      "expect": "INVALID_REQUEST"
+    },
+    {
+      "name": "null-id",
+      "route": "CREATE",
+      "header": "00000000-0000-4000-8000-000000000002",
+      "body": "{\"streamId\":null}",
+      "expect": "INVALID_REQUEST"
+    },
+    {
+      "name": "array-root",
+      "route": "CREATE",
+      "header": "00000000-0000-4000-8000-000000000002",
+      "body": "[]",
+      "expect": "INVALID_REQUEST"
+    },
+    {
+      "name": "empty-cursor",
+      "route": "SNAPSHOT_PAGE",
+      "body": "{\"snapshotId\":\"00000000-0000-4000-8000-000000000002\",\"cursor\":\"\"}",
+      "expect": "INVALID_REQUEST"
+    },
+    {
+      "name": "whitespace-cursor",
+      "route": "SNAPSHOT_PAGE",
+      "body": "{\"snapshotId\":\"00000000-0000-4000-8000-000000000002\",\"cursor\":\"a b\"}",
+      "expect": "INVALID_REQUEST"
+    }
+  ]
+}

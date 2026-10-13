@@ -1,9 +1,26 @@
 # Billing 계약 결정서
 
+> 2026-10-13 승인 갱신: Identity–Billing 네 이벤트/네 복구 POST는 workload JWT 단일 인증으로 구현한다. 해당 SigV4 signer·선택설정·IAM 수신 통과 경로를 제거하며, 구 recovery.authentication 설정은 OFF에서도 기동 오류다. 수신 OFF는 해당 네 이벤트를 차단한다. LC/user 인증·body/복구 계약과 과거 검증 기록은 유지한다. 실제 전환은 양측 활성 사용처/키/네트워크 확인 후 별도 승인한다.
+
+> 2026-10-12 승인 보완: Identity–Billing 이벤트4route·복구4POST는 [TMI-204 §2.5](../plans/TMI-204-withdrawal-recovery.md)의 ALB/전용 RS256 workload JWT 방향으로 전환한다. [workload-auth-r1](../contracts/WORKLOAD-JWT-AUTH-R1.md)에 Billing OFF 구현 규격과 검증 경계를 기록한다. 과거 SigV4-only 문구는 해당 범위만 대체하며 LC/user·도메인wire/보존 불변. 양 서버 auth fixture 최종 수락/실환경 확인/활성화는 별도다.
+
 - 최초 작성일: 2026-08-24
 - 상태: 결제 제품 정책·C9-S1~S9 승인, C9-S10 Store 중심 환불 창구 승인(2026-09-09). 국내 판매가격 기록 완료; ADR-004 기술 초안 작성, 실제 Store 설정·기술 검증·별도 PLAN은 대기
 - Jira: 무료/owner lifecycle 관련 `TMI-120` 구현은 병합 완료; 결제 PLAN·Jira 생성 대기
 - 문서 역할: Billing 구현 전 계약의 단일 기준
+
+### 2026-10-12 TMI-203·204 단순화 권장안 계획 반영 — 사용자 요청
+
+- [TMI-204 개정 계획](../plans/TMI-204-withdrawal-recovery.md): Billing이 local checkpoint/epoch/consumer coverage를 단독 소유한다. Identity 원격 ACK·consumer generation·양측 완료 대사를 제거하는 방향을 채택한다.
+- 고정 T/H snapshot·digest/H2, 로컬 CAS·복원 격리와 기존202 push204·원천120일은 유지한다. 정상 지연과 실제 GAP/복원을 구분하며205 거래 확인·조건부 삭제를 완화하지 않는다.
+- 새 exact revision/availability/index·배포 호환성은 공동 동결 전이다. 기존 공동 규격은 구버전 기준으로 보존하며 새 의미를 섞어 구현하지 않는다. 계획 수정은 코드·Jira·배포·판매·삭제 실행 승인이 아니다.
+
+### 2026-10-12 최초 결제 출시의 legacy 범위 — 사용자 승인
+
+- 사용자 확인: 기존 구매 계정·purchaseAccountRefId 발급·실제 거래 없음. 운영 DB/Store 직접 검증을 수행했다는 뜻은 아니다.
+- 과거 전체 탈퇴 completeness를 최초 결제 출시의 필수 조건에서 제외한다. 결제 시작 전에 capture/ACTIVE MEMBER 발급 fence·구버전 token drain·수신/복구 기준점과 연동 검증을 준비하고, 기준점 이후 누락 없는 범위를 검증한다.
+- legacy PARTIAL/UNKNOWN을 COMPLETE로 바꾸지 않으며 과거 증명만을 위해 작업을 무기한 대기/재시도하지 않는다. 기준점 이후 GAP/복원 증거 소실에는 일반 보호 규칙을 적용한다. 기존 대상 발견 시 영향 재평가·승인이 필요하다.
+- 실제 판매·205 purge 승인/거래 부재 검증·보존·무료/owner 정책은 변경하지 않는다. 상세 [TMI-204 §2.3](../plans/TMI-204-withdrawal-recovery.md#23-최초-결제-출시의-기존-대상-없음--2026-10-12-승인). 전체204 구현 승인 아님.
 
 ### 2026-10-12 탈퇴 후 재가입 유료권 비복구 — 사용자 확인
 

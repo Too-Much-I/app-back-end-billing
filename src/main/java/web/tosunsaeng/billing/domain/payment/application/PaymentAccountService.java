@@ -21,7 +21,10 @@ public class PaymentAccountService {
     }
     public PurchaseAccountResponse getOrCreate(String userId, Instant authorizationDeadline) {
         require(UUID.fromString(userId).toString().equals(userId));
+        var fence = new web.tosunsaeng.billing.domain.payment.recovery.PaymentRecoveryFence(store, properties);
+        var ticket = fence.capture();
         return store.transaction(session -> {
+            fence.acquire(session, ticket, web.tosunsaeng.billing.domain.payment.recovery.PaymentRecoveryFence.Writer.ACCOUNT);
             if (!clock.instant().isBefore(authorizationDeadline)) throw new PaymentException(401, "UNAUTHENTICATED");
             var db = store.database();
             String environment = properties.getEnvironment();

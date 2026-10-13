@@ -29,8 +29,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "billing.mongodb.initialize-indexes=true", "billing.mongodb.require-transactions=true"
 })
 @ActiveProfiles("test")
-@Import({SecurityConfig.class, PaymentWithdrawalDecoder.class, PaymentWithdrawalControllerTest.Beans.class})
-class PaymentWithdrawalControllerTest {
+@Import({SecurityConfig.class, WorkloadSecurityConfiguration.class, PaymentWithdrawalDecoder.class, PaymentWithdrawalControllerTest.Beans.class})
+class PaymentWithdrawalControllerTest extends IdentityJwtMvcSupport {
     @TestConfiguration static class Beans {
         @Bean Clock clock() { return Clock.fixed(PaymentWithdrawalDecoderTest.NOW, ZoneOffset.UTC); }
         @Bean SimpleMeterRegistry metrics() { return new SimpleMeterRegistry(); }
@@ -44,29 +44,29 @@ class PaymentWithdrawalControllerTest {
     @Test void appliedDuplicateAndNoopReturnOnly204() throws Exception {
         when(service.process(any())).thenReturn(PaymentWithdrawalService.Outcome.APPLIED,
                 PaymentWithdrawalService.Outcome.DUPLICATE, PaymentWithdrawalService.Outcome.NOOP);
-        for (int i=0;i<3;i++) mvc.perform(post(path).with(user("identity").roles("IDENTITY_WORKLOAD"))
+        for (int i=0;i<3;i++) mvc.perform(post(path).with(identityJwt())
                 .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isNoContent()).andExpect(content().string(""));
     }
     @Test void unsignedWrongRoleWrongMethodAndDisabledDoNotReachService() throws Exception {
-        mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
-        mvc.perform(post(path).with(user("learning").roles("LEARNING_CORE_WORKLOAD")).contentType(MediaType.APPLICATION_JSON).content(body))
+        mvc.perform(post(path).with(r -> { r.setLocalPort(8444); return r; }).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isUnauthorized());
+        mvc.perform(post(path).with(principalJwt("learning-core-service")).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isForbidden());
-        mvc.perform(get(path).with(user("identity").roles("IDENTITY_WORKLOAD"))).andExpect(status().isForbidden());
+        mvc.perform(get(path).with(identityJwt())).andExpect(status().isForbidden());
         properties.setWithdrawalEnabled(false);
-        mvc.perform(post(path).with(user("identity").roles("IDENTITY_WORKLOAD")).contentType(MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().isServiceUnavailable());
+        mvc.perform(post(path).with(identityJwt()).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isNotFound());
         verifyNoInteractions(service);
     }
     @Test void strictDecoderAndBoundedRequestRunBeforeService() throws Exception {
         for (String invalid : new String[]{"", "{}", body+"{}", " ".repeat(16385)}) {
-            mvc.perform(post(path).with(user("identity").roles("IDENTITY_WORKLOAD")).contentType(MediaType.APPLICATION_JSON).content(invalid))
+            mvc.perform(post(path).with(identityJwt()).contentType(MediaType.APPLICATION_JSON).content(invalid))
                     .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
         }
-        mvc.perform(post(path).with(user("identity").roles("IDENTITY_WORKLOAD")).contentType(MediaType.TEXT_PLAIN).content(body))
+        mvc.perform(post(path).with(identityJwt()).contentType(MediaType.TEXT_PLAIN).content(body))
                 .andExpect(status().isBadRequest());
-        mvc.perform(post(path+"?userId=untrusted").with(user("identity").roles("IDENTITY_WORKLOAD")).contentType(MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().isBadRequest());
-        mvc.perform(post(path).with(user("identity").roles("IDENTITY_WORKLOAD")).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post(path+"?userId=untrusted").with(identityJwt()).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post(path).with(identityJwt()).contentType(MediaType.APPLICATION_JSON)
                 .content(body.replace("\"schemaVersion\":1", "\"schemaVersion\":2")))
                 .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("UNSUPPORTED_CONTRACT"));
         verifyNoInteractions(service);
@@ -76,11 +76,11 @@ class PaymentWithdrawalControllerTest {
                 .thenThrow(PaymentWithdrawalException.conflict("WITHDRAWAL_STATE_CONFLICT"))
                 .thenThrow(new IllegalStateException("private-payload"));
         for (String code : new String[]{"EVENT_ID_CONFLICT", "WITHDRAWAL_STATE_CONFLICT"})
-            mvc.perform(post(path).with(user("identity").roles("IDENTITY_WORKLOAD")).contentType(MediaType.APPLICATION_JSON).content(body))
+            mvc.perform(post(path).with(identityJwt()).contentType(MediaType.APPLICATION_JSON).content(body))
                     .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value(code))
                     .andExpect(jsonPath("$.retryable").value(false)).andExpect(jsonPath("$.correlationId").isString())
                     .andExpect(jsonPath("$.isSuccess").doesNotExist());
-        mvc.perform(post(path).with(user("identity").roles("IDENTITY_WORKLOAD")).contentType(MediaType.APPLICATION_JSON).content(body))
+        mvc.perform(post(path).with(identityJwt()).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isServiceUnavailable()).andExpect(header().string("Retry-After", "5"))
                 .andExpect(jsonPath("$.retryable").value(true)).andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("private-payload"))));
     }

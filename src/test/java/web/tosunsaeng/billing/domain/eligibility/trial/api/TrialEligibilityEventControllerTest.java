@@ -25,7 +25,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import web.tosunsaeng.billing.global.config.security.SecurityConfig;
+import web.tosunsaeng.billing.global.config.security.*;
 import web.tosunsaeng.billing.domain.eligibility.trial.exception.TrialEligibilityException;
 import web.tosunsaeng.billing.domain.eligibility.trial.application.TrialEligibilityEventOutcome;
 import web.tosunsaeng.billing.domain.eligibility.trial.application.TrialEligibilityEventService;
@@ -34,13 +34,13 @@ import web.tosunsaeng.billing.domain.eligibility.trial.domain.entity.TrialEligib
 import web.tosunsaeng.billing.domain.eligibility.trial.domain.enums.TrialEligibilityEventType;
 
 @WebMvcTest(TrialEligibilityEventController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, WorkloadSecurityConfiguration.class, IdentityJwtMvcSupport.ClockConfig.class})
 @ActiveProfiles("test")
 @TestPropertySource(properties = {
         "billing.internal-ingress.mode=test",
         "billing.trial-eligibility.expected-consumer-scope-id=opaque-scope-v1"
 })
-class TrialEligibilityEventControllerTest {
+class TrialEligibilityEventControllerTest extends IdentityJwtMvcSupport {
 
     private static final String PATH = "/internal/v1/eligibility/trial/events";
     private static final byte[] JSON = "{\"schemaVersion\":1}".getBytes();
@@ -61,7 +61,7 @@ class TrialEligibilityEventControllerTest {
         when(service.process(event)).thenReturn(TrialEligibilityEventOutcome.APPLIED);
 
         mockMvc.perform(post(PATH)
-                        .with(user("identity").roles("IDENTITY_WORKLOAD"))
+                        .with(identityJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(JSON))
                 .andExpect(status().isNoContent())
@@ -73,7 +73,7 @@ class TrialEligibilityEventControllerTest {
     @Test
     void wrongPrincipalIsDeniedBeforeController() throws Exception {
         mockMvc.perform(post(PATH)
-                        .with(user("learning-core").roles("LEARNING_CORE_WORKLOAD"))
+                        .with(principalJwt("learning-core-service"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(JSON))
                 .andExpect(status().isForbidden());
@@ -86,7 +86,7 @@ class TrialEligibilityEventControllerTest {
         when(decoder.decode(any())).thenThrow(TrialEligibilityException.unsupportedContract());
 
         mockMvc.perform(post(PATH)
-                        .with(user("identity").roles("IDENTITY_WORKLOAD"))
+                        .with(identityJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(JSON))
                 .andExpect(status().isUnprocessableEntity())
@@ -104,7 +104,7 @@ class TrialEligibilityEventControllerTest {
         when(service.process(any())).thenThrow(TrialEligibilityException.temporarilyUnavailable());
 
         mockMvc.perform(post(PATH)
-                        .with(user("identity").roles("IDENTITY_WORKLOAD"))
+                        .with(identityJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(JSON))
                 .andExpect(status().isServiceUnavailable())
@@ -117,7 +117,7 @@ class TrialEligibilityEventControllerTest {
         byte[] oversized = new byte[TrialEligibilityEventDecoder.MAX_PAYLOAD_BYTES + 1];
 
         mockMvc.perform(post(PATH)
-                        .with(user("identity").roles("IDENTITY_WORKLOAD"))
+                        .with(identityJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(oversized))
                 .andExpect(status().isBadRequest())
@@ -129,7 +129,7 @@ class TrialEligibilityEventControllerTest {
     @Test
     void nonJsonContentTypeIsInvalidRequest() throws Exception {
         mockMvc.perform(post(PATH)
-                        .with(user("identity").roles("IDENTITY_WORKLOAD"))
+                        .with(identityJwt())
                         .contentType(MediaType.TEXT_PLAIN)
                         .content(JSON))
                 .andExpect(status().isBadRequest())
