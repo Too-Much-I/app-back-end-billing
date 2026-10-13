@@ -5177,3 +5177,139 @@
 - clean test bootJar 1,127통과/실패0/오류0/skip0, fixture3개SHA256/diff검사통과. 이후 코드수정없음. PR 병합·배포·210브랜치/코드·Jira 상태변경 없음.
 - WORKLOG/LC검토서 원문복구 및 백업은 사용자 별도승인 후 수행. 백업:/private/tmp/billing-pre-commit-backup.J6RctO. 다른 작업의 RevenueCat Google등록 문서와 두 공통기록의해당항목은 working tree에 보존·PR제외.
 - 이번 결과기록은 별도문서커밋으로 같은PR에 반영한다. 다음:PR검토/병합은별도승인,이후최신develop기반210착수. 남은별도작업변경은임의stash/삭제/커밋하지않음.
+
+
+### 2026-10-13 — LC JWT Billing B 최종 검증 재확인
+
+- 최종 소스/fixtureREADME 정리 후 `./gradlew test bootJar` 재실행 성공. 최종 XML 합계1,127개/실패0/오류0/skip0, 실행 JAR 빌드 확인. 앞선 clean test/bootJar와 동일 결과다.
+- frozen fixtures-1 SHA256/문서링크/diff 검사 통과. 후속 수정 없이 Billing B 로컬 완료로 기록한다. 실제LC/BillingTLS·키배포·C/배포/활성화는별도다.
+
+## 2026-10-13 PLAN-010 purchase-r1 상세 기술 초안
+
+- 브랜치: feat/TMI-209-billing-cleanup-foundation. 사용자 요청: 구매기록/기간권/중복/탈퇴후결제 및통합조회 상세규격작성.
+- 변경: docs/contracts/PLAN-010-purchase-technical-spec-r1.md 신규, PLAN010 링크/상태보충, CURRENT_STATE/WORKLOG. 기존ADR제품정책을재선택하거나기술초안을확정계약으로표시하지않음.
+- 내용: Purchase/entitlement/timeline/ledger모델·멱등business key/immutable digest·기간계산,입력effect/lifecycle CAS/pending·탈퇴/삭제후격리, sync응답/오류·paid/examAvailability 호환필드후보·paid-first,provider실증/DBindex/subset/보존/worker/flags/단계별테스트.
+- 유지: sync terminal120일·inbox120일·금융5년·backup35일,무료필드/수량의미/조회무변경·reserve최종판정·구매/환불/재가입정책. 유료전용GET신설없음. provider지원·신규암호화키/운영보존을실증완료로간주하지않음.
+- 검증: 실제controller/DTO/PublicResponse/PaymentOffer·foundation/withdrawal index·ADR/205규격정적대조,문서링크/JSON예시/diff검사. 코드미변경으로Gradle미실행,과거테스트를010검증으로재사용하지않음.
+- 미확인/다음:기술후보리뷰·신규effect/schema/crypto·RC서명/원구매자/SDKIDfixture·미결case보존·workerexact준비후OFF코어구현.011/012/013·205PR3/206실활성화별도.
+- 범위:기존및동시LC코드/문서/검증기록변경보존. 타서버/DB/credential/외부API/Jira/배포/commit/push변경없음.
+
+## 2026-10-13 공동 테스트 환경 검증 범위 정리
+
+- 사용자 요청: 「그럼 이건 한번에 다른 거까지 검증하자」.
+- runbooks/BILLING-JOINT-STAGING-VALIDATION-2026-10-13.md에 연결/JWT·무료 시험·Identity 이벤트/복구·조회/계정·lifecycle·관측 검증과 선행 조건/순서를 작성했다. 실제 사용자 트래픽 여부 확인, 미구현 결제·C 도구·실삭제 gate 및 미실행 결과 구분을 명시했다.
+- 문서만 변경. 배포·기능 활성화·타저장소/DB/Jira 변경·commit/push 없음. 기존 별도 변경 보존. 문서 변경이므로 Gradle 미실행.
+
+## 2026-10-13 구현·계획 복잡도 단순화 검토
+
+- 브랜치: feat/TMI-209-billing-cleanup-foundation. 목표: 사용자가 감수할 수 있는 지연/수동 운영과 금전·삭제 정합성 위험을 구분해 축소 후보 제시. 분석이며 변경 승인으로 확대하지 않음.
+- 근거: PLAN-010-purchase-technical-spec-r1.md의 §5.6 입력 source/effect/lifecycle pending, provider 처리 budget/worker, lookup key 회전 계획; CleanupEvidence.java의 Coverage 세 버전과 unavailable ports, CleanupConfiguration.java의 실제 provider 미연결/OFF 보호, CleanupPurger.java의 FinalPolicy·lease/version/epoch/최종 Tx.
+- 권장 후보: (1) 별도 범용 payment_evidence_effects 대신 입력 row terminal CAS와 pending 갱신을 같은 Tx로 하고 미매핑/보존 인계 case만 별도 유지; (2) 신규 sync는 durable 접수 후 공통 worker 경로, 이미 반영된 결과만 즉시 반환; (3) cleanup adapter/coverage/drain 정책을 하나의 배포형 revision으로 관리하는 방안; (4) 자동 온라인 lookup key 회전 대신 writer 중단·검증된 수동 이관 절차. 기존 초안이 자동 회전 구현을 완료했다는 뜻은 아님.
+- 위험/조건: worker-only는 반영 지연과 적체 위험, 입력별 pending 방식은 source별 원자 갱신/TTL 인계 회귀 필수, 통합 정책은 작은 변경에도 READY 증거 재확인 필요, 수동 key 교체는 일시 중단·운영 실수 위험. 실제 외부 조회 coverage 지원은 미확인이라 단일 revision 자체를 미구매 증명으로 삼지 않음. 미해결 보관을 무기한 승인하거나15일 조건부 삭제 정책을 변경하지 않음.
+- 유지: 인증/owner/environment, provider 거래 검증, unique/멱등, 구매·권리·원장 Tx, 탈퇴·삭제 경합, 무료·유료 분리, 환불/개인정보 보존 계약. 테스트 개수 자체를 줄이는 것을 목표로 하지 않음. 구현된205 삭제 잠금/최종 확인은 유지 권장.
+- 변경 파일: CURRENT_STATE.md와 WORKLOG.md의 분석 기록만. 정적 대조 및 diff whitespace 검사, 코드 미변경으로 Gradle 미실행. 이전 테스트를 이번 단순화 검증으로 사용하지 않음. 기존 dirty/동시 작업 보존, 타서버/Jira/DB/배포/commit/push 변경 없음.
+- 다음: 사용자 선택 후 PLAN-010 및 필요한205 규격을 수정하고, 기존 schema가 있는 변경은 reader 호환/증거 무효화 이관을 명시한 뒤 구현. 이번에는 정본 계약과 코드 미수정.
+
+## 2026-10-13 단순화 후보 기존안 대비 설명
+
+- 브랜치: feat/TMI-209-billing-cleanup-foundation. 사용자 요청: 네 가지 단순화 후보의 기존 방식/변경 방식/장단점 설명.
+- 정적 근거: PLAN-010 기술 초안의 effect/source/pending, 5초 조회 후 worker, lookup hash old/new 이관 규격과 CleanupEvidence.Coverage 세 버전 재확인. 1·2·4는 계획 단계이며3은 타입 구현/실제 provider 미연결임을 구분.
+- 설명 보완: pending 카운터를 무조건 제거하는 제안 아님. source terminal 전이와 카운터 갱신은 동일 Tx, 미매핑/TTL 인계는 보존. 공통 worker는 단일 서버 강제 아님. 정책 단일 revision은 cleanup 전용이며 일반 배포마다 증거 무효화하지 않음. 키 대상은 거래 lookup hash이며 기존 초안에 자동 교체 시스템이 이미 구현됐다는 주장은 하지 않음.
+- 장단점: 중복 상태/실행 경로 감소 대 반영 지연, 세부 정책 독립 변경 포기 대 재확인 증가, 온라인 이관 복잡도 감소 대 점검/수동 검증. 거래 고유성·삭제 최종 확인·인증·보존 계약은 유지 권장.
+- 변경: CURRENT_STATE/WORKLOG 기록만. diff 검사, 코드 변경 없으므로 Gradle 미실행. 기존 변경 보존, 타서버/DB/Jira/배포/commit/push 없음. 다음: 선택 승인 후 규격 개정, 아직 적용하지 않음.
+
+## 2026-10-13 단순화 1·3·4 선택 승인과2 지연 설명
+
+- 브랜치: feat/TMI-209-billing-cleanup-foundation. 사용자 승인: 접수 중심 관리, 삭제 정책 단일 revision, 고정 lookup 키/keyVersion·교체 기능 선개발 제외. worker-only는 소요시간 질문이며 미승인이다.
+- PLAN-010 초안의5초tick/외부조회5초budget을 확인. 적체 없는 첫 처리 대기0~5초에 외부 조회·DB·앱 재조회가 더해지며, provider 반영 지연/재시도/적체에는 상한 보장이 없음을 설명. 예시 계산은 실측이나 SLA가 아니다. 1초tick은 추가 선택 가능한 제안이지 확정값 아님.
+- CURRENT_STATE/WORKLOG 승인 기록만 변경. 코드·기술규격 본문·schema·Jira·배포·타서버·commit/push 변경 없음, 기존 변경 보존. 정적 조회/diff검사, 코드 미변경으로 Gradle 미실행.
+- 다음: 승인된1·3·4 기술규격 동기화 및3의 기존 증거/validator 이관 설계;2는 사용자 결정 후 반영. 인증·멱등·원자지급·삭제 최종 확인 유지.
+
+## 2026-10-13 구매 worker 1초poll 부하 검토
+
+- 브랜치: feat/TMI-209-billing-cleanup-foundation. 요청:1초주기의 부하 확인. PLAN-010 §5.10·5.12와 payment 소스 파일 목록을 정적 확인; 실제 구매worker/운영 부하 테스트는 아직 없음.
+- 추산: idle DB query rate=q*N/T. sync/inbox 각1조회·서버2대 가정은1초4QPS,5초0.8QPS. 일일345600 대69120조회이며 실제 claim/fence/작업write와 재시도 부하는 제외한 예시, 실배포 topology/DB비용 확인값 아님.
+- 조건: due index로 실행 가능한 작업만 bounded 조회, 실제predicate/sort의 explain 검증, 빈큐에서 외부API/heartbeat write/Tx 금지 방향, tick중첩 방지, lease 중복선점 보호, nextAttemptAt/backoff 유지. 1초tick과 같은 거래1초재조회·전체회원 스캔은 다름. 내부240회/분·동시4budget은 provider실quota 보장 아님.
+- 판단: 인덱스 기반 소수poll은 설계상 큰 부하를 뜻하지 않지만 초안만으로 안전성 단정 불가. 1초는 설정 가능 후보로 두고 staging idle/backlog·다중인스턴스에서 examined docs/keys·DBCPU/latency·lease경합·queue age를 검증; 문제 있으면 주기 조정. 기존2~5초 예시는 SLA가 아님.
+- 변경: CURRENT_STATE/WORKLOG 분석기록만. diff검사, 코드미변경으로Gradle미실행. 코드/계약본문/flags/실DB/Jira/외부API/타서버/commit/push 변경 없음, 기존 변경 보존. 다음:2번 선택 후 규격반영 및구현/부하검증.
+
+## 2026-10-13 단순화 방향 승인 문서 반영
+
+- 브랜치: feat/TMI-209-billing-cleanup-foundation. 사용자 「좋아 그렇게 하는 걸로 하자」로 공통background/초기1초poll·부하확인 후 조정 방향 승인. 앞서 승인된1·3·4와 함께 문서 정합화.
+- 변경: PLAN-010 계획/상세 기술규격, TMI-205 기술규격, CONTRACT_DECISIONS, CURRENT_STATE, WORKLOG. 범용 evidence_effects 후보/index 삭제, source counted/pending 동일Tx·예외case 인계 보존, 신규sync durable202·기반영거래200/외부조회 worker 단일화,1초 due poll 및빈큐/중첩/부하gate,고정lookup키를 반영했다. 지급 ledger effect unique는 유지한다.
+- 205는 단일cleanupPolicyVersion 목표만 반영. 현재 세 필드와r1/r2 manifest는 구현 사실로 보존하고 새revision/호환reader/기존proof재확인·구writer격리 필요를 명시했다. 이관 코드나schema를 문서 승인만으로 적용하지 않음.
+- 앱 Retry-After:5·sync12회/분은 유지. 앞선 앱2초재조회 가정 예시를 SLA로 쓰지 않으며1초tick과UI갱신을구분. 전체010기술규격/구현·provider검증·실부하·배포 승인으로 확대하지 않음.
+- 검증: 문서정적대조·git diff --check 통과. 코드 미변경으로 Gradle 미실행. 기존 dirty/동시변경 보존, 타서버/실DB/설정/Jira/배포/commit/push 없음. 다음:source/case exact schema 및205호환이관 규격 정리 후 승인 범위 구현, staging 부하 측정.
+
+## 2026-10-13 다음 구현 순서 안내
+
+- 브랜치: feat/TMI-209-billing-cleanup-foundation. 사용자 요청: 다음 작업 안내. PLAN010 상세규격 §6.1/6.3과 최신 승인 기록 정적 대조.
+- 권장: 첫slice의 접수/case schema·index·pending 원자 갱신 규격을 기존 문서에서 확정 후 OFF 구매/기간권 코어, sync/통합조회, 공통worker/provider 실증·부하검증 순서.205실거래 연결 때 정책revision 이관을 포함하며 실삭제는 별도gate 유지. 별도 큰 계획서를 반복 작성할 필요 없음.
+- 변경: CURRENT_STATE/WORKLOG 안내기록만. 코드/정책/DB/Jira/배포/타서버/commit/push 변경없음. 코드미변경으로Gradle미실행, diff검사. 기존변경보존. 다음:사용자 착수 요청 후 해당 이슈/완료조건 확인과 첫slice 범위 준비.
+
+## 2026-10-13 TMI-210 Jira 우선 생성
+
+- 브랜치: feat/TMI-209-billing-cleanup-foundation. 직전 사용자 구현 요청으로 코드/기반/상위이슈를 읽었지만 편집 전 사용자가 중단하고 Jira 우선 생성을 요청함. 신규 구현 파일/실행중 빌드 없음.
+- Jira TMI-137 에픽·프로젝트 작업 유형/필수필드 확인, parent/PLAN010 검색으로 동일 첫slice 이슈 부재 확인 후 TMI-210 생성. 제목: [Billing PLAN-010 1차] 접수 중심 구매·기간권 원장 코어 구현. parent=TMI-137, 상태=해야 할 일을 재조회 확인. 담당자 지정/기존 이슈 수정/추가 상태전환 없음.
+- 포함: 접수/case 저장규격, source pending 원자갱신,검증관측/fake 기반구매·기간권·원장·timeline,중복/탈퇴/삭제경합·Mongo회귀. 제외: public API/실provider/1초worker·부하/205실삭제·정책revision 이관/011·012/배포. 전체010완료와 첫slice완료 구분.
+- 로컬 변경: PLAN010 Jira링크/범위, CURRENT_STATE, WORKLOG. 문서 diff검사, 코드변경없어 Gradle 미실행. 기존dirty/동시변경 보존. 타서버/DB/배포/commit/push 없음.
+- 다음: TMI-210 완료조건에 맞춰 코어 구현 재개. 이번 요청에서는 Jira 생성까지만 수행.
+
+## 2026-10-13 TMI-209→210 브랜치 분리 사전 안내
+
+- 브랜치: feat/TMI-209-billing-cleanup-foundation. 사용자 질문:210새브랜치가209작업과섞이는지확인.
+- git status/log/branch/worktree 읽기결과 현재209와로컬develop HEAD=ee164ac,209전용커밋없음. cleanup·LC JWT·결제계획 변경이 미커밋/미추적으로 같은checkout에 존재.210브랜치없고210코어신규코드는아직없음. 원격fetch/PR최신조회는수행하지않음.
+- 권장:지금branch만생성하면미커밋파일도따라가므로먼저기존변경을작업범위별검토하고사용자가커밋/PR정리,가능하면develop병합후210분기. 일괄git add로209에모든작업을섞지않음. 병합전종속브랜치는가능하지만기반커밋포함/추후정리비용을설명.
+- 변경:CURRENT_STATE/WORKLOG기록만,기존파일보존. 브랜치생성/전환·stage·commit/push·stash·Jira/배포/코드변경없음. 정적확인/diff검사,코드미변경으로Gradle미실행. 다음:사용자방향에따라기존dirty변경범위분류부터진행.
+
+## 2026-10-13 기존 변경 분류 및 Git 예외 범위 확인
+
+- 브랜치: feat/TMI-209-billing-cleanup-foundation. 사용자「이번작업에 한해서 해줘」가commit/push예외까지포함하는지확인질문. 읽기전용분류를먼저수행했고Git쓰기미수행.
+- 분류:209cleanup코드/설정/schema/테스트·205계획/안내,LC JWT보안/컨트롤러회귀/fixture/script/인증계약,결제통합조회/단순화/210문서,clock회귀/운영인계. application.yml·AGENTS·통합계약·공통기록은복수범위로hunk검토필요.
+- 주의:기존WORKLOG diff가5005줄삭제/1576줄추가로관측됨(이번항목추가전). 과거기록축약/재작성변경은기존dirty로보존,의도확인없이되돌리거나커밋하지않음. LC검토문서도큰변경으로별도검토필요.
+- 변경:이기록및CURRENT_STATE만갱신. stage/commit/push/branch/stash/Jira/코드/배포변경없음. 정적diff분류,코드미변경으로Gradle미실행. 다음:예외범위확인후검증·단위별stage/커밋계획,과거기록보존문제부터해결.
+
+
+## 2026-10-13 — 사용자 승인에 따른 작업 기록 원문 복구
+
+- commit/push/PR 생성 전 점검에서 WORKLOG가 CURRENT_STATE 계열 내용으로 덮여 있고 LC JWT 검토서는 통합계약 내용과 일치함을 확인했다. 사용자에게 보고하고 「백업 후 원문 복구·새 기록 보존」 승인을 받았다.
+- HEAD의 기존 WORKLOG 원문을 byte 순서 그대로 보존하고 현재 파일의 LC B 최종 검증 항목 이후 신규 기록을 append했다. 덮어쓴 상태의 두 파일은 /private/tmp/billing-pre-commit-backup.J6RctO 에 별도 백업했다. CURRENT_STATE의 기존 작업 요약도 유지한다. 사라진 개별 작업 기록을 새로 지어내지 않는다.
+- LC JWT 검토서는 HEAD 원문을 복구하고 최신 구현/수락 문서 연결만 덧붙였다. 원문 복구는 과거 검토를 최신 승인보다 우선한다는 뜻이 아니다.
+
+
+## 2026-10-13 기존 작업 커밋·push·PR 준비 검증
+
+- 사용자 명시 예외 승인: 이번 작업의 commit/push/PR 생성까지. 병합·210구현·배포는 범위 밖. feat/TMI-209-billing-cleanup-foundation의 기존 cleanup/LC JWT/결제문서를 범위별 커밋으로 분리한다.
+- clean test bootJar 재실행: 1,127개 통과/실패0/오류0/skip0, BUILD SUCCESSFUL. LC fixture 3개 SHA256 일치, diff whitespace 검사 통과. 실제 Store/RevenueCat/AWS/배포·부하 검증을 수행한 것은 아니다.
+- 사용자 승인으로 WORKLOG 및 LC 검토서의 덮어쓴 내용을 /private/tmp/billing-pre-commit-backup.J6RctO 에 백업하고 HEAD 원문+새 기록을 보존했다. 이전 기록 삭제 없음.
+- 동시 작업에서 추가된 REVENUECAT-GOOGLE-REGISTRATION-2026-10-13.md와 CURRENT_STATE/WORKLOG의 해당 항목은 별도 작업으로 보존하고 이번 커밋에서 제외한다. 기존 공통문서의 이번 범위만 snapshot으로 stage한다.
+- 코드 동작 변경 없이 정리/검증/버전관리 수행. Jira 상태는 변경하지 않는다. 다음:develop 대상 PR 생성·연결확인;병합은사용자판단후별도,210은병합된기반에서착수.
+
+
+## 2026-10-13 PR #13 생성·push 확인
+
+- 사용자 이번 작업 한정 예외 승인으로 commit/push/PR 생성 완료. cleanup65bb8dd, LC JWT379d543, 결제문서7ebfae8을 기존209브랜치에 분리했다. PR: https://github.com/Too-Much-I/app-back-end-billing/pull/13 (develop 대상). 생성 후 OPEN/대상branch/세 커밋을 재조회하고 현재 chat에 PR을 첨부했다.
+- clean test bootJar 1,127통과/실패0/오류0/skip0, fixture3개SHA256/diff검사통과. 이후 코드수정없음. PR 병합·배포·210브랜치/코드·Jira 상태변경 없음.
+- WORKLOG/LC검토서 원문복구 및 백업은 사용자 별도승인 후 수행. 백업:/private/tmp/billing-pre-commit-backup.J6RctO. 다른 작업의 RevenueCat Google등록 문서와 두 공통기록의해당항목은 working tree에 보존·PR제외.
+- 이번 결과기록은 별도문서커밋으로 같은PR에 반영한다. 다음:PR검토/병합은별도승인,이후최신develop기반210착수. 남은별도작업변경은임의stash/삭제/커밋하지않음.
+
+## 2026-10-13 TMI-210 브랜치 이동 확인
+
+- 브랜치:feat/TMI-210-purchase-ingestion-timeline-core. 사용자요청:브랜치이동확인. HEAD=d4f290e(PR13 merge),로컬develop/origin/develop과동일이며cfdbf3f가ancestor임을확인. develop...HEAD=0/0,210코어코드/커밋아직없음.
+- 점검전남은변경:WORKLOG에기존기록이반복추가된115줄과미추적REVENUECAT-GOOGLE-REGISTRATION-2026-10-13.md. 이전작업의6줄잔여상태와다름을알리고보존,자동복구/삭제/커밋하지않음.
+- 변경:CURRENT_STATE·WORKLOG확인기록만. Git상태/log/ancestor정적확인,코드미변경으로Gradle미실행. 원격fetch/PR조작/branch전환/구현/commit/push/Jira/배포없음. 다음:210착수가능,공통기록잔여는코드와분리해보존.
+
+## 2026-10-13 TMI-210 구매 접수·기간권 코어 구현
+
+- 브랜치: `feat/TMI-210-purchase-ingestion-timeline-core`. 목표: 사용자의 구현 요청에 따라 TMI-210 첫 slice 구현. Jira 본문은 읽기 확인했으며 변경하지 않았다. 기존 WORKLOG 반복 기록과 별도 RevenueCat Google 등록 문서는 사용자 요청대로 보존했다.
+- 변경 파일: `domain/payment/purchase`의 PurchaseLookupKey/PurchaseObservation/PurchaseCore/PurchaseCoreSchema, PaymentRecoveryFence의 전용 writer·barrier 반환, purchase 단위/통합 테스트와 CleanupIntegrationTest 2회귀. PLAN-010·purchase-r1·TMI-210 runbook·CURRENT_STATE·본 append 기록. 실제 환경설정/무료 reader/Identity/LC 코드 변경 없음.
+- 동작: 검증된 관측의 환경/app/고정 keyVersion·digest·원구매자 매핑 확인, inbox와 pending 증가 원자 접수, Purchase+기간권+timeline+원장+입력 완료/pending 감소 원자 처리. 1/3/7/14/28일·commit 순서 stacking·원구매시각 보존. 탈퇴/inactive/불일치/미매핑은 case 인계이며 pending 총수 보존. refund-first 및 미매핑 reversal은 후속 지급 차단. 원장/권리 자동 복원·계정 재생성 없음.
+- 유지 계약: mandatory epoch/control, ALL_BLOCKED 차단·PURCHASE_BLOCKED 금융 사실만 허용, current ACTIVE ref만 최초 지급. 무료/인증/기존 schema 불변. 실제 provider I/O·public sync/reader·1초 worker·012 기존권리 환불/reflow·205 실금융 reader/coverage·정책revision 통합은 연결하지 않았다. 명시 생성형 코어만 추가해 실제 판매/자동 삭제 활성화 없음.
+- 저장 규격: payment-purchase-core-r1 programmatic manifest에 6 collection/필수·null/BSON/명명 index/TTL 고정. startup 자동 DDL 없고 ALL_BLOCKED+writer 격리 아래 명시 설치만 제공. source 완료/인계 후만120일 purgeAt;119일 explicit handoff. case 종료/자동 인계·overdue 운영은 후속 gate이며 무기한 보존 승인 아님. 키 교체는 maintenance 이관이며 같은 version으로 실제키만 바꾸는 실수 자동 탐지 보장은 없음.
+- 테스트: 최초 focused 31개 중 unknown commit 주입의 서버 종료 계열91이2초 예산 초과로1실패. 기존 저장소 패턴대로 오류1/UnknownTransactionCommitResult와112/TransientTransactionError를 분리한 뒤 targeted 통과. 최종 `./gradlew clean test bootJar` **1,168통과/실패0/오류0/skip0**(baseline 대비41추가), Mongo replica-set 실제 트랜잭션/동시성·순서·schema/rollback 검증. 실제 서버 재시작/운영 부하 또는 provider 검증 결과 아님.
+- 위험/다음: 실제 Store/RevenueCat 검증 adapter·공통 worker/lease·case 해결/보존·public API 호환·012 revoke/환불·205 coverage·운영 부하/배포 gate 미완료. TMI-210 내부 코어와 PLAN-010 전체 완료 구분. Jira 상태/외부 메시지/실제 DB/schema·키/배포·commit/push 변경 없음.
+
+## 2026-10-13 TMI-210 이후 작업 안내
+
+- 브랜치: feat/TMI-210-purchase-ingestion-timeline-core. 사용자 다음 작업 질의에 CURRENT_STATE/구현 안내를 읽어 확인했다. 코어 검토·사용자 커밋/PR 정리 후 PLAN-010 2차 public sync/통합 reader의 exact DTO·호환·기본OFF 구현을 권장한다. 실제 provider/공통 worker·205 금융 조회 연결·011/012/운영 활성화는 별도다.
+- 변경: CURRENT_STATE/WORKLOG 기록만. 코드/정책/외부 API/무료 조회 계약 유지, 새 Jira 생성/상태변경·외부 메시지·Git/배포 없음. 테스트 재실행 없음(직전1168통과와 구분). 다음: 2차 구현 범위·계획/이슈 정리 후 승인된 구현 진행.

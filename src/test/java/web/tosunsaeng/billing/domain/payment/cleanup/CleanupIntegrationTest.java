@@ -17,6 +17,7 @@ import web.tosunsaeng.billing.domain.payment.config.*;
 import web.tosunsaeng.billing.domain.payment.domain.WithdrawalFact;
 import web.tosunsaeng.billing.domain.payment.recovery.*;
 import web.tosunsaeng.billing.domain.payment.repository.PaymentStore;
+import web.tosunsaeng.billing.domain.payment.purchase.*;
 import static web.tosunsaeng.billing.domain.payment.cleanup.CleanupEvidence.*;
 import static org.assertj.core.api.Assertions.*;
 
@@ -91,6 +92,35 @@ class CleanupIntegrationTest {
         var lease = p.claim(id);
         assertThat(p.complete(lease, new Decision(State.READY, null, proof))).isEqualTo(State.READY);
         return id;
+    }
+    PurchaseCore purchaseCore() {
+        barrier("ALL_BLOCKED"); PurchaseCoreSchema.installUnderMaintenance(db, true); barrier("OPEN");
+        return new PurchaseCore(store, props, clock, Map.of(PurchaseObservation.Store.PLAY_STORE, "fake.app"), "fake-v1");
+    }
+    PurchaseObservation incoming(String reference) {
+        return new PurchaseObservation("SANDBOX", PurchaseObservation.Store.PLAY_STORE, "fake.app", "a".repeat(64), "fake-v1",
+                "b".repeat(64), PurchaseObservation.Kind.PURCHASE, reference, "PREMIUM_1D", NOW.minusSeconds(100), null);
+    }
+    @Test void realPurchaseReceiptInvalidatesAlreadyClaimedPurgeProof() {
+        String id = ready(true);
+        String reference = db.getCollection("payment_accounts").find().first().getString("activeRefId");
+        var core = purchaseCore(); var purge = purger(); var lease = purge.claim(id);
+        assertThat(lease).isNotNull();
+        core.receive(incoming(reference));
+        assertThat(purge.purge(lease)).isEqualTo(CleanupPurger.Result.RECHECK);
+        assertThat(db.getCollection("payment_accounts").countDocuments()).isEqualTo(1);
+        assertThat(db.getCollection("payment_account_lifecycles").find().first().getLong("pendingEvidence")).isEqualTo(1);
+    }
+    @Test void realPurgeFirstMakesLatePurchaseUnmappedWithoutRecreation() {
+        String id = ready(true);
+        String reference = db.getCollection("payment_accounts").find().first().getString("activeRefId");
+        var core = purchaseCore();
+        assertThat(purger().tryPurge(id)).isEqualTo(CleanupPurger.Result.PURGED);
+        var o = incoming(reference); core.receive(o);
+        assertThat(core.apply(o.providerEventKey())).isEqualTo(PurchaseCore.Outcome.REVIEW_REQUIRED);
+        assertThat(db.getCollection("payment_accounts").countDocuments()).isZero();
+        assertThat(db.getCollection("purchase_account_refs").countDocuments()).isZero();
+        assertThat(db.getCollection("payment_purchase_cases").find().first().getBoolean("counted")).isFalse();
     }
     @Test void purgeClaimPreservesProofAndExcludesOtherDeletionAndVerification() {
         String id = ready(true); var original = new Document(cleanup().get("proof", Document.class));

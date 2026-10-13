@@ -13,7 +13,7 @@ import static web.tosunsaeng.billing.domain.payment.exception.PaymentException.r
  */
 public final class PaymentRecoveryFence {
     public static final String COLLECTION = "payment_recovery_controls";
-    public enum Writer { ACCOUNT, PUSH, RECOVERY, CLEANUP, PURGE }
+    public enum Writer { ACCOUNT, PUSH, RECOVERY, CLEANUP, PURGE, PAYMENT_INPUT, PAYMENT_APPLY }
     public enum Barrier { OPEN, PURCHASE_BLOCKED, ALL_BLOCKED }
     public record Ticket(String epoch) {
         public Ticket { canonical(epoch); }
@@ -34,12 +34,13 @@ public final class PaymentRecoveryFence {
             throw web.tosunsaeng.billing.domain.payment.exception.PaymentException.unavailable();
         }
     }
-    public void acquire(ClientSession session, Ticket ticket, Writer writer) {
+    public Barrier acquire(ClientSession session, Ticket ticket, Writer writer) {
         require(session != null && session.hasActiveTransaction());
         if (!properties.getRecovery().isFenceRequired()) {
             // Recovery can never run without its mandatory fence.
-            require(ticket == null && writer != Writer.RECOVERY && writer != Writer.CLEANUP && writer != Writer.PURGE);
-            return;
+            require(ticket == null && writer != Writer.RECOVERY && writer != Writer.CLEANUP && writer != Writer.PURGE
+                    && writer != Writer.PAYMENT_INPUT && writer != Writer.PAYMENT_APPLY);
+            return Barrier.OPEN;
         }
         require(ticket != null && writer != null);
         var controls = store.database().getCollection(COLLECTION);
@@ -56,6 +57,7 @@ public final class PaymentRecoveryFence {
                 .append("version", version).append("barrier", barrier.name());
         require(controls.updateOne(session, match,
                 new Document("$inc", new Document("version", 1L))).getModifiedCount() == 1);
+        return barrier;
     }
     private Document key() {
         require(Set.of("SANDBOX", "PRODUCTION").contains(properties.getEnvironment()));
