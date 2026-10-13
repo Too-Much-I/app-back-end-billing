@@ -1,6 +1,7 @@
 # Billing Service 현재 상태
 
 - 최종 갱신일: 2026-10-13
+- 2026-10-13 PR 생성 완료: [PR #13](https://github.com/Too-Much-I/app-back-end-billing/pull/13), develop←feat/TMI-209-billing-cleanup-foundation. cleanup65bb8dd/LC JWT379d543/결제문서7ebfae8 세범위커밋push·PR생성/연결확인. 전체1,127테스트및bootJar통과. 원문복구백업보존,별도RevenueCat등록문서·기록은미커밋유지. PR병합/배포/210분기·구현/Jira상태변경없음.
 - 2026-10-13 커밋·PR 준비: 이번 작업에 한해 사용자 commit/push/PR 예외 승인. 기존209cleanup/LC JWT/결제문서를범위별커밋으로분리, 전체 clean test bootJar 1,127통과/실패0/오류0/skip0·fixture SHA256검사통과. WORKLOG/LC검토서덮어쓰기복구승인후백업·Git원문/새기록보존.210코어/배포/병합없음. 동시작업의RevenueCat Google등록문서·기록은커밋제외,PR생성은후속결과기록참조.
 - 2026-10-13 변경 분류·Git 예외 범위 확인 중: 사용자「이번작업에 한해서 해줘」의 commit/push 예외 범위를 질문했다.209cleanup,LC JWT,결제문서,clock회귀/공동운영문서로분류 가능하나application.yml·AGENTS·통합계약·기록은hunk단위검토필요. WORKLOG에기존약5005줄삭제/1576줄추가가관측돼과거기록정리는의도확인전커밋대상확정하지않음. 상태기록외파일보존,stage/commit/branch/push없음.
 - 2026-10-13 TMI-210 브랜치 착수 전 점검: 현재209브랜치와 로컬develop은ee164ac이며209 전용커밋 없이 cleanup/LC JWT/결제문서 미커밋변경이 같은checkout에 있다.210브랜치는 아직없음. 즉시switch -c는 변경을분리하지 않으므로 기존변경을범위별검토/사용자커밋·PR정리한뒤병합된develop에서210분기 권장. 원격최신상태는fetch하지않았으며로컬관측만. Git상태/브랜치수정없음.

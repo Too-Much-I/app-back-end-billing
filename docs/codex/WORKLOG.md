@@ -5169,3 +5169,11 @@
 - 사용자 승인으로 WORKLOG 및 LC 검토서의 덮어쓴 내용을 /private/tmp/billing-pre-commit-backup.J6RctO 에 백업하고 HEAD 원문+새 기록을 보존했다. 이전 기록 삭제 없음.
 - 동시 작업에서 추가된 REVENUECAT-GOOGLE-REGISTRATION-2026-10-13.md와 CURRENT_STATE/WORKLOG의 해당 항목은 별도 작업으로 보존하고 이번 커밋에서 제외한다. 기존 공통문서의 이번 범위만 snapshot으로 stage한다.
 - 코드 동작 변경 없이 정리/검증/버전관리 수행. Jira 상태는 변경하지 않는다. 다음:develop 대상 PR 생성·연결확인;병합은사용자판단후별도,210은병합된기반에서착수.
+
+
+## 2026-10-13 PR #13 생성·push 확인
+
+- 사용자 이번 작업 한정 예외 승인으로 commit/push/PR 생성 완료. cleanup65bb8dd, LC JWT379d543, 결제문서7ebfae8을 기존209브랜치에 분리했다. PR: https://github.com/Too-Much-I/app-back-end-billing/pull/13 (develop 대상). 생성 후 OPEN/대상branch/세 커밋을 재조회하고 현재 chat에 PR을 첨부했다.
+- clean test bootJar 1,127통과/실패0/오류0/skip0, fixture3개SHA256/diff검사통과. 이후 코드수정없음. PR 병합·배포·210브랜치/코드·Jira 상태변경 없음.
+- WORKLOG/LC검토서 원문복구 및 백업은 사용자 별도승인 후 수행. 백업:/private/tmp/billing-pre-commit-backup.J6RctO. 다른 작업의 RevenueCat Google등록 문서와 두 공통기록의해당항목은 working tree에 보존·PR제외.
+- 이번 결과기록은 별도문서커밋으로 같은PR에 반영한다. 다음:PR검토/병합은별도승인,이후최신develop기반210착수. 남은별도작업변경은임의stash/삭제/커밋하지않음.
