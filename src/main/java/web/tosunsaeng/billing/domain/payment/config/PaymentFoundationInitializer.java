@@ -25,7 +25,7 @@ public class PaymentFoundationInitializer implements ApplicationRunner {
         this.properties = properties; this.store = store; this.catalog = catalog;
     }
     @Override public void run(ApplicationArguments args) {
-        if (!properties.enabled() && !properties.isWithdrawalEnabled()) return;
+        if (!properties.isCatalogEnabled() && !properties.isPurchaseAccountEnabled() && !properties.isWithdrawalEnabled()) return;
         initialize(store.database());
         if (properties.isWithdrawalEnabled()) initializeWithdrawal(store.database());
         if (properties.isCatalogEnabled()) catalog.read();
@@ -37,6 +37,13 @@ public class PaymentFoundationInitializer implements ApplicationRunner {
         initialize(db, "/payment-withdrawal-indexes.json");
     }
     private static void initialize(MongoDatabase db, String resource) {
+        inspect(db, resource, true);
+    }
+    public static void verify(MongoDatabase db) {
+        inspect(db, "/payment-foundation-indexes.json", false);
+        inspect(db, "/payment-withdrawal-indexes.json", false);
+    }
+    private static void inspect(MongoDatabase db, String resource, boolean create) {
         try (var input = PaymentFoundationInitializer.class.getResourceAsStream(resource)) {
             var manifest = new ObjectMapper().readTree(Objects.requireNonNull(input));
             for (var row : manifest.get("indexes")) {
@@ -46,7 +53,7 @@ public class PaymentFoundationInitializer implements ApplicationRunner {
                 Document partial = row.has("partialFilterExpression") ? Document.parse(row.get("partialFilterExpression").toString()) : null;
                 Long ttl = row.has("expireAfterSeconds") ? row.get("expireAfterSeconds").longValue() : null;
                 var metadata = db.listCollections().filter(new Document("name", collection)).first();
-                if (metadata == null) db.createCollection(collection);
+                if (metadata == null) { if (!create) mismatch(); db.createCollection(collection); }
                 else {
                     var options = metadata.get("options", Document.class);
                     Document collation = options == null ? null : options.get("collation", Document.class);
@@ -56,6 +63,7 @@ public class PaymentFoundationInitializer implements ApplicationRunner {
                 var existing = target.listIndexes().into(new ArrayList<>());
                 Document named = existing.stream().filter(i -> name.equals(i.getString("name"))).findFirst().orElse(null);
                 if (named == null) {
+                    if (!create) mismatch();
                     if (existing.stream().anyMatch(i -> keys.equals(i.get("key")))) mismatch();
                     IndexOptions options = new IndexOptions().name(name).unique(unique);
                     if (partial != null) options.partialFilterExpression(partial);

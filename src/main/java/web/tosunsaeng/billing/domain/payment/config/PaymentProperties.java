@@ -10,6 +10,8 @@ public class PaymentProperties {
     private boolean catalogEnabled;
     private boolean purchaseAccountEnabled;
     private boolean withdrawalEnabled;
+    private boolean syncEnabled;
+    private boolean entitlementQueryEnabled;
     private Recovery recovery = new Recovery();
     private Cleanup cleanup = new Cleanup();
     @Getter @Setter
@@ -33,5 +35,5 @@ public class PaymentProperties {
     private String environment = "";
     private long catalogVersion = 1;
     private String limiterKey = "";
-    public boolean enabled() { return catalogEnabled || purchaseAccountEnabled; }
+    public boolean enabled() { return catalogEnabled || purchaseAccountEnabled || syncEnabled || entitlementQueryEnabled; }
 }

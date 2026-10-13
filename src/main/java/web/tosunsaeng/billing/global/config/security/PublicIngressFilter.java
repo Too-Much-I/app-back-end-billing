@@ -11,9 +11,10 @@ public class PublicIngressFilter extends OncePerRequestFilter {
     public static final String PATH = "/api/v1/entitlements";
     public static final String PRODUCTS = "/api/v1/payments/products";
     public static final String ACCOUNT = "/api/v1/payments/purchase-account";
-    public static boolean payment(String path) { return PRODUCTS.equals(path) || ACCOUNT.equals(path); }
-    public static String method(String path) { return ACCOUNT.equals(path) ? "POST" : "GET"; }
-    public static String scope(String path) { return ACCOUNT.equals(path) ? "billing:purchase" : "billing:read"; }
+    public static final String SYNC = "/api/v1/payments/sync";
+    public static boolean payment(String path) { return PRODUCTS.equals(path) || ACCOUNT.equals(path) || SYNC.equals(path); }
+    public static String method(String path) { return ACCOUNT.equals(path) || SYNC.equals(path) ? "POST" : "GET"; }
+    public static String scope(String path) { return ACCOUNT.equals(path) || SYNC.equals(path) ? "billing:purchase" : "billing:read"; }
     private final EntitlementQueryProperties properties;
     private final PaymentProperties payments;
     private final PublicApiWriter writer;
@@ -31,7 +32,8 @@ public class PublicIngressFilter extends OncePerRequestFilter {
         if (publicPort || path.startsWith("/api/")) {
             writer.headers(response);
             boolean enabled = PATH.equals(path) ? properties.isEnabled()
-                    : PRODUCTS.equals(path) ? payments.isCatalogEnabled() : ACCOUNT.equals(path) && payments.isPurchaseAccountEnabled();
+                    : PRODUCTS.equals(path) ? payments.isCatalogEnabled() : SYNC.equals(path) ? payments.isSyncEnabled()
+                    : ACCOUNT.equals(path) && payments.isPurchaseAccountEnabled();
             if (!publicPort || !properties.isPublicConnectorEnabled() || !enabled) {
                 writer.error(response, 404, "NOT_FOUND"); return;
             }

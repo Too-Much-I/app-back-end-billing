@@ -20,11 +20,14 @@ public class PublicApiWriter {
         response.setCharacterEncoding("UTF-8");
     }
     public void error(HttpServletResponse response, int status, String code) throws IOException {
+        error(response, status, code, 5);
+    }
+    public void error(HttpServletResponse response, int status, String code, long retryAfter) throws IOException {
         headers(response); response.setStatus(status);
         if (status == 401) { response.setHeader("WWW-Authenticate", "Bearer"); }
         if (status == 403) { response.setHeader("WWW-Authenticate", "Bearer error=\"insufficient_scope\", scope=\"billing:read\""); }
         if (status == 405) { response.setHeader("Allow", "GET"); }
-        if (status == 429 || status == 503) { response.setHeader("Retry-After", "5"); }
+        if (status == 429 || status == 503) { response.setHeader("Retry-After", Long.toString(Math.max(1, retryAfter))); }
         json.writeValue(response.getOutputStream(), PublicResponse.failure(code));
     }
     public void success(HttpServletResponse response, Object value, boolean pending) throws IOException {
@@ -54,8 +57,13 @@ public class PublicApiWriter {
         json.writeValue(response.getOutputStream(), body);
     }
     public void paymentSuccess(HttpServletResponse response, Object value) throws IOException {
+        paymentSuccess(response, value, false);
+    }
+    public void paymentSuccess(HttpServletResponse response, Object value, boolean pending) throws IOException {
         byte[] bytes = json.writeValueAsBytes(PublicResponse.success(value));
         if (bytes.length > 16384) throw web.tosunsaeng.billing.domain.payment.exception.PaymentException.unavailable();
-        headers(response); response.setStatus(200); response.getOutputStream().write(bytes);
+        headers(response); response.setStatus(pending ? 202 : 200);
+        if (pending) response.setHeader("Retry-After", "5");
+        response.getOutputStream().write(bytes);
     }
 }

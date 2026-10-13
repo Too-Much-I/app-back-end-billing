@@ -32,6 +32,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class EntitlementQueryControllerTest {
     @Autowired MockMvc mvc;
     @Autowired EntitlementQueryProperties properties;
+    @Autowired web.tosunsaeng.billing.domain.payment.config.PaymentProperties payments;
+    @MockitoBean web.tosunsaeng.billing.domain.payment.application.PaymentRateLimiter paymentLimiter;
     @MockitoBean EntitlementQueryService service;
     @MockitoBean JwtDecoder identityUserJwtDecoder;
     static final String USER = "e8b37a41-bae6-47f1-a770-052e6c5786d4";
@@ -41,6 +43,7 @@ class EntitlementQueryControllerTest {
     }
     @BeforeEach void setup() {
         properties.setEnabled(true);
+        payments.setEntitlementQueryEnabled(false);
         when(identityUserJwtDecoder.decode("good")).thenReturn(token("billing:read"));
         when(identityUserJwtDecoder.decode("no-scope")).thenReturn(token("billing:purchase"));
         when(service.query(USER)).thenReturn(new EntitlementQueryResponse(Instant.now(), Consistency.LOCAL_PROJECTION, Status.READY, List.of()));
@@ -86,6 +89,24 @@ class EntitlementQueryControllerTest {
         mvc.perform(get(PublicIngressFilter.PATH).with(r -> { r.setLocalPort(8083); return r; }).header("Authorization", "Bearer good"))
                 .andExpect(status().isServiceUnavailable()).andExpect(jsonPath("code").value("ENTITLEMENT_QUERY_UNAVAILABLE"))
                 .andExpect(jsonPath("result").isEmpty()).andExpect(header().string("Cache-Control", "no-store"));
+    }
+    @Test void expandedReadKeepsNullAvailabilityAndUsesDistributedLimit() throws Exception {
+        payments.setEntitlementQueryEnabled(true);
+        when(service.query(USER)).thenReturn(new EntitlementQueryResponse(Instant.now(), Consistency.LOCAL_PROJECTION, Status.READY, List.of(),
+                web.tosunsaeng.billing.domain.payment.query.PaidQueryResponse.empty(false),
+                web.tosunsaeng.billing.domain.payment.query.ExamAvailability.unavailable()));
+        mvc.perform(get(PublicIngressFilter.PATH).with(r -> { r.setLocalPort(8083); return r; }).header("Authorization", "Bearer good"))
+                .andExpect(status().isOk()).andExpect(jsonPath("result.paid.active").value(false))
+                .andExpect(jsonPath("result.examAvailability.canTakeExam").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(header().string("Retry-After", "5"));
+        verify(paymentLimiter).acquire(web.tosunsaeng.billing.domain.payment.application.PaymentRateLimiter.Route.ENTITLEMENTS, USER);
+    }
+    @Test void expandedQuotaReturnsActualWaitBeforeRead() throws Exception {
+        payments.setEntitlementQueryEnabled(true);
+        when(paymentLimiter.acquire(web.tosunsaeng.billing.domain.payment.application.PaymentRateLimiter.Route.ENTITLEMENTS, USER)).thenReturn(23L);
+        mvc.perform(get(PublicIngressFilter.PATH).with(r -> { r.setLocalPort(8083); return r; }).header("Authorization", "Bearer good"))
+                .andExpect(status().isTooManyRequests()).andExpect(header().string("Retry-After", "23"));
+        verifyNoInteractions(service);
     }
     static Jwt token(String scope) {
         return Jwt.withTokenValue("test").header("alg", "RS256").subject(USER).claim("account_type", "GUEST")

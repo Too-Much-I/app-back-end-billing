@@ -14,6 +14,10 @@ public record PublicResponse<T>(@JsonProperty("isSuccess") boolean success, Stri
             case "INVALID_REQUEST" -> "올바르지 않은 요청입니다.";
             case "METHOD_NOT_ALLOWED" -> "허용하지 않는 요청 방식입니다.";
             case "RATE_LIMITED" -> "잠시 후 다시 시도해 주세요.";
+            case "PURCHASE_ACCOUNT_REQUIRED" -> "구매 계정 연결을 먼저 완료해 주세요.";
+            case "IDEMPOTENCY_KEY_CONFLICT", "PURCHASE_BINDING_CONFLICT" -> "결제 확인 요청을 처리할 수 없습니다.";
+            case "PAYLOAD_TOO_LARGE", "UNSUPPORTED_MEDIA_TYPE", "UNSUPPORTED_CONTRACT" -> "올바르지 않은 결제 확인 요청입니다.";
+            case "UNSUPPORTED_PRODUCT" -> "지원하지 않는 상품입니다.";
             default -> "사용권 정보를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.";
         };
         return new PublicResponse<>(false, code, message, null);

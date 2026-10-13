@@ -5313,3 +5313,45 @@
 
 - 브랜치: feat/TMI-210-purchase-ingestion-timeline-core. 사용자 다음 작업 질의에 CURRENT_STATE/구현 안내를 읽어 확인했다. 코어 검토·사용자 커밋/PR 정리 후 PLAN-010 2차 public sync/통합 reader의 exact DTO·호환·기본OFF 구현을 권장한다. 실제 provider/공통 worker·205 금융 조회 연결·011/012/운영 활성화는 별도다.
 - 변경: CURRENT_STATE/WORKLOG 기록만. 코드/정책/외부 API/무료 조회 계약 유지, 새 Jira 생성/상태변경·외부 메시지·Git/배포 없음. 테스트 재실행 없음(직전1168통과와 구분). 다음: 2차 구현 범위·계획/이슈 정리 후 승인된 구현 진행.
+
+## 2026-10-13 PLAN-010 2차 상세 계획 작성
+
+- 브랜치: develop, HEAD726b5ca(PR14 merge/210포함), 시작 시 clean. 사용자 요청에 따라 sync·통합 entitlement 조회의 상세 계획을 작성했다. 원격 PR/Git 상태 변경은 하지 않았다.
+- 변경: PLAN-010-phase-2-public-sync-and-entitlement-query.md 신규, 상위 PLAN010 링크, CURRENT_STATE·본 append. 요청/응답/오류/nullable·command/pending·HMAC hint·completion·동일snapshot·guard미준비 표시·flags·분할/회귀/배포조건을 기술 권장안으로 명시했다.
+- 코드 대조: 무료 조회는 Spring snapshot/로컬token bucket, payment는 직접session/분산limiter다. ON에서는 동일 session 읽기와 ADR 분산60회 이관, OFF는 기존무료 유지. provider/worker 미연결이면 production sync ON거절, clienthint로지급금지. processingHint·신규409/command보존은 확정사실이 아닌 동결대상이다.
+- 유지: 가격/기간/탈퇴/환불 정책·무료DTO 의미·인증경계·실제판매/삭제OFF. 실provider/worker·011/012/205연결은 후속. Jira생성/수정·타서버·코드/설정·commit/push/배포 없음. 문서 작업으로 Gradle 미실행, diff/상대링크 정적 검증. 예상 밖 변경 없음. 다음: 상세안 검토·기술후보동결→사용자승인Jira생성→OFF구현.
+
+## 2026-10-13 PLAN-010 2차 사용자 상세 설명
+
+- 브랜치: develop. 계획서를 재조회해 앱 결제 후 sync 접수/200·202,멱등key·토큰sub·pending/source역할,통합paid/무료/이용판정·동일snapshot·011미준비·기본OFF와 실제provider후속을 설명했다. 구매 수와 미처리 입력 수,APPLIED와현재 이용가능을 구분했다.
+- 변경: CURRENT_STATE/WORKLOG 기록만, 기존계획/코드/정책/외부계약 유지. Jira/Git조작/타서버/배포/구현 없음. 설명 작업으로 테스트 미실행,문서 재조회·diff 검사. 기존 미커밋 계획변경 보존,예상 밖 변경 없음. 다음: 기술권장안 검토/동결 및 승인 후 Jira·구현.
+
+## 2026-10-13 통합 응시가능 boolean 계획 반영·질의 설명
+
+- 브랜치: develop. 사용자 요청에 따라 2차계획/purchase-r1에 examAvailability.canTakeExam 추가,예시/테스트기준 동기화. ALLOWED=true/BLOCKED=false/PENDING=null 권장파생으로 기존확인불가를0/false로숨기지않는정책 유지. 현재 새시험/승인재응시 요약이며 기존시험진행/기록열람과구분,실제reserve최종판정 유지.
+- RevenueCat SDK의 앱 신호는 sync trigger이지 지급증거가 아님,사용자sub/requestkey/거래중복 식별 분리,command는 확인요청 접수장부,pending은 구매수아님,asOf는 조회기준시각임을 설명. 변경은 위두문서/CURRENT_STATE/WORKLOG만. 코드/API배포/Jira/타서버/Git조작 없음. 문서diff검사,문서작업으로테스트미실행. 기존변경보존/예상밖변경없음,다음은계획검토후구현.
+
+## 2026-10-13 TMI-211 Jira 생성
+
+- 브랜치: develop. 사용자 명시 생성 요청에 TMI-137/210과 상위/PLAN010 검색을 읽어 중복 확인 후 TMI-211 「[Billing PLAN-010 2차] 결제 sync·무료/유료 통합 조회 API 구현」 생성. 재조회로 parent137·해야 할 일·미할당 확인.
+- 범위: sync202/200·본인인증/멱등/pending·통합조회/canTakeExam true/false/null·동일snapshot·요청제한·기본OFF/테스트. 실제provider/worker·011/012/205활성화 제외,미확인기술값동결·운영gate 유지. 계획이현재로컬문서임을본문명시.
+- 변경: Jira 신규1건,2차계획키/상태·CURRENT_STATE/WORKLOG. 기존Jira상태/댓글/타서버/코드/설정/Git조작/배포없음. 원격생성재조회·문서diff검사,코드미변경으로Gradle미실행. 기존변경보존/예상밖변경없음. 다음:TMI211 상세규격정합화후승인된OFF구현.
+
+## 2026-10-13 환불 confirm Session 정책 변경 승인
+
+- 사용자 승인으로 exact confirm-first Session 기한 내 완료 허용, refund-first confirm/신규/replacement 차단을 확정했다. 별도 paid 채점승인API 제외·durable revoke/최소증거 유지. 기존reserve응답 출처추가 방향과 LC exact 동결/증거/guard/회귀 경계를 정책 변경 문서에 기록했다. ADR/PLAN/계약/AGENTS에 superseding 안내를 반영하고 과거 이력은 보존했다.
+- 문서만 변경, 코드/LC저장소/외부회신/DB/배포/Jira/commit/push 없음. Gradle 미실행. 4번 전송 방식 새선택은 미확정.
+
+## 2026-10-13 TMI-211 sync·통합 entitlement OFF 구현
+
+- 브랜치: feat/TMI-211-payment-sync-entitlement-query. 사용자 구현 요청에 따라 기존 TMI-211/137과 2차계획을 대조해 Billing만 구현했다. Jira는 읽기 확인만 했고 상태·댓글은 변경하지 않았다.
+- 변경 파일: payment/sync·query·PaymentSyncController·PaymentQueryConfiguration 신규, payment flags/limiter/schema verifier·public security/writer·무료 query service/controller/DTO·application.yml 연결. contract/MVC/Mongo/기동 gate 테스트47개 추가, 기존 전체 MVC security fixture에 새 decoder mock 추가. 2차계획/ADR004/purchase-r1·TMI211 runbook·CURRENT_STATE 및 본 append 동기화.
+- 동작: untrusted hint HMAC/strict body·MEMBER scope/sub/ACTIVE account·멱등 command/pending 원자 접수202, 기존 본인 verified200; 타인409/탈퇴403/계정미발급409/DB503. source와 command 완료 분리·epoch/version/pending 유지, client 신호만으로 지급하지 않음. paid/free 같은 Spring snapshot·기간/stacking·unresolved PENDING·누락503, 기존 무료 DTO는 확장OFF 불변. 통합 canTakeExam은 판정기미준비시null. sync12/통합60 분산quota·429잔여초.
+- 검증: 최종 ./gradlew clean test bootJar 성공, XML집계1,215통과/실패0/오류0/skip0(기존1,168 대비47추가). 실제 disposable Mongo replica-set에서 duplicate/동시접수·sourcecompletion·탈퇴·타인거래·epoch/overflow·schema drift·5기간/경계·반복read·동시commit snapshot·quota 검증. 최초 전체실행의 기존SecurityConfigTest6건은 새decoder fixture누락으로 보완후clean재실행 성공. git diff --check 통과. 실제provider/Store/외부HTTP·staging E2E 미실행.
+- 유지/위험: 무료원장/reserve·구매/환불제품정책·Identity/LC 코드 불변. flags기본OFF, 실제provider/worker가 없어 sync ON은 모든runtime profile에서기동거절; MVC에서만mock과기동후flag로검증. command TTL/purge/운영120일정리 미구현·실접수차단, admission/환불/205금융coverage 별도. standalone schema 설치는격리/ALL_BLOCKED 명시호출만, 운영DB수정없음.
+- 동시 변경: 작업 중 AGENTS/ADR/PLAN011~013 등 별도 환불 confirm Session 정책문서 추가를 관측해 보존했다. 이번코드에서 그정책/환불동작을 구현한 것으로 보고하지 않는다. 기존미커밋계획보존,WORKLOG과거기록미수정,commit/push/배포/외부메시지없음. 다음: 변경검토→실제provider/SDK거래매핑·공통worker/운영보존→011/012 및실환경 gate.
+
+## 2026-10-13 기존 이용증거 재사용 검토
+
+- 사용자 확인 요청으로 양측 source 읽기. LC v1 evidence/failureCode 존재·Billing 검증과 상세저장 부재·무료전용 consumer/purchase귀속 보완 필요를 확인했다. PLAN011 검토 기록 추가, 새버전/증거이벤트보다 기존wire+Billing내부저장 권장.
+- 코드/타저장소/실환경/계약확정/배포/Jira/commit/push 변경 없음. 정적 문서검사만, Gradle미실행.

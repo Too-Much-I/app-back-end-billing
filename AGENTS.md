@@ -1,5 +1,8 @@
 # 토선생 Billing Service Codex 작업 규칙
 
+> 2026-10-13 사용자 승인 정책 변경: [환불 전 confirm Session 완료 허용](docs/contracts/PAYMENT-CONFIRMED-SESSION-REFUND-POLICY-2026-10-13.md)을 우선 적용한다. 환불 전 confirm된 exact Session은 기존 제출 기한 안에 완료 허용, 환불 선행 confirm 및 신규/재응시는 차단한다. paid 전용 채점 승인 API는 제외하고 durable revoke 전달·구매별 최소 이용 증거는 유지한다. 기존 reserve 응답 출처 추가 방향이며 exact wire/LC 공동 동결은 별도다. 아래 OPEN 제출·채점 차단/GRADING-only 완료·전용 승인 API·v2 필수의 종전 표현은 이 변경 범위에서 역사적 기록으로 대체된다. 코드·LC 저장소·배포는 이번에 변경하지 않았다.
+
+
 > 2026-10-13 LC B 구현 승인: 사용자 「어 해줘」로 Billing 수신 코드·관련 테스트 구현을 승인했다. LC 여섯 POST는 전용 RS256 JWT 단일 인증/목적 인가, 독립 LC key/receiver flag와 공유 TLS OR기동으로 구현하며 기존 IAM permitAll/TEST 역할/다른 port 우회를 제거한다. 기본 OFF·실키 빈 값, Identity/user·업무 wire/원장/복구 불변이다. 타 저장소 코드·C 도구·배포/활성화는 이번 승인에 포함하지 않는다. 아래 B 착수 승인 대기 표현은 과거 준비 기록이다.
 
 > 2026-10-13 LC JWT 문서 동기화 승인: 사용자 요청으로 [LC B 구현 계획](docs/plans/PLAN-LC-BILLING-WORKLOAD-JWT.md)과 A 확정 계약을 구현 기준에 반영한다. LC→Billing 여섯 POST는 전용 workload JWT로 전환하며 기존 IAM permitAll/다른 port 우회를 제거하는 목표다. Identity·LC TLS는 공유하되 키·principal·목적/활성화는 독립, fallback 금지·기본 OFF다. B 코드 착수·C 도구·배포/활성화는 별도 승인이다. 아래 과거 LC Lattice/SigV4-only 규칙은 이 여섯 route의 승인된 목표에서 대체하며 현재 코드/실환경 전환 완료를 뜻하지 않는다. 사용자 JWT·업무 body/원장/복구 계약·과거 검증 기록은 유지한다.

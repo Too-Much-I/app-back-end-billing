@@ -3,8 +3,15 @@ package web.tosunsaeng.billing.domain.entitlement.dto.response;
 import java.time.Instant;
 import java.util.List;
 import web.tosunsaeng.billing.domain.attempt.domain.entity.AttemptGroup;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import web.tosunsaeng.billing.domain.payment.query.*;
 
-public record EntitlementQueryResponse(Instant asOf, Consistency consistency, Status status, List<Benefit> benefits) {
+public record EntitlementQueryResponse(Instant asOf, Consistency consistency, Status status, List<Benefit> benefits,
+                                      @JsonInclude(JsonInclude.Include.NON_NULL) PaidQueryResponse paid,
+                                      @JsonInclude(JsonInclude.Include.NON_NULL) ExamAvailability examAvailability) {
+    public EntitlementQueryResponse(Instant asOf, Consistency consistency, Status status, List<Benefit> benefits) {
+        this(asOf, consistency, status, benefits, null, null);
+    }
     public enum Consistency { LOCAL_PROJECTION }
     public enum Status { READY, PENDING }
     public enum Action { ALLOWED, BLOCKED, PENDING }

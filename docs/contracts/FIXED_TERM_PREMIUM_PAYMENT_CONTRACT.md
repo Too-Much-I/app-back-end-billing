@@ -1,5 +1,8 @@
 # Fixed-term premium 결제 계약 요약
 
+> 2026-10-13 사용자 승인 정책 변경: [환불 전 confirm Session 완료 허용](PAYMENT-CONFIRMED-SESSION-REFUND-POLICY-2026-10-13.md)을 우선 적용한다. 환불 전 confirm된 exact Session은 기존 제출 기한 안에 완료 허용, 환불 선행 confirm 및 신규/재응시는 차단한다. paid 전용 채점 승인 API는 제외하고 durable revoke 전달·구매별 최소 이용 증거는 유지한다. 기존 reserve 응답 출처 추가 방향이며 exact wire/LC 공동 동결은 별도다. 아래 OPEN 제출·채점 차단/GRADING-only 완료·전용 승인 API·v2 필수의 종전 표현은 이 변경 범위에서 역사적 기록으로 대체된다. 코드·LC 저장소·배포는 이번에 변경하지 않았다.
+
+
 - 작성일: 2026-09-05
 - 최종 갱신일: 2026-09-09
 - 상태: Apple·Google consumable one-time fixed-term 상품과 RevenueCat 결제 연동·9개 선택 승인. [ADR-004 기술 초안](../adr/ADR-004-fixed-term-premium-payment-contract.md) 작성 완료, 4주(28일) 상품·D1-A 정상 만료·D2-A 환불 취소 정책 승인. 기술 상세 검증·별도 PLAN·구현은 후속

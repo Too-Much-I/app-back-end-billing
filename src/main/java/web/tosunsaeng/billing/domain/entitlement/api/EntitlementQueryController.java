@@ -9,6 +9,9 @@ import jakarta.servlet.http.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+import web.tosunsaeng.billing.domain.payment.config.PaymentProperties;
+import web.tosunsaeng.billing.domain.payment.application.PaymentRateLimiter;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
@@ -26,11 +29,19 @@ public class EntitlementQueryController {
     private final MeterRegistry metrics;
     private final InternalIngressProperties ingress;
     private final Clock clock;
+    private PaymentProperties payments = new PaymentProperties();
+    private ObjectProvider<PaymentRateLimiter> paymentLimiter;
     public EntitlementQueryController(EntitlementQueryService service, EntitlementQueryRateLimiter limiter,
             PublicApiWriter writer, ObjectProvider<Tracer> tracer, MeterRegistry metrics,
             InternalIngressProperties ingress, Clock clock) {
         this.service = service; this.limiter = limiter; this.writer = writer;
         this.tracer = tracer.getIfAvailable(); this.metrics = metrics; this.ingress = ingress; this.clock = clock;
+    }
+    @Autowired
+    public EntitlementQueryController(EntitlementQueryService service, EntitlementQueryRateLimiter limiter,
+            PublicApiWriter writer, ObjectProvider<Tracer> tracer, MeterRegistry metrics,
+            InternalIngressProperties ingress, Clock clock, PaymentProperties payments, ObjectProvider<PaymentRateLimiter> paymentLimiter) {
+        this(service, limiter, writer, tracer, metrics, ingress, clock); this.payments = payments; this.paymentLimiter = paymentLimiter;
     }
     @GetMapping(PublicIngressFilter.PATH)
     public void query(@AuthenticationPrincipal Jwt principal, HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -43,12 +54,19 @@ public class EntitlementQueryController {
             if (request.getQueryString() != null || request.getInputStream().read() != -1) {
                 outcome = "INVALID_REQUEST"; writer.error(response, 400, outcome); return;
             }
-            if (!limiter.allow(principal.getSubject())) {
+            if (payments.isEntitlementQueryEnabled()) {
+                long retry = paymentLimiter.getObject().acquire(PaymentRateLimiter.Route.ENTITLEMENTS, principal.getSubject());
+                if (retry > 0) {
+                    outcome = "RATE_LIMITED"; writer.error(response, 429, outcome, retry); return;
+                }
+            } else if (!limiter.allow(principal.getSubject())) {
                 outcome = "RATE_LIMITED"; writer.error(response, 429, outcome); return;
             }
             var result = service.query(principal.getSubject());
             outcome = result.status().name();
-            writer.success(response, result, result.status() == web.tosunsaeng.billing.domain.entitlement.dto.response.EntitlementQueryResponse.Status.PENDING);
+            writer.success(response, result, result.status() == web.tosunsaeng.billing.domain.entitlement.dto.response.EntitlementQueryResponse.Status.PENDING
+                    || result.paid() != null && result.paid().status() == web.tosunsaeng.billing.domain.payment.query.PaidQueryResponse.Status.PENDING
+                    || result.examAvailability() != null && result.examAvailability().canTakeExam() == null);
         } catch (RuntimeException e) {
             outcome = "FAILURE";
             failure = e instanceof EntitlementQueryException queryError ? queryError.failure().name() : "STORAGE";
