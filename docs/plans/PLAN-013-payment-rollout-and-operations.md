@@ -20,7 +20,7 @@
 | --- | --- | --- |
 | Identity | 기존 audience/read 유지, ACTIVE MEMBER만 purchase; REFUND에 인증 userId 귀속/로그인 불가 예외 | JWT 실제 controller contract tests, 문의 분류/인증·owner 음성 테스트 |
 | LC | paid source reader-first, reserve capability 계약, GRADING commit gate, revoke inbox/deny+삭제 일관성 | 모의·실제 staging 경합/duplicate/tombstone/삭제 테스트 |
-| 앱 | RC standard SDK·stable reference 로그인/전환, PENDING sync, Store 가격·기간, 두 entitlement reader, REFUND/약관 | Android/iOS sandbox 각5종·계정 전환·앱 종료 테스트 |
+| 앱 | RC standard SDK·stable reference 로그인/전환, PENDING sync, Store 가격·기간, 기존 /api/v1/entitlements 무료·유료 통합 reader, REFUND/약관 | Android/iOS sandbox 각5종·계정 전환·앱 종료 테스트 |
 | 운영 | refund role·문의 담당·2영업일 첫 응답·승인/결과 감사·예외 소유자 확인 | 합성 문의→구매 연결→권한 검증→처리/미처리 사유 추적 |
 
 이 저장소에서 다른 서비스 코드를 바꾸지 않는다. 9/16 Apple 상품/Offering 등록과 Google 미완료 기록은 현 설정 검증으로 갱신해야 한다. Secret 원문·고객 거래·receipt를 Jira/문서/fixture에 복사하지 않는다.

@@ -119,6 +119,8 @@ G1~G8은 사용자가 임의 값을 선택해 해결할 사항이 아니라 구�
 
 ## 5. 현재 작업과 직접 관련된 설계
 
+2026-10-13 조회 계약 승인 개정: paid 전용 `/api/v1/payments/entitlement`는 신설하지 않고 기존 `/api/v1/entitlements`에 무료 수량·진행/재응시·유료 이용기간·시험 이용 가능성 정보를 호환 확장한다. 기존 무료 필드/envelope 의미·billing:read 본인조회·no-store·조회 무변경을 보존하고, 정확 추가 DTO/확장 flag와 프론트 rollout은 PLAN-010에서 동결한다. 조회는 예약/시작 승인이 아니며 reserve가 최종 판정한다. sync는 특정 구매 반영 확인용으로 유지한다. 기존 코드/OpenAPI가 이미 확장됐다는 뜻은 아니다.
+
 ### 5.1 도메인과 catalog
 
 | offerCode | durationSeconds | Store 유형 |
@@ -168,7 +170,7 @@ purchase-account 전체 성공 예시:
 | GET `/api/v1/payments/products` | billing:read | body/query 없음 | 200 ProductsResponse |
 | POST `/api/v1/payments/purchase-account` | billing:purchase | body 없음 | 200 PurchaseAccountResponse |
 | POST `/api/v1/payments/sync` | billing:purchase | SyncRequest + Idempotency-Key | 200 SyncResponse 또는 202 PENDING |
-| GET `/api/v1/payments/entitlement` | billing:read | body/query 없음 | 200 EntitlementResponse |
+| GET `/api/v1/entitlements` | billing:read | body/query 없음 | 200 기존 무료 응답의 호환 확장: 무료·유료·시험 이용 가능성 |
 
 새 Billing UUID는 lowercase UUID v4, opaque provider identifier는 1~255자 문자열이며 trim/case 변환을 하지 않는다. public request는 16 KiB 이하, duplicate field/trailing token/coercion/unknown field 거절. 사용자·환경·기간·가격·receipt/token·source 선택 필드는 받지 않는다.
 
@@ -209,7 +211,7 @@ purchase-account 전체 성공 예시:
 - 202: 동일 operationId에 `status=PENDING`, purchaseId/purchaseStatus=null, `Retry-After: 5`. durable 검증 대기 상태에서만 반환한다. 명백한 소유권 불일치·미지원 상품을 성공 대기로 위장하지 않는다.
 - APPLIED는 동기화 반영 완료이지 현재 이용 가능 보장이 아니다. 재전송 때 이미 환불됐으면 current purchaseStatus를 반환하고 권리는 별도 조회한다. 정상 완료 뒤 재요청으로 기간을 새로 계산하지 않는다.
 
-`EntitlementResponse`:
+통합 `GET /api/v1/entitlements`의 paid 부분에 제공할 정보 예시(추가 필드명/중첩 구조의 exact DTO는 후속 동결; 아래는 전체 HTTP 응답이 아님):
 
 ```json
 {
@@ -224,7 +226,7 @@ purchase-account 전체 성공 예시:
 }
 ```
 
-paidActive는 `startsAt <= now < endsAt`이며 VERIFIED·not revoked·not review 조건을 함께 검사한다. active가 없으면 active 필드와 continuousAccessEndsAt=null, 미래 slot이 있으면 nextStartsAt만 반환한다. continuousAccessEndsAt은 빈틈 없이 연결된 사용 가능 slot의 끝이지 모든 미래 slot 중 최대 끝이 아니다. 무료권 조회/지급은 이 API의 부수효과가 아니다.
+paidActive는 `startsAt <= now < endsAt`이며 VERIFIED·not revoked·not review 조건을 함께 검사한다. active가 없으면 active 필드와 continuousAccessEndsAt=null, 미래 slot이 있으면 nextStartsAt만 반환한다. continuousAccessEndsAt은 빈틈 없이 연결된 사용 가능 slot의 끝이지 모든 미래 slot 중 최대 끝이 아니다. 무료 수량/진행·재응시 상태는 같은 통합 응답의 기존 benefit 정보로 제공한다. 조회는 무료/유료 지급·hold·차감·owner 변경을 수행하지 않는다.
 
 사용자 public 공통 오류 envelope는 `{"isSuccess":false,"code":"INVALID_REQUEST","message":"올바르지 않은 요청입니다.","result":null}`. message는 고정된 안전 문구이며 provider 응답/식별자를 넣지 않는다. 기존 direct 오류 초안의 top-level traceId는 PublicResponse에 임의 추가하지 않고 기존 trace 로그 규격을 유지한다. 필요 시 응답 추적 header는 별도 기술 계약으로 정한다. 다음 HTTP/code 표는 유지하되 사용자 JWT 오류와 provider HMAC 오류의 인증/응답 경로를 분리한다.
 

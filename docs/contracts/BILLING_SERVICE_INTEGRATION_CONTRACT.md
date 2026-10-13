@@ -8,6 +8,8 @@
 
 ## 1. 문서 목적과 기준
 
+2026-10-13 최신 인증 목표: Identity 기존 JWT 예외와 LC→Billing 여섯 POST의 A 확정 workload JWT 전환은 ADR-002 §20·[B 계획](../plans/PLAN-LC-BILLING-WORKLOAD-JWT.md)을 따른다. 아래 legacy Lattice topology·SigV4-only 설명은 이 범위의 목표에서 대체된다. Billing 문서 동기화와 승인된 B 로컬 수신 구현·HTTP27 회귀는 완료했다. 실제 실환경 전환은 별도다. 다른 방향의 인증과 사용자·업무 계약은 유지한다.
+
 이 문서는 앱, Identity, Learning Core와 Billing이 어떤 책임을 가지며 어떤 요청·event를 주고받는지 한곳에서 설명한다.
 
 이 문서는 연동 흐름을 빠르게 파악하기 위한 상위 안내서다. 세부 wire DTO, 상태 전이, MongoDB와 인프라 계약은 다음 문서가 최종 기준이다.
@@ -66,7 +68,7 @@ flowchart LR
     LAT --> BILL
 ```
 
-무료-only 단계에는 앱이 Billing을 직접 호출하지 않았으나 fixed-term 결제부터 기존 public ALB의 Billing 전용 host/path·target group을 통해 구매 sync·권리 조회를 직접 호출한다. public route는 `GET /api/v1/payments/products`, `POST /api/v1/payments/purchase-account`, `POST /api/v1/payments/sync`, `GET /api/v1/payments/entitlement`로 분리한다. 상품·구매 UI는 RevenueCat SDK·Offering을 사용하고, RevenueCat Authorization+HMAC webhook만 별도 public provider route로 허용한다. internal route는 계속 Lattice-only다.
+무료-only 단계에는 앱이 Billing을 직접 호출하지 않았으나 fixed-term 결제부터 기존 public ALB의 Billing 전용 host/path·target group을 통해 구매 sync·권리 조회를 직접 호출한다. public route는 `GET /api/v1/payments/products`, `POST /api/v1/payments/purchase-account`, `POST /api/v1/payments/sync`, 권리 조회는 기존 `GET /api/v1/entitlements`를 무료·유료 통합으로 확장한다. 유료 전용 `/api/v1/payments/entitlement`는 신설하지 않는다. 상품·구매 UI는 RevenueCat SDK·Offering을 사용하고, RevenueCat Authorization+HMAC webhook만 별도 public provider route로 허용한다. internal route는 계속 Lattice-only다.
 
 RevenueCat은 같은 project의 iOS/Android app을 사용하되 webhook integration을 SANDBOX→staging, PRODUCTION→production으로 filter하고 URL·Authorization·HMAC secret을 환경별로 분리한다. webhook은 5분 HMAC timestamp window와 raw-body 검증 뒤 durable inbox를 commit하고 200을 반환하며 worker가 처리한다. S2S-only 신규 purchase 추적과 자동 refund handling은 최초 출시에서 OFF다.
 
@@ -492,11 +494,14 @@ Learning Core 연동:
 
 - 추가일: 2026-10-13 / 근거: 사용자 공동 계약 추가 요청, [Billing 검토·회신](LC-BILLING-WORKLOAD-JWT-REVIEW-2026-10-13.md).
 - 검토 revision: **LC-JWT-TRANSITION-R2** — 빈 ingress404와 업무 OPERATION_NOT_FOUND 분리, 재처리 도구 미준비 명시, §16.6 동결 목록 추가.
+- LC 검토 회신 접수(2026-10-13): 사용자 전달 회신에서 R2 §16.3 오류 구분과 §16.5 도구 미준비 명시를 적절하다고 검토했고 추가 문구 수정 의견이 없음을 확인했다. 문구 검토 완료 범위는 이 두 항목이며 §16.6 인증 exact 규격·양측 구현 범위는 공동 확정 대기다. 구현·배포·활성화 승인이 아니다. 전달한 R2 스냅샷은 당시 검토본으로 보존한다.
 - 상태: 공동 검토/동결을 위한 전환 절차 추가. 아래 보존·복구 원칙을 계획·검증에 적용하며, LC 코드의 독립 확인·양측 exact 인증 수락·실제 활성화는 별도 완료 증거가 필요하다.
 
 ### 16.1 인증 방향과 적용 범위
 
 권장 방향은 RS256·TTL 최대60초·초기 배포형 공개키·목적/환경별 단일 audience·body 없는401/403이다. 기존 workload TLS connector를 공유할 수 있으나 LC/Identity 키·issuer·principal·인가·수신 활성화 설정은 독립이어야 한다. exact issuer/audience 문자열·설정 이름·시간/오류 precedence는 양측 fixture로 동결한다. 동적 JWKS나 새 인증 오류 JSON을 이번 절에서 추가하지 않는다.
+
+A 단계의 exact 인증·공동 테스트 명세는 [LC-BILLING-WORKLOAD-AUTH-R1.md](LC-BILLING-WORKLOAD-AUTH-R1.md)를 따른다. 2026-10-13 LC 최종 수락을 Billing 정본에 반영했으며 인증 규칙·fixtures-1 hash·발신 설정 명칭과 양측 token/hash 독립 검증은 완료됐다. [최종 수락 기록](LC-BILLING-WORKLOAD-A-ACCEPTANCE-R1.md)을 따른다. LC startup 표 수락·양측 문서 동기화와 LC sender 회신/Billing B 로컬 수신·HTTP27 검증은 완료됐다. [Billing 검증 결과](LC-BILLING-WORKLOAD-JWT-B-BILLING-VALIDATION-2026-10-13.md)를 따르며 C 도구·실환경 연결·배포는 남아 있다.
 
 대상은 LC→Billing의 다음 여섯 POST 업무 route다. 기존 body/성공 DTO/업무 오류·멱등성·상태 머신을 변경하지 않는다.
 
@@ -521,7 +526,7 @@ JWT 전환 구현은 기존 LC IAM `permitAll` 통과 경로와 public/기존 in
 
 ### 16.3 404의 기존 분류와 원본 보존
 
-LC 검토 회신 기준 **body 없는 수신 OFF·잘못된 port404**는 Reservation에서 `CONTRACT_ERROR`, AttemptGroup publisher에서 `DEAD_LETTER`로 분류돼 자동 재시도가 중단된다. 이 분류를 유지한다. **업무 응답의 `code=OPERATION_NOT_FOUND`는 별도 업무 오류**이며 HTTP404 숫자만 보고 수신 계약 오류와 합치지 않는다. 어느 경우도 취소·미소비가 확정됐다는 뜻이 아니다. OFF/오포트404를 무조건 재시도 오류로 바꾸거나 성공/업무 부재로 처리하지 않는다. 이 구분과 원본 보존은 공동 fixture로 검증한다.
+LC 검토 회신 기준 **살아 있는 Billing HTTP 서버에서 body 없이 반환한 수신 OFF·잘못된 port404**는 Reservation에서 `CONTRACT_ERROR`, AttemptGroup publisher에서 `DEAD_LETTER`로 분류돼 자동 재시도가 중단된다. 공유 TLS connector가 둘 다 OFF라 미기동이거나 서버/라우팅에 도달하지 못한 경우 HTTP404를 보장하지 않는다. 연결 거절/timeout/TLS 실패 등 transport 오류는 LC 기존 전송 오류 정책으로 분류하고404로 합성하지 않는다. **업무 응답의 `code=OPERATION_NOT_FOUND`는 별도 업무 오류**이며 HTTP404 숫자만 보고 수신 계약 오류와 합치지 않는다. 어느 경우도 취소·미소비가 확정됐다는 뜻이 아니다. OFF/오포트404를 무조건 재시도 오류로 바꾸거나 성공/업무 부재로 처리하지 않는다. 이 구분과 원본 보존은 공동 fixture로 검증한다.
 
 | 대상 | 보존할 기존 증거 | 수신 복구 후 처리 |
 | --- | --- | --- |
@@ -546,11 +551,13 @@ LC 검토 회신 기준 **body 없는 수신 OFF·잘못된 port404**는 Reserva
 
 공동 완료 기준은 원본 작업의 최종 수렴 또는 담당자가 기록한 미해결 사유/후속 조치다. queue 상태 초기화나 원본 삭제를 성공으로 간주하지 않는다. OFF/다른 port404 뒤 원본 보존, 승인 requeue,응답 유실과404 경합의 status-first,만료/취소 Reservation 불변성을 공동 fixture/E2E에 포함한다. 실제 키·네트워크·양측 코드 및 복구 도구 검증 전에는 전환을 활성화하지 않는다.
 
-### 16.6 다음 동결·구현 준비 항목
+### 16.6 A 동결 결과·B/C 준비 항목
 
-1. issuer·subject·목적/환경별 audience의 exact 문자열, 시간 NumericDate/TTL/skew 경계, 수신 OFF/port와401/403의 오류 우선순위 및 설정 이름을 양측 수락본으로 고정한다.
-2. body 없는 ingress404→CONTRACT_ERROR와 업무 OPERATION_NOT_FOUND의 구분, 키/시간·교차 목적·OFF/port·원본 보존·승인 재처리 공동 fixture/hash manifest를 준비하고 양측 독립 실행한다.
-3. 인증 변경 범위와 기존 IAM 통과 제거·TLS 공유/독립 flags를 ADR-002·AGENTS 및 양측 계획에 동기화한다. 기존 Identity 승인 규격·사용자 JWT·업무 body/멱등성/복구 계약을 유지한다.
+A 확정 명세의 [토큰 문법·추가 claim 정책](LC-BILLING-WORKLOAD-AUTH-R1.md#211-authorization-문법과-추가-claim)과 [교차 서비스 verifier·ON/OFF 응답 매트릭스](LC-BILLING-WORKLOAD-AUTH-R1.md#241-활성-서비스의-verifier-선택과-교차-서비스-응답)를 공동 fixture에 포함한다. 서명을 검증하지 못한 토큰은 issuer 문자열만으로 403 처리하지 않는다.
+
+1. **A 완료:** issuer·subject·목적/환경별 audience, NumericDate/TTL/skew, OFF/port·401/403 우선순위와 신규 발신 설정 명칭은 A 수락본으로 고정됐다. 상세 startup flag 조합표는 사용자 승인 후 LC 의존성 정적 확인을 반영해 [매핑 문서](LC-BILLING-WORKLOAD-SENDER-MAPPING-R1.md)에 확정했다. LC 표 수락/로컬 구현 회신과 Billing 로컬 기동/chain 회귀는 완료됐다. 실제 환경의 기동/DB/E2E는 별도다.
+2. **검증 범위:** fixtures-1 token72/hash1 양측 독립 검증은 완료됐다. Billing은 HTTP27·key startup·OFF/port/교차 인가를 실제 local chain/context로 검증했다. 원본 보존·승인 재처리의 C 도구/E2E와 실제 TLS/네트워크는 남아 있다. ingress404와 업무 OPERATION_NOT_FOUND 구분을 유지한다.
+3. Billing의 인증 변경 범위·IAM 통과 제거·TLS 공유/독립 flags는 [B 계획](../plans/PLAN-LC-BILLING-WORKLOAD-JWT.md)·ADR-002 §20·AGENTS에 동기화했다. LC 상세 startup 표 수락·상대 ADR/AGENTS/계획 동기화 및 sender 구현 회신도 접수했다. 기존 Identity 승인 규격·사용자 JWT·업무 body/멱등성/복구 계약을 유지한다.
 4. Billing 수신 구현과 LC sender/승인 재처리 도구의 작업 범위·담당을 확정한다. 도구 검증·실제 네트워크/키·미완료 작업 inventory·staging E2E를 마친 뒤 별도로 활성화한다.
 
-이번 보완은 위 미완료 항목을 확정·구현·배포한 기록이 아니다.
+A 수락 후 사용자 「어 해줘」로 Billing B 로컬 구현·검증까지 진행했다. C 도구/실환경 E2E·배포/활성화 승인이나 완료를 뜻하지 않는다.

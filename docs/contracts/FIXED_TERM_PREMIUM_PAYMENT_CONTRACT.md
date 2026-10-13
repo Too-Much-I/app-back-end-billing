@@ -84,7 +84,7 @@ RevenueCat SDK가 완료한 consumable purchase는 Store/RevenueCat Entitlement 
 - `GET /api/v1/payments/products`: 판매 가능한 상품 조회, `billing:read`
 - `POST /api/v1/payments/purchase-account`: body 없는 stable purchase account reference 조회 또는 발급, `billing:purchase`
 - `POST /api/v1/payments/sync`: Store purchase 동기화, `billing:purchase`와 lowercase UUID v4 `Idempotency-Key`
-- `GET /api/v1/payments/entitlement`: 현재 paid entitlement와 종료 시각 조회, `billing:read`
+- `GET /api/v1/entitlements`: 기존 무료 조회를 확장해 무료 응시·재응시·진행 상태, 유료 이용기간, 시험 이용 가능성의 조회 시점 정보를 함께 제공, `billing:read`. 유료 전용 조회 API는 신설하지 않는다(2026-10-13 승인).
 
 sync는 SDK의 Store/transaction identifier를 untrusted lookup hint로만 받고 userId·가격·기간·receipt·purchase token을 받지 않는다. local entitlement commit까지 끝나면 200, RevenueCat에서 아직 거래를 확인할 수 없으면 `202 PENDING`과 `Retry-After`를 반환한다. exact DTO, stable error code와 rate limit 초안은 [ADR-004 §5.3](../adr/ADR-004-fixed-term-premium-payment-contract.md)에 작성했다.
 

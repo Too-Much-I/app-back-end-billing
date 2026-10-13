@@ -72,7 +72,7 @@
 | 저장소/불변식 오류 | 503 실패 envelope, result=null |
 | multi-benefit/group | benefits 배열과 benefit별 attemptGroups 배열; 단위 혼합 총합 없음 |
 | 조회 일관성 | 동일 Mongo read-only snapshot, 주 저장소 읽기, 조회에서 업무 write 금지 |
-| paid reader | 현재 무료 전용. 기존 `/api/v1/payments/entitlement` 계획은 별도 유지, 자동 합치거나 구현하지 않음 |
+| paid 확장 | 현재 구현은 무료 전용. 2026-10-13 승인으로 PLAN-010에서 기존 `/api/v1/entitlements`를 호환 확장하며 유료 전용 route는 신설하지 않음 |
 
 실제 hostname·issuer/JWKS·port·ALB/SG·Identity audience 발급 배포 증거는 staging 전 필요하다. 이는 기술 검증·환경 입력이며 무료 조회 제품 정책의 재승인이 아니다.
 
@@ -479,7 +479,7 @@ source가 GRADING이라면 owner rebind가 pending일 수 있지만 새 사용�
 | endpoint | 이번 계획 | 후속 의미 |
 | --- | --- | --- |
 | GET `/api/v1/entitlements` | 무료 benefit 수량·진행·재응시 구현 | 조회 모델의 확장 지점. 유료 기간을 무료 개수로 합산하지 않음 |
-| GET `/api/v1/payments/entitlement` | 구현·노출하지 않음 | ADR-004의 active/scheduled paid 기간 조회 |
+| GET `/api/v1/entitlements`의 paid 확장 | 현재 미구현 | 2026-10-13 승인: PLAN-010에서 active/scheduled paid 기간·시험 이용 가능성 통합, 기존 무료 응답 호환 유지 |
 | payments products/account/sync/webhook | 모두 제외 | 결제 PLAN에서 구현 |
 
 무료 reader는 paid 목록을 비었다고 반환하거나 paid 미보유를 판단하지 않는다. `benefits`가 현재 무료 조회 범위임을 프론트 계약에 명시한다. 나중에 통합 화면이 필요하면 각 API를 조합하거나 별도 typed paid section을 승인하며, 자동갱신/기간형 권리를 EXAM_ATTEMPT 수량으로 환산하지 않는다.
