@@ -5980,3 +5980,21 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - 결과: E06-owner 문구 불일치 해소. LC oracle82(80벡터 포함), actual-client49(오류22 포함), 전체1,149 실패0/오류0/기존skip1은 LC 보고 근거. Billing에서 LC 테스트 재실행/전체재합산 없음. 실제 client는loopback, Billing 서버/TLS/JWT chain/DB/E2E 증거 아님.
 - 변경: fixtures-2 인계 후속, TMI216 런타임/상태대응표, TMI217 검증계획, CURRENT_STATE 및 본 기록. 기존작업/동시PLAN012 문서 보존. fixture/manifest bytes·제품/API·DB·배포·타저장소·Jira·외부전송·commit/push 변경0.
 - 검증: hash3개 대조·git diff --check. 문서만 변경해Gradle미실행. 이번 예상밖변경없음. 다음: TMI217 공동계약 검토 및 상태28/T04/삭제보존·실환경 활성화gate 별도 검증.
+
+## 2026-10-14 — TMI217 PR21 병합·LC 기술 인계
+
+- 사용자 커밋/푸시/머지 후 다음작업 요청으로 계약안/검증계획·LC fixtures2 접수만 commit ee4537c28909dd7635ea07ad31a9e5c834a2ced0, PR21 https://github.com/Too-Much-I/app-back-end-billing/pull/21 생성/첨부·exact head/CLEAN 확인 후 develop merge2e646cb2262f7e438999bfc7beb92cf2298fabb1 완료. 체크목록은 비어있었으며 CI통과로 표현하지 않는다. 병행PLAN012/RevenueCat 기록은 index-only 분리해 보존했다.
+- 새브랜치 feat/TMI-217-lc-deletion-handoff 생성. 사용자 정책기확정 지적에 따라 제품정책 재선택과 기술규격 공동확인을 구분하고 LC 인계자료를 작성했다. 생성중삭제거절/미복원/권리보존/120일·paidfirst 변경0.
+- 변경: TMI-217-LC-TECHNICAL-HANDOFF/CURRENT_STATE/본기록. 링크/diff 검사, 제품변경없어Gradle미실행. LC외부발송/타저장소/새fixture/제품/DB/배포/Jira쓰기 없음. 기존dirty보존, 예상밖변경없음. 다음은LC규격검토→fixture/독립검증→제품구현. 인계자료는 로컬미커밋.
+
+## 2026-10-14 — TMI217 LC 회신 대조·draft2 보완
+
+- 요청: 사용자 LC 검토 회신 확인. feat/TMI-217-lc-deletion-handoff에서 Billing 정본과 LC HEAD136602a 현재작업트리의 UserMergedTransactionService/DeletionCommandService/DeletionWorker/DeletionOperation/BillingWorkloadTokenIssuer 읽기 대조. UserMerged는같은Session userId이전, 삭제는접수후생성대기·prepare후새학습허용, signer두목적 확인. 정적검토이며LC테스트/실환경검증 아님.
+- 수정: 정본draft2의 phone/UserMerged분리·검증된merge/현재귀속 조건·trial한정, 단계분리 구현차이·eventId보존coverage 명시, LC sender/Billing receiver 및24시간200회격리우선 문구. 검증계획W11/O09/O10 추가(48개), 인계/CURRENT_STATE/본기록. 제품정책 재선택없음·전체공동수락아님.
+- 검증: 상대링크·48개ID중복·diff검사. 문서만수정해Gradle미실행. 기존dirty보존, 예상밖변경0. 제품code/LC·Identity수정/fixturebytes/DB/배포/외부전송/Jira/commit/push 없음. 다음: 수정안 LC재검토·merge귀속/eventId보존coverage 확인 후fixture/제품구현.
+
+## 2026-10-14 — TMI217 단일 UserMerged 확인 승인
+
+- 사용자 「어 그렇게 하는 걸로 하면 될 거 같아」로 같은Session 게스트→회원 단일이전 확인·연속병합 계보추적 제외 승인. feat/TMI-217-lc-deletion-handoff에서 정본draft3/검증계획O08·O09/인계/CURRENT_STATE/본기록 반영.
+- phone 재가입 별도, 단일증거+현재귀속 일치시 삭제 인정. 지연은 원event재확인·소실/불일치 운영확인, 기존retry/격리 유지. 원문정리 독립·필요ACK전 신규생성차단 유지. 별개Session의 개별이전까지 금지하지 않음.
+- 링크/48개ID유일성/diff검사, 제품변경없어Gradle미실행. 제품/fixture/타저장소/DB/배포/Jira/외부발송/commit/push 변경0. 기존병행작업보존, 예상밖변경0. 공동기술coverage검토·fixture/제품구현은 후속.

@@ -1,5 +1,11 @@
 # Billing Service 현재 상태
 
+- 2026-10-14 사용자 승인: TMI217 UserMerged는 같은 Session의 게스트→회원 단일이전만 확인. [정본draft-3](../contracts/LC-BILLING-EXAM-DELETION-RETENTION-R1.md)에 반영, 연속병합 계보추적/범용복구 제외. phone 별도·지연재확인/증거누락운영확인·원문정리/ACK경계 유지. 검증계획48개 미실행, 문서만 변경.
+
+- 2026-10-14 TMI217 LC 회신 대조: [정본 draft-2](../contracts/LC-BILLING-EXAM-DELETION-RETENTION-R1.md)에서 phone/UserMerged owner분리·검증된동일Session이전인정조건 보완. LC HEAD136602a 작업트리 정적확인: 생성후삭제대기/준비후새학습허용/두purpose signer는 구현차이, eventId보존은coverage미확인. sender/receiver·24시간200회격리우선 정정, 검증계획48개 미실행. 제품/fixture/DB/배포변경0.
+
+- 2026-10-14 TMI217 계약안 commit ee4537c·PR21 develop merge2e646cb 완료. `feat/TMI-217-lc-deletion-handoff`에서 [LC 기술 인계](../contracts/TMI-217-LC-TECHNICAL-HANDOFF.md) 작성. 제품정책은 이미승인·재선택불필요, 신규삭제wire/owner/보존규격은 LC검토대기임을 분리했다. 코드/fixture/배포 변경0, 병행012문서보존.
+
 - 2026-10-14 TMI-216 E06-owner LC 독립 재검증 접수·해소: [인계 후속](../contracts/LC-BILLING-SIMPLIFIED-FIXTURES-2-HANDOFF.md). ZIP10파일/hash 일치, LC oracle82·actual-client49 통과 보고, 전체1,149/실패0/오류0/기존skip1. loopback client이며 실제Billing/TLS/DB E2E 아님. 상태28/T04/삭제보존/실환경gate 유지, fixture 원본/제품code 변경 없음.
 
 - 2026-10-14 TMI216 commit780e677·[PR20](https://github.com/Too-Much-I/app-back-end-billing/pull/20) develop merge89ae574 완료. `feat/TMI-217-deletion-owner-retention-contract` 생성 후 [삭제·owner·보존 공동 계약안](../contracts/LC-BILLING-EXAM-DELETION-RETENTION-R1.md)·[검증 계획](../plans/TMI-217-DELETION-OWNER-RETENTION-VERIFICATION.md) 작성. Jira217은 계약 준비 과제, 신규wire/creationOwner/폐기는 제안·LC 회신 대기. 새제품code/fixture/DB/배포변경0, 문서검사·기존offline재검증통과. 병행012기록보존,217로컬미커밋.
