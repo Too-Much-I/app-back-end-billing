@@ -30,6 +30,18 @@ class PaidExamFoundationTest {
         assertThat(PaidExamStore.withinGuarantee(now, boundary.plusNanos(1))).isFalse();
         assertThat(PaidExamStore.withinGuarantee(now, now.minusNanos(1))).isFalse();
     }
+    @Test void recoveryRequiresFoundationAndEvidenceWriterConfigurationFailsClosed() {
+        new ApplicationContextRunner().withUserConfiguration(PaidExamConfiguration.class)
+                .withPropertyValues("billing.reservation.paid-recovery-enabled=true")
+                .run(context -> assertThat(context).hasFailed());
+        new ApplicationContextRunner().withUserConfiguration(web.tosunsaeng.billing.domain.payment.config.MemberEvidenceConfiguration.class)
+                .run(context -> assertThat(context).hasNotFailed());
+        new ApplicationContextRunner().withUserConfiguration(web.tosunsaeng.billing.domain.payment.config.MemberEvidenceConfiguration.class)
+                .withPropertyValues("billing.payment.member-evidence-enabled=true")
+                .withBean(web.tosunsaeng.billing.domain.payment.config.PaymentProperties.class)
+                .withBean(web.tosunsaeng.billing.domain.entitlement.config.EntitlementQueryProperties.class)
+                .run(context -> assertThat(context).hasFailed());
+    }
     @Test void offDoesNotRequireDatabaseAndAdmissionCannotBeEnabledPrematurely() {
         new ApplicationContextRunner().withUserConfiguration(PaidExamConfiguration.class).run(context -> {
             assertThat(context).hasNotFailed().doesNotHaveBean(PaidExamTransactions.class);

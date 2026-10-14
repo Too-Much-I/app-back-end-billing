@@ -1,5 +1,8 @@
 # Billing Service 현재 상태
 
+- 2026-10-14 [TMI-214 MEMBER 복구 구현](../runbooks/TMI-214-member-evidence-operation-recovery.md): 사용자 요청으로 TMI-213을 3d5660f commit/push·[PR17](https://github.com/Too-Much-I/app-back-end-billing/pull/17) develop merge(bbdd8f4)한 뒤 feat/TMI-214-member-evidence-operation-recovery 생성. purchase-account 최소 MEMBER 증거·탈퇴 공통Tx, 영속 MEMBER 대기/같은 key 재개/J3/status·불변 source snapshot, r2 명시 schema upgrade를 구현했다. final clean test1,523개(신규26 포함) 실패/오류/skip0, offline80/hash·diff통과. 중간 기존 PurchaseCore 동시성 테스트1회 일시503 실패 후 단독/전체재실행 통과; 정확한 일시 원인은 미확정이며 재시도한도 변경 없음. 신규 flag기본OFF·paid admission ON거절 유지.214는 미커밋, 실제 paid resolver/confirm 연결215·LC 전체28/연동216·삭제보존217 후속. 별도 RevenueCat 문서 변경 보존, 운영 DB/배포/활성화/Jira 변경 없음.
+
+
 - 2026-10-14 [TMI-213 기반 구현](../runbooks/TMI-213-paid-exam-foundation.md): feat/TMI-213-paid-exam-transaction-foundation 생성/전환, 기존 dirty 보존. 동일 ClientSession raw/Spring 저장소 결합·중첩차단·Spring Mongo오류 retry, source reader·receipt/guard CAS·복원 grant/원장 unique 및 명시 schema 구현. 기본 OFF/paid admission 기동거절. 최종 clean test1,497개·신규23(3단위/20실Mongo) 포함, 실패/오류/skip0. offline80/hash·diff통과. 실제 업무28·LC/DB/배포/Jira상태/commit/push 없음. 다음214 MEMBER 증거/대기 연결,215 paid resolver/confirm,216 연동,217 삭제보존.
 
 - 2026-10-14 개인정보처리방침 준비 확인: 금융5년/접수120일/backup35일은 보존 정책이며 실제 배포·삭제 활성화 미확인. 금융 전체5년 purge는 후속, 현 Billing provider는 GET 전용으로 RevenueCat 고객 탈퇴 삭제 미구현. RC 공식 privacy/DPA의 processor 역할·미국 저장·삭제 API 지원 확인; 일반 privacy의6년을 토선생 최종사용자 보존기간으로 전용하지 않음. RC 보존/백업 삭제 SLA·앱 SDK 실제 전송항목·국외이전 근거 확인 후 방침 확정 필요.

@@ -9,6 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class PaymentProperties {
     private boolean catalogEnabled;
     private boolean purchaseAccountEnabled;
+    private boolean memberEvidenceEnabled;
     private boolean withdrawalEnabled;
     private boolean syncEnabled;
     private boolean entitlementQueryEnabled;

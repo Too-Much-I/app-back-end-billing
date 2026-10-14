@@ -99,6 +99,42 @@ class ReservationControllerTest extends web.tosunsaeng.billing.global.config.sec
     private ReservationLifecycleService reservationLifecycleService;
 
     @Test
+    void statusRecoveryErrorsKeepExactFourFieldContractAndBodyLookup() throws Exception {
+        String userId = "e8b37a41-bae6-47f1-a770-052e6c5786d4";
+        var body = new ReservationStatusRequest(userId, KEY);
+        when(lifecycleRequestDecoder.decodeStatus(any())).thenReturn(body);
+        for (var error : java.util.List.of(ReservationException.memberEvidencePending(), ReservationException.operationOwnerMismatch(),
+                ReservationException.rejectedBeforeCreation(), ReservationException.operationNotFound(), ReservationException.temporarilyUnavailable())) {
+            org.mockito.Mockito.doThrow(error).when(reservationLifecycleService).status(userId, KEY);
+            var result = mockMvc.perform(post(PATH + "/status").with(learningCoreJwt())
+                            .contentType(MediaType.APPLICATION_JSON).content("{\"userId\":\"" + userId + "\",\"operationId\":\"" + KEY + "\"}"))
+                    .andExpect(status().is(error.status().value())).andExpect(jsonPath("$.code").value(error.code()))
+                    .andExpect(jsonPath("$.message").value(error.getMessage())).andExpect(jsonPath("$.retryable").value(error.retryable()))
+                    .andExpect(jsonPath("$.correlationId").isString()).andExpect(jsonPath("$.*", org.hamcrest.Matchers.hasSize(4)));
+            if (error.retryAfterSeconds() == null) result.andExpect(header().doesNotExist("Retry-After"));
+            else result.andExpect(header().string("Retry-After", "1"));
+        }
+        verifyNoInteractions(reserveService, keyParser);
+    }
+
+    @Test
+    void paidStatusSourceIsExplicitWhileLegacyOmitsIt() throws Exception {
+        String userId = "e8b37a41-bae6-47f1-a770-052e6c5786d4";
+        when(lifecycleRequestDecoder.decodeStatus(any())).thenReturn(new ReservationStatusRequest(userId, KEY));
+        for (var source : new web.tosunsaeng.billing.domain.reservation.paid.EntitlementSourceSnapshot.Type[] {
+                null, web.tosunsaeng.billing.domain.reservation.paid.EntitlementSourceSnapshot.Type.SUBSCRIPTION }) {
+            when(reservationLifecycleService.status(userId, KEY)).thenReturn(new ReservationStatusResult(KEY, RESERVATION_ID,
+                    Reservation.Kind.INITIAL, Reservation.Status.RESERVED, "group", null, "session", "mock", null, null,
+                    Instant.parse("2026-10-14T00:05:00Z"), null, source));
+            var result = mockMvc.perform(post(PATH + "/status").with(learningCoreJwt()).contentType(MediaType.APPLICATION_JSON)
+                            .content("{}")) // Decoder is mocked; body parsing is covered independently.
+                    .andExpect(status().isOk());
+            if (source == null) result.andExpect(jsonPath("$.entitlementSource").doesNotExist());
+            else result.andExpect(jsonPath("$.entitlementSource").value("SUBSCRIPTION"));
+        }
+    }
+
+    @Test
     void learningCorePrincipalReceivesDirect200Dto() throws Exception {
         ReserveRequest request = request();
         when(keyParser.parse(KEY)).thenReturn(KEY);

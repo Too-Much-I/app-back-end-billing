@@ -56,7 +56,10 @@ public class PaymentController {
             if (retry > 0) {
                 outcome = "RATE_LIMITED"; writer.paymentError(response, 429, outcome, null, null, retry); return;
             }
-            Object result = purchase ? accounts.getOrCreate(principal.getSubject(), principal.getExpiresAt().plus(jwt.getClockSkew())) : catalog.read();
+            Object result = !purchase ? catalog.read() : properties.isMemberEvidenceEnabled()
+                    ? accounts.getOrCreate(VerifiedMemberEvidence.fromAuthenticated(principal, jwt.getIssuer(),
+                            properties.getEnvironment(), jwt.getClockSkew(), clock.instant()))
+                    : accounts.getOrCreate(principal.getSubject(), principal.getExpiresAt().plus(jwt.getClockSkew()));
             writer.paymentSuccess(response, result);
         } catch (RuntimeException error) {
             int status = error instanceof PaymentException p ? p.status() : 503;

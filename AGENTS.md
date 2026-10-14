@@ -1,5 +1,7 @@
 # 토선생 Billing Service Codex 작업 규칙
 
+> 2026-10-14 TMI-214: [MEMBER 복구 안내](docs/runbooks/TMI-214-member-evidence-operation-recovery.md). purchase-account 검증 JWT 최소 MEMBER 증거·탈퇴 공통Tx, MEMBER 소유 operation의 영속 대기/같은 key 재개/J3 실패/status 원본 source 복구를 추가했다. 신규 evidence/recovery flag 기본 OFF. r1→r2 receipt schema는 명시 maintenance만 가능하며 legacy request snapshot 발명 금지. 현재 paid reserve resolver/confirm/복원 연결은215, LC 전체경합은216, 삭제보존은217 후속; paid-admission ON 거절 유지. TMI-213은 사용자 승인으로 commit/push/PR17 merge 완료,214는 로컬 변경이다.
+
 > 2026-10-14 TMI-213 기반 구현: [안내](docs/runbooks/TMI-213-paid-exam-foundation.md)의 단일 ClientSession·session-bound repository·source/receipt/guard·복원 unique/원장 기반을 추가했다. paid-foundation/paid-admission 기본 OFF, admission ON은 후속 runtime 전 기동 거절. 명시 maintenance schema이며 운영 설치 없음. MEMBER owner에 phone epoch를 발명하지 않는다. 실제 MEMBER 보강/paid resolver/confirm·LC 전체28시나리오는 TMI-214~216, 삭제·보존은217 후속이다.
 
 > 2026-10-14 PLAN-011 기준 동기화: [한정 수락](docs/contracts/LC-BILLING-PAID-EXAM-SIMPLIFIED-R1-ACCEPTANCE.md)·[ADR-004 현재 결정](docs/adr/ADR-004-fixed-term-premium-payment-contract.md)·[PLAN-011 §5.0](docs/plans/PLAN-011-paid-reservation-and-usage-evidence.md)을 따른다. target paid-first/원 소비당 target 복원1회, 생성 중 삭제 미접수, 기존 purchase-account MEMBER 보강·영속 대기/제한적 same-key 재개,120일 보장/기간후 위험 수용이 현재 기준이다. 종전 삭제 대기열·영구 key 요구·phone 무료 우선·새 제출 마감 전제는 대체한다. 양측 오프라인 검증 완료이며 상태28/runtime 미검증. 별도 삭제 route·과거 owner·자료별 purge·배포는 미확정 gate다. 이번 작업은 계획/ADR 동기화이며 제품 구현 완료를 뜻하지 않는다.

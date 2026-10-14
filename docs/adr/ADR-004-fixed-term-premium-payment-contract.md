@@ -1,5 +1,7 @@
 # ADR-004: RevenueCat 기반 fixed-term premium 결제 계약
 
+> 2026-10-14 TMI-214 구현 동기화: 기존 purchase-account의 검증 principal→최소 MEMBER evidence를 lifecycle CAS와 같은 Tx로 저장한다. MEMBER operation은 대기 commit→503, status read-only, 동일 key HTTP 재개, J3 terminal/status·첫 source snapshot 복구를 제공한다. [구현/설정/schema 경계](../runbooks/TMI-214-member-evidence-operation-recovery.md)를 따른다. Identity 신규 claim/API 없음, raw JWT 없음, legacy 무료 source 추정 없음. paid resolver 연결·LC 런타임28시나리오·삭제보존·배포는 후속이다. 불변 공동 계약/fixture는 변경하지 않는다.
+
 > 2026-10-14 TMI-213 구현: [paid-exam-foundation-r1 안내](../runbooks/TMI-213-paid-exam-foundation.md)의 session-bound Transaction·명시 schema/unique/CAS·source reader를 적용했다. 업무 wire는 불변, 기본 OFF·실DB 설치 없음. MEMBER evidence API 연결/paid confirm/활성화는 후속이며 기반 테스트 통과를 전체 PLAN-011 완료로 해석하지 않는다.
 
 ## PLAN-011 현재 결정 — 2026-10-14 동기화

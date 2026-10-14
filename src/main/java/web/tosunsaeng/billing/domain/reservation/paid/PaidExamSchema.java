@@ -5,9 +5,9 @@ import com.mongodb.client.model.*;
 import java.util.*;
 import org.bson.Document;
 
-/** paid-exam-foundation-r1. Explicit maintenance only; no TTL or existing validator replacement. */
+/** Recovery r2 retains r1 rows; explicit maintenance upgrade only, never startup mutation or TTL. */
 public final class PaidExamSchema {
-    public static final String VERSION = "paid-exam-foundation-r1";
+    public static final String VERSION = "paid-exam-recovery-r2";
     private PaidExamSchema() {}
     record Index(String name, Document keys, Document partial) {}
     static Document type(String type) { return new Document("bsonType", type); }
@@ -43,7 +43,7 @@ public final class PaidExamSchema {
                         new Document("properties", new Document("kind", values("TRIAL_SUBJECT")).append("epoch", positive())),
                         new Document("properties", new Document("kind", values("MEMBER_ACCOUNT")).append("epoch", type("null")))));
     }
-    public static Map<String, Document> validators() {
+    static Map<String, Document> foundationValidators() {
         Document guard = new Document("_id", uuid(true)).append("schemaVersion", type("long").append("enum", List.of(1L)))
                 .append("environment", values("test", "staging", "production")).append("userId", uuid(false)).append("owner", owner())
                 .append("version", positive()).append("nextGrantOrder", positive());
@@ -86,6 +86,29 @@ public final class PaidExamSchema {
                         new Document("errorCode", new Document("$in", Arrays.asList(null, "ENTITLEMENT_REVOKED")))))));
         return Map.of(PaidExamStore.GUARDS, guardValidator, PaidExamStore.RECEIPTS, receiptValidator);
     }
+    public static Map<String, Document> validators() {
+        var result = new HashMap<>(foundationValidators());
+        Document validator = result.get(PaidExamStore.RECEIPTS);
+        Document v1 = validator.get("$jsonSchema", Document.class);
+        Document v2 = Document.parse(v1.toJson());
+        Document fields = v2.get("properties", Document.class);
+        fields.put("schemaVersion", type("long").append("enum", List.of(2L)));
+        fields.put("requestSnapshot", object(new Document("userId", uuid(false)).append("sessionId", ref()).append("mockExamId", ref())
+                .append("continuationReason", new Document("enum", Arrays.asList(null, "PHONE_REJOIN")))
+                .append("continuationId", nullable("string")).append("expectedAttemptGroupId", nullable("string"))));
+        v2.getList("required", String.class).add("requestSnapshot");
+        validator.put("$jsonSchema", new Document("anyOf", List.of(v1, v2)));
+        return result;
+    }
+    /** Explicit upgrade, old request snapshots are never inferred from hashes. Writers must be isolated. */
+    public static void upgradeRecoveryUnderMaintenance(MongoDatabase db, boolean writersIsolated) {
+        if (!writersIsolated) throw mismatch();
+        verify(db, foundationValidators());
+        Document validator = validators().get(PaidExamStore.RECEIPTS);
+        db.runCommand(new Document("collMod", PaidExamStore.RECEIPTS).append("validator", validator)
+                .append("validationLevel", "strict").append("validationAction", "error"));
+        verify(db);
+    }
     static Map<String, List<Index>> indexes() {
         return Map.of(PaidExamStore.GUARDS, List.of(new Index("ux_exam_owner", new Document("environment", 1).append("userId", 1), null)),
                 PaidExamStore.RECEIPTS, List.of(new Index("ux_reservation_operation_receipt", new Document("environment", 1).append("callerService", 1)
@@ -115,8 +138,9 @@ public final class PaidExamSchema {
         }));
         verify(db);
     }
-    public static void verify(MongoDatabase db) {
-        validators().forEach((name, validator) -> verifyValidator(db, name, validator));
+    public static void verify(MongoDatabase db) { verify(db, validators()); }
+    private static void verify(MongoDatabase db, Map<String, Document> expectedValidators) {
+        expectedValidators.forEach((name, validator) -> verifyValidator(db, name, validator));
         indexes().forEach((name, definitions) -> {
             var actual = db.getCollection(name).listIndexes().into(new ArrayList<>());
             if (!name.equals("entitlement_grants") && actual.size() != definitions.size() + 1) throw mismatch();

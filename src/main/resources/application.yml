@@ -44,6 +44,7 @@ billing:
         reference-key-id: ${BILLING_PAYMENT_PROVIDER_REFERENCE_KEY_ID:}
     entitlement-query-enabled: ${BILLING_PAYMENT_ENTITLEMENT_QUERY_ENABLED:false}
     catalog-enabled: ${BILLING_PAYMENT_CATALOG_ENABLED:false}
+    member-evidence-enabled: ${BILLING_PAYMENT_MEMBER_EVIDENCE_ENABLED:false}
     purchase-account-enabled: ${BILLING_PAYMENT_PURCHASE_ACCOUNT_ENABLED:false}
     withdrawal-enabled: ${BILLING_PAYMENT_WITHDRAWAL_ENABLED:false}
     cleanup:
@@ -78,6 +79,7 @@ billing:
   trial-eligibility:
     expected-consumer-scope-id: ${BILLING_TRIAL_EXPECTED_CONSUMER_SCOPE_ID:}
   reservation:
+    paid-recovery-enabled: ${BILLING_PAID_EXAM_RECOVERY_ENABLED:false}
     paid-foundation-enabled: ${BILLING_PAID_EXAM_FOUNDATION_ENABLED:false}
     paid-admission-enabled: ${BILLING_PAID_ADMISSION_ENABLED:false}
     hold-duration: ${BILLING_RESERVATION_HOLD_DURATION:5m}
