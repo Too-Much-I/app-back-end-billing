@@ -16,6 +16,11 @@ public final class ReservationException extends InternalApiException {
         super(status, code, message, retryable, retryAfterSeconds);
     }
 
+    public static ReservationException entitlementRevoked() {
+        return new ReservationException(HttpStatus.CONFLICT, "ENTITLEMENT_REVOKED",
+                "The entitlement has been revoked.", false, null);
+    }
+
     public static ReservationException memberEvidencePending() {
         return new ReservationException(HttpStatus.SERVICE_UNAVAILABLE, "MEMBER_EVIDENCE_PENDING",
                 "The operation is waiting for member evidence and request resumption.", true, 1);

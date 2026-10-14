@@ -14,6 +14,20 @@ class ReserveRequestDecoderTest {
 
     private final ReserveRequestDecoder decoder = new ReserveRequestDecoder();
 
+    @Test void restartContextIsStrictAndMutuallyExclusiveWithPhone() {
+        String base = "{\"userId\":\"e8b37a41-bae6-47f1-a770-052e6c5786d4\",\"sessionId\":\"new\",\"mockExamId\":\"mock\",\"restartContext\":";
+        String context = "{\"previousAttemptGroupId\":\"11111111-1111-4111-8111-111111111111\",\"previousSessionId\":\"old\",\"startReason\":\"RESTART_INCOMPLETE\"}";
+        var request = decoder.decode((base + context + "}").getBytes(StandardCharsets.UTF_8));
+        assertThat(request.restartContext().previousSessionId()).isEqualTo("old");
+        for (String invalid : java.util.List.of("null", "{}", context.replace("RESTART_INCOMPLETE", "UNKNOWN"),
+                context.replace("\"old\"", "null"), context.replace("\"old\"", "12"),
+                context.replace("\"previousSessionId\":\"old\"", "\"previousSessionId\":\"old\",\"previousSessionId\":\"other\"")))
+            assertInvalid(base + invalid + "}");
+        assertInvalid(base + context + ",\"continuationReason\":\"PHONE_REJOIN\"}");
+        var hasher = new web.tosunsaeng.billing.domain.reservation.application.ReservePayloadHasher();
+        assertThat(hasher.hash(request)).isNotEqualTo(hasher.hash(new ReserveRequest(request.userId(), request.sessionId(), request.mockExamId())));
+    }
+
     @Test
     void decodesExactContract() {
         ReserveRequest request = decoder.decode(json("session-1", "mock-1"));

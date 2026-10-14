@@ -26,6 +26,11 @@ public class AttemptGroup {
         return this;
     }
 
+    private boolean replacementBlocked;
+    private String replacementBlockedBy;
+    public boolean isReplacementBlocked() { return replacementBlocked; }
+    public String getReplacementBlockedBy() { return replacementBlockedBy; }
+
     @Id
     private String id;
     private String attemptGroupId;

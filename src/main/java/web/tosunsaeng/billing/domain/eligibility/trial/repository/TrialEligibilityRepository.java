@@ -3,7 +3,7 @@ package web.tosunsaeng.billing.domain.eligibility.trial.repository;
 import java.util.Optional;
 
 import org.springframework.data.mongodb.core.FindAndReplaceOptions;
-import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Repository;
@@ -13,9 +13,9 @@ import web.tosunsaeng.billing.domain.eligibility.trial.domain.entity.TrialEligib
 @Repository
 public class TrialEligibilityRepository {
 
-    private final MongoTemplate mongoTemplate;
+    private final MongoOperations mongoTemplate;
 
-    public TrialEligibilityRepository(MongoTemplate mongoTemplate) {
+    public TrialEligibilityRepository(MongoOperations mongoTemplate) {
         this.mongoTemplate = mongoTemplate;
     }
 

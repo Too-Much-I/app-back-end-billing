@@ -10,8 +10,13 @@ public record ReserveCommand(
         Reservation.ContinuationReason continuationReason,
         String continuationId,
         String expectedAttemptGroupId,
-        String payloadHash
+        String payloadHash,
+        web.tosunsaeng.billing.domain.reservation.paid.RestartContext restartContext
 ) {
+    public ReserveCommand(String operationId, String userId, String sessionId, String mockExamId,
+            Reservation.ContinuationReason continuationReason, String continuationId, String expectedAttemptGroupId, String payloadHash) {
+        this(operationId, userId, sessionId, mockExamId, continuationReason, continuationId, expectedAttemptGroupId, payloadHash, null);
+    }
     public ReserveCommand(
             String operationId,
             String userId,

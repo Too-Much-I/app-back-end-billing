@@ -7,7 +7,7 @@ import org.bson.Document;
 
 /** Recovery r2 retains r1 rows; explicit maintenance upgrade only, never startup mutation or TTL. */
 public final class PaidExamSchema {
-    public static final String VERSION = "paid-exam-recovery-r2";
+    public static final String VERSION = "paid-exam-admission-r3";
     private PaidExamSchema() {}
     record Index(String name, Document keys, Document partial) {}
     static Document type(String type) { return new Document("bsonType", type); }
@@ -86,7 +86,7 @@ public final class PaidExamSchema {
                         new Document("errorCode", new Document("$in", Arrays.asList(null, "ENTITLEMENT_REVOKED")))))));
         return Map.of(PaidExamStore.GUARDS, guardValidator, PaidExamStore.RECEIPTS, receiptValidator);
     }
-    public static Map<String, Document> validators() {
+    static Map<String, Document> recoveryValidators() {
         var result = new HashMap<>(foundationValidators());
         Document validator = result.get(PaidExamStore.RECEIPTS);
         Document v1 = validator.get("$jsonSchema", Document.class);
@@ -99,6 +99,27 @@ public final class PaidExamSchema {
         v2.getList("required", String.class).add("requestSnapshot");
         validator.put("$jsonSchema", new Document("anyOf", List.of(v1, v2)));
         return result;
+    }
+    public static Map<String, Document> validators() {
+        var result = recoveryValidators();
+        Document schema = result.get(PaidExamStore.RECEIPTS).get("$jsonSchema", Document.class);
+        var versions = new ArrayList<>(schema.getList("anyOf", Document.class));
+        Document v3 = Document.parse(versions.get(1).toJson());
+        Document fields = v3.get("properties", Document.class);
+        fields.put("schemaVersion", type("long").append("enum", List.of(3L)));
+        Document request = fields.get("requestSnapshot", Document.class);
+        request.get("properties", Document.class).put("restartContext", object(new Document("previousAttemptGroupId", uuid(true))
+                .append("previousSessionId", ref()).append("startReason", values("RESTART_INCOMPLETE", "NEW_AFTER_SUBMISSION", "NEW_AFTER_COMPLETION"))));
+        request.getList("required", String.class).add("restartContext");
+        versions.add(v3); schema.put("anyOf", versions);
+        return result;
+    }
+    public static void upgradeAdmissionUnderMaintenance(MongoDatabase db, boolean writersIsolated) {
+        if (!writersIsolated) throw mismatch();
+        verify(db, recoveryValidators());
+        db.runCommand(new Document("collMod", PaidExamStore.RECEIPTS).append("validator", validators().get(PaidExamStore.RECEIPTS))
+                .append("validationLevel", "strict").append("validationAction", "error"));
+        verify(db);
     }
     /** Explicit upgrade, old request snapshots are never inferred from hashes. Writers must be isolated. */
     public static void upgradeRecoveryUnderMaintenance(MongoDatabase db, boolean writersIsolated) {

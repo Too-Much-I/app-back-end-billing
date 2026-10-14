@@ -22,6 +22,7 @@ public class ReserveRequestDecoder {
 
     public static final int MAX_PAYLOAD_BYTES = 16 * 1024;
     private static final Set<String> BASE_FIELDS = Set.of("userId", "sessionId", "mockExamId");
+    private static final Set<String> RESTART_FIELDS = Set.of("userId", "sessionId", "mockExamId", "restartContext");
     private static final Set<String> CONTINUATION_FIELDS = Set.of(
             "userId", "sessionId", "mockExamId", "continuationReason",
             "continuationId", "expectedAttemptGroupId"
@@ -48,12 +49,23 @@ public class ReserveRequestDecoder {
         Set<String> actual = new HashSet<>();
         Iterator<String> names = root.fieldNames();
         names.forEachRemaining(actual::add);
-        if (!actual.equals(BASE_FIELDS) && !actual.equals(CONTINUATION_FIELDS)) {
+        if (!actual.equals(BASE_FIELDS) && !actual.equals(CONTINUATION_FIELDS) && !actual.equals(RESTART_FIELDS)) {
             throw InternalApiException.invalidRequest();
         }
         String userId = canonicalUuid(requiredText(root, "userId"));
         String sessionId = opaqueToken(root, "sessionId");
         String mockExamId = opaqueToken(root, "mockExamId");
+        if (actual.equals(RESTART_FIELDS)) {
+            JsonNode context = root.get("restartContext");
+            if (!context.isObject() || context.size() != 3 || !context.has("previousAttemptGroupId")
+                    || !context.has("previousSessionId") || !context.has("startReason")) throw InternalApiException.invalidRequest();
+            try {
+                var restart = new web.tosunsaeng.billing.domain.reservation.paid.RestartContext(
+                        canonicalUuidV4(requiredText(context, "previousAttemptGroupId")), opaqueToken(context, "previousSessionId"),
+                        web.tosunsaeng.billing.domain.reservation.paid.RestartContext.StartReason.valueOf(requiredText(context, "startReason")));
+                return new ReserveRequest(userId, sessionId, mockExamId, null, null, null, restart);
+            } catch (IllegalArgumentException invalid) { throw InternalApiException.invalidRequest(); }
+        }
         if (actual.equals(BASE_FIELDS)) {
             return new ReserveRequest(userId, sessionId, mockExamId);
         }

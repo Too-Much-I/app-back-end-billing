@@ -155,7 +155,7 @@ class PurchaseCoreIntegrationTest {
         PurchaseCoreSchema.upgradeMoneyEvidenceUnderMaintenance(db, true); PurchaseCoreSchema.upgradeMoneyEvidenceUnderMaintenance(db, true);
         assertThatThrownBy(() -> PurchaseCoreSchema.verify(db)).isInstanceOf(IllegalStateException.class);
         PurchaseCoreSchema.upgradeWebhookUnderMaintenance(db, true);
-        PurchaseCoreSchema.upgradeWorkerUnderMaintenance(db, true);
+        PurchaseCoreSchema.upgradeWorkerUnderMaintenance(db, true); PurchaseCoreSchema.upgradeExamUsageUnderMaintenance(db, true);
         PurchaseCoreSchema.verify(db); assertThat(count("purchases")).isZero();
     }
     WebhookReceipt webhook(String event, WebhookReceipt.Disposition disposition) {
@@ -215,7 +215,7 @@ class PurchaseCoreIntegrationTest {
         assertThatThrownBy(() -> PurchaseCoreSchema.upgradeWebhookUnderMaintenance(db, false)).isInstanceOf(IllegalStateException.class);
         db.runCommand(new Document("collMod", "payment_provider_inbox").append("validator", PurchaseCoreSchema.manifest(true, true).get("payment_provider_inbox").validator()));
         PurchaseCoreSchema.upgradeWebhookUnderMaintenance(db, true); PurchaseCoreSchema.upgradeWebhookUnderMaintenance(db, true);
-        PurchaseCoreSchema.upgradeWorkerUnderMaintenance(db, true);
+        PurchaseCoreSchema.upgradeWorkerUnderMaintenance(db, true); PurchaseCoreSchema.upgradeExamUsageUnderMaintenance(db, true);
         PurchaseCoreSchema.verify(db); barrier("OPEN");
         var r = webhook("invalid-source", WebhookReceipt.Disposition.IGNORED); core.receiveWebhook(r);
         assertThatThrownBy(() -> db.getCollection("payment_provider_inbox").updateOne(new Document(),
@@ -234,11 +234,11 @@ class PurchaseCoreIntegrationTest {
         assertThatThrownBy(() -> PurchaseCoreSchema.upgradeWorkerUnderMaintenance(db, false)).isInstanceOf(IllegalStateException.class);
         // Simulated interruption after collMod but before createIndex.
         db.runCommand(new Document("collMod", "payment_provider_inbox").append("validator", PurchaseCoreSchema.manifest().get("payment_provider_inbox").validator()));
-        PurchaseCoreSchema.upgradeWorkerUnderMaintenance(db, true); PurchaseCoreSchema.upgradeWorkerUnderMaintenance(db, true);
+        PurchaseCoreSchema.upgradeWorkerUnderMaintenance(db, true); PurchaseCoreSchema.upgradeExamUsageUnderMaintenance(db, true); PurchaseCoreSchema.upgradeWorkerUnderMaintenance(db, true); PurchaseCoreSchema.upgradeExamUsageUnderMaintenance(db, true);
         assertThat(inbox.find().first()).isEqualTo(before); PurchaseCoreSchema.verify(db);
         // Opposite exact intermediate is accepted, unknown metadata drift is not.
         db.runCommand(new Document("collMod", "payment_provider_inbox").append("validator", PurchaseCoreSchema.manifest(true, true).get("payment_provider_inbox").validator()));
-        PurchaseCoreSchema.upgradeWorkerUnderMaintenance(db, true);
+        PurchaseCoreSchema.upgradeWorkerUnderMaintenance(db, true); PurchaseCoreSchema.upgradeExamUsageUnderMaintenance(db, true);
         inbox.createIndex(new Document("unexpected", 1), new IndexOptions().name("unexpected"));
         assertThatThrownBy(() -> PurchaseCoreSchema.upgradeWorkerUnderMaintenance(db, true)).isInstanceOf(IllegalStateException.class);
     }

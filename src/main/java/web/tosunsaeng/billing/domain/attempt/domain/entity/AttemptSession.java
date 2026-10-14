@@ -27,6 +27,11 @@ public class AttemptSession {
         return this;
     }
 
+    private boolean runtimeManaged;
+    private boolean completionAllowed;
+    public AttemptSession withPaidRuntime() { runtimeManaged = true; activeGuard = null; return this; }
+    public boolean isCompletionAllowed() { return completionAllowed; }
+
     @Id
     private String id;
     private String sessionId;

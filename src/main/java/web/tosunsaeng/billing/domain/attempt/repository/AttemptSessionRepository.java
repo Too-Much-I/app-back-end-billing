@@ -52,6 +52,7 @@ public class AttemptSessionRepository {
                 sessionId, attemptGroupId, subjectRefId, operationId, expectedVersion
         );
         Update update = new Update()
+                .set("activeGuard", true)
                 .set("state", AttemptSession.State.ACTIVE)
                 .set("confirmedAt", confirmedAt)
                 .inc("version", 1);
@@ -126,7 +127,7 @@ public class AttemptSessionRepository {
                 .and("attemptGroupId").is(attemptGroupId)
                 .and("subjectRefId").is(subjectRefId)
                 .and("state").is(AttemptSession.State.ACTIVE)
-                .and("activeGuard").is(true)
+                .orOperator(Criteria.where("activeGuard").is(true), Criteria.where("completionAllowed").is(true))
                 .and("version").is(expectedVersion));
         return Optional.ofNullable(mongoTemplate.findAndModify(
                 query, update, FindAndModifyOptions.options().returnNew(true), AttemptSession.class
@@ -145,7 +146,7 @@ public class AttemptSessionRepository {
                 .and("subjectRefId").is(subjectRefId)
                 .and("operationId").is(operationId)
                 .and("state").is(AttemptSession.State.PROPOSED)
-                .and("activeGuard").is(true)
+                .orOperator(Criteria.where("activeGuard").is(true), Criteria.where("runtimeManaged").is(true))
                 .and("version").is(expectedVersion));
     }
 }

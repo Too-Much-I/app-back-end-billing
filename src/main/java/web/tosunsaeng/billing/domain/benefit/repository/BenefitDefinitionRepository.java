@@ -2,7 +2,7 @@ package web.tosunsaeng.billing.domain.benefit.repository;
 
 import java.util.Optional;
 
-import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.stereotype.Repository;
 
 import web.tosunsaeng.billing.domain.benefit.domain.entity.BenefitDefinition;
@@ -10,9 +10,9 @@ import web.tosunsaeng.billing.domain.benefit.domain.entity.BenefitDefinition;
 @Repository
 public class BenefitDefinitionRepository {
 
-    private final MongoTemplate mongoTemplate;
+    private final MongoOperations mongoTemplate;
 
-    public BenefitDefinitionRepository(MongoTemplate mongoTemplate) {
+    public BenefitDefinitionRepository(MongoOperations mongoTemplate) {
         this.mongoTemplate = mongoTemplate;
     }
 

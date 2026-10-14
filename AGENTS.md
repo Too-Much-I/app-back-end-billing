@@ -1,5 +1,7 @@
 # 토선생 Billing Service Codex 작업 규칙
 
+> 2026-10-14 TMI-215 구현: [유료 예약·복원 안내](docs/runbooks/TMI-215-paid-reservation-restoration.md). paid-first/동일 source replacement/phone target INITIAL·confirm/무료 hold/최초 trial 소비당 복원1회·원 group 재응시 차단·receipt/이용 원장을 단일 ClientSession으로 구현했다. r3 receipt/r5 payment ledger는 명시 maintenance만 가능하며 실DB 설치 없음. 기본 OFF/paid-admission 기동 거절 유지. HTTP/상태 이벤트 MEMBER 귀속·reader/expiry 연결/LC 전체28 검증은216, 삭제보존217·PLAN012/013 활성화 gate 별도. TMI214는 사용자 승인 commit3691f98·PR18 develop mergeebaf8d8 완료,215는 feat/TMI-215-paid-reservation-restoration 로컬 변경이다.
+
 > 2026-10-14 TMI-214: [MEMBER 복구 안내](docs/runbooks/TMI-214-member-evidence-operation-recovery.md). purchase-account 검증 JWT 최소 MEMBER 증거·탈퇴 공통Tx, MEMBER 소유 operation의 영속 대기/같은 key 재개/J3 실패/status 원본 source 복구를 추가했다. 신규 evidence/recovery flag 기본 OFF. r1→r2 receipt schema는 명시 maintenance만 가능하며 legacy request snapshot 발명 금지. 현재 paid reserve resolver/confirm/복원 연결은215, LC 전체경합은216, 삭제보존은217 후속; paid-admission ON 거절 유지. TMI-213은 사용자 승인으로 commit/push/PR17 merge 완료,214는 로컬 변경이다.
 
 > 2026-10-14 TMI-213 기반 구현: [안내](docs/runbooks/TMI-213-paid-exam-foundation.md)의 단일 ClientSession·session-bound repository·source/receipt/guard·복원 unique/원장 기반을 추가했다. paid-foundation/paid-admission 기본 OFF, admission ON은 후속 runtime 전 기동 거절. 명시 maintenance schema이며 운영 설치 없음. MEMBER owner에 phone epoch를 발명하지 않는다. 실제 MEMBER 보강/paid resolver/confirm·LC 전체28시나리오는 TMI-214~216, 삭제·보존은217 후속이다.
