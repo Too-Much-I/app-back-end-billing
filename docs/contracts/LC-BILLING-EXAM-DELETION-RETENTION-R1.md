@@ -1,6 +1,6 @@
 # TMI-217 — 시험 삭제·과거 owner·자료별 보존 공동 계약안 R1
 
-- 날짜: 2026-10-14 / revision: `lc-billing-exam-deletion-retention-r1-draft-1`
+- 날짜: 2026-10-14 / revision: `lc-billing-exam-deletion-retention-r1-draft-3`
 - 상태: **공동 검토용 제안**. 기존 승인 정책을 구체화하며 신규 wire·보존 수치의 공동 수락/제품 구현/활성화 완료가 아니다.
 - 관련: TMI-217, PLAN-011/012/013, LC TMI-116/128/122/125/193/136.
 - 기준: [최신 단순화 exact](LC-BILLING-PAID-EXAM-SIMPLIFIED-EXACT-R1.md), [범위 한정 수락](LC-BILLING-PAID-EXAM-SIMPLIFIED-R1-ACCEPTANCE.md), [삭제 정책](PLAN-011-J4-S15-V07-DECISIONS-2026-10-14.md). 과거 삭제 queue/무료 continuation 복구/영구 key 보장 제안은 사용하지 않는다.
@@ -67,7 +67,7 @@ canonical은 R2 scalar escaping 규칙을 재사용한다. 필드 순서 위 표
 | 시간/문법 | 기존 A RS256·TTL1~60초/skew30초·나노초 now·Bearer exact/JOSE strict 규칙 그대로 |
 | connector | 기존 workload TLS connector, localPort 기준; 전달 헤더로 선택 금지 |
 | Billing business gate 후보 | `app.billing.exam-deletion.enabled` / `BILLING_EXAM_DELETION_ENABLED`, 기본false |
-| ON 조건 | LC receiver/키/TLS 준비, 삭제 schema·귀속 coverage·생성/삭제 공통 fence writer 준비. paid 대상은 paid runtime/recovery 조건도 요구 |
+| ON 조건 | LC sender / Billing receiver·키/TLS 준비, 삭제 schema·귀속 coverage·생성/삭제 공통 fence writer 준비. paid 대상은 paid runtime/recovery 조건도 요구 |
 | LC 준비 | 기존 JWT sender에 새 audience 및 삭제 전달 gate 필요. 명칭은 LC 구현계획에서 공동 확인 |
 
 새 audience token은 새 route에만 허용한다. 기존 reservation/attempt audience로 삭제를 호출하거나 삭제 audience로 기존 route를 호출하면 인증이 유효해도403이다. 기존 A 여섯 POST 목적표와 fixtures는 그대로 두고 별도 addendum/새 fixture로 일곱 번째 route만 확장한다.
@@ -105,11 +105,18 @@ canonical은 R2 scalar escaping 규칙을 재사용한다. 필드 순서 위 표
 | 현재 Session owner와 creationOwner 입증 |204| exact Session deny. 같은 귀속의 현재 사용 group면 재응시·최초trial 복원 자격 차단 |
 | 같은 owner의 더 오래된 Session, 이미 새 Session 있음 |204| 그 Session만 deny. 최신 Session/group/guard는 유지 |
 | phone 이전 source A의 Session, 현재 target B |204(과거 귀속 입증 시)| A Session만 deny; B group/continuation/paid/복원권은 차단하지 않음 |
-| target B가 A의 과거 Session 삭제 주장 |409 owner| 현재 owner만으로 과거 학습자료 삭제권을 얻지 않음 |
+| phone 재가입 target B가 A의 과거 Session 삭제 주장 |409 owner| phone은 과거 Session을 이전하지 않으므로 현재 trial owner만으로 삭제권을 얻지 않음 |
+| UserMerged로 같은 Session이 A→B 이전됨 |204(검증된 이전 근거 충족 시)| 생성자가 A라는 이유만으로 거절하지 않음. B의 exact Session 및 해당 현재 group에만 적용 |
 | MEMBER paid/복원권 |204(원 account/grant 귀속 입증 시)| 해당 Session/현재 group만. phone trial subject로 위장 금지 |
 | 탈퇴 후 지연 전달 |204(원 귀속 입증 시)| 삭제만 수행, ACTIVE 복구/다른 계정 권리 변경0 |
 | 알 수 없는 group/session 또는 서로 다른 대상 |409 unresolved| 원 payload 보존, 자료 부재로 성공 추정 금지 |
 | legacy 귀속 부족/여러 owner 증거 충돌 |409 owner| 자동 차단/추정 backfill 금지, coverage 운영 확인 |
+
+**UserMerged 인정 조건 제안:** 인증된 기존 UserMerged의 source A/target B·환경·적용 완료 증거, exact Session→group→trial subject 연결, merge 전 귀속과 merge 후 현재 target 귀속이 일치해야 한다. LC는 해당 Session의 소유권 이전 완료와 삭제 접수 actor B를 증명하고 Billing은 자기 저장 근거로 해당 trial owner 이전을 대조한다. creationOwner는 최초 근거로 보존하되 현재 삭제 권한의 유일 기준으로 사용하지 않는다. epoch 유지 자체는 merge 증거가 아니며 전화번호 동일·현재owner 단독·검증되지 않은 body 주장으로 대체하지 않는다.
+
+**2026-10-14 사용자 승인 — 단일 병합으로 한정:** 같은 Session의 게스트 A→회원 B 이전 한 번만 확인한다. 회원 간 병합·같은 Session의 연속 병합을 지원하기 위한 소유권 계보 탐색/범용 자동 복구는 구현하지 않는다. 서로 다른 게스트의 각 Session이 같은 회원에게 이전되는 경우에도 각 Session의 단일 이전을 독립 검증하며, 이를 한 Session의 연속 이전으로 취급하지 않는다. 기존 UserMerged의 trial 범위만 인정하고 MEMBER paid/복원권 이전으로 확대하지 않는다. phone 재가입은 별도 규칙을 유지하며 그 반복 가능성까지 이번 단순화로 부정하지 않는다.
+
+검증된 단일 이전 증거와 현재 귀속이 일치하면 B의 삭제를 인정한다. 양측 적용 지연은 같은 event를 보존해 증거 반영 후 재확인하고, 증거 소실/불일치는 운영 확인으로 남긴다. 기존 retry/격리 한도는 유지하고 owner409를 무조건 자동 재시도하는 새 정책을 추가하지 않는다. 원문 삭제는 진행하되 필요한 Billing ACK 전 신규 시험 차단은 유지한다. 지연 후 같은 event 재개 조건과 기존 저장 증거의 coverage/보존은 공동 기술 검토 대상이다. 별도 wire 필드나 신규 이력 시스템을 미리 요구하지 않는다.
 
 과거 source의 지연 삭제를 target의 재응시 포기로 해석하지 않는 좁은 범위를 공동 검토한다. 삭제가 phone rebind보다 먼저 commit되면 원 재응시 차단이 rebind discovery에도 적용돼야 한다. 반대 순서면 이미 이전된 target 권리는 보존한다. wall-clock deletedAt으로 commit 순서를 뒤집지 않는다. 원 consumption 복원1회는 어떤 순서든 유지한다.
 
@@ -145,7 +152,7 @@ D=10,368,000초, UTC millisecond. `now >= deadline`부터 기간 충족. 재시�
 | 자료 | 기산점·기간 | 폐기 조건/상태 |
 | --- | --- | --- |
 | LC/Billing terminal 상세 operation/receipt | LC max(firstAcceptedAt+D,terminalAt+D); Billing terminalAt+D 및 최초receipt+D 하한 | 기존 exact 승인. 미완료 연계·hold 없을 때 상세만 제거 |
-| 미완료 operation/guard·미ACK 삭제 fact | terminal 없음 | 자동TTL 없음; 기존 조기 격리 우선,120일 자동복구 상한 뒤 운영 확인. 담당·사유·검토기한·종료증거 필수 |
+| 미완료 operation/guard·미ACK 삭제 fact | terminal 없음 | 자동TTL 없음; 기존24시간/200회 장애 격리가 먼저 적용되며120일은 이를 연장하거나 격리를 자동 해제하는 값이 아님.120일 자동복구 상한 뒤 운영 확인. 담당·사유·검토기한·종료증거 필수 |
 | 전달 완료 삭제 상세(event/오류/시도 기록) | 제안: LC ackedAt+D, Billing appliedAt+D | 원 deny/귀속·미완료 재생성 방지 근거를 별도 최소 형태로 남길 수 있을 때만 상세 축소 |
 | Session/group 삭제 deny·creationOwner·consumption 연결 | fixed TTL 미제안 | 해당 재응시/복원/현재 권한 판정에 필요 없고 미완료/hold 없음이 확인된 뒤 제거. 무기한 개인 연결 승인 아님 |
 | 무료 소비·복원1회 unique | 현재 무기한 무료권과 연계 | 삭제된 상세 receipt와 함께 지우지 않음. 원 권리가 더 이상 사용·복원 판정 대상이 아니게 되는 조건과 개인 연결 제거 방식 공동 확정 필요 |
@@ -159,6 +166,16 @@ D=10,368,000초, UTC millisecond. `now >= deadline`부터 기간 충족. 재시�
 새로운 개인정보 최종 보존기간은 운영/정책 담당 검토 전 자동 purge로 구현하지 않는다. 미완료/분쟁 예외마다 owner·최소항목·사유·reviewDueAt·종료조건을 남기고 완료 시 원 기산점으로 재평가한다. RC 고객 삭제5영업일/30일 후보는 이 계약 대상이 아니며 승인됐다고 간주하지 않는다.
 
 120일 상세 폐기 뒤 과거 key 신규 처리 위험 수용은 유지한다. 하지만 살아 있는 무료권을 다시 복원하거나 삭제 deny를 무시할 수 있게 최소 금융/권한 증거까지 지우는 승인은 아니다. 상세 멱등 증거와 권리 판정 증거의 제거를 분리한다. 백업/producer drain 검사는 살아 있는 권리·삭제 안전성 범위이며 모든 과거 UUID를 영구 추적하라는 요구가 아니다.
+
+### 4.1 LC 회신 대조 — 구현 차이와 coverage
+
+2026-10-14 LC 로컬 HEAD `136602a` 및 현재 작업트리를 정적 읽기 확인했다. 사용자 회신과 다음이 일치하며 코드/실환경 실행 검증은 아니다.
+
+- `UserMergedTransactionService.migrateOwner(ExamSession.class, ...)`는 같은 Session의 userId를 변경한다. §3.4에서 phone과 분리했다.
+- `DeletionCommandService.request`는 삭제 operation/command를 저장하고 `DeletionWorker`가 pendingCreation을 기다린다. 승인된 접수 단계409·삭제작업0을 구현하려면 동일 사용자 fence/Transaction에서 생성 guard를 검사해야 한다.
+- `DeletionWorker.prepare`는 target 준비 완료 후 `allowNewLearning`을 호출한다. 이 지점에 ACK 대기를 끼워 원문 정리를 막으면 안 된다. 불변 payload 저장 → 원문 정리 독립 진행과 ACK 재시도 → 필요한 ACK/생성수렴 확인 후 신규 시험 차단 해제 순서로 책임을 분리해야 한다. 기존 enum 모두를 새로 만들라는 요구는 아니다.
+- `BillingWorkloadTokenIssuer.Purpose`는 RESERVATIONS/ATTEMPT_GROUP_EVENTS만 있다. 삭제 purpose·route·양측 gate는 신규 구현/검증 대상이다.
+- 다른eventId 동일Session409는 후보 유지다. LC 최초eventId를 재시도·새 삭제 요청·상세보존 만료 뒤에도 필요한 최소 사실에서 재사용할 수 있는지 검증 전 수락 완료로 표시하지 않는다. 식별 근거가 소실된 상태에서 새eventId를 정상 재전송처럼 만들어서는 안 된다.
 
 ## 5. 검증·공동 회신 항목과 다음 작업
 

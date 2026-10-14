@@ -1,7 +1,7 @@
 # TMI-217 — 공동 검토·fixture·실행 검증 계획
 
 - 날짜: 2026-10-14 / 브랜치: `feat/TMI-217-deletion-owner-retention-contract`
-- 대상: [삭제·owner·보존 계약안](../contracts/LC-BILLING-EXAM-DELETION-RETENTION-R1.md) `lc-billing-exam-deletion-retention-r1-draft-1`
+- 대상: [삭제·owner·보존 계약안](../contracts/LC-BILLING-EXAM-DELETION-RETENTION-R1.md) `lc-billing-exam-deletion-retention-r1-draft-3`
 - 상태: 검증 **계획**. 아래 케이스는 미실행이고 아직 frozen fixture가 아니다.
 
 ## 1. 5줄 결론
@@ -46,6 +46,7 @@
 | W08 | 같은event 같은body 재전송·응답유실 | 최초commit 확인/204, effects1 |
 | W09 | 같은event 다른body/다른Session |409 EVENT_ID_CONFLICT |
 | W10 | 다른event 같은Session·내용 또는 다른삭제operation |409 DELETION_FACT_CONFLICT 제안, alias 생성0 |
+| W11 | 삭제재시도/재접수/상세보존만료·최초eventId | 최소원사실에서원ID재사용 coverage, 소실시임의새ID/성공0 |
 | A01 | LC 올바른issuer/sub/새aud | 새route만 허용 |
 | A02 | 기존reservation/attempt aud→삭제, 새aud→기존여섯POST |403, DB호출0 |
 | A03 | Identity/user/역방향Billing key·동일kid 다른keySet | 인증/인가 계약대로401/403, fallback0 |
@@ -56,12 +57,14 @@
 | A08 | trailing slash/encoded path·기존user/Identity path inventory | alias 우회0·기존chain 유지 |
 | O01 | 현재trial Session 귀속+epoch 일치 | Session deny·현재group 재응시/복원 차단 |
 | O02 | 과거source A→target B 이후 A의 exactSession 삭제 | A만deny, B 권리·guard 유지 |
-| O03 | B가 A의과거Session 삭제·epoch만 있는legacy |409 owner, 성공추정0 |
+| O03 | phone B가 A의과거Session 삭제·epoch만 있는legacy |409 owner, 성공추정0 |
 | O04 | MEMBER paid/복원권·account refresh version | 원계정 귀속, version을epoch로 오인0 |
 | O05 | source 탈퇴 후 지연 삭제 | 증거 있는exact삭제만, ACTIVE복구0 |
 | O06 | 같은owner 오래된Session 삭제·현재새Session | 새group/session/guard 보존 |
 | O07 | group/session 미존재·상호불일치·owner 근거소실 |409 unresolved/owner 구분, payload보존 |
-| O08 | USER_MERGED 이후 실제actor 귀속 | 기존증거 coverage 입증 전 정상기대 동결보류 |
+| O08 | 게스트A→회원B 단일 USER_MERGED 이후 같은Session | 검증된이전+현재귀속 입증시204 후보, 생성자A만으로 거절0; coverage입증전 동결보류 |
+| O09 | 단일merge 증거불일치/소실·적용지연 | 성공추정0, 원event보존·증거확인후재개 검토 |
+| O10 | USER_MERGED로 paid/MEMBER복원권 이전 주장 | 기존trial merge 승인 확대0 |
 | R01 | LC 생성commit 선행→삭제 | 공개409, 삭제command/queue0 |
 | R02 | LC 삭제commit 선행→생성 | 삭제fence 차단, 부분Session0 |
 | R03 | 원문purge 완료·Billing 장애 | 원문삭제 진행, 최소전달증거 유지·새생성차단 |
@@ -75,7 +78,7 @@
 | R11 | 새 INITIAL 권리부족·원무료소비 | 기존권리부족·삭제로 복원0 |
 | R12 | group 차단이 새pending guard와 경합 | exact oldgroup/session만 변경, 새guard 해제0 |
 | V01 | 상세120일 -1ms/정각/+1ms | 기산점별 경계 정확, 시각재설정0 |
-| V02 | 120일경과·미완료/미ACK/hold | 자동purge0, 담당/검토기한 기록 |
+| V02 | 24시간/200회격리 및120일경과·미완료/미ACK/hold | 조기격리연장/자동해제0·자동purge0, 담당/검토기한 기록 |
 | V03 | 상세삭제·살아있는무료권/복원unique/deny | 중복지급0·재응시차단 유지 |
 | V04 | 과거UUID 모든상세제거후 직접재입력 | 보장밖 신규처리위험수용; 영구key 요구0 |
 | V05 | old backup 복원 | 원시각/현재deny·expiry·coverage 확인전트래픽0 |
@@ -91,3 +94,6 @@
 5. 공동 실상태 O/R/V·legacy coverage·인증/실환경을 확인한 뒤 별도 활성화한다. 미정 purge와 실패경로를 숨긴 전체PASS 보고는 금지한다.
 
 이번에는 공동 계약안/본 계획/PLAN-011/CURRENT_STATE/WORKLOG만 작성·동기화했다. LC/Identity·제품code·DB·배포·새fixture·Jira쓰기·외부회신 전송 없음. 문서 링크/케이스ID/공백 검사를 수행하며 새 제품코드가 없어 Gradle 재실행은 하지 않는다.
+
+
+2026-10-14 사용자 승인 반영: 같은 Session의 게스트→회원 단일 이전만 검증한다. 연속 병합을 추적·복구하는 기능은 제외한다. O08/O09는 단일 이전의 성공 근거와 지연/증거누락을 다루며48개 항목은 계속 미실행이다. phone 재가입 및 별개 Session의 귀속 판정은 유지한다.
