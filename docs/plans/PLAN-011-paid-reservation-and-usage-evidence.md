@@ -1,5 +1,7 @@
 # PLAN-011: 유료 시험 승인·권리 전환·무료권 복원·구매별 이용 증거
 
+> 2026-10-14 후속 구현: [Session 생성 owner 증거](../runbooks/TMI-217-session-creation-owner-evidence.md)를 계정 기반 paid runtime의 신규 Session에 추가했다. 기존 source/wire/권리 판정과 기본OFF 유지. creationOwner는 현재삭제권한 판정이 아니며 Guest/legacy coverage·단일merge 검증·삭제route/보존은 후속이다. 사용자 후속구현 요청 범위의 내부기반이며 TMI217 공동계약 전체완료 아님.
+
 > 2026-10-14 TMI-217 착수: TMI-216 commit780e677·[PR20](https://github.com/Too-Much-I/app-back-end-billing/pull/20) develop merge89ae574 완료. `feat/TMI-217-deletion-owner-retention-contract`에서 [삭제·owner·보존 계약안 R1](../contracts/LC-BILLING-EXAM-DELETION-RETENTION-R1.md)과 [검증 계획](TMI-217-DELETION-OWNER-RETENTION-VERIFICATION.md)을 작성했다. Jira상 공동 계약 준비 과제이며 신규 route/creationOwner/상세 보존은 검토 제안이다. LC 공동 회신·새fixture·제품코드·운영purge/활성화는 미완료다.
 
 > 2026-10-14 TMI-216 Billing 연결: [런타임 안내](../runbooks/TMI-216-lc-paid-exam-integration.md)·[상태28 대응표](../runbooks/TMI-216-shared-state-verification.md). paid HTTP/lifecycle/expiry, source별 v1 상태 이벤트·guard·구매 이용 원장, read-only 통합 reader를 연결했다. 기본 OFF; admission ON은 foundation/recovery·MEMBER writer·LC receiver/event·통합 reader·r3/r6 schema를 요구한다. source-aware 구 writer 우회 금지. Guest/legacy coverage·LC P3 이후 전체공동검증·삭제보존217·PLAN012/013 활성화 gate는 남는다. TMI215는 commit34ad2f1·PR19 develop merge5d16ba4 완료,216은 feat/TMI-216-lc-paid-exam-integration 작업이다. 아래 admission 일괄 기동 거절/HTTP 미연결 표현은 해당 구현 범위에서 과거 기록이다.

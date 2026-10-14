@@ -1,6 +1,7 @@
 package web.tosunsaeng.billing.domain.attempt.domain.entity;
 
 import java.time.Instant;
+import web.tosunsaeng.billing.domain.attempt.domain.model.SessionCreationOwner;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -24,6 +25,19 @@ public class AttemptSession {
         java.util.Objects.requireNonNull(source);
         if (sourceSnapshot != null && !sourceSnapshot.equals(source)) throw new IllegalStateException("Source snapshot is immutable");
         sourceSnapshot = source;
+        return this;
+    }
+
+    // Optional on legacy rows. Absence is unknown, never the current owner inferred retroactively.
+    private SessionCreationOwner creationOwner;
+
+    public SessionCreationOwner getCreationOwner() { return creationOwner; }
+
+    public AttemptSession withCreationOwner(SessionCreationOwner owner) {
+        java.util.Objects.requireNonNull(owner);
+        if (creationOwner != null && !creationOwner.equals(owner))
+            throw new IllegalStateException("Session creation owner is immutable");
+        creationOwner = owner;
         return this;
     }
 

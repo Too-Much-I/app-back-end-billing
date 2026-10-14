@@ -5998,3 +5998,12 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - 사용자 「어 그렇게 하는 걸로 하면 될 거 같아」로 같은Session 게스트→회원 단일이전 확인·연속병합 계보추적 제외 승인. feat/TMI-217-lc-deletion-handoff에서 정본draft3/검증계획O08·O09/인계/CURRENT_STATE/본기록 반영.
 - phone 재가입 별도, 단일증거+현재귀속 일치시 삭제 인정. 지연은 원event재확인·소실/불일치 운영확인, 기존retry/격리 유지. 원문정리 독립·필요ACK전 신규생성차단 유지. 별개Session의 개별이전까지 금지하지 않음.
 - 링크/48개ID유일성/diff검사, 제품변경없어Gradle미실행. 제품/fixture/타저장소/DB/배포/Jira/외부발송/commit/push 변경0. 기존병행작업보존, 예상밖변경0. 공동기술coverage검토·fixture/제품구현은 후속.
+
+## 2026-10-14 — PR22 병합·Session 생성 owner 내부 기반
+
+- 요청/브랜치: 사용자 commit/push/merge후다음구현. 계약보완 commit01d1350e96c40565f7697ddbec73640bce6cd0d9·PR22 https://github.com/Too-Much-I/app-back-end-billing/pull/22 생성/첨부, CLEAN/CodeRabbit SUCCESS/exacthead 확인후 develop merge3b00a6113e2838727eb813b1dcceb5d732fa8098. 새 feat/TMI-217-session-owner-evidence 생성. 별도PLAN012기록 index-only 제외·보존.
+- 범위: Jira217 읽기(계약준비 과제) 확인. 이번사용자 후속구현요청에 따라 외부wire와독립된 Billing 내부 생성근거만 구현했으며217전체완료/삭제계약동결로 표시하지 않음.
+- 변경: SessionCreationOwner immutable record, AttemptSession optional creationOwner, PaidReservationService의검증된Transaction writer. paid/MEMBER grant는account/null epoch, trial은subject/검증epoch. 최초근거불변·legacy부재unknown/backfill0·로그reference가림. 단일merge현재삭제권한판정/새route/Guest구writer/최종보존은미구현.
+- 테스트: 선별실Mongo5개통과, 최종 ./gradlew clean test1,577개 실패0/오류0/skip0(신규통합5+단위2 포함). 생성원자성/receipt실패rollback·confirm/replay/계정refresh불변·trial link변경후과거근거유지·legacy부재·epoch종류검증. 최초sandbox Gradlecache lock제한은승인실행으로해소. 기존deprecated경고유지. simplified80/hash9·R2검사·문서링크/diff통과.
+- 문서: 안내/PLAN011/ADR004/CURRENT_STATE/본기록. 자동DDL/validator/index설치·운영DB·LC/Identity·fixturebytes·Jira쓰기·외부발송·배포/활성화변경0. 기존paid flags OFF 유지. 운영attempt_sessions별도validator/reader coverage·개인연결보존은rollout gate.
+- 다음: 수정계약 공동coverage와단일merge/eventId증거확인, Guest/legacy writer범위확정후삭제receiver/ACK/경합구현. 현재근거는최초귀속일뿐삭제권한허용아님. 병행012문서보존·이번예상밖변경없음. 새구현은로컬미커밋/미푸시.

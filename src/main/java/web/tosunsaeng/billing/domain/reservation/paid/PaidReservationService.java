@@ -115,6 +115,14 @@ public final class PaidReservationService {
         AttemptSession session = AttemptSession.proposed(command.sessionId(), groupId, subject, command.operationId(), now)
                 .withSourceSnapshot(source).withPaidRuntime();
         if (epoch != null) session.withSessionOwnerEpoch(epoch);
+        // These values come from the validated reservation transaction, not client owner fields.
+        session.withCreationOwner(new web.tosunsaeng.billing.domain.attempt.domain.model.SessionCreationOwner(
+                environment,
+                source.trialClaimId() != null
+                        ? web.tosunsaeng.billing.domain.attempt.domain.model.SessionCreationOwner.Kind.TRIAL_SUBJECT
+                        : web.tosunsaeng.billing.domain.attempt.domain.model.SessionCreationOwner.Kind.MEMBER_ACCOUNT,
+                command.userId(), source.trialClaimId() != null ? subject : account.getString("_id"),
+                source.trialClaimId() != null ? epoch : null));
         c.sessions().insert(session);
         usage(c, reservation, "EXAM_RESERVED", now, ids.usage);
         return Optional.of(reservationId);
