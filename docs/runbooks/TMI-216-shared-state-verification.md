@@ -20,7 +20,7 @@
 | E03 | Billing 검증 | M.withdrawalAndEvidenceRaceNeverResurrectAccount; M.withdrawalCompetesWithAdmissionThroughSameLifecycleWriteFence | Identity 실환경 발급 fence 별도 |
 | E04 | 미실행 | 해당 없음 | LC P4/TMI-217 삭제 |
 | E05 | 미실행 | 해당 없음 | LC P4/TMI-217 삭제 후 replay |
-| E06 | Billing 부분 검증 | R.httpPrecreationFailureHasDurableStatusAndDoesNotBecomeNotFound; M.withdrawalWinsOverEvidenceRefreshReplayAndPayloadConflict | E06-owner fixtures-2 문구 정정 완료·LC 독립 재검증 대기 |
+| E06 | Billing 부분 검증 | R.httpPrecreationFailureHasDurableStatusAndDoesNotBecomeNotFound; M.withdrawalWinsOverEvidenceRefreshReplayAndPayloadConflict | E06-owner LC 독립/loopback actual-client 재검증 완료(2026-10-14); 전체 E06/runtime 공동검증과 구분 |
 | T01 | 부분 검증 | PaidExamFoundationTest.guaranteeUsesExactInstantAndDoesNotRenewOnRetry | LC 저장경계/실제 purge 별도 |
 | T02 | Billing 부분 검증 | M.successReplayDoesNotRequireFreshEvidenceOrCommandCacheAndDoesNotReselectSource; M.pendingSurvives120DaysAndTerminalEligibilityNeverRoundsEarlier | LC lease/login 재개 |
 | T03 | 미실행 | 해당 없음 | TMI-217 자료별 purge |

@@ -5963,3 +5963,20 @@
 `python3 scripts/contracts/verify-paid-exam-simplified-fixtures-r1.py`: errors22/public4/time14/member29/phone11 = 80벡터 통과, 9파일 hash 모두 OK. 기존 잘못된 E06-owner는 CONTRACT_ERROR, 정정본은 OWNER_BLOCKED로 판정되는 회귀 확인. ZIP10파일을 원본 bytes와 재대조했다. 상태28개는 미실행 유지다.
 
 LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된다. 생산자 manifest의 lcIndependentValidation=false는 유지한다. 이번에는 fixture/도구/기록만 변경해 전체 Gradle은 재실행하지 않았다. runtime 오류를 발견·수정했다는 의미가 아니며 정책/API/제품 코드/DB/배포/타 저장소/외부 발송/commit/push 변경 없음. 기존 TMI-216 및 PLAN-012 작업을 보존했고 예상 밖의 이번 변경은 없다. T04와 다른 공동 gate는 별도다.
+
+## 2026-10-14 — TMI-216 병합·TMI-217 삭제/owner/보존 공동 계약 준비
+
+- 요청: 사용자 커밋·푸시·머지 후 다음 브랜치 작업 지시. TMI216 commit `780e677c6da9c7a10aae5112fa6c8c0fdda8e0d8`, PR20 https://github.com/Too-Much-I/app-back-end-billing/pull/20, develop merge `89ae574acc8f51028e4e53f662facac41dfcfc36` 확인. PR attachment 완료. remote head/CLEAN/CodeRabbit SUCCESS 확인 뒤 exact head로 merge했다.
+- 보존: 216 구현/fixtures-2/해당기록만 커밋. 병행 PLAN012/RevenueCat 문서와 CURRENT_STATE/WORKLOG 부분은 index-only 분리해 제외하고 작업트리에 유지했다. 새 `feat/TMI-217-deletion-owner-retention-contract`는 병합된 origin/develop에서 생성했다.
+- 다음 범위: Jira TMI-217 읽기에서 제품코드 아닌 공동계약 준비 과제임을 확인. LC-BILLING-EXAM-DELETION-RETENTION-R1 및 TMI-217-DELETION-OWNER-RETENTION-VERIFICATION 신규, PLAN011/CURRENT_STATE 동기화. 신규POST/별도목적audience/기존LC키·connector/OFF gate,7field·exact오류·최소creationOwner·Session-only 과거owner 삭제·현재group차단·phone/생성/confirm양순서·삭제후INITIAL·자료별보존표를 제안했다.
+- 단순화/미확정: 다른eventId 동일Session은409로 제안해 별도alias저장 제외(종전 미수락204후보와 차이 명시). LC 수락/actorcoverage/최종deny·무기한권리의개인연결제거/운영책임·새fixture는 후속. MEMBER/120일/paid-first/원소비복원1회 정책 유지, 영구key 요구 없음.
+- 조사: Billing Session에불변actor없음·phone source fence는짧은보존·MEMBER account version≠epoch·현재deleted 일괄conflict 및group-level deny 확인. LC HEAD001b575 DeletionCommandService/Worker를 읽기만 확인, 상대진행/배포전체증거 아님.
+- 검증: 기존 XML1,570/실패0/오류0/skip0 확인, simplified80/hash9 및R2검사 재실행통과. 새문서는링크·케이스ID·git diff --check 검사, 제품변경없어Gradle미재실행. 새 W/A/O/R/V는미실행 계획이며 runtime/fixture PASS로 보고하지 않는다.
+- 경계/다음: 이번217제품code/schema/DB/새fixture/LC·Identity/Jira쓰기/외부회신/배포/활성화 변경0. 기존A/R2/simplifiedbytes불변, 이번 예상밖변경없음. 공동회신→범위수락→새fixture/hash·양측독립검증→별도제품구현/실경합/운영gate. 217문서는 로컬 미커밋이다.
+
+## 2026-10-14 — TMI-216 fixtures-2 LC 독립 재검증 접수
+
+- 목표/브랜치: 사용자 LC 회신 접수, feat/TMI-217-deletion-owner-retention-contract. LC 보고서 원문 읽기·Billing 원본 SHA256SUMS/계약/error-cases hash 직접 대조, ZIP hash는 인계 기록과 대조했다.
+- 결과: E06-owner 문구 불일치 해소. LC oracle82(80벡터 포함), actual-client49(오류22 포함), 전체1,149 실패0/오류0/기존skip1은 LC 보고 근거. Billing에서 LC 테스트 재실행/전체재합산 없음. 실제 client는loopback, Billing 서버/TLS/JWT chain/DB/E2E 증거 아님.
+- 변경: fixtures-2 인계 후속, TMI216 런타임/상태대응표, TMI217 검증계획, CURRENT_STATE 및 본 기록. 기존작업/동시PLAN012 문서 보존. fixture/manifest bytes·제품/API·DB·배포·타저장소·Jira·외부전송·commit/push 변경0.
+- 검증: hash3개 대조·git diff --check. 문서만 변경해Gradle미실행. 이번 예상밖변경없음. 다음: TMI217 공동계약 검토 및 상태28/T04/삭제보존·실환경 활성화gate 별도 검증.
