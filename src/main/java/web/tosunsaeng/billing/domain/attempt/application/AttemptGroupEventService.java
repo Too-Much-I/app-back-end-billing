@@ -69,7 +69,23 @@ public class AttemptGroupEventService {
         this.clock = clock;
     }
 
+    private web.tosunsaeng.billing.domain.reservation.paid.PaidAttemptEventService paid;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setPaidEvents(web.tosunsaeng.billing.domain.reservation.paid.PaidAttemptEventService paid) { this.paid = paid; }
+
     public AttemptGroupEventOutcome process(AttemptGroupStatusEvent event) {
+        try {
+            if (paid != null && paid.handles(event.attemptGroupId())) {
+                long start = System.nanoTime(); Instant received = clock.instant();
+                try { var result = paid.process(event); record(event, result.name(), start, received); return result; }
+                catch (InternalApiException e) { record(event, outcomeFor(e), start, received); throw e; }
+            }
+            groupRepository.findById(event.attemptGroupId()).filter(g -> g.getSourceSnapshot() != null).ifPresent(g -> {
+                throw AttemptGroupEventException.temporarilyUnavailable();
+            });
+        } catch (DataAccessException | MongoException unavailable) {
+            throw AttemptGroupEventException.temporarilyUnavailable();
+        }
         long startedAt = System.nanoTime();
         Instant receivedAt = clock.instant();
         for (int attempt = 1; attempt <= MAX_TRANSACTION_ATTEMPTS; attempt++) {

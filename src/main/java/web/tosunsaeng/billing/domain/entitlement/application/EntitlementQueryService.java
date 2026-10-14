@@ -32,6 +32,8 @@ public class EntitlementQueryService {
         if (readers.isEmpty() || readers.size() > 20) { throw new EntitlementQueryException(EntitlementQueryException.Failure.LIMIT); }
         PaidEntitlementReader paid = payments.isEntitlementQueryEnabled() ? paidReader.getIfAvailable() : null;
         if (payments.isEntitlementQueryEnabled()) { EntitlementQueryException.require(paid != null); paid.prepare(); }
+        var admissionReader = paid == null ? null : admission.getIfAvailable(ExamAdmissionReader::unavailable);
+        if (admissionReader instanceof web.tosunsaeng.billing.domain.reservation.paid.PaidExamQueryReader runtime) runtime.prepare();
         return snapshots.execute(() -> {
             var now = clock.instant();
             var benefits = readers.stream().map(reader -> reader.read(userId, now))
@@ -40,9 +42,11 @@ public class EntitlementQueryService {
             Status status = benefits.stream().anyMatch(Benefit::pending) ? Status.PENDING : Status.READY;
             if (paid == null) return new EntitlementQueryResponse(now, Consistency.LOCAL_PROJECTION, status, benefits);
             var paidResult = paid.read(userId, now);
-            var reader = admission.getIfAvailable(ExamAdmissionReader::unavailable);
+            var reader = admissionReader;
+            if (reader instanceof web.tosunsaeng.billing.domain.reservation.paid.PaidExamQueryReader runtime) benefits = runtime.augment(userId, benefits);
             var availability = reader.read(userId, now, paidResult, benefits);
             EntitlementQueryException.require(availability != null);
+            status = benefits.stream().anyMatch(Benefit::pending) ? Status.PENDING : Status.READY;
             return new EntitlementQueryResponse(now, Consistency.LOCAL_PROJECTION, status, benefits, paidResult, availability);
         });
     }

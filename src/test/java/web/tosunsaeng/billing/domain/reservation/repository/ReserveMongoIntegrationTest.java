@@ -1296,6 +1296,26 @@ class ReserveMongoIntegrationTest {
         assertThat(results).hasSize(2);
     }
 
+
+    @Test
+    void legacyWriterCannotReplaceSourceAwareGroupWhenPaidRuntimeIsOff() {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        var initial = reserveService.reserve(command(USER_ONE, OP_ONE, "source-initial", "mock-1", "source-hash"));
+        lifecycleService.confirm(confirmCommand(initial, "source-confirm"));
+        var group = mongoTemplate.findAll(AttemptGroup.class).getFirst();
+        var grant = mongoTemplate.findAll(EntitlementGrant.class).getFirst();
+        var source = new web.tosunsaeng.billing.domain.reservation.paid.EntitlementSourceSnapshot(
+                web.tosunsaeng.billing.domain.reservation.paid.EntitlementSourceSnapshot.Type.EXAM_PASS,
+                grant.getGrantId(), group.getConsumptionLedgerEventId(), group.getTrialClaimId(), null, null, null, NOW, null, null);
+        mongoTemplate.updateFirst(Query.query(org.springframework.data.mongodb.core.query.Criteria.where("_id").is(group.getAttemptGroupId())),
+                new Update().set("sourceSnapshot", source.toDocument()), AttemptGroup.class);
+        var before = databaseSnapshot();
+        assertThatThrownBy(() -> reserveService.reserve(command(USER_ONE, OP_TWO, "new-session", "mock-1", "other-hash")))
+                .isInstanceOfSatisfying(web.tosunsaeng.billing.global.exception.InternalApiException.class,
+                        e -> assertThat(e.code()).isEqualTo("BILLING_TEMPORARILY_UNAVAILABLE"));
+        assertThat(databaseSnapshot()).isEqualTo(before);
+    }
+
     private ReserveService serviceWith(MongoTransactionExecutor executor) {
         return new ReserveService(
                 eligibilityRepository, benefitCatalog, claimRepository, aliasRepository,

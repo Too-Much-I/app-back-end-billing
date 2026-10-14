@@ -468,4 +468,21 @@ class PurchaseCoreIntegrationTest {
                 new IndexOptions().name("ux_purchase_transaction").unique(true));
         assertThatThrownBy(() -> core(NOW)).isInstanceOf(IllegalStateException.class);
     }
+
+    @Test void r5ExamUsageUpgradePreservesLedgerAndRequiresIsolation() {
+        var observation = purchase("event-r5", "transaction-r5"); core.receive(observation); core.apply(observation.providerEventKey());
+        var before = db.getCollection("payment_ledger").find().into(new ArrayList<>());
+        db.runCommand(new Document("collMod", "payment_ledger").append("validator", PurchaseCoreSchema.examOperationManifest().get("payment_ledger").validator()));
+        assertThatThrownBy(() -> PurchaseCoreSchema.verify(db)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> PurchaseCoreSchema.upgradeExamUsageUnderMaintenance(db, true)).isInstanceOf(IllegalStateException.class);
+        barrier("ALL_BLOCKED");
+        assertThatThrownBy(() -> PurchaseCoreSchema.upgradeExamUsageUnderMaintenance(db, false)).isInstanceOf(IllegalStateException.class);
+        PurchaseCoreSchema.upgradeMoneyEvidenceUnderMaintenance(db, true);
+        PurchaseCoreSchema.upgradeWebhookUnderMaintenance(db, true);
+        PurchaseCoreSchema.upgradeWorkerUnderMaintenance(db, true);
+        PurchaseCoreSchema.upgradeExamUsageUnderMaintenance(db, true);
+        PurchaseCoreSchema.upgradeExamUsageUnderMaintenance(db, true);
+        PurchaseCoreSchema.verify(db);
+        assertThat(db.getCollection("payment_ledger").find().into(new ArrayList<>())).isEqualTo(before);
+    }
 }

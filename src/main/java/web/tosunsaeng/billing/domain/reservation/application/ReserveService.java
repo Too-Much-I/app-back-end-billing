@@ -343,6 +343,10 @@ public class ReserveService {
             return Reservation.Kind.INITIAL;
         }
         AttemptGroup current = group.get();
+        if (current.getSourceSnapshot() != null || current.isReplacementBlocked()) {
+            // Source-aware groups require the paid writer's receipt/owner/guard transaction.
+            throw ReservationException.temporarilyUnavailable();
+        }
         if (!current.getTrialClaimId().equals(claim.claim().getTrialClaimId())) {
             metrics.recordInvariantViolation();
             throw ReservationException.temporarilyUnavailable();
