@@ -44,12 +44,28 @@ class PaymentControllerTest {
         @Bean io.micrometer.core.instrument.MeterRegistry metrics() { return new io.micrometer.core.instrument.simple.SimpleMeterRegistry(); }
     }
     @BeforeEach void setup() {
-        properties.setCatalogEnabled(true); properties.setPurchaseAccountEnabled(true); reader.setEnabled(false);
+        properties.setMemberEvidenceEnabled(false); properties.setCatalogEnabled(true); properties.setPurchaseAccountEnabled(true); reader.setEnabled(false);
         when(identityUserJwtDecoder.decode("member")).thenReturn(token("MEMBER", "billing:purchase"));
         when(identityUserJwtDecoder.decode("guest")).thenReturn(token("GUEST", "billing:read"));
         when(identityUserJwtDecoder.decode("guest-purchase")).thenReturn(token("GUEST", "billing:purchase"));
         when(catalog.read()).thenReturn(new PaymentProductsResponse(1, List.of()));
         when(accounts.getOrCreate(eq(USER), any())).thenReturn(new PurchaseAccountResponse(REF));
+    }
+    @Test void evidenceWriterUsesVerifiedPrincipalAndTrustedSettings() throws Exception {
+        properties.setMemberEvidenceEnabled(true);
+        when(identityUserJwtDecoder.decode("member-evidence")).thenReturn(Jwt.withTokenValue("fake").header("alg", "RS256")
+                .subject(USER).issuer("https://identity.test").audience(List.of("tosunsaeng-billing"))
+                .claim("account_type", "MEMBER").claim("scope", "billing:purchase")
+                .issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(60)).build());
+        when(accounts.getOrCreate(any(VerifiedMemberEvidence.class))).thenReturn(new PurchaseAccountResponse(REF));
+        mvc.perform(post(PublicIngressFilter.ACCOUNT).with(r -> { r.setLocalPort(8083); return r; })
+                        .header("Authorization", "Bearer member-evidence").header("X-User-Id", "forged"))
+                .andExpect(status().isOk()).andExpect(jsonPath("result.purchaseAccountRefId").value(REF));
+        var captor = org.mockito.ArgumentCaptor.forClass(VerifiedMemberEvidence.class);
+        verify(accounts).getOrCreate(captor.capture());
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().userId()).isEqualTo(USER);
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().environment()).isEqualTo("SANDBOX");
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().document().getString("issuer")).isEqualTo("https://identity.test");
     }
     @Test void guestCatalogWorksWithFreeReaderOff() throws Exception {
         mvc.perform(get(PublicIngressFilter.PRODUCTS).with(r -> { r.setLocalPort(8083); return r; }).header("Authorization", "Bearer guest"))

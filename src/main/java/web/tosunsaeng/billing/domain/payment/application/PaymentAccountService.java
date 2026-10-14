@@ -20,6 +20,14 @@ public class PaymentAccountService {
         this.store = store; this.properties = properties; this.clock = clock;
     }
     public PurchaseAccountResponse getOrCreate(String userId, Instant authorizationDeadline) {
+        return getOrCreate(userId, authorizationDeadline, null);
+    }
+    public PurchaseAccountResponse getOrCreate(VerifiedMemberEvidence evidence) {
+        require(evidence != null && properties.isMemberEvidenceEnabled()
+                && properties.getEnvironment().equals(evidence.environment()));
+        return getOrCreate(evidence.userId(), evidence.authorizationDeadline(), evidence);
+    }
+    private PurchaseAccountResponse getOrCreate(String userId, Instant authorizationDeadline, VerifiedMemberEvidence evidence) {
         require(UUID.fromString(userId).toString().equals(userId));
         var fence = new web.tosunsaeng.billing.domain.payment.recovery.PaymentRecoveryFence(store, properties);
         var ticket = fence.capture();
@@ -71,6 +79,12 @@ public class PaymentAccountService {
                 require(active.size() == 1 && reference.equals(active.getFirst().getString("_id")));
                 var cursorKey = new Document("accountId", account.get("_id")).append("kind", "ACCOUNT_LOOKUP");
                 require(cursors.updateOne(session, cursorKey, new Document("$max", new Document("lastActivityAt", now))).getMatchedCount() == 1);
+            }
+            if (evidence != null) {
+                require(accounts.updateOne(session, new Document("_id", account.get("_id")).append("state", "ACTIVE")
+                                .append("version", account.getLong("version")),
+                        new Document("$set", new Document("memberEvidence", evidence.document()).append("updatedAt", now))
+                                .append("$inc", new Document("version", 1L))).getModifiedCount() == 1);
             }
             if (!clock.instant().isBefore(authorizationDeadline)) throw new PaymentException(401, "UNAUTHENTICATED");
             return new PurchaseAccountResponse(account.getString("activeRefId"));

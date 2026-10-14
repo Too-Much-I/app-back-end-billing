@@ -16,6 +16,23 @@ public final class ReservationException extends InternalApiException {
         super(status, code, message, retryable, retryAfterSeconds);
     }
 
+    public static ReservationException memberEvidencePending() {
+        return new ReservationException(HttpStatus.SERVICE_UNAVAILABLE, "MEMBER_EVIDENCE_PENDING",
+                "The operation is waiting for member evidence and request resumption.", true, 1);
+    }
+    public static ReservationException operationOwnerMismatch() {
+        return new ReservationException(HttpStatus.CONFLICT, "OPERATION_OWNER_MISMATCH",
+                "The operation owner does not match the current owner.", false, null);
+    }
+    public static ReservationException rejectedBeforeCreation() {
+        return new ReservationException(HttpStatus.CONFLICT, "RESERVE_REJECTED_BEFORE_CREATION",
+                "The reserve operation was rejected before reservation creation.", false, null);
+    }
+    public static ReservationException transitionContextConflict() {
+        return new ReservationException(HttpStatus.CONFLICT, "TRANSITION_CONTEXT_CONFLICT",
+                "The transition context conflicts with the current exam.", false, null);
+    }
+
     public static ReservationException invalidIdempotencyKey() {
         return new ReservationException(
                 HttpStatus.BAD_REQUEST,

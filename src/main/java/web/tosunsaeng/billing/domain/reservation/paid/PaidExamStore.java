@@ -26,19 +26,33 @@ public final class PaidExamStore {
     PaidExamStore(MongoOperations mongo) { this.mongo = mongo; }
 
     public Document insertWaiting(Key key, String digest, Document owner, Instant receivedAt) {
+        return insertWaiting(key, digest, owner, receivedAt, null);
+    }
+    public Document insertWaiting(Key key, String digest, Document owner, Instant receivedAt, Document request) {
         if (!"RESERVE".equals(key.commandType())) throw new IllegalArgumentException("Only reserve waits for evidence");
         Document row = keyDocument(key).append("_id", UUID.randomUUID().toString()).append("schemaVersion", 1L)
                 .append("payloadHash", digest).append("owner", owner).append("state", State.WAITING_MEMBER_EVIDENCE.name())
-                .append("version", 1L).append("receivedAt", Date.from(receivedAt)).append("waitingSince", Date.from(receivedAt))
+                .append("version", 1L).append("receivedAt", ceilingMillis(receivedAt)).append("waitingSince", ceilingMillis(receivedAt))
                 .append("reservationId", null).append("source", null).append("responseSnapshot", null)
                 .append("errorCode", "MEMBER_EVIDENCE_PENDING").append("terminalAt", null).append("detailEligibleAt", null);
+        if (request != null) row.append("schemaVersion", 2L).append("requestSnapshot", request);
         return mongo.insert(row, RECEIPTS);
     }
     public Optional<Document> receipt(Key key, String digest) {
-        Document found = mongo.findOne(new BasicQuery(keyDocument(key)), Document.class, RECEIPTS);
+        Document found = receipt(key).orElse(null);
         if (found != null && !Objects.equals(digest, found.getString("payloadHash")))
             throw new IllegalStateException("IDEMPOTENCY_KEY_CONFLICT");
         return Optional.ofNullable(found);
+    }
+    public Optional<Document> receipt(Key key) {
+        return Optional.ofNullable(mongo.findOne(new BasicQuery(keyDocument(key)), Document.class, RECEIPTS));
+    }
+    public boolean rejectWaiting(Key key, String digest, long version, Instant terminalAt) {
+        return mongo.updateFirst(new BasicQuery(keyDocument(key).append("payloadHash", digest).append("version", version)
+                        .append("state", State.WAITING_MEMBER_EVIDENCE.name())),
+                new Update().set("state", State.FAILED_TERMINAL.name()).set("errorCode", "TRANSITION_CONTEXT_CONFLICT")
+                        .set("terminalAt", ceilingMillis(terminalAt)).set("detailEligibleAt", ceilingMillis(terminalAt.plus(DETAIL_RETENTION)))
+                        .inc("version", 1), RECEIPTS).getModifiedCount() == 1;
     }
     public boolean reserveWaiting(Key key, String digest, long version, String reservationId,
             EntitlementSourceSnapshot source, Document response) {
@@ -95,6 +109,10 @@ public final class PaidExamStore {
     }
     public static boolean withinGuarantee(Instant lcFirstAcceptedAt, Instant now) {
         return !now.isBefore(lcFirstAcceptedAt) && now.isBefore(lcFirstAcceptedAt.plus(DETAIL_RETENTION));
+    }
+    private static Date ceilingMillis(Instant time) {
+        long millis = time.toEpochMilli();
+        return new Date(time.getNano() % 1_000_000 == 0 ? millis : Math.addExact(millis, 1));
     }
     private static Document keyDocument(Key k) {
         return guardKey(k.environment(), k.userId()).append("callerService", "LEARNING_CORE")

@@ -106,7 +106,7 @@ public class ReservationConverter {
                 result.operationId(), result.reservationId(), result.reservationKind(),
                 result.reservationStatus(), result.attemptGroupId(), result.attemptGroupStatus(),
                 result.sessionId(), result.mockExamId(), result.continuationReason(),
-                result.continuationId(), result.expiresAt(), result.terminalAt()
+                result.continuationId(), result.expiresAt(), result.terminalAt(), result.entitlementSource()
         );
     }
 }

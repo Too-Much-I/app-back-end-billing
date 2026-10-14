@@ -151,7 +151,18 @@ public class ReservationLifecycleService {
         throw ReservationException.temporarilyUnavailable();
     }
 
+    private web.tosunsaeng.billing.domain.reservation.paid.MemberOperationRecovery memberRecovery;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setMemberRecovery(web.tosunsaeng.billing.domain.reservation.paid.MemberOperationRecovery memberRecovery) {
+        this.memberRecovery = memberRecovery;
+    }
+
     public ReservationStatusResult status(String userId, String operationId) {
+        if (memberRecovery != null) {
+            var recovered = memberRecovery.status(userId, operationId);
+            if (recovered.isPresent()) return recovered.get();
+        }
         IdempotencyCommand reserve = commandRepository.findReserve(userId, operationId)
                 .filter(value -> value.getState() == IdempotencyCommand.State.SUCCEEDED)
                 .orElseThrow(ReservationException::operationNotFound);

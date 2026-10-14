@@ -1,5 +1,7 @@
 # PLAN-011: 유료 시험 승인·권리 전환·무료권 복원·구매별 이용 증거
 
+> 2026-10-14 TMI-214 구현: [MEMBER 증거/복구 안내](../runbooks/TMI-214-member-evidence-operation-recovery.md). 계정 증거 writer·MEMBER receipt 대기/재개/J3/status·최초 source snapshot을 구현했다. 단일 ClientSession의 Admission 경계이며 실제 paid resolver/confirm/복원 연결은 TMI-215. 기본 OFF·r2 명시 schema·LC reader 선배포 gate를 유지한다. PR17로 TMI-213 develop 병합 완료. 전체 상태28 완료나 실환경 활성화가 아니다.
+
 > 2026-10-14 TMI-213 구현·로컬 검증 완료: [기반 안내](../runbooks/TMI-213-paid-exam-foundation.md). 단일 Transaction/session·optional source reader·receipt/guard CAS·복원 unique 기반과 명시 schema를 구현했다. 최종 clean test1,497개(신규23 포함), 실패/오류/skip0. 다음은 TMI-214 MEMBER 증거/대기 업무 연결이며 운영 schema 설치·실제 paid admission·전체28시나리오 완료는 아니다. 아래 과거 문서-only 상태는 이번 좁은 기반 구현 범위에서 갱신한다.
 
 ### Jira 구현 추적 — 2026-10-14
