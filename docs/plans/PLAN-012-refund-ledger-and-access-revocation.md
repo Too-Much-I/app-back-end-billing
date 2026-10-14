@@ -1,5 +1,13 @@
 # PLAN-012: 전액·부분 환불 원장·기간 재배치·시험 접근 철회
 
+> 2026-10-14 공동 기술 검토 기준 통합: [유료 시험 계약 R2](../contracts/LC-BILLING-PAID-EXAM-CONTRACT-R2.md)를 우선 참조한다. 최신 승인 정책·LC 최소wire 제안을 한 곳에 정리했으며 본문의 종전 기술 후보는 변경 이력이다. 새정본의 exact 공동수락/fixture/구현·배포는 미완료이고 phone/삭제/보존 gate는 별도 확인한다.
+
+> 2026-10-13 [공동 기술 계약 R1 초안](../contracts/LC-BILLING-PAID-EXAM-WIRE-R1.md) 작성: 전환 요청/응답·문제 선택·오류/복구·역방향인증/보존·fixture 제작명세. 신규 wire/enum/오류는 LC 공동 수락 전 후보이며 구현/배포 미실행.
+
+> 2026-10-13 LC 검토 5항목 보완 [인계 R2](../contracts/LC-BILLING-PAID-EXAM-HANDOFF-R2.md) 작성. source operation보존/새제출제한없음/오류보상/역방향인증/순서·보존·lifecycle 후보를 따르며 공동동결 전 구현불가.
+
+> 2026-10-13 LC 공동 확정용 [유료 시험 연동 인계 R1](../contracts/LC-BILLING-PAID-EXAM-HANDOFF-R1.md) 작성. 신규 field/오류/revoke 인증은 후보이며 구현 전 양측 수락 필요. 기존 상태event v1 재사용·Billing 내부증거 저장 방향을 따른다.
+
 > 2026-10-13 사용자 승인 정책 변경: [환불 전 confirm Session 완료 허용](../contracts/PAYMENT-CONFIRMED-SESSION-REFUND-POLICY-2026-10-13.md)을 우선 적용한다. 환불 전 confirm된 exact Session은 기존 제출 기한 안에 완료 허용, 환불 선행 confirm 및 신규/재응시는 차단한다. paid 전용 채점 승인 API는 제외하고 durable revoke 전달·구매별 최소 이용 증거는 유지한다. 기존 reserve 응답 출처 추가 방향이며 exact wire/LC 공동 동결은 별도다. 아래 OPEN 제출·채점 차단/GRADING-only 완료·전용 승인 API·v2 필수의 종전 표현은 이 변경 범위에서 역사적 기록으로 대체된다. 코드·LC 저장소·배포는 이번에 변경하지 않았다.
 
 

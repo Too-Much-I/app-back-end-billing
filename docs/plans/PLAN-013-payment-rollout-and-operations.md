@@ -1,5 +1,17 @@
 # PLAN-013: 결제·환불 연동 검증·배포·문의 운영·보존
 
+> 2026-10-14 공동 기술 검토 기준 통합: [유료 시험 계약 R2](../contracts/LC-BILLING-PAID-EXAM-CONTRACT-R2.md)를 우선 참조한다. 최신 승인 정책·LC 최소wire 제안을 한 곳에 정리했으며 본문의 종전 기술 후보는 변경 이력이다. 새정본의 exact 공동수락/fixture/구현·배포는 미완료이고 phone/삭제/보존 gate는 별도 확인한다.
+
+> 2026-10-13 LC 마무리 승인: [R2 §10](../contracts/LC-BILLING-PAID-EXAM-HANDOFF-R2.md)에 기존 operation을 LC 종료까지 미완료/복구 가능 상태로 유지하고, 새 Session 활성·이전 신규제출 차단·operation 성공을 함께 저장한 뒤 공개 성공 반환하도록 확정했다. 접수된 Job만 완료 허용, 기존시험 ID목록 방식 우선검토. TRIAL fallback/최초trial→paid 절대무중첩 문구 정리. exact wire/상태/schema·LC 구현·배포는 후속.
+
+> 2026-10-13 legacy 보존 승인: [prod 점검·확정 정책](PLAN-011-SOURCE-PRODUCTION-INVENTORY-2026-10-13.md)에 따라 기존 LC 시험은 기존 규칙/이력을 유지하고 일괄 종료·무료source backfill하지 않는다. 전환 후 새 시험·새 재응시부터 Billing 및 source 필수 적용. legacy는 source 누락이 아닌 전환 전 대상 증거로 구분하고 소비/복원 증거로 임의 사용하지 않는다. Billing prod DB는 미구축으로 기존 데이터 이관이 불필요하다. 실제 전환 경계와 LC 구현은 후속이다.
+
+> 2026-10-13 최신 단순화 승인: [무료권 정책 §1/3/4](../contracts/FREE-EXAM-PASS-AND-PAID-SWITCH-RESTORATION-2026-10-13.md) 우선. Billing은 paid confirm·복원 지급·원 그룹 재응시 차단을 같은 Transaction으로 확정하고 LC는 기존 Session을 순차 종료한다. 이미 접수된 무료 제출의 경합 완료와 복원권 동시 보유는 허용한다. 최초 trial consumption ID당 복원 1회, 복원권/초대권 재복원 없음. 현재 무기한·지급순만 구현하고 만료 기능은 후속. MEMBER 전용 보상권의 Guest merge 확장은 제외하며 기존 trial merge는 유지한다. 종전 무중첩 보장·일반 root 계보·현재 만료순 구현·보상권 merge 표현은 이 범위에서 대체한다.
+
+> 2026-10-13 추가 확정: [무료권 정책 §1/4/5](../contracts/FREE-EXAM-PASS-AND-PAID-SWITCH-RESTORATION-2026-10-13.md)에 만료순→지급순(무기한 후순위), 복원권 현재 무기한, LC `EXAM_PASS/SUBSCRIPTION`·세부출처 Billing 관리, 보상권 계정귀속·탈퇴재가입 자동복구없음·정상merge 미사용권 이전, Billing confirm/차단/복원 원자확정과 LC status-first 후속복구를 반영했다. exact schema/wire·merge 경합·보존 구현은 후속이다.
+
+> 2026-10-13 사용자 승인: [공통 무료 모의고사권·유료 전환 복원](../contracts/FREE-EXAM-PASS-AND-PAID-SWITCH-RESTORATION-2026-10-13.md)을 우선 적용한다. ACTIVE paid로 새 시험을 성공적으로 confirm할 때 미완료 최초 trial 그룹을 종료하고 별도 무료권 1개를 원 lineage당 한 번 복원한다. 구매만으로 지급하지 않으며 원 TrialClaim/consumption은 보존한다. 기존 무료 replacement 우선·새 무료권 미지급 표현은 이 좁은 승인 범위에서 대체한다. 친구 초대는 출처 확장 경계만 준비하며 지급 구현은 후속이다. exact schema/wire·LC 공동 계약·구현/배포는 별도다.
+
 > 2026-10-13 사용자 승인 정책 변경: [환불 전 confirm Session 완료 허용](../contracts/PAYMENT-CONFIRMED-SESSION-REFUND-POLICY-2026-10-13.md)을 우선 적용한다. 환불 전 confirm된 exact Session은 기존 제출 기한 안에 완료 허용, 환불 선행 confirm 및 신규/재응시는 차단한다. paid 전용 채점 승인 API는 제외하고 durable revoke 전달·구매별 최소 이용 증거는 유지한다. 기존 reserve 응답 출처 추가 방향이며 exact wire/LC 공동 동결은 별도다. 아래 OPEN 제출·채점 차단/GRADING-only 완료·전용 승인 API·v2 필수의 종전 표현은 이 변경 범위에서 역사적 기록으로 대체된다. 코드·LC 저장소·배포는 이번에 변경하지 않았다.
 
 
@@ -76,7 +88,9 @@ paid admission ON인데 환불 processor/publisher·LC 계약·schema/guard cove
 
 ### 보존·운영 조회
 
-정규화 Purchase/entitlement/financial ledger/환불 business dedupe는 `max(providerFinalAt,entitlementEndsAt,lastReversalAt)+UTC calendar5년`, 실제 확정 시각 미상 시 기준을 무엇으로 보수적으로 유지할지 manifest에서 명시하고 조기 삭제 금지. inbox120일·terminal sync/outbox120일, 미해결은 단순 TTL 삭제 안 함. 연결 lookup hash/암호화 provider ref/erasable user 정보는 명시 worker로 제거. Trial claimedAt+3년·24시간 purge와 혼용 안 함.
+정규화 Purchase/entitlement/financial ledger/환불 business dedupe는 `max(providerFinalAt,entitlementEndsAt,lastReversalAt)+UTC calendar5년`, 실제 확정 시각 미상 시 기준을 무엇으로 보수적으로 유지할지 manifest에서 명시하고 조기 삭제 금지. inbox120일·terminal sync/outbox120일, 미해결은 단순 TTL 삭제 안 함. 연결 lookup hash/암호화 provider ref/erasable user 정보는 명시 정리 대상으로 관리한다. Trial claimedAt+3년·24시간 purge와 혼용 안 함.
+
+2026-10-14 사용자 승인: **5년 보존 종료 금융 정리 기능의 구현은 현재 출시 선행 조건에서 제외**하고 [장기 후속](TMI-212-financial-link-erasure-plan.md)으로 관리한다. 출시 준비에서 실제 최초 만료일/legacy 자료 유무를 확인하고 만료 전 담당·일정을 지정한다. 이미 만료/임박한 자료는 별도 처리하며 무기한 보존하지 않는다. nullable 이관이나 금융 전체 삭제의 exact는 아직 확정하지 않는다. 미구매 계정15일·접수120일·Trial3년·backup35일과 현재 적용되는 복원 purge 검증은 유지한다. 아래 purge gate는 이 유예 항목의 즉시 구현을 요구하는 뜻이 아니며, 나머지 삭제/복원/판매 조건은 그대로다.
 
 최소 purchase usage summary와 개별 Session/Group lookup의 필요기간을 구분한 retention 표를 구현 전에 작성한다. 상담90일이나 학습 삭제가 금융 의무 보존을 무조건 삭제하지 않으며 금융5년이 원본 학습 개인정보 전체 보존 근거도 아님. 필요한 최소 ledger 증거 확보 뒤 lookup purge 테스트. 삭제 기록은 건수/성공 여부만. backup35일 rolling, restore 격리→현재 만료 purge→금융/deny/outbox 대사→트래픽 연결.
 

@@ -1,0 +1,58 @@
+{
+  "current": {
+    "keys": [
+      {
+        "kty": "RSA",
+        "n": "kCao12o8_7sG3_i5gOvw8hCi03sCJ17bkNZlWika8urhUBaAbBFpDm76_YhUy5i0UxXbHQuNnrZMDvzOcO3DkmPraGxtUj5yCaEE542BYB1liFJfKlwgCtxGd4aaSpQqwVLkEA3nARyOlZc14TMBhwwe_dnFmGbE14-wbkr5r7iqMhQxYn-jxxowHS--k9svGW2jBmtOYRM-fVLhu1qd-Aq5aSLCCB5RyFXJp47A-XNNWc3lkfw3ciFiF7LtdIaXPG8piAajsN92gtbrRnWnm6MSyL3vJU8LIfBRTLHAQoioH0DwMfDQZym4IawKCBs2V1UXQ1ccVfEidVBrck_kwQ",
+        "e": "AQAB",
+        "kid": "fake-current",
+        "alg": "RS256",
+        "use": "sig",
+        "key_ops": [
+          "verify"
+        ]
+      }
+    ]
+  },
+  "overlap": {
+    "keys": [
+      {
+        "kty": "RSA",
+        "n": "kCao12o8_7sG3_i5gOvw8hCi03sCJ17bkNZlWika8urhUBaAbBFpDm76_YhUy5i0UxXbHQuNnrZMDvzOcO3DkmPraGxtUj5yCaEE542BYB1liFJfKlwgCtxGd4aaSpQqwVLkEA3nARyOlZc14TMBhwwe_dnFmGbE14-wbkr5r7iqMhQxYn-jxxowHS--k9svGW2jBmtOYRM-fVLhu1qd-Aq5aSLCCB5RyFXJp47A-XNNWc3lkfw3ciFiF7LtdIaXPG8piAajsN92gtbrRnWnm6MSyL3vJU8LIfBRTLHAQoioH0DwMfDQZym4IawKCBs2V1UXQ1ccVfEidVBrck_kwQ",
+        "e": "AQAB",
+        "kid": "fake-current",
+        "alg": "RS256",
+        "use": "sig",
+        "key_ops": [
+          "verify"
+        ]
+      },
+      {
+        "kty": "RSA",
+        "n": "0J5MFstVAv9OKdqeug3-n6sz99mfFGlXVQKHGuBsTxg09DiKo18EstJxS1BjyiU_txtzvBvkZOkLh8mdQfZME4VM66-XGl2TYIUknV84hr8TjxxsetAobETFQFs6wE9j3qLA7OpFNp2t6rmEuh97bh3zTu-zXli8rBQOAP5xJ5qCwDg07Q5ZRzl_aam06YNa6tO2QvP9NGyqyy0FgWPLD_RxgnUq-P4O_cYEx4NaVA9q9Y96RcPTgrDsCIPmK3ICRWE4bSQ_P4ZPlbyq20pbYaRvPbqv-X_LM_a3DOJde1A0ZBiggXWx4aVGJmCRuz1zM5R1TpOGXnzlKzUTNsiIAQ",
+        "e": "AQAB",
+        "kid": "fake-next",
+        "alg": "RS256",
+        "use": "sig",
+        "key_ops": [
+          "verify"
+        ]
+      }
+    ]
+  },
+  "next": {
+    "keys": [
+      {
+        "kty": "RSA",
+        "n": "0J5MFstVAv9OKdqeug3-n6sz99mfFGlXVQKHGuBsTxg09DiKo18EstJxS1BjyiU_txtzvBvkZOkLh8mdQfZME4VM66-XGl2TYIUknV84hr8TjxxsetAobETFQFs6wE9j3qLA7OpFNp2t6rmEuh97bh3zTu-zXli8rBQOAP5xJ5qCwDg07Q5ZRzl_aam06YNa6tO2QvP9NGyqyy0FgWPLD_RxgnUq-P4O_cYEx4NaVA9q9Y96RcPTgrDsCIPmK3ICRWE4bSQ_P4ZPlbyq20pbYaRvPbqv-X_LM_a3DOJde1A0ZBiggXWx4aVGJmCRuz1zM5R1TpOGXnzlKzUTNsiIAQ",
+        "e": "AQAB",
+        "kid": "fake-next",
+        "alg": "RS256",
+        "use": "sig",
+        "key_ops": [
+          "verify"
+        ]
+      }
+    ]
+  }
+}

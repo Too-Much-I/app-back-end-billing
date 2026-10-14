@@ -59,6 +59,17 @@ public final class PaymentRecoveryFence {
                 new Document("$inc", new Document("version", 1L))).getModifiedCount() == 1);
         return barrier;
     }
+    /** Read-only preflight, never a substitute for acquire at mutation time. */
+    public void check(ClientSession session, Ticket ticket, Writer writer) {
+        require(session != null && session.hasActiveTransaction() && properties.getRecovery().isFenceRequired()
+                && ticket != null && writer != null);
+        Document control = store.database().getCollection(COLLECTION).find(session, key()).first();
+        validate(control);
+        require(control.getString("epoch").equals(ticket.epoch()) && control.getLong("version") < Long.MAX_VALUE);
+        Barrier barrier = Barrier.valueOf(control.getString("barrier"));
+        require(barrier != Barrier.ALL_BLOCKED);
+        require((writer != Writer.ACCOUNT && writer != Writer.PURGE) || barrier == Barrier.OPEN);
+    }
     private Document key() {
         require(Set.of("SANDBOX", "PRODUCTION").contains(properties.getEnvironment()));
         return new Document("environment", properties.getEnvironment()).append("consumer", "billing");

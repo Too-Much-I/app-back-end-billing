@@ -1,5 +1,7 @@
 # TMI-211 — public sync·무료/유료 통합 조회 OFF 구현
 
+> 2026-10-14 TMI-212 후속: [실제 service 연결](TMI-212-public-sync-wiring.md)을 구현했다. 아래 provider/worker 미연결·sync ON 무조건 차단은 TMI-211 당시 기록이다. 현재는 실제 pipeline 구성 검증을 통과해야 기동하며 기본OFF/실환경·판매gate는 유지한다.
+
 - 날짜: 2026-10-13 / 브랜치: feat/TMI-211-payment-sync-entitlement-query
 - 기준: [2차 계획](../plans/PLAN-010-phase-2-public-sync-and-entitlement-query.md), [ADR-004](../adr/ADR-004-fixed-term-premium-payment-contract.md).
 - 범위: Billing 로컬 코드·문서. 실제 provider/worker·Store 검증·배포·판매 활성화가 아니다.

@@ -7,13 +7,22 @@ import java.util.concurrent.TimeUnit;
 import org.bson.Document;
 import web.tosunsaeng.billing.domain.payment.recovery.PaymentRecoveryFence;
 
-/** payment-purchase-core-r1: exact programmatic manifest; no automatic DDL or runtime registration. */
+/** payment-purchase-core-r4: durable source worker, explicit maintenance only. */
 public final class PurchaseCoreSchema {
     private PurchaseCoreSchema() {}
     record Index(String name, Document keys, boolean unique, boolean ttl) {}
     record Definition(Document validator, List<Index> indexes) {}
 
     static Map<String, Definition> manifest() {
+        return manifest(true, true, true);
+    }
+    static Map<String, Definition> manifest(boolean moneyEvidence) {
+        return manifest(moneyEvidence, false);
+    }
+    static Map<String, Definition> manifest(boolean moneyEvidence, boolean webhook) {
+        return manifest(moneyEvidence, webhook, false);
+    }
+    private static Map<String, Definition> manifest(boolean moneyEvidence, boolean webhook, boolean worker) {
         Map<String, Definition> all = new LinkedHashMap<>();
         Document purchase = fields("_id", id(), "environment", env(), "store", values("APP_STORE", "PLAY_STORE"),
                 "appId", type("string"), "transactionKey", hash(), "lookupKeyVersion", type("string"),
@@ -33,23 +42,43 @@ public final class PurchaseCoreSchema {
                 "nextSequence", positive(), "timelineEnd", type("date"), "version", positive())),
                 index("ux_payment_timeline_account", true, "environment", "accountId")));
         all.put("payment_ledger", definition(schema(fields("_id", id(), "effectKey", type("string"),
-                "type", values("PURCHASE_OBSERVED", "PURCHASE_VERIFIED"), "purchaseId", id(), "entitlementId", nullable("string"),
+                "type", moneyEvidence ? values("PURCHASE_OBSERVED", "PURCHASE_VERIFIED", "MONEY_CONFIRMED")
+                        : values("PURCHASE_OBSERVED", "PURCHASE_VERIFIED"), "purchaseId", id(), "entitlementId", nullable("string"),
                 "occurredAt", type("date"), "sourceKind", values("VERIFIED_OBSERVATION"), "sourceObservationKey", hash(), "detail", type("object"))),
                 index("ux_payment_ledger_effect", true, "effectKey"), index("ix_payment_ledger_purchase", false, "purchaseId", "occurredAt")));
         Document source = fields("_id", id(), "environment", env(), "providerEventKey", hash(), "digestVersion", new Document("bsonType", "long").append("enum", List.of(1L)),
                 "digest", hash(), "normalizedObservation", observation(), "accountId", nullable("string"), "lifecycleId", nullable("string"),
                 "counted", type("bool"), "state", values("RECEIVED", "APPLIED", "QUARANTINED"), "version", positive(),
                 "attempts", new Document("bsonType", "long").append("minimum", 0L), "receivedAt", type("date"), "retentionDeadline", type("date"), "purgeAt", type("date"));
-        Document sourceSchema = schema(source, "purgeAt");
+        if (webhook) {
+            source.put("receptionDigest", hash());
+            source.put("receptionLookupKeyVersion", type("string"));
+            source.get("normalizedObservation", Document.class).put("bsonType", List.of("object", "null"));
+            source.put("state", values("RECEIVED", "APPLIED", "QUARANTINED", "IGNORED"));
+        }
+        if (worker) source.put("work", schema(fields("owner", nullable("string"), "until", nullable("date"),
+                "leaseVersion", positive(), "generation", positive(), "fenceVersion", new Document("bsonType", "long").append("minimum", 0L),
+                "nextAttemptAt", nullable("date"), "retryStartedAt", type("date"), "attempts", positive(), "failure", nullable("string"))).get("$jsonSchema"));
+        Document sourceSchema = schema(source, "purgeAt", "receptionDigest", "receptionLookupKeyVersion", "work");
         sourceSchema.put("$or", List.of(new Document("state", "RECEIVED").append("purgeAt", new Document("$exists", false)),
-                new Document("state", new Document("$in", List.of("APPLIED", "QUARANTINED"))).append("counted", false)
+                new Document("state", new Document("$in", webhook ? List.of("APPLIED", "QUARANTINED", "IGNORED") : List.of("APPLIED", "QUARANTINED"))).append("counted", false)
                         .append("purgeAt", new Document("$type", "date"))));
+        if (webhook) sourceSchema.put("$and", List.of(new Document("$or", List.of(
+                new Document("state", new Document("$ne", "RECEIVED")), new Document("normalizedObservation", new Document("$type", "object")))),
+                new Document("$or", List.of(new Document("normalizedObservation", new Document("$type", "object")),
+                        new Document("receptionDigest", new Document("$type", "string"))))));
         all.put("payment_provider_inbox", definition(sourceSchema, index("ux_payment_provider_event", true, "environment", "providerEventKey"),
                 index("ix_payment_provider_due", false, "state", "receivedAt"), new Index("ttl_payment_provider_purge", new Document("purgeAt", 1), false, true)));
+        if (worker) {
+            var indexes = new ArrayList<>(all.get("payment_provider_inbox").indexes());
+            indexes.add(index("ix_payment_provider_work_due", false, "environment", "work.nextAttemptAt", "work.until"));
+            all.put("payment_provider_inbox", new Definition(sourceSchema, indexes));
+        }
         Document review = new Document(source);
+        review.remove("work");
         review.remove("attempts"); review.remove("purgeAt"); review.remove("retentionDeadline");
         review.put("state", values("REVIEW_REQUIRED")); review.put("reason", type("string")); review.put("createdAt", type("date"));
-        all.put("payment_purchase_cases", definition(schema(review), index("ux_payment_case_event", true, "environment", "providerEventKey"),
+        all.put("payment_purchase_cases", definition(schema(review, "receptionDigest", "receptionLookupKeyVersion"), index("ux_payment_case_event", true, "environment", "providerEventKey"),
                 index("ix_payment_case_account", false, "accountId", "state"),
                 index("ix_payment_case_transaction", false, "environment", "normalizedObservation.store", "normalizedObservation.appId", "normalizedObservation.transactionKey")));
         return all;
@@ -77,6 +106,51 @@ public final class PurchaseCoreSchema {
     public static void verify(MongoDatabase db) {
         try { manifest().forEach((name, definition) -> verifyOne(db, name, definition)); }
         catch (RuntimeException error) { throw mismatch(); }
+    }
+    /** Explicit r1 -> r2 migration; all old writers must be stopped. No automatic rollback. */
+    public static void upgradeMoneyEvidenceUnderMaintenance(MongoDatabase db, boolean writersIsolated) {
+        var controls = db.getCollection(PaymentRecoveryFence.COLLECTION).find().into(new ArrayList<>());
+        if (!writersIsolated || controls.isEmpty() || controls.stream().anyMatch(c -> !"ALL_BLOCKED".equals(c.getString("barrier")))) throw mismatch();
+        try { manifest(true).forEach((name, definition) -> verifyOne(db, name, definition)); return; }
+        catch (IllegalStateException oldOrInvalid) { /* Verify exact old manifest before modifying. */ }
+        try { verify(db); return; } catch (IllegalStateException oldOrInvalid) { /* Already r3 is also valid. */ }
+        manifest(false).forEach((name, definition) -> verifyOne(db, name, definition));
+        db.runCommand(new Document("collMod", "payment_ledger").append("validator", manifest().get("payment_ledger").validator())
+                .append("validationLevel", "strict").append("validationAction", "error"));
+        manifest(true).forEach((name, definition) -> verifyOne(db, name, definition));
+    }
+    /** Resumable r2 -> r3; no indexes/data change and no automatic migration on application startup. */
+    public static void upgradeWebhookUnderMaintenance(MongoDatabase db, boolean writersIsolated) {
+        var controls = db.getCollection(PaymentRecoveryFence.COLLECTION).find().into(new ArrayList<>());
+        if (!writersIsolated || controls.isEmpty() || controls.stream().anyMatch(c -> !"ALL_BLOCKED".equals(c.getString("barrier")))) throw mismatch();
+        try { verify(db); return; } catch (IllegalStateException earlier) { /* Already r4 needs no downgrade. */ }
+        Map<String, Definition> old = manifest(true);
+        Map<String, Definition> target = manifest(true, true);
+        Set<String> changed = Set.of("payment_provider_inbox", "payment_purchase_cases");
+        // Check every collection before the first DDL; a half-completed exact migration can be resumed.
+        target.forEach((name, definition) -> {
+            try { verifyOne(db, name, definition); }
+            catch (IllegalStateException e) { if (!changed.contains(name)) throw e; verifyOne(db, name, old.get(name)); }
+        });
+        for (String name : changed) db.runCommand(new Document("collMod", name).append("validator", target.get(name).validator())
+                .append("validationLevel", "strict").append("validationAction", "error"));
+        target.forEach((name, definition) -> verifyOne(db, name, definition));
+    }
+    /** r3 -> r4, resumable after validator or index creation, without dropping existing indexes. */
+    public static void upgradeWorkerUnderMaintenance(MongoDatabase db, boolean isolated) {
+        var controls = db.getCollection(PaymentRecoveryFence.COLLECTION).find().into(new ArrayList<>());
+        if (!isolated || controls.isEmpty() || controls.stream().anyMatch(c -> !"ALL_BLOCKED".equals(c.getString("barrier")))) throw mismatch();
+        String name = "payment_provider_inbox";
+        manifest().forEach((n, d) -> { if (!n.equals(name)) verifyOne(db, n, d); });
+        Definition old = manifest(true, true).get(name), target = manifest().get(name);
+        boolean valid = false;
+        for (var v : List.of(old.validator(), target.validator())) for (var indexes : List.of(old.indexes(), target.indexes())) {
+            try { verifyOne(db, name, new Definition(v, indexes)); valid = true; } catch (IllegalStateException ignored) { /* Exact permitted intermediate only. */ }
+        }
+        if (!valid) throw mismatch();
+        db.runCommand(new Document("collMod", name).append("validator", target.validator()).append("validationLevel", "strict").append("validationAction", "error"));
+        Index index = target.indexes().getLast(); db.getCollection(name).createIndex(index.keys(), new IndexOptions().name(index.name()).unique(false));
+        verify(db);
     }
     private static void verifyOne(MongoDatabase db, String name, Definition definition) {
         var meta = db.listCollections().filter(new Document("name", name)).first();

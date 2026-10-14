@@ -22,6 +22,10 @@ public final class PurchaseLookupKey {
     public String event(String environment, String project, String eventId) {
         return hash("revenuecat-event-r1", environment, project, eventId);
     }
+    public String apiObservation(String environment, String project, String purchaseId, String factsDigest) {
+        PurchaseObservation.hex(factsDigest);
+        return hash("revenuecat-api-observation-r1", environment, project, purchaseId, factsDigest);
+    }
     private String hash(String... values) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256"); mac.init(new SecretKeySpec(key, "HmacSHA256"));

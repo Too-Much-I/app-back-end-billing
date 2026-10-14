@@ -1,5 +1,21 @@
 # ADR-004: RevenueCat 기반 fixed-term premium 결제 계약
 
+> 2026-10-14 TMI-212 D2: [운영 안내](../runbooks/TMI-212-reconciliation-and-review.md)에 따라 cursor-r2 정기조회 schedule, sync-r2 optional retryStartedAt/선택재개, 구매 원장 기반 TTL후sync완료, 구매별 암호화 reference 전용collection과privacy-safe운영요약을추가했다. 이전 C2b의 sync-r1불변/정기조회·재개미구현표현은이범위에서대체한다. schema는명시이관,API/지급정책불변·기본OFF. 실제Slack/운영도구권한·5년physicalpurge/cursor정리·실환경과판매활성화는별도다.
+
+> 2026-10-13 TMI-212 C2b: [계정 조회 계약](../contracts/TMI-212-account-lookup-r1.md)에 따라 sync-command-r1은 그대로 두고 기존 ACCOUNT_LOOKUP optional lookup/명시 cursor-r1 validator로 계정별 lease·암호화 pagination·sync 재시도/완료·AUTH/review 인계를 구현한다. 기본OFF 실제 runtime·shared budget 배선 추가, 기존 원장/외부 wire 불변. 공개sync 활성화·D 운영/보존·실환경은 별도다.
+
+> 2026-10-13 TMI-212 C2a 기반 구현: [provider-dispatch-r1](../contracts/TMI-212-provider-dispatch-r1.md). 외부 관측 receive도 최초 epoch/동일Tx lease 검사, RC project 공용 Mongo rolling 240회/60초·동시 permit4·AUTH 영속 차단을 적용한다. 명시 생성형이며 실제 공용 DB 배선/계정 scan/자동 runtime은 미완료, 기본OFF·외부 업무 wire/원장/제품정책 불변이다.
+
+> 2026-10-13 TMI-212 C1 구현: [worker-r1](../contracts/TMI-212-worker-r1.md)의source별30초lease·최초recoveryepoch동일Transaction검사·검증관측apply→sync완료연결과purchase-core-r4명시이관을적용한다. 신규API/제품정책변경없음. 외부조회공유quota/계정scan·자동scheduler는C2,대사/운영보존은D후속이며기본OFF·판매승인분리는유지한다.
+
+> 2026-10-13 최신 단순화 승인: [무료권 정책 §1/3/4](../contracts/FREE-EXAM-PASS-AND-PAID-SWITCH-RESTORATION-2026-10-13.md) 우선. Billing은 paid confirm·복원 지급·원 그룹 재응시 차단을 같은 Transaction으로 확정하고 LC는 기존 Session을 순차 종료한다. 이미 접수된 무료 제출의 경합 완료와 복원권 동시 보유는 허용한다. 최초 trial consumption ID당 복원 1회, 복원권/초대권 재복원 없음. 현재 무기한·지급순만 구현하고 만료 기능은 후속. MEMBER 전용 보상권의 Guest merge 확장은 제외하며 기존 trial merge는 유지한다. 종전 무중첩 보장·일반 root 계보·현재 만료순 구현·보상권 merge 표현은 이 범위에서 대체한다.
+
+> 2026-10-13 TMI-212 B 구현: [webhook-r1](../contracts/TMI-212-webhook-r1.md)의 provider 전용 수신·Authorization/HMAC·최소 접수/ignored/review와 purchase-core-r3 명시 이관을 적용한다. HTTP 접수는 이용권을 지급하지 않으며 검증된 관측만 후속 worker에 넘긴다. quantity/귀속 불명은 추정하지 않고 검토, 금액만 불명이면null접수 가능. 기본OFF, C/D·실거래·운영보존·판매활성화는 미완료다.
+
+> 2026-10-13 사용자 승인: [공통 무료 모의고사권·유료 전환 복원](../contracts/FREE-EXAM-PASS-AND-PAID-SWITCH-RESTORATION-2026-10-13.md)을 우선 적용한다. ACTIVE paid로 새 시험을 성공적으로 confirm할 때 미완료 최초 trial 그룹을 종료하고 별도 무료권 1개를 원 lineage당 한 번 복원한다. 구매만으로 지급하지 않으며 원 TrialClaim/consumption은 보존한다. 기존 무료 replacement 우선·새 무료권 미지급 표현은 이 좁은 승인 범위에서 대체한다. 친구 초대는 출처 확장 경계만 준비하며 지급 구현은 후속이다. exact schema/wire·LC 공동 계약·구현/배포는 별도다.
+
+> 2026-10-13 TMI-212 A 구현: [adapter-r1](../contracts/TMI-212-revenuecat-adapter-r1.md). 구매·상품·귀속 검증 완료 후 금액만 null이면 기존 조건으로 지급하고, 추후 검증된 금액은 MONEY_CONFIRMED append-only 증거와 Purchase projection만 보완한다. 금액 보완으로 기간 재지급/조정하지 않으며 known 금액 충돌은 검토한다. purchase-core-r2는 ledger type 추가에 한한 명시 maintenance 이관, 기본OFF·실provider/worker/환불활성화별도. 이전금액null/known불일치의일괄immutable conflict는이범위에서만대체한다.
+
 > 2026-10-13 TMI-211 OFF 구현: [2차 계획](../plans/PLAN-010-phase-2-public-sync-and-entitlement-query.md)의 sync exact 요청·202/200/오류·조건부 CONTACT_SUPPORT, 통합 조회 paid/examAvailability·nullable canTakeExam을 채택했다. [구현 안내](../runbooks/TMI-211-public-sync-entitlement-query.md)의 명시 command schema/인덱스·분산 sync12/통합조회60회·동일 snapshot을 따른다. 기존 무료 DTO는 확장 OFF에서 불변. 실제 provider/worker 미연결로 sync ON은 모든 runtime profile에서 기동 거절, paid admission 미연결은 null/PENDING이다. 실거래 검증·보존 운영·배포/판매 승인이 아니다.
 
 > 2026-10-13 사용자 승인 정책 변경: [환불 전 confirm Session 완료 허용](../contracts/PAYMENT-CONFIRMED-SESSION-REFUND-POLICY-2026-10-13.md)을 우선 적용한다. 환불 전 confirm된 exact Session은 기존 제출 기한 안에 완료 허용, 환불 선행 confirm 및 신규/재응시는 차단한다. paid 전용 채점 승인 API는 제외하고 durable revoke 전달·구매별 최소 이용 증거는 유지한다. 기존 reserve 응답 출처 추가 방향이며 exact wire/LC 공동 동결은 별도다. 아래 OPEN 제출·채점 차단/GRADING-only 완료·전용 승인 API·v2 필수의 종전 표현은 이 변경 범위에서 역사적 기록으로 대체된다. 코드·LC 저장소·배포는 이번에 변경하지 않았다.

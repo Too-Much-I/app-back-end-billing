@@ -1,6 +1,86 @@
 # Billing Service 현재 상태
 
+- 2026-10-14 머지 준비 상태 확인: feat/TMI-212-revenuecat-worker-reconciliation의 TMI-212 코드 및 LC/PLAN-011 문서·fixture가 미커밋 상태로 혼재. 기본OFF 구현을 통합하는 방향은 가능하나 최종 변경 범위 분리·현재 tree 재테스트·PR/CI 확인 후 머지 권장. 직전1474통과 기록만 확인했으며 이번 재실행/원격 PR 확인/머지는 하지 않음. 판매·기능 활성화와 구분.
+
+- 2026-10-14 프론트용 [Notion 결제 API 문서](https://app.notion.com/p/3f9dcc5dbaeb80618ec9ed3e5d8a5966) 네 개 구성 완료: 사용자 수정 sync는 보존하고 products/purchase-account/entitlements를 제목·요약·상세 토글·오류 표로 추가. 실제 DTO/null/생략/제한과 기본OFF·미배포를 구분. 빈 상품은 []이며 종합 canTakeExam은 현 admission 미구현으로 null fallback임을 명시. 코드 변경·Gradle 실행·배포·Jira쓰기 없음.
+
+- 2026-10-14 PLAN-011 P0 [저장/Transaction 설계](../plans/PLAN-011-STORAGE-TRANSACTION-DESIGN-R1.md)와 [공동 구현 합의안](../contracts/LC-BILLING-PAID-EXAM-R2-IMPLEMENTATION-AGREEMENT-R1.md) 작성. 현 Spring Transaction/PaymentStore ClientSession 분리 확인→동일 session adapter 제안, 기존 저장소 확장·사용자 guard/영속 receipt·복원 source unique·T1~T6 경합/복구 명시. J1~J4·S15/V07 공동 확인 대기. R2/fixture 원본 유지, 코드/DB/LC/Jira/배포 변경 없음. 관련 TMI-116/128/122/125.
+
+- 2026-10-14 프론트 API 목록 정적 확인: Billing 사용자 직접 호출은 products/purchase-account/sync/entitlements 네 개. RevenueCat events는 webhook이며 internal route와 함께 앱 호출 대상에서 제외. 노션 추가 작성·코드 변경 없이 안내, Gradle 미실행.
+
+- 2026-10-14 [PLAN-011 구현 계획](../plans/PLAN-011-paid-reservation-and-usage-evidence.md) R2 기준 재정리: 구 설계 전문 이력 보존, P0~P5·Billing/LC/012/013 책임·실제 검증/활성화 gate 명시. 사용자 전달 LC fixtures-2 독립89/전체948(포함) 통과 접수, 자체 재실행 아님. 공동 최종 동결·제품 구현은 별도, S15/V07 미확정. 계약/fixture bytes·코드/DB/배포/Jira 변경 없음. 관련 TMI-116/128/122/125.
+
+- 2026-10-14 프론트 인계 형식 초안: 사용자 지정 [Notion 결제 페이지](https://app.notion.com/p/3f9dcc5dbaeb80618ec9ed3e5d8a5966)에 `POST /api/v1/payments/sync` 하나만 작성. 실제 코드 기준 인증·요청/응답·오류·재시도·문의 안내와 기본OFF/미배포·SDK 거래ID 매핑 미검증을 구분했다. 사용자 형식 수정 후 나머지 API 작성 예정. 코드/배포/Jira 변경 없음, 문서 작업으로 Gradle 미실행.
+
+- 2026-10-14 TMI-212 [공개 sync 실제 연결](../runbooks/TMI-212-public-sync-wiring.md) 구현: 검증한 worker runtime의 동일 PaymentSyncService를 공개 bean으로 연결. 무조건ON기동거절→worker/fence·기존 public JWT/ingress·실제 key/catalog/schema/budget 검사로 대체, 기본OFF. 실제 Spring context+Mongo+MVC/fake provider 경로와 기동실패/OFF 검증, 최종 `clean test bootJar` **1,474통과/실패0/오류0/skip0(9추가)**. 코드상 공개연결 완료이며 실Store/배포/판매/환불/유료입장 완료 아님. 신규5년정리·Slack ON gate 없음. Jira읽기만·기존동시변경보존·commit/push없음. 다음 PLAN011/012 공동 exact·구현과 실환경 gate 확인.
+
+- 2026-10-14 [다음 작업 확인](../plans/TMI-212-next-work-review-2026-10-14.md): 다음 구현은 TMI-212 public sync service bean 연결·실제 준비 검사. 현재 sync ON 무조건기동거절과 controller service bean 부재 확인(worker 내부 new만 존재). PLAN012 환불은 검토 인계, PLAN011 admission은 unavailable 경계·LC R2 공동검토 상태. 5년 정리 후속 분리 유지. 정적 조사/Jira읽기·문서만, 코드/배포/판매/Jira쓰기 없음.
+
+- 2026-10-14 사용자 승인 반영: [5년 금융 정리](../plans/TMI-212-financial-link-erasure-plan.md)는 장기 후속으로 분리, 현재 결제 출시 선행 조건에서 제외. nullable schema/인덱스 이관 착수 보류, 결제·환불 구현 우선. 최초 만료일/legacy 미확인으로 만료 전 담당·일정 지정 필요, 보존기간 연장 아님. 미구매15일·접수120일·Trial3년·backup35일 유지. 기존 reference 정리 코드/삭제OFF 유지, 다른 rollout gate 불변. 문서만 수정·Jira/코드/DB/배포 변경 없음. 아래 이전 설계·미완료 기록은 이 승인 범위에서 과거 상태다.
+
+- 2026-10-14 TMI-212 [금융 연결 제거 단순화 검토](../plans/TMI-212-financial-link-erasure-simplification-review.md): 최종 보존 종료 전 nullable 중간 상태를 선행 구현하는 범위 과다 지적. 최종 보존안 우선·초기 writer정지 CLI·오래된 예외 기존검토·단일 retention 기준 권장. 실제 최초 만료일 미확인, 보존 유예/정책변경 승인 아님. 코드/기존 계획 미변경, 정적 검토만.
+
+- 2026-10-14 TMI-212 [금융 사용자 연결 제거 설계](../plans/TMI-212-financial-link-erasure-plan.md) 작성: 구매별 nullable 연결·제거 시각·linked-only partial unique·reader-first 이관 권장. 과거 거래 재수신·sync·참조 재생성·원장/source/PLAN011 역연결 보호 포함. 코드/schema 변경 없음. 최종 금융 보존 종료·늦은 반환·sync 오류 exact 미확정, 구현/활성화 완료 아님. 문서/diff/링크 검사, Gradle 미실행.
+
+- 2026-10-14 TMI-212 D3 부분 구현: [만료 조회 참조·lease 정리 r1](../contracts/TMI-212-reference-retention-r1.md). 매시간 단계별100개·기본dry-run, 현재 구매/기간권/원장 보존일·미해결 업무 검사 후 reference만 삭제. 만료lease owner/until 해제·version 증가, 페이지/세대/재시도/검토 보존. 금융 계정 연결 제거는 strict schema/reader 이관 필요로 미완료. `./gradlew clean test bootJar` **1,465통과/실패0/오류0/skip0(10추가)**. 실제 삭제flagOFF, 실DB/배포/Jira쓰기/commit/push없음. 기존 LC·결제 dirty 변경 보존.
+
+- 2026-10-14 [paid fixtures-2](../contracts/LC-BILLING-PAID-EXAM-FIXTURES-2-VALIDATION.md): LC지적 escape/floatclock수정·문자열회귀9/tokenns경계9/clock5추가. canonical18/invalid13/token31/clock5·13파일hash 통과, 구도구mutation실패확인. fixtures1모든bytes불변·LC독립/runtime미완료.
+
+- 2026-10-14 TMI-212 운영 재개 CLI 구현: [실행 안내/exact](../runbooks/TMI-212-payment-review-operator.md). 독립 `paymentReviewOperator` inspect/dry-run/resume/result/schema, account와공유AUTH분리·기본무변경·명시apply/격리확인. Mongo인증principal digest·작업ID/표준사유·같은Tx receipt/중복수렴·unknown결과조회. 새receipt-r1명시설치필수,기존sync/cursor/API불변. 최종 `clean test bootJar` **1,455통과/실패0/오류0/skip0(26추가)**. 운영자개인권한/실환경실행·감사보존확정·5년physicalpurge/cursor정리후속,배포/활성화/실DB/Jira쓰기/commit/push없음. 기존LC동시작업보존.
+
+- 2026-10-14 [paid R2 fixtures-1](../contracts/LC-BILLING-PAID-EXAM-FIXTURES-1-VALIDATION.md) 제작: 12파일hash·canonical9/invalid13/token22/HTTP판정표12·wire6/status3 별도Python/OpenSSL검사성공. 상태시나리오26은미실행, S15/V07보류. LC독립검증/실HTTP/업무테스트미완료·제품코드DB변경없음.
+
+- 2026-10-14 LC 통합R2 주요기술1~3 이견없음 접수, draft-2 회귀3항목 반영. 명칭 재선택불필요·S15/V07/보존지원조합담당확인후속. fixture제작/독립검증/구현승인미완료·문서만.
+
+- 2026-10-14 TMI-212 운영 재개 범위 확인: [검토](../plans/TMI-212-operator-gap-review-2026-10-14.md). 계정재개/core CAS 및 project AUTH해제 library는 존재하나 CLI·실행권한·감사receipt 연결미완료. 독립 inspect/dry-run/apply·최소원자감사·AUTH별도명령 권장, 금융강제승인/새관리자API 제외. ALL_BLOCKED와writer격리구별필요. 정적검토/문서만,코드·Jira·운영실행·Gradle재실행없음.
+
+- 2026-10-14 [LC paid 통합 R2](../contracts/LC-BILLING-PAID-EXAM-CONTRACT-R2.md) 작성: 현재규칙단일정본·변경이력분리, 세startReason/단일mock·공통transition·불변revoke/event·group양unique·terminalAt. S16/V7 총23개검증영역·phone삭제보존명시미확정. 문서검사만, fixture생성/실행/코드DB배포없음.
+
+- 2026-10-14 Slack 서버 연결 후속: AWS 재로그인 후 서울 리전의 현재 staging 클러스터 서비스10개를 확인했으나 Billing 이름의 서비스는 없었다. 다른클러스터/리전/별도호스트 부재까지단정하지않음. 사용자에게 Billing 테스트서버배포여부/대상확인필요. Secret등록·실발송·배포·활성화없음.
+
+- 2026-10-14 TMI-212 Slack 외부 설정: 사용자 승인으로 비공개 billing-alerts-test 채널과 Billing Alerts Test 앱을 생성하고 사용자의 허용 후 Incoming Webhook 연결 성공을 UI로 확인했다. URL 원문은 기록하지 않았다. 서버 secret 등록·테스트 발송 요청에 AWS 확인을 시작했으나 세션 만료로 로그인 화면에서 대기. 현재 Billing 배포 대상/secret 위치 미확인, secret 저장·실제 발송·서버 활성화·배포 없음.
+
+- 2026-10-14 사용자확정: 전체접수·요약대기 새시험 직전mock제외, 다른적격후보0이면동일허용·조회장애fallback금지. 부분접수동일/완료후기존선정 유지. 인계/PLAN011/결정서동기화, LC구현/DB변경없음.
+
+- 2026-10-14 TMI-212 Slack 전송 구현: [연결 안내](../runbooks/TMI-212-slack-alerts.md). PaymentSlackSink/Properties/Configuration과환경변수추가, Incoming Webhook 기본OFF·공식HTTPS host만허용·2s연결/5s전체대기/2KiB응답·redirect/proxy차단·429/503 Retry-After·설정오류프로세스내보류. 기존privacy-safe provider요약에연결하며CleanupAlerts는별도. `clean test bootJar` **1,429통과/실패0/오류0/skip0(21추가)**. 실제채널/secret/담당자/전송검증·배포활성화는후속,업무API/schema/금융처리불변. 실Slack호출·Jira쓰기·commit/push없음. 아래D2의Slack adapter미구현표현은이항목으로갱신하며D전체완료아님.
+
+- 2026-10-14 [LC 단순화 인계](../contracts/LC-BILLING-PAID-EXAM-SIMPLIFICATION-HANDOFF-2026-10-14.md) 작성: 부분접수같은문제/전체접수대기다음문제·단일후보, 공통LC마무리, 불변그룹revoke·terminalAt재사용. 최초trial복원1회유지. 최소시작사유wire/phone/보존은공동확인후정본통합·기존fixture명세수정필요. 문서만.
+
+- 2026-10-14 TMI-212 D2 구현: [운영 안내](../runbooks/TMI-212-reconciliation-and-review.md). 정기계정조회(최근90일/활성·예정권리,한claim한페이지/24h/1000페이지), 원장 기반source TTL후sync완료, 선택lookup재개/generation·새24h예산, 구매별AES-GCM참조저장, privacy-safe운영요약/전송인터페이스. sync-r2/cursor-r2/reference전용collection명시이관·기본OFF. 최종 `clean test bootJar` **1,408통과/실패0/오류0/skip0(20추가)**. 실제Slack adapter/채널·운영도구권한·5년physicalpurge/cursor정리·실환경부하/Store검증은남아있고D전체/판매완료아님. 공개sync ON차단유지,운영DB/배포/Jira쓰기/commit/push없음. 기존LC문서변경보존.
+
+- 2026-10-14 LC wire draft-3: LC draft-2 재검토의 주요방향 이견없음 접수, §1 status body조회/command header범위 및 §8 기존409/503·신규두409 표현 정리. 공동동결/fixture실행은미완료·문서만.
+
+- 2026-10-14 TMI-212 D1 보존·정리 기반: [규격](../contracts/TMI-212-retention-r1.md). PaymentRetentionWorker가 worker runtime에서 시간당 단계별 최대100건 RECEIVED119일 case 인계와 terminal sync120일 대상 점검을 수행한다. 실제 sync삭제는 독립 기본OFF, 최초epoch/OPEN/version/state/count 재검사. 원장·계정·case·미해결sync 보존, schema/index/외부DTO 불변. `clean test bootJar` **1,388통과/실패0/오류0/skip0(8추가)**. D전체미완료: 정기대사/reference영속화·terminal inbox TTL와미완료sync 연결보호·운영재개/외부알림 후속. 공개sync ON차단·판매/205삭제OFF유지. 실DB/배포/Jira쓰기/commit/push없음.
+
+- 2026-10-14 LC wire draft-2 검토보완: 기존pending오류유지, replay/삭제continuation/조합/영속거절/digest/역순예외 구체화·32fixture명세. 공동수락/실fixture/테스트/구현미완료·문서만.
+
+- 2026-10-13 TMI-212 C2b 처리 경로 구현: [안내](../runbooks/TMI-212-account-lookup.md), [exact](../contracts/TMI-212-account-lookup-r1.md). 계정별 ACCOUNT_LOOKUP lease/암호화 페이지 checkpoint·기존 source 우선 완료·실RC read adapter+공유 budget 배선·Retry-After/24h 검토/AUTH 인계·기본OFF 전용 runtime. sync-r1 유지, cursor-r1 명시 validator 이관,205 lookup잠금 삭제보호. 최종 clean test bootJar **1,380통과/실패0/오류0/skip0(24추가)**. 공개sync ON은 운영/보존 gate전 계속 거절. D 정기대사·구매별reference영속화·보존/알림/계정재개 및 실환경/부하/Store검증 후속. 기존 동시 LC/정책 문서 보존·운영DB/배포/Jira쓰기/Git없음.
+
+- 2026-10-13 TMI-212 C2a 외부 조회 기반 구현: [안내](../runbooks/TMI-212-provider-dispatch.md), [규격](../contracts/TMI-212-provider-dispatch-r1.md). core.receive 최초 epoch/같은Tx lease guard, 공용 Mongo project rolling 240회/60초·slot4/30초·AUTH 영속 차단·명시 재개/strict schema verify. clean test bootJar **1,356통과/실패0/오류0/skip0(18추가)**. 명시 생성형·runtime 미연결/OFF·syncON차단유지. C2 계정scan/합치기/페이지checkpoint/sync재시도·공유DB배선과D는남음. 실제RC/Store·운영DB/배포/Jira쓰기/Git없음, 동시LC/무료권문서 보존.
+
 - 최종 갱신일: 2026-10-13
+- 2026-10-13 [LC paid wire R1 초안](../contracts/LC-BILLING-PAID-EXAM-WIRE-R1.md) 작성: restartContext/transition/source·두문제후보·CANCELED+confirmRejection·LC503/409·역방향revoke profile/digest/보존·공동fixture22항목. 신규계약후보, LC수락/구현/실fixture생성·검증 미완료. 문서만.
+- 2026-10-13 LC 후속검토 §8 반영: R2 §10.2 새Job차단을 사용자 신규제출 유래로 한정. 기접수 문항의 종료후 Summary 최초생성/시스템재시도는 원접수증거·멱등/lifecycle조건으로 허용. 정책/fixture문구동기화·문서만, 미확정wire/인증/보존은 공동확정후속.
+- 2026-10-13 LC 마무리 설계 승인: 기존operation에서 LC종료까지복구·로컬마무리commit후성공응답, 접수Job만완료·미완료TTL금지, legacy ID목록 우선검토. R2 TRIALfallback/일반무중첩 정리·정책/계획동기화, 코드/DB변경없음.
+- 2026-10-13 사용자 승인: LC 기존시험 유지·일괄이관/종료없음, 전환후 신규/새재응시 Billing/source필수. source누락이 아닌 전환전 대상증거로 legacy구분, 기존이력을 소비/복원으로임의연결금지. 점검/PLAN011·013/R2/결정서 반영·문서만.
+- 2026-10-13 [prod source inventory](../plans/PLAN-011-SOURCE-PRODUCTION-INVENTORY-2026-10-13.md): LC Session1493 모두source/예약/group연결없음, operation collection없음. 진행136·active상태누락10. 일괄EXAM_PASS이관불가 판단·기존history/신규Billing경계 검토. 사용자가 Billing prod DB 미구축 확인: Billing backfill불필요·신규schema/writer필수값 적용 준비, LC legacy처리만후속. 읽기전용·DB수정없음.
+- 2026-10-13 TMI-212 C1 source worker 구현·검증: [안내](../runbooks/TMI-212-source-worker.md), [규격](../contracts/TMI-212-worker-r1.md). inbox30초lease/최초epoch동일Tx검사·coreapply→동일거래sync완료·crash회수·최대100source/100command분할·backoff/24hcase인계·r3→r4명시이관. clean test bootJar **1,338통과/실패0/오류0/skip0(14추가)**. 신규scheduler/외부HTTP없음·syncON차단유지. C2 API계정scan/공유quota/sync독립retry/runtime과D대사/reference영속화/운영보존미완료. 동시무료권/LC정책문서보존·Jira쓰기/타서버/배포/Git없음.
+- 2026-10-13 [source 일회성 이관 검토](../plans/PLAN-011-SOURCE-MIGRATION-REVIEW-2026-10-13.md): 코드상 조건부 가능, reserve 성공 이후 필수. 실제 DB건수/미연결legacy 확인 전 전체이관 가능 확정 아님. 읽기 검토·문서만.
+- 2026-10-13 무료권 단순화 승인: Billing paid확정/복원/원group재응시차단 원자처리→LC 순차종료. 기존접수 경합완료+복원권 허용, 최초trial consumption당1회, 현재무기한/지급순·만료기능후속. MEMBER보상권 Guest merge확장제외. 정책/R2/계획/ADR·AGENTS 동기화, 문서만 변경.
+- 2026-10-13 무료권 추가 정책 확정: 만료순/지급순·복원권 무기한·EXAM_PASS/SUBSCRIPTION, 보상권 계정귀속/재가입 자동복구없음/정상merge 미사용이전, confirm·차단·복원 같은Tx 및 LC status-first 복구. exact 이관/병합경합/보존 후속. 문서만 변경·동시 결제 구현 보존.
+- 2026-10-13 TMI-212 B webhook 수신 구현·검증: [안내](../runbooks/TMI-212-webhook.md), [규격](../contracts/TMI-212-webhook-r1.md). 전용 host/local-port/security chain·Authorization+raw HMAC/300초·256KiB/strict UTF-8 JSON·known 의미digest·기존 inbox의RECEIVED/IGNORED/case접수와pending보존, r2→r3명시재개가능이관. HTTP에서지급/외부조회없음, 기본OFF·syncON차단유지. clean test bootJar **1,324통과/실패0/오류0/skip0(56추가)**. Cworker/D대사·reference영속화/운영검토·알림·보존/실환경은미완료, TMI212전체완료아님. 동시LC/무료권정책문서보존·Jira쓰기/Git/배포없음.
+- 2026-10-13 [공통 무료권·유료 전환 복원](../contracts/FREE-EXAM-PASS-AND-PAID-SWITCH-RESTORATION-2026-10-13.md) 사용자 승인 반영: 출처별 grant/ledger, paid confirm 시 미완료 최초 trial 종료+root당 복원1개, 원Claim/consumption보존. 종전 무료replacement우선 대체·초대보상구현제외·exact wire/schema/LC공동계약 후속. 문서만 변경, 동시 PLAN010 코드 보존.
+- 2026-10-13 무료도중구매 시 재응시보존 명확화: R2§9/PLAN011/결정서에 유효TRIAL replacement유지·구매만으로paid group전환금지·paid-first신규INITIAL만·paid기간재기산없음 반영. 이전다른권리전환은환불/만료재응시불가에한정. 코드/배포변경없음·문서검사만.
+- 2026-10-13 기존 새시험 흐름 통한 다른권리 새group전환 사용자승인: R2§2/8·PLAN011·결정서 반영. 별도포기버튼없음·유효동일source replacement/환불source차단·다른권리INITIAL 새group/원source보존. 실패시이전Session선종료금지·durable전환/CAS/status-first 공동설계후속. 코드/LC/외부전송/배포변경없음·문서검사만.
+- 2026-10-13 TMI212 선행A 구현·검증: [안내](../runbooks/TMI-212-revenuecat-adapter.md). v2 readclient/strictdecoder·stableAPIkey·boundedHTTP·reference암호화helper·null→known금액보완·core-r2명시이관. clean test bootJar **1,268통과/실패0/오류0/skip0**(53추가). 금액보완은기간불변,known충돌검토. runtime미연결/syncON차단유지. **TMI212전체미완료**:Bwebhook/Cworker/D대사·reference영속화/보존/실환경후속. 동시LC문서보존·Jira쓰기/배포/Git조작없음.
+- 2026-10-13 LC 인계 잔여항목 재검토: [기록](../plans/LC-BILLING-PAID-HANDOFF-READINESS-REVIEW-2026-10-13.md). command TTL후confirm/status영속복구·RESERVED보상경합·higher revoke 예외제거·보존충돌 확인. R2에exact예외고정/terminal증거보상·새120일eventage기본안철회·inbox/권한보존분리 보완. LC신규receiver/오류/source·장기OPEN guard행동 공동확정후속. 코드/외부전송/타저장소/배포변경없음·문서검사만·010동시변경보존.
+- 2026-10-13 LC R1 검토 보완: [R2 후보](../contracts/LC-BILLING-PAID-EXAM-HANDOFF-R2.md). source operation보존/legacy증명조건·confirm성공확인전보상금지·오류mapper/public후보·최대16KiB/독립역방향JWT·ID/version충돌우선·120일보존/age/lifecycle후보 작성. 새제출timeout없음 사용자확인·작성자30/60분/24h후보철회·현행grading제한별개,양측수락/fixture/구현승인미완료. 코드/LC/배포/외부전송없음·정적검사만.
+- 2026-10-13 사용자 승인으로 [TMI-212](https://to-teacher.atlassian.net/browse/TMI-212) 생성: PLAN010 3차 RevenueCat 검증/webhook/worker/누락복구, parent TMI137. 금액만불명인검증구매는지급후금액증거보완·기간재지급금지,기본OFF·실환경/011/012후속 포함. 계획에키연결·기록,기존이슈상태/코드/배포변경없음.
+- 2026-10-13 3차계획 주의사항 설명: 검증된 구매/상품/귀속과 금액 보완을 분리해 기간 재지급 없이 기록추가,조회실패/빈목록은기존권리보존·신규미검증PENDING,재시도예산소진은검토인계·자동환불/삭제아님을 설명. 권장안설명만·신규승인/코드변경없음.
+- 2026-10-13 LC 유료 시험 인계 R1 준비: [초안](../contracts/LC-BILLING-PAID-EXAM-HANDOFF-R1.md). 기존reserve/status source필드·confirm/refund순서·confirmedSessionId revoke후보·auth/오류/retry·기존event증거 재사용·분담/reader-first/PAID14 공동테스트 작성. 제품정책과새wire후보 구분·양측수락후속, 외부전송/LC수정/코드/배포없음·문서검사만.
+- 2026-10-13 PLAN010 3차 사용자 설명: 접수/API와 원장 사이 실제RC 연결, adapter/webhook/worker/누락복구 역할·hash-only대조·1초DBpoll과외부조회분리·중복방지/금액보완·011/012후속을 설명했다. 계획 재조회와 기록만, 기술안 추가승인/코드/Jira/실환경 변경 없음·테스트미실행.
+- 2026-10-13 PLAN010 [3차 계획](../plans/PLAN-010-phase-3-revenuecat-worker-reconciliation.md) 작성: 공식문서상 Authorization+HMAC·v2 구매목록/검색/단건·Android nullable orderId/iOS transactionIdentifier 확인. 실제 dashboard/SDK버전/실거래 미확인. hash-only sync는 계정목록+HMAC대조 권장, adapter→ingress→worker→reconciliation/보존으로 분할. source key/금액null보완·worker strict schema 이관·shared quota·기본OFF/011·012판매gate 명시. 코드/ADR정책변경·Jira·실설정·배포없음, 문서검사만·Gradle미실행.
+- 2026-10-13 TMI-211 병합 후 다음 단계 확인: 로컬 HEAD ea30a62에 PR15 merge/80526e9 포함, 점검 시작시 clean. 다음은 PLAN010 provider 실제 인증·SDK 거래 식별자 대응 확인→3차 RevenueCat adapter/webhook·공통 worker/reconciliation 상세 계획이다. HMAC 지원은 아직 실증되지 않은 목표이므로 지원 사실을 가정하지 않는다. 011/012·실판매 활성화는 후속, 코드/Jira/배포 변경·테스트 재실행 없음.
 - 2026-10-13 기존 상태이벤트 이용증거 재사용 정적검토: [결과](../plans/PLAN-011-EXISTING-EVIDENCE-REVIEW-2026-10-13.md). LC v1 완료evidence/실패code 이미발신·Billing strict검증 확인, 최소증거용 새wire버전 불필요 권장. Billing은 상세evidence/failure 미저장·inbox120일/digest만, paid 귀속/source·consumer분기·장기증거 Transaction저장 필요. 코드/LC/계약동결/배포변경없음·Gradle미실행.
 - 2026-10-13 TMI-211 OFF 구현·로컬 검증 완료: [구현 안내](../runbooks/TMI-211-public-sync-entitlement-query.md). sync strict HTTP/인증/멱등 접수·command/pending 원자성·source completion, 무료/유료 동일 snapshot·기간 조회·nullable canTakeExam, 분산 quota/명시 schema/기동 gate 구현. clean test bootJar **1,215통과/실패0/오류0/skip0**(기존 대비47추가), diff 검사 통과. 실제 provider/worker 미연결로 sync ON 기동 거절, admission 미연결 종합 null/PENDING; 두 flag 기본OFF. 실제 RC/Store·011/012·205 실금융/배포는 후속. 동시 환불 정책 문서 변경 보존, Jira수정·commit/push·타서버/배포 없음.
 - 2026-10-13 환불 전 confirm exact Session 완료 허용 사용자 승인: [정책 변경](../contracts/PAYMENT-CONFIRMED-SESSION-REFUND-POLICY-2026-10-13.md). paid 채점승인API 제외, 환불선행confirm/신규/replacement 차단·durable revoke/최소이용증거 유지. 기존reserve응답 출처추가 방향 채택, exact wire/LC 공동수락후속. ADR/PLAN010~013/계약/AGENTS 상단 우선적용 반영·역사기록 보존. 코드/타저장소/배포미변경·문서검사만.
