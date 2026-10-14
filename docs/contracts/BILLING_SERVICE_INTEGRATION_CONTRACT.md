@@ -1,5 +1,9 @@
 # Billing 서비스 간 연동 계약
 
+> 2026-10-13 최신 단순화 승인: [무료권 정책 §1/3/4](FREE-EXAM-PASS-AND-PAID-SWITCH-RESTORATION-2026-10-13.md) 우선. Billing은 paid confirm·복원 지급·원 그룹 재응시 차단을 같은 Transaction으로 확정하고 LC는 기존 Session을 순차 종료한다. 이미 접수된 무료 제출의 경합 완료와 복원권 동시 보유는 허용한다. 최초 trial consumption ID당 복원 1회, 복원권/초대권 재복원 없음. 현재 무기한·지급순만 구현하고 만료 기능은 후속. MEMBER 전용 보상권의 Guest merge 확장은 제외하며 기존 trial merge는 유지한다. 종전 무중첩 보장·일반 root 계보·현재 만료순 구현·보상권 merge 표현은 이 범위에서 대체한다.
+
+> 2026-10-13 사용자 승인: [공통 무료 모의고사권·유료 전환 복원](FREE-EXAM-PASS-AND-PAID-SWITCH-RESTORATION-2026-10-13.md)을 우선 적용한다. ACTIVE paid로 새 시험을 성공적으로 confirm할 때 미완료 최초 trial 그룹을 종료하고 별도 무료권 1개를 원 lineage당 한 번 복원한다. 구매만으로 지급하지 않으며 원 TrialClaim/consumption은 보존한다. 기존 무료 replacement 우선·새 무료권 미지급 표현은 이 좁은 승인 범위에서 대체한다. 친구 초대는 출처 확장 경계만 준비하며 지급 구현은 후속이다. exact schema/wire·LC 공동 계약·구현/배포는 별도다.
+
 > 2026-10-13 사용자 승인 정책 변경: [환불 전 confirm Session 완료 허용](PAYMENT-CONFIRMED-SESSION-REFUND-POLICY-2026-10-13.md)을 우선 적용한다. 환불 전 confirm된 exact Session은 기존 제출 기한 안에 완료 허용, 환불 선행 confirm 및 신규/재응시는 차단한다. paid 전용 채점 승인 API는 제외하고 durable revoke 전달·구매별 최소 이용 증거는 유지한다. 기존 reserve 응답 출처 추가 방향이며 exact wire/LC 공동 동결은 별도다. 아래 OPEN 제출·채점 차단/GRADING-only 완료·전용 승인 API·v2 필수의 종전 표현은 이 변경 범위에서 역사적 기록으로 대체된다. 코드·LC 저장소·배포는 이번에 변경하지 않았다.
 
 

@@ -128,6 +128,8 @@ final class CleanupPurger {
             targetCheck("ACCOUNT_LOOKUP".equals(cursor.getString("kind"))
                     && subject.cursorActivityAt().equals(cursor.getDate("lastActivityAt").toInstant()), Reason.DATA_INCONSISTENT);
             targetCheck(!cursor.containsKey("lease") && !cursor.containsKey("leaseOwner") && !cursor.containsKey("leaseUntil"), Reason.PENDING_EVIDENCE);
+            Document lookup = cursor.get("lookup", Document.class);
+            targetCheck(lookup == null || lookup.getString("owner") == null, Reason.PENDING_EVIDENCE);
             version(cursor);
             result.add(new Target("payment_reconcile_cursors", cursor));
             Document account = single(session, "payment_accounts", new Document("_id", subject.accountId()));

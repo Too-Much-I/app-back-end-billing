@@ -40,8 +40,11 @@ public class PublicSecurityConfig {
     @Bean
     WebServerFactoryCustomizer<TomcatServletWebServerFactory> publicConnector(EntitlementQueryProperties p,
             TrialEligibilityProperties eligibility, BillingMongoProperties mongo, Environment environment, PaymentProperties payments) {
-        // No live verifier/worker exists yet. An ON flag must not accept permanently pending real purchases.
-        if (payments.isSyncEnabled()) throw new IllegalStateException("Payment sync runtime requires the future verified provider and worker integration");
+        // Worker construction verifies the real schemas, keys, catalog and shared budget before exposing its service bean.
+        // Store sandbox, refund/admission readiness and sales activation remain separate rollout gates.
+        if (payments.isSyncEnabled() && (!payments.getRecovery().isFenceRequired()
+                || !environment.getProperty("billing.payment.provider.worker.enabled", Boolean.class, false)))
+            throw new IllegalStateException("Payment sync requires enabled provider worker and recovery fence");
         if (payments.isEntitlementQueryEnabled() && (!p.isEnabled() || !payments.getRecovery().isFenceRequired()))
             throw new IllegalStateException("Paid query requires the existing free reader and recovery control");
         if (p.isPublicConnectorEnabled() && (p.getPublicPort() < 1024 || p.getPublicPort() > 65535

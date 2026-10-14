@@ -9,6 +9,12 @@ version = '0.0.1-SNAPSHOT'
 
 springBoot { mainClass = 'web.tosunsaeng.billing.BillingApplication' }
 
+// Explicit operator process; never executed by build, boot, scheduler or HTTP.
+tasks.register('paymentReviewOperator', JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'web.tosunsaeng.billing.domain.payment.worker.PaymentReviewOperatorCli'
+}
+
 // Explicit offline operator process; never executed during boot/build/test or via HTTP.
 tasks.register('recoveryOperator', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath

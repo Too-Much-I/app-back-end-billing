@@ -93,6 +93,167 @@ class PurchaseCoreIntegrationTest {
         assertThat(pending()).isZero(); assertThat(count("purchases")).isEqualTo(1);
         assertThat(count("subscription_entitlements")).isEqualTo(1); assertThat(count("payment_ledger")).isEqualTo(2);
     }
+    PurchaseObservation withoutMoney(PurchaseObservation o, String event) {
+        return new PurchaseObservation(o.environment(), o.store(), o.appId(), o.transactionKey(), o.lookupKeyVersion(),
+                lookup.event("SANDBOX", "fake-project", event), o.kind(), o.ownerRefId(), o.storeProductId(), o.purchasedAt(), null);
+    }
+    @Test void unknownMoneyGrantsThenSupplementDoesNotChangePeriod() {
+        var known = purchase("known", "tx"); var unknown = withoutMoney(known, "unknown");
+        core.receive(unknown); core.apply(unknown.providerEventKey());
+        Document entitlement = first("subscription_entitlements"), timeline = first("payment_timelines");
+        assertThat(first("purchases").get("money")).isNull(); assertThat(first("purchases").getString("accessState")).isEqualTo("ALLOWED");
+        core.receive(known); core.apply(known.providerEventKey()); core.apply(known.providerEventKey());
+        assertThat(first("purchases").get("money")).isNotNull(); assertThat(first("subscription_entitlements")).isEqualTo(entitlement);
+        assertThat(first("payment_timelines")).isEqualTo(timeline); assertThat(count("payment_ledger")).isEqualTo(3); assertThat(pending()).isZero();
+        assertThat(db.getCollection("payment_ledger").countDocuments(new Document("type", "MONEY_CONFIRMED"))).isEqualTo(1);
+    }
+    @Test void laterUnknownMoneyNeverErasesKnownOrCreatesCase() {
+        var known = purchase("known", "tx"); core.receive(known); core.apply(known.providerEventKey());
+        Document money = first("purchases").get("money", Document.class);
+        var unknown = withoutMoney(known, "unknown"); core.receive(unknown); core.apply(unknown.providerEventKey());
+        assertThat(first("purchases").get("money")).isEqualTo(money); assertThat(count("payment_purchase_cases")).isZero();
+        assertThat(count("payment_ledger")).isEqualTo(2); assertThat(pending()).isZero();
+    }
+    @Test void confirmedMoneyConflictIsReviewWithoutOverwriting() {
+        var known = purchase("a", "tx"); core.receive(known); core.apply(known.providerEventKey());
+        Document money = first("purchases").get("money", Document.class);
+        var changed = new PurchaseObservation(known.environment(), known.store(), known.appId(), known.transactionKey(), known.lookupKeyVersion(),
+                lookup.event("SANDBOX", "fake-project", "b"), known.kind(), ref, known.storeProductId(), known.purchasedAt(), new PurchaseObservation.Money(BigDecimal.ONE, "KRW"));
+        core.receive(changed); assertThat(core.apply(changed.providerEventKey())).isEqualTo(REVIEW_REQUIRED);
+        assertThat(first("purchases").get("money")).isEqualTo(money); assertThat(count("subscription_entitlements")).isEqualTo(1);
+    }
+    @Test void concurrentMoneySupplementHasOneEffect() throws Exception {
+        var a = purchase("a", "tx"); var b = purchase("b", "tx"); var unknown = withoutMoney(a, "unknown");
+        core.receive(unknown); core.apply(unknown.providerEventKey()); core.receive(a); core.receive(b);
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var x = pool.submit(() -> core.apply(a.providerEventKey())); var y = pool.submit(() -> core.apply(b.providerEventKey()));
+            assertThat(x.get(10, TimeUnit.SECONDS)).isEqualTo(APPLIED); assertThat(y.get(10, TimeUnit.SECONDS)).isEqualTo(APPLIED);
+        }
+        assertThat(count("payment_ledger")).isEqualTo(3); assertThat(count("subscription_entitlements")).isEqualTo(1); assertThat(pending()).isZero();
+    }
+    @Test void lateMoneySupplementExtendsAuditRetentionButNotEntitlement() {
+        var known = purchase("known", "tx"); var unknown = withoutMoney(known, "unknown"); core.receive(unknown); core.apply(unknown.providerEventKey());
+        Document entitlement = first("subscription_entitlements"); Instant later = NOW.plus(Duration.ofDays(100));
+        var delayed = core(later); delayed.receive(known); delayed.apply(known.providerEventKey());
+        assertThat(first("purchases").getDate("retentionExpiresAt").toInstant()).isEqualTo(later.atOffset(ZoneOffset.UTC).plusYears(5).toInstant());
+        assertThat(first("subscription_entitlements")).isEqualTo(entitlement);
+    }
+    @Test void moneySupplementWhileBlockedThenGrantUsesUpdatedVersion() {
+        barrier("PURCHASE_BLOCKED"); var known = purchase("known", "tx"); var unknown = withoutMoney(known, "unknown");
+        core.receive(unknown); assertThat(core.apply(unknown.providerEventKey())).isEqualTo(PURCHASE_BLOCKED);
+        core.receive(known); assertThat(core.apply(known.providerEventKey())).isEqualTo(PURCHASE_BLOCKED);
+        barrier("OPEN"); assertThat(core.apply(known.providerEventKey())).isEqualTo(APPLIED); core.apply(unknown.providerEventKey());
+        assertThat(count("payment_ledger")).isEqualTo(3); assertThat(pending()).isZero();
+    }
+    @Test void schemaR1NeedsExplicitIsolatedUpgradeAndIsRetrySafe() {
+        db.getCollection("payment_provider_inbox").dropIndex("ix_payment_provider_work_due");
+        PurchaseCoreSchema.manifest(false).forEach((name, d) -> db.runCommand(new Document("collMod", name).append("validator", d.validator())));
+        assertThatThrownBy(() -> PurchaseCoreSchema.verify(db)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> PurchaseCoreSchema.upgradeMoneyEvidenceUnderMaintenance(db, true)).isInstanceOf(IllegalStateException.class);
+        barrier("ALL_BLOCKED");
+        assertThatThrownBy(() -> PurchaseCoreSchema.upgradeMoneyEvidenceUnderMaintenance(db, false)).isInstanceOf(IllegalStateException.class);
+        PurchaseCoreSchema.upgradeMoneyEvidenceUnderMaintenance(db, true); PurchaseCoreSchema.upgradeMoneyEvidenceUnderMaintenance(db, true);
+        assertThatThrownBy(() -> PurchaseCoreSchema.verify(db)).isInstanceOf(IllegalStateException.class);
+        PurchaseCoreSchema.upgradeWebhookUnderMaintenance(db, true);
+        PurchaseCoreSchema.upgradeWorkerUnderMaintenance(db, true);
+        PurchaseCoreSchema.verify(db); assertThat(count("purchases")).isZero();
+    }
+    WebhookReceipt webhook(String event, WebhookReceipt.Disposition disposition) {
+        var o = purchase(event, "transaction-" + event);
+        return new WebhookReceipt("SANDBOX", o.providerEventKey(), "a".repeat(64), lookup.version(),
+                disposition == WebhookReceipt.Disposition.PURCHASE ? o : null, ref, disposition, "TEST_REASON");
+    }
+    @Test void webhookReceiptDoesNotGrantAndWorkerLaterAppliesOnce() {
+        var r = webhook("webhook", WebhookReceipt.Disposition.PURCHASE);
+        assertThat(core.receiveWebhook(r)).isEqualTo(RECEIVED); assertThat(core.receiveWebhook(r)).isEqualTo(RECEIVED);
+        assertThat(count("purchases")).isZero(); assertThat(pending()).isEqualTo(1);
+        assertThat(core.apply(r.eventKey())).isEqualTo(APPLIED); assertThat(core.receiveWebhook(r)).isEqualTo(APPLIED);
+        assertThat(count("subscription_entitlements")).isEqualTo(1); assertThat(pending()).isZero();
+        var conflict = new WebhookReceipt(r.environment(), r.eventKey(), "b".repeat(64), r.lookupKeyVersion(), r.observation(), r.ownerRefId(), r.disposition(), r.reason());
+        assertThatThrownBy(() -> core.receiveWebhook(conflict)).isInstanceOfSatisfying(PaymentException.class, e -> assertThat(e.status()).isEqualTo(409));
+    }
+    @Test void ignoredWebhookIsDurableHasTtlAndNeverTouchesAccount() {
+        var r = webhook("ignored", WebhookReceipt.Disposition.IGNORED);
+        assertThat(core.receiveWebhook(r)).isEqualTo(IGNORED); assertThat(core.receiveWebhook(r)).isEqualTo(IGNORED);
+        assertThat(core.apply(r.eventKey())).isEqualTo(IGNORED); assertThat(pending()).isZero();
+        assertThat(first("payment_provider_inbox").get("normalizedObservation")).isNull();
+        assertThat(first("payment_provider_inbox").getDate("purgeAt").toInstant()).isEqualTo(NOW.plus(Duration.ofDays(120)));
+        assertThat(count("payment_purchase_cases")).isZero(); assertThat(count("purchases")).isZero();
+        assertThatThrownBy(() -> new PurchaseCore(store, properties, Clock.fixed(NOW, ZoneOffset.UTC),
+                Map.of(PurchaseObservation.Store.PLAY_STORE, "fake.app"), "different-version")).isInstanceOf(PaymentException.class);
+    }
+    @Test void reviewWebhookPreservesPendingInCaseAfterInboxRemoval() {
+        var r = webhook("review", WebhookReceipt.Disposition.REVIEW);
+        assertThat(core.receiveWebhook(r)).isEqualTo(REVIEW_REQUIRED); assertThat(pending()).isEqualTo(1);
+        assertThat(first("payment_purchase_cases").containsKey("purgeAt")).isFalse();
+        db.getCollection("payment_provider_inbox").deleteMany(new Document()); // Simulated source TTL in isolated test database.
+        assertThat(core.receiveWebhook(r)).isEqualTo(REVIEW_REQUIRED); assertThat(pending()).isEqualTo(1);
+        assertThat(count("payment_purchase_cases")).isEqualTo(1); assertThat(count("purchases")).isZero();
+    }
+    @Test void withdrawalAndReviewWebhookRetainFinancialPendingWithoutGrant() {
+        withdraw(); var r = webhook("withdrawn", WebhookReceipt.Disposition.PURCHASE); core.receiveWebhook(r);
+        assertThat(core.apply(r.eventKey())).isEqualTo(REVIEW_REQUIRED); assertThat(count("subscription_entitlements")).isZero();
+        assertThat(pending()).isEqualTo(1);
+    }
+    @Test void webhookConcurrentDuplicateAndUnknownCommitConverge() throws Exception {
+        var r = webhook("concurrent-webhook", WebhookReceipt.Disposition.REVIEW);
+        client.getDatabase("admin").runCommand(new Document("configureFailPoint", "failCommand").append("mode", new Document("times", 1))
+                .append("data", new Document("failCommands", List.of("commitTransaction")).append("errorCode", 1)
+                        .append("errorLabels", List.of("UnknownTransactionCommitResult"))));
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var a = pool.submit(() -> core.receiveWebhook(r)); var b = pool.submit(() -> core.receiveWebhook(r));
+            assertThat(a.get()).isEqualTo(REVIEW_REQUIRED); assertThat(b.get()).isEqualTo(REVIEW_REQUIRED);
+        }
+        assertThat(count("payment_provider_inbox")).isEqualTo(1); assertThat(count("payment_purchase_cases")).isEqualTo(1);
+        assertThat(pending()).isEqualTo(1);
+    }
+    @Test void webhookSchemaMigrationResumesPartialAndRejectsUnisolatedOrDrift() {
+        db.getCollection("payment_provider_inbox").dropIndex("ix_payment_provider_work_due");
+        PurchaseCoreSchema.manifest(true).forEach((name, d) -> db.runCommand(new Document("collMod", name).append("validator", d.validator())));
+        assertThatThrownBy(() -> PurchaseCoreSchema.upgradeWebhookUnderMaintenance(db, true)).isInstanceOf(IllegalStateException.class);
+        barrier("ALL_BLOCKED");
+        assertThatThrownBy(() -> PurchaseCoreSchema.upgradeWebhookUnderMaintenance(db, false)).isInstanceOf(IllegalStateException.class);
+        db.runCommand(new Document("collMod", "payment_provider_inbox").append("validator", PurchaseCoreSchema.manifest(true, true).get("payment_provider_inbox").validator()));
+        PurchaseCoreSchema.upgradeWebhookUnderMaintenance(db, true); PurchaseCoreSchema.upgradeWebhookUnderMaintenance(db, true);
+        PurchaseCoreSchema.upgradeWorkerUnderMaintenance(db, true);
+        PurchaseCoreSchema.verify(db); barrier("OPEN");
+        var r = webhook("invalid-source", WebhookReceipt.Disposition.IGNORED); core.receiveWebhook(r);
+        assertThatThrownBy(() -> db.getCollection("payment_provider_inbox").updateOne(new Document(),
+                new Document("$set", new Document("state", "RECEIVED")).append("$unset", new Document("purgeAt", ""))))
+                .isInstanceOf(com.mongodb.MongoException.class);
+    }
+    @Test void workerSchemaMigrationResumesBothDdlBoundariesWithoutChangingData() {
+        var o = purchase("legacy-r3", "tx"); core.receive(o);
+        var inbox = db.getCollection("payment_provider_inbox");
+        var before = inbox.find().first();
+        inbox.dropIndex("ix_payment_provider_work_due");
+        db.runCommand(new Document("collMod", "payment_provider_inbox").append("validator", PurchaseCoreSchema.manifest(true, true).get("payment_provider_inbox").validator()));
+        assertThatThrownBy(() -> core(NOW)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> PurchaseCoreSchema.upgradeWorkerUnderMaintenance(db, true)).isInstanceOf(IllegalStateException.class);
+        barrier("ALL_BLOCKED");
+        assertThatThrownBy(() -> PurchaseCoreSchema.upgradeWorkerUnderMaintenance(db, false)).isInstanceOf(IllegalStateException.class);
+        // Simulated interruption after collMod but before createIndex.
+        db.runCommand(new Document("collMod", "payment_provider_inbox").append("validator", PurchaseCoreSchema.manifest().get("payment_provider_inbox").validator()));
+        PurchaseCoreSchema.upgradeWorkerUnderMaintenance(db, true); PurchaseCoreSchema.upgradeWorkerUnderMaintenance(db, true);
+        assertThat(inbox.find().first()).isEqualTo(before); PurchaseCoreSchema.verify(db);
+        // Opposite exact intermediate is accepted, unknown metadata drift is not.
+        db.runCommand(new Document("collMod", "payment_provider_inbox").append("validator", PurchaseCoreSchema.manifest(true, true).get("payment_provider_inbox").validator()));
+        PurchaseCoreSchema.upgradeWorkerUnderMaintenance(db, true);
+        inbox.createIndex(new Document("unexpected", 1), new IndexOptions().name("unexpected"));
+        assertThatThrownBy(() -> PurchaseCoreSchema.upgradeWorkerUnderMaintenance(db, true)).isInstanceOf(IllegalStateException.class);
+    }
+    @Test void moneySupplementUnknownCommitAndTransientFailureConverge() {
+        for (String label : List.of("TransientTransactionError", "UnknownTransactionCommitResult")) {
+            var known = purchase(label, label); var unknown = withoutMoney(known, "unknown-" + label);
+            core.receive(unknown); core.apply(unknown.providerEventKey()); core.receive(known);
+            client.getDatabase("admin").runCommand(new Document("configureFailPoint", "failCommand").append("mode", new Document("times", 1))
+                    .append("data", new Document("failCommands", List.of(label.equals("TransientTransactionError") ? "insert" : "commitTransaction"))
+                            .append("errorCode", label.equals("TransientTransactionError") ? 112 : 1).append("errorLabels", List.of(label))));
+            assertThat(core.apply(known.providerEventKey())).isEqualTo(APPLIED); core.apply(known.providerEventKey());
+        }
+        assertThat(db.getCollection("payment_ledger").countDocuments(new Document("type", "MONEY_CONFIRMED"))).isEqualTo(2);
+        assertThat(count("subscription_entitlements")).isEqualTo(2); assertThat(pending()).isZero();
+    }
     @Test void conflictingEventNeverMutatesPending() {
         core.receive(purchase("event", "tx"));
         assertThatThrownBy(() -> core.receive(purchase("event", "other"))).isInstanceOfSatisfying(PaymentException.class,

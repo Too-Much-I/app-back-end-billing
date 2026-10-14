@@ -1,5 +1,7 @@
 # PLAN-010: 구매 검증·기간권 원장·동기화·복구
 
+> 2026-10-13 3차 조사·계획: [RevenueCat 검증·worker·누락 복구](PLAN-010-phase-3-revenuecat-worker-reconciliation.md). 공식 HMAC/REST/SDK 식별자 문서 확인, hash-only sync의 계정목록 대조·source/금액 보완·명시 worker schema 이관을 정리했다. TMI-211은 PR15로 병합됐으며 이번은 후속 계획 작성이다. 실제 provider/계정설정·실거래·Jira/코드/활성화 변경은 없다.
+
 > 2026-10-13 사용자 승인 정책 변경: [환불 전 confirm Session 완료 허용](../contracts/PAYMENT-CONFIRMED-SESSION-REFUND-POLICY-2026-10-13.md)을 우선 적용한다. 환불 전 confirm된 exact Session은 기존 제출 기한 안에 완료 허용, 환불 선행 confirm 및 신규/재응시는 차단한다. paid 전용 채점 승인 API는 제외하고 durable revoke 전달·구매별 최소 이용 증거는 유지한다. 기존 reserve 응답 출처 추가 방향이며 exact wire/LC 공동 동결은 별도다. 아래 OPEN 제출·채점 차단/GRADING-only 완료·전용 승인 API·v2 필수의 종전 표현은 이 변경 범위에서 역사적 기록으로 대체된다. 코드·LC 저장소·배포는 이번에 변경하지 않았다.
 
 

@@ -1,5 +1,23 @@
 # Billing 계약 결정서
 
+> 2026-10-14 공동 기술 검토 기준 통합: [유료 시험 계약 R2](../contracts/LC-BILLING-PAID-EXAM-CONTRACT-R2.md)를 우선 참조한다. 최신 승인 정책·LC 최소wire 제안을 한 곳에 정리했으며 본문의 종전 기술 후보는 변경 이력이다. 새정본의 exact 공동수락/fixture/구현·배포는 미완료이고 phone/삭제/보존 gate는 별도 확인한다.
+
+> 2026-10-14 사용자 승인: 전체 답안 서버접수 완료·채점/요약 대기 중 새 시험은 직전 문제를 제외한 후보에서 기존 규칙으로 선정한다. 다른 적격 문제가 실제로 없을 때만 같은 문제를 허용한다. 부분 접수는 같은 문제로 처음부터, 완료 후는 기존 선정 규칙 유지. [단순화 인계](../contracts/LC-BILLING-PAID-EXAM-SIMPLIFICATION-HANDOFF-2026-10-14.md) 참조.
+
+> 2026-10-13 LC 마무리 승인: [R2 §10](../contracts/LC-BILLING-PAID-EXAM-HANDOFF-R2.md)에 기존 operation을 LC 종료까지 미완료/복구 가능 상태로 유지하고, 새 Session 활성·이전 신규제출 차단·operation 성공을 함께 저장한 뒤 공개 성공 반환하도록 확정했다. 접수된 Job만 완료 허용, 기존시험 ID목록 방식 우선검토. TRIAL fallback/최초trial→paid 절대무중첩 문구 정리. exact wire/상태/schema·LC 구현·배포는 후속.
+
+> 2026-10-13 legacy 보존 승인: [prod 점검·확정 정책](../plans/PLAN-011-SOURCE-PRODUCTION-INVENTORY-2026-10-13.md)에 따라 기존 LC 시험은 기존 규칙/이력을 유지하고 일괄 종료·무료source backfill하지 않는다. 전환 후 새 시험·새 재응시부터 Billing 및 source 필수 적용. legacy는 source 누락이 아닌 전환 전 대상 증거로 구분하고 소비/복원 증거로 임의 사용하지 않는다. Billing prod DB는 미구축으로 기존 데이터 이관이 불필요하다. 실제 전환 경계와 LC 구현은 후속이다.
+
+> 2026-10-13 최신 단순화 승인: [무료권 정책 §1/3/4](../contracts/FREE-EXAM-PASS-AND-PAID-SWITCH-RESTORATION-2026-10-13.md) 우선. Billing은 paid confirm·복원 지급·원 그룹 재응시 차단을 같은 Transaction으로 확정하고 LC는 기존 Session을 순차 종료한다. 이미 접수된 무료 제출의 경합 완료와 복원권 동시 보유는 허용한다. 최초 trial consumption ID당 복원 1회, 복원권/초대권 재복원 없음. 현재 무기한·지급순만 구현하고 만료 기능은 후속. MEMBER 전용 보상권의 Guest merge 확장은 제외하며 기존 trial merge는 유지한다. 종전 무중첩 보장·일반 root 계보·현재 만료순 구현·보상권 merge 표현은 이 범위에서 대체한다.
+
+> 2026-10-13 추가 확정: [무료권 정책 §1/4/5](../contracts/FREE-EXAM-PASS-AND-PAID-SWITCH-RESTORATION-2026-10-13.md)에 만료순→지급순(무기한 후순위), 복원권 현재 무기한, LC `EXAM_PASS/SUBSCRIPTION`·세부출처 Billing 관리, 보상권 계정귀속·탈퇴재가입 자동복구없음·정상merge 미사용권 이전, Billing confirm/차단/복원 원자확정과 LC status-first 후속복구를 반영했다. exact schema/wire·merge 경합·보존 구현은 후속이다.
+
+> 2026-10-13 사용자 승인: [공통 무료 모의고사권·유료 전환 복원](../contracts/FREE-EXAM-PASS-AND-PAID-SWITCH-RESTORATION-2026-10-13.md)을 우선 적용한다. ACTIVE paid로 새 시험을 성공적으로 confirm할 때 미완료 최초 trial 그룹을 종료하고 별도 무료권 1개를 원 lineage당 한 번 복원한다. 구매만으로 지급하지 않으며 원 TrialClaim/consumption은 보존한다. 기존 무료 replacement 우선·새 무료권 미지급 표현은 이 좁은 승인 범위에서 대체한다. 친구 초대는 출처 확장 경계만 준비하며 지급 구현은 후속이다. exact schema/wire·LC 공동 계약·구현/배포는 별도다.
+
+> 2026-10-13 무료재응시 보존: 무료시험 중 구매해도 유효TRIAL group은 기존replacement 유지·유료group으로 자동전환하지 않는다. paid-first는신규INITIAL에만적용, Claim/consumption불변·새무료권지급없음. 다른권리새group전환은기존source환불/만료로재응시불가인경우에한정. [LC 인계 R2 §9](../contracts/LC-BILLING-PAID-EXAM-HANDOFF-R2.md) 참조.
+
+> 2026-10-13 새 시험 그룹 전환 사용자 승인: 별도 포기 버튼/선행 종료 절차 없이 기존 새 시험 시작 흐름을 활용. 유효 동일source는 기존group replacement, 환불source의 새Session 차단, 다른 유효권리 INITIAL은 새group. 원구매/이력 보존·실패시 이전Session만 선종료 금지, exact전환은 [LC 인계 R2 §8](../contracts/LC-BILLING-PAID-EXAM-HANDOFF-R2.md) 공동동결후 구현.
+
 > 2026-10-13 사용자 승인 정책 변경: [환불 전 confirm Session 완료 허용](../contracts/PAYMENT-CONFIRMED-SESSION-REFUND-POLICY-2026-10-13.md)을 우선 적용한다. 환불 전 confirm된 exact Session은 기존 제출 기한 안에 완료 허용, 환불 선행 confirm 및 신규/재응시는 차단한다. paid 전용 채점 승인 API는 제외하고 durable revoke 전달·구매별 최소 이용 증거는 유지한다. 기존 reserve 응답 출처 추가 방향이며 exact wire/LC 공동 동결은 별도다. 아래 OPEN 제출·채점 차단/GRADING-only 완료·전용 승인 API·v2 필수의 종전 표현은 이 변경 범위에서 역사적 기록으로 대체된다. 코드·LC 저장소·배포는 이번에 변경하지 않았다.
 
 

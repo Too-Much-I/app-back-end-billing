@@ -5355,3 +5355,374 @@
 
 - 사용자 확인 요청으로 양측 source 읽기. LC v1 evidence/failureCode 존재·Billing 검증과 상세저장 부재·무료전용 consumer/purchase귀속 보완 필요를 확인했다. PLAN011 검토 기록 추가, 새버전/증거이벤트보다 기존wire+Billing내부저장 권장.
 - 코드/타저장소/실환경/계약확정/배포/Jira/commit/push 변경 없음. 정적 문서검사만, Gradle미실행.
+
+## 2026-10-13 TMI-211 병합 후 다음 작업 안내
+
+- 사용자 병합 완료 후 로컬 HEAD ea30a62(PR15 merge)와80526e9 구현 포함·점검전 clean 확인. 원격 fetch/PR 상태 변경은 하지 않았다.
+- PLAN010과 CURRENT_STATE를 대조해 실제 RevenueCat 인증/SDK hint→거래 식별 매핑 선행 확인 및3차 provider adapter·webhook·공통worker/reconciliation 계획을 권장. HMAC 지원/서명시간은 실증 전 공식기능으로 가정하지 않음. 011/012와실판매는후속.
+- 변경: CURRENT_STATE 및 본 append만. 코드/정책/타서버/Jira/외부설정/Git/배포불변, 분석작업이라Gradle미실행. 다음: provider공식규격 확인 후3차계획/필요한계약보완 정리.
+
+## 2026-10-13 PLAN010 3차 RevenueCat 공식 조사·계획 작성
+
+- 브랜치 develop, HEAD ea30a62. 사용자 요청에 공식 webhooks/v2 purchase/customer resources/event field·SDK source/reference와 로컬210/211·ADR/PLAN을 대조했다. 공식문서에 HMAC timestamp.raw-body 지원 및 재전송 재서명이 명시돼 기존방향 유지 가능; 실제프로젝트 HMAC/권한/SDK거래 fixture 검증과 구분했다.
+- 변경: PLAN-010-phase-3-revenuecat-worker-reconciliation 신규, 상위PLAN링크·CURRENT_STATE·본append. adapter/ingress/worker/reconciliation 단계, source key·금액불명보완·hash-only sync 계정목록대조·strict schema이관·lease/epoch/pending·공유quota·보존/테스트/기본OFFgate를 권장안으로 작성. 구매/환불/무료정책과 기존코드계약은 수정하지 않았다.
+- 위험: Android orderId null/앱SDK버전미확인, 원구매자/alias·실데이터타입·부분환불미검증. USD revenue를 STORE_PAID로 오인하지 않음,API 목록완료를205미구매증거로 사용하지 않음. exact adapter/schema/운영보존과 실제환경 검증은 후속.
+- 검증: 공식페이지열람·코드정적대조·diff/로컬링크 검사. 문서작업이라Gradle미실행(기존1215통과를이번검증으로재사용하지않음). 실제provider/Secret/dashboard/Store·타서버·Jira·commit/push/배포없음. 기존기록변경보존/이번범위밖수정없음. 다음: 기술권장안 검토→exact선행규격과Jira 승인→OFF분할구현.
+
+## 2026-10-13 PLAN010 3차 설명
+
+- develop. 사용자 설명 요청으로3차계획 전체를 재조회했다. 기존210원장/211접수·조회와 다음adapter/webhook/worker/reconciliation의 연결,계정별hash대조·중복신호와한번지급·금액불명보완·DBpoll/외부quota·검토대기·실거래gate를 설명했다.
+- CURRENT_STATE와본append만 변경,기존문서/정책/코드/외부계약 유지. 구현/Jira/배포/타서버/Git조작없음. 설명작업이라Gradle미실행,문서조회/diff검사. 기존변경보존/추가예상밖변경없음. 다음: 권장안검토후exact규격/Jira승인.
+
+## 2026-10-13 LC 유료 시험 인계 명세 준비
+
+- 사용자「어 준비해줘」로 reserve/status 출처·confirm-first 환불예외·revoke 후보·오류/auth/retry·기존v1증거 재사용·분담/배포/PAID01~14 공동 테스트를 LC-BILLING-PAID-EXAM-HANDOFF-R1.md에 작성했다. 신규필드/route/auth/오류는 양측미수락 후보이며 기존정책과구분했다. PLAN011/012에 참조 추가.
+- source읽기/문서만, LC코드/문서·외부메시지·Jira/DB/배포/활성화/commit/push 없음. 기존별도변경보존·Gradle미실행.
+
+## 2026-10-13 PLAN010 3차 예외 처리 설명
+
+- develop. 사용자6번질문에 금액불명후보완은검증된구매와분리/추가원장만·재지급금지,일시조회실패는기존권리취소없이신규PENDING·backoff,24시간재시도예산소진권장안은운영검토인계이며자동환불/삭제가아님을 설명했다. 인증실패는즉시차단/알림으로구분.
+- 변경CURRENT_STATE/본append만,정책/기술안신규확정·구현·Jira·외부연동없음. 기존동시LC문서보존. 설명작업으로테스트미실행,문서/diff정적확인. 다음:권장안검토/세부규격동결.
+
+## 2026-10-13 TMI-212 생성
+
+- develop. 사용자Jira생성승인에 TMI137/하위·RevenueCat기존이슈를조회해중복확인후 TMI212 「[Billing PLAN-010 3차] RevenueCat 검증·webhook·공통 worker·누락 복구」 생성. A~D순서·금액만불명인검증구매지급/추후보완·중복방지·schema/보존·OFF·테스트/활성화경계를본문기록.
+- 변경: 신규Jira1건·3차계획키/상태·CURRENT_STATE/본append. 기존이슈수정/상태전환/댓글·코드/외부설정/타서버/Git/배포없음. 기존LC별도문서변경보존. 생성후이슈재조회·diff검사,문서/이슈작업으로Gradle미실행. 다음:TMI212 exact선행규격정리후단계별OFF구현.
+
+## 2026-10-13 LC R1 검토 5항목 보완
+
+- 현행LC strictdecoder/operation·error category/public saga 및gradingdeadline을읽기확인했다. R2에source operation보존/legacy조건·제출기한선택대기·오류/보상·최대16KiB/역방향독립trust·충돌우선/보존age/lifecycle후보를작성했다. 사용자제출기간질문은미응답상태이며값미확정.
+- 코드/LC문서/외부회신/Jira/DB/배포/commit/push 없음. 문서검사만·Gradle미실행.
+
+### 사용자 확인: 새 제출 제한 없음
+
+- 사용자「제한이 돼? 안하는 거 아니었어?」에 따라 미승인30/60분/24h후보철회. 작성자의 기존마감가정 오류를설명하고 R2§2를새timeout없음으로보완했다. 현행grading제한·terminal/삭제/탈퇴경계유지,장기간OPEN guard/증거보존은공동확인. 이전질문/기록은역사로보존. 코드/배포변경없음.
+
+## 2026-10-13 LC 인계 잔여 항목 재검토
+
+- 사용자「다른 것도 확인해줘」로 source/confirm복구·오류/보상·역방향보안·순서/보존/lifecycle를정적검토. status/confirm command의존·RESERVED보상경합·higher예외null제거충돌 확인, R2보완/검토기록 작성. 120일eventage신규제약 기본안철회·inbox와protected예외보존분리·source예외고정·새confirmedAt필드불필요가능성 명시. 장기OPEN다음시험/guard는LC공동확인 필요.
+- concurrent PurchaseCore/Schema/LookupKey 및010문서 개발변경보존. 코드/LC수정/외부회신/DB/Jira/배포/commit/push 없음. Gradle미실행.
+
+## 2026-10-13 TMI-212 선행 A adapter·금액 보완 구현
+
+- 브랜치 feat/TMI-212-revenuecat-worker-reconciliation. 구현전TMI212본문/완료조건과현재210/211코어를확인했다. 전체3차중선행A부터진행: B수신/Cworker/D대사·reference영속화/운영보존은아직남아있으며전체완료로보고하지않는다.
+- 변경: payment/provider의ReadClient/PurchaseDecoder/HttpTransport/Failure/ReferenceCipher,PurchaseLookupKey API namespace,PurchaseCore 금액보완,PurchaseCoreSchema r2명시이관 및관련테스트. adapter-r1/구현안내·ADR004·3차계획·CURRENT_STATE/본append동기화.
+- 동작: RC고정host/서버project·계정목록/단건읽기·strictJSON·owner/original/상품/store/env/quantity/time/status·pagination/HTTP오류/RetryAfter검증. API USD revenue는money로사용하지않음. source API key와webhook key분리·Store거래HMAC불변. metadata용AES256GCMhelper추가(저장/키주입미연결).
+- 금액: 검증구매null금액지급유지,null→known은MONEY_CONFIRMED원장+Purchase projection/pending같은Tx,retention확장·기간/timeline불변. known→null유지,known충돌case. concurrent/unknowncommit/transient/blockedgrant순서검증. r2는ledgerenum만명시maintenance로변경,운영DDL자동없음·기존r1정확검증/ALL_BLOCKED/격리필수.
+- 검증: 집중테스트성공후 ./gradlew clean test bootJar 성공,XML1,268통과/실패0/오류0/skip0(53추가). fake provider transport/JSON과Mongo replica-set·명시이관회귀. 중간테스트Java선언/람다컴파일오류수정후전체재실행. 실제RC/Store·정상HTTPS transport E2E·실키/대시보드미실행. diff/링크정적검사.
+- 유지/다음: runtimebean/자동외부호출/새flagON없음,기존syncON기동차단유지. 승인없는Jira상태/댓글/commit/push/배포/타서버변경없음. 동시LC R2/환불정책/PLAN011·012문서변경은별도작업으로보존,이번코드의정책변경아님. 다음은B의provider수신·durableunknown/review와C/D저장규격·worker/보존,이후실환경gate. TMI212는열린상태유지.
+
+## 2026-10-13 기존 새 시험 흐름의 그룹 전환 승인
+
+- 사용자 설명(기존group아래Session재시작)과「어그정도면될거같다」승인으로 별도포기버튼없이 동일source replacement/환불source차단/다른권리INITIAL 새group전환 방향을 R2§2/8·PLAN011·결정서에 반영. 원source/이력보존·전환실패시이전Session만선종료금지·cross-service durable/CAS/status-first 설계경계 명시.
+- 문서만, 코드/LC저장소/DB/Jira/외부전송/배포/commit/push 없음. 기존010개발변경보존·Gradle미실행.
+
+## 2026-10-13 무료 도중 구매와 그룹 source 보존
+
+- 사용자가 무료그룹손실사례를지적해 이전전환표현의범위를교정했다. 기존유효TRIAL replacement보존·paid-first는신규INITIAL·환불/만료재응시불가시만다른권리group전환, Claim/consumption/paid기간불변을R2§9/PLAN011/결정서에명시. 새기능/무료권복구승인아님. 코드/LC/배포변경없음·Gradle미실행.
+
+
+## 2026-10-13 공통 무료 모의고사권과 유료 전환 복원 승인
+
+- 사용자 「어 그렇게 하는 게 좋아보인다」에 따라 [정책](../contracts/FREE-EXAM-PASS-AND-PAID-SWITCH-RESTORATION-2026-10-13.md) 작성, R2 §9/PLAN011/013/ADR004/AGENTS/결정서/통합·요약 계약 동기화. 구매만으로 미지급·paid confirm 시 미완료 최초 trial 종료+별도복원1개·root lineage당1회·원Claim/consumption보존. 공통source wire 재검토·reader/retention/owner/경합 공동동결 후속, 초대보상은 확장경계만.
+- 문서만 변경. 기존 동시 PLAN010 개발 변경 보존. 코드/LC/DB/Jira/외부전송/배포/commit/push 없음. Gradle 미실행; diff 및 로컬 링크 검사로 검증.
+
+## 2026-10-13 TMI-212 B webhook 수신 구현
+
+- 브랜치 feat/TMI-212-revenuecat-worker-reconciliation. 사용자「어 해줘」로 A후속B착수. Jira212본문/완료조건을읽었으며상태/댓글은변경하지않았다. 공식Webhook페이지에서Authorization/HMAC·deliverytimestamp재서명규격을재확인했고dashboard/실키는조회하지않았다.
+- 변경: provider의WebhookAuthentication/Decoder/Filter/Properties,WebhookReceipt,RevenueCatWebhookConfiguration,PublicIngressFilter exact분리,application.yml기본OFF설정,PurchaseCore/Schema r3및PaymentSyncService key검사. 관련단위/실Springchain/Mongo테스트와webhook-r1/runbook·ADR004·3차계획·CURRENT_STATE/본append.
+- 동작: 환경별host/localport/정확route·중복Authorization/서명·HMAC rawbody/±300초·UTF-8/256KiB/strictJSON,fullbinding/수량/상품검증. 정상관측은기존inbox접수만하며apply/외부호출없음. 금액만없으면null로접수,TEST/unknown은IGNORED,환불/소유등불명은case로보존. 같은event의known의미digest충돌409,commit완료후200/저장불명503. ignored는pending없음,review는case에pending보존·TTL제거후에도중복수렴.
+- schema: r3는source/case nullable관측·IGNORED·receptionDigest/receptionLookupKeyVersion추가. r1→r2→r3명시maintenance,writer격리/ALL_BLOCKED·전체preflight·부분이관재개,기존index/금융schema불변. 자동DDL/구writerrollback없음. sync는null관측을구매관측과구분하고두형태의lookup버전을검증한다.
+- 검증: 집중테스트중app_id누락의Map.get(null)예외를수정. unknowncommit회귀는stepdown91이아닌기존계약용error1/label로정정후동시중복/같은Txcommit재시도검증. 집중95개성공후최종 ./gradlew clean test bootJar **1,324통과/실패0/오류0/skip0**. 처음clean호출의sandbox Gradle lock접근거절은승인된권한으로재실행해성공. 실제로컬replica-set+fakeprovider/MVC이며실RC/Store/ALB/TLS검증아님. diff/문서링크검사.
+- 유지/위험: 기존user/internal JWT·무료/기간권/환불정책불변,수신기본OFF·syncON차단유지. owner미해결globalcase는기존paid reader의UNKNOWN을유발하므로운영해결절차없이수신ON하지않는다. quantity/family실fixture,reference암호화영속화·Cworker/공유quota/lease·D대사/알림/검토/보존은남았다. TMI212전체완료아님. 다음C상세worker/schema와자동처리연결. 실제판매/DB이관/배포/타서버변경/commit/push/Jira쓰기없음.
+- 예상밖코드변경없음. 작업중추가된AGENTS·무료권복원정책/LC R2/PLAN011~013/결정서·통합문서는다른작업변경으로보존했고본구현범위에포함하지않았다.
+
+
+## 2026-10-13 무료권 사용·귀속·전환 복구 추가 확정
+
+- 사용자 선택과 「1번은 그렇게 하는 게 좋아보여 좋아 2번 그렇게 하자」를 반영: 만료 가까운 순/지급순·무기한 후순위, 복원권 현재 무기한, EXAM_PASS/SUBSCRIPTION 및 내부 지급 출처. 보상권 계정귀속/탈퇴재가입 자동복구없음/정상merge 미사용이전·기존 trial 유지, Billing confirm/원그룹차단/복원 원자확정과 LC status-first 후속복구 정책 확정. exact DTO/fixture/이관·held/merge경합·보존 설계는 후속.
+- 정책 정본/R2/PLAN011·013/결정서/현재상태 문서만 수정. 동시 제품 코드 보존·타저장소/DB/Jira/외부전송/배포/Git변경 없음. Gradle 미실행, diff/정책 링크 검사 수행.
+
+
+## 2026-10-13 무료권 전환 단순화 승인
+
+- 사용자가 선택한 세 가지를 정책 정본/R2/PLAN011·013/ADR·AGENTS/통합·결정서에 반영: Billing confirm/복원/원group재응시차단 같은Tx, LC 순차종료와 기존접수 경합완료 허용; 최초trial consumption ID당 복원1회; 현재무기한·지급순, 만료기능후속. 직전 MEMBER전용 정정에 따라 보상권 Guest merge확장제외, 기존trial merge유지. 중복지급방지/status-first/원장보존 유지.
+- 코드·타저장소·DB·Jira·외부전송·배포·commit/push 변경 없음. 동시 개발 변경 보존. 문서 diff/정책링크 검사, Gradle 미실행.
+
+## 2026-10-13 TMI-212 C1 source worker·sync 완료 복구 구현
+
+- 브랜치 feat/TMI-212-revenuecat-worker-reconciliation. 사용자「어 해줘」후Jira212완료조건을재조회했다. C를source금융처리/동일Tx잠금경계C1→외부조회/공유quota/runtime C2로나눠진행,전체C/212완료로보고하지않는다.
+- 변경: PaymentSourceWork/PaymentSourceWorker,PurchaseCore의최초ticket/같은Tx guard apply·worker실패case인계,PaymentSyncService guarded bind/complete,PurchaseCoreSchema r4명시이관,PurchaseCoreIntegrationTest/PaymentSyncIntegrationTest. worker-r1/runbook·3차계획·ADR004·CURRENT_STATE/본append.
+- 동작: inbox별30초lease/owner·leaseVersion·generation·최초epoch와guard쓰기검증. source원장반영뒤중단시terminal행work로sync완료재개. 같은계정/lifecycle/store/app/거래hash/PENDING만최대100개bind/complete,다른거래/다른sourcebinding은건드리지않음. tick최대100source/동일tick재claim금지·신규/재개교대,순수sync hint/ignored는지급안함. blocked는backoff,24시간후sourcecase인계·pending보존,terminalsync실패는보류/failure코드.
+- schema: optionalwork object와nonunique dueindex,기존row는claim초기화·금융schema/외부wire불변. 명시r1→r2→r3→r4,writer격리/ALL_BLOCKED후DDL중간상태재개·drift거절,자동DDL/운영이관없음. case에는work복제안함. 구writerrollback불가.
+- 검증: 집중Mongo테스트성공후 ./gradlew clean test bootJar **1,338통과/실패0/오류0/skip0**(14추가),diff검사/문서링크검사. lease만료·epoch교체·ALL_BLOCKED·동시worker·apply후중단·bind후실패·101command분할·withdraw/review pending·24시간예산·schema재개/불일치. 실제로컬replica-set이며실RC/Store/ALB/운영키호출없음.
+- 남음/운영경계: 명시생성형tick만구현,자동scheduler/실외부조회/공유quota·새flagON없음. C2는계정조회합치기·페이지/Retry-After/AUTH·sync독립lease·실런타임조건, D는reference영속화/정기대사·알림/재개/120일보존인계. work없는legacy terminal의미완료sync는C2회수필요. 기존syncON기동차단유지. Jira쓰기/commit/push/배포/타서버변경없음.
+- 예상밖코드변경없음. 동시수정된무료권복원/사용순서/LC/PLAN011·013/AGENTS·계약문서는다른작업으로보존했으며이번worker에서구현하지않았다.
+
+
+## 2026-10-13 source 일회성 이관 가능성 검토
+
+- 사용자 요청으로 Billing/LC 코드 읽기 검토. [결과](../plans/PLAN-011-SOURCE-MIGRATION-REVIEW-2026-10-13.md): trial allocation/group/ledger 근거 기반 EXAM_PASS 이관 후 필수값 전환 가능. 미연결 LC legacy/발신불명 PREPARED/terminal replay 범위 점검 필요, reserve 성공부터 필수. 실제 DB/배포 이력 미확인·운영이관 미실행. command TTL 복구는 별도 보완.
+- 문서만 추가, 타저장소 읽기 전용·코드/DB/Jira/배포/commit/push 없음. 문서 검사, Gradle 미실행.
+
+
+## 2026-10-13 production source 읽기 전용 inventory
+
+- 사용자 prod 확인 후 LC 원격 Mongo 조회: Session1493 모두source/예약/group누락, operation collection없음. COMPLETED1012/ABANDONED333/IN_PROGRESS136/상태누락12(active10). 식별자·credential·개별문서 없이 건수만 기록. 동일 연결의 접근가능 DB 중 billing명칭 없음, 별도 설정 요청. Billing부재로 단정하지 않음.
+- source-inventory 읽기스크립트 추가·문법검사 및 prod LC 실행, DB쓰기/이관/LC파일변경/배포/Git조작 없음. 결과문서와 원검토/current동기화, diff검사. Gradle미실행(제품코드변경없음). 단순 무료source일괄채우기 부적합, 활성legacy 처리계약 후속.
+
+
+## 2026-10-13 Billing production DB 미구축 확인
+
+- 사용자 「아직 안만들었어」로 Billing prod DB 미구축 확인. 접속설정 대기 해소, 기존 Billing source backfill 불필요로 점검문서/검토/current 갱신. 신규 schema/writer는 reserve 성공 이후 source 필수 설계, LC 기존 활성146건 처리와 history 경계는 후속. DB 직접조회에 의한 0건 판정이 아님. DB생성/이관/코드/배포변경 없음. 문서 diff검사.
+
+
+## 2026-10-13 LC 기존 시험 보존 승인
+
+- 사용자 「좋아」로 기존 시험 기존규칙/기록 보존, 전환후 새시험·새재응시 Billing/source필수 정책 확정. 전환전 대상증거 기반 legacy경계, source없음 자동허용금지·신규소비/복원연결금지. 활성수는전환전재점검, 상태누락임의허용없음. prod점검/PLAN011·013/R2/결정서/current 문서동기화. 코드/DB/타저장소/배포변경없음·diff검사.
+
+## 2026-10-13 TMI-212 C2a 외부 조회 접수·공용 프로젝트 budget 기반
+
+- 브랜치 `feat/TMI-212-revenuecat-worker-reconciliation`, 사용자 「어 해줘」 후 Jira TMI-212를 읽고 C2를 진행했다. 계정 scan 연결 전에 최초 dispatch 권한으로 접수하는 경계와 서버/환경 합산 budget을 선행 구현했다. C2 전체 완료가 아니다.
+- 변경 파일: PurchaseCore guarded receive, RevenueCatBudgetSchema/RevenueCatProjectBudget/RevenueCatBudgetedTransport, RevenueCatBudgetIntegrationTest/PaymentSyncIntegrationTest, provider-dispatch-r1·runbook/worker-r1/3차 PLAN/ADR004/CURRENT_STATE/본 append.
+- 동작: 외부 관측 receive의 동일Tx epoch+lease guard(중복 접수도 검사), 실패 시 pending/접수/guard쓰기 rollback. 명시 주입 공용 Mongo의 RC project `_id`로 최근60초240회·동시 permit4 공유,30초만료·5초HTTP전제·응답전후permit검사·실패도rate소비/slot만반환. 401/403 영속 project 차단, 자동재개 없음, version CAS/전체호출자격리/활성slot없음의 명시 maintenance 재개. 실제 공유 DB/키를 만들거나 연결하지 않았다.
+- schema: 공용 revenuecat_read_budgets r1 추가, strict validator·기본 `_id_` 외 index 없음·TTL 없음·개인/거래/credential 없음. 명시 maintenance DDL/verify-only constructor, drift 자동수정 없음. payment core/sync/cursor schema와 외부DTO/금융원장 불변. 운영 의존성/라이브러리 신규 추가 없음.
+- 검증: 집중 테스트 후 `./gradlew clean test bootJar` **1,356통과/실패0/오류0/skip0**, C1대비18추가. 두 인스턴스/환경·동시8요청·240회/60초·30초만료·늦은응답·다른요청AUTH·DB장애·차단재개·시계역행/nanoseconds→BSON·schema drift, 접수guard rollback/staleepoch/중복/ALL_BLOCKED 검사. diff/문서link검사. 테스트는 로컬 replica-set과 fake HTTP만 사용, 실RC/Store/Atlas호출 없음.
+- 잔여/위험: C2 계정별 durable lease/합치기·pagination checkpoint·sync completion/legacy terminal·Retry-After/backoff/24h review·실공유DB설정/runtime은 미완료. 공용DB를환경별로분리하면합산제한이안되므로배포전topology검증필수. 프로세스장기정지/네트워크취소지연시물리적HTTP동시성절대보장아님(유효permit기준). D정기대사/reference영속화·보존/알림 및 Store E2E후속. 모든runtime활성화/판매/205삭제OFF유지.
+- 예상밖 코드 변경 없음. 기존 A/B/C1 변경과 동시 LC legacy/source·무료권 정책/AGENTS 문서 변경은 보존했다. Jira 수정/댓글·타서버 코드·운영DB·배포·commit/push 없음.
+
+
+## 2026-10-13 LC operation 마무리 방식 승인
+
+- 사용자 권장표 「좋아 이렇게 해줘」 반영. R2 §10에 기존operation의 confirm증거/후속종료 미완료 상태·worker재시도·TTL미삭제·guard, 새Session사용가능/이전제출차단/SUCCEEDED 로컬Tx 후성공응답 확정. 접수Job만완료·부분접수 미완료·legacy ID목록 방식 우선검토. R2 §1/6의 TRIALfallback 제거, §8 최초trial→paid 무중첩예외 명시. 무료권정책/legacy점검/PLAN011·013/결정서/current 동기화.
+- exact전환wire/enum/공개중간오류·역방향인증/보존은 공동동결후속. 코드/LC저장소/DB/외부전송/Jira/배포/commit/push 변경없음. 문서 diff/로컬링크검사, Gradle미실행.
+
+
+## 2026-10-13 LC §10.2 파생 Job 문구 보완
+
+- 사용자 전달 LC 재검토 §8 확인. 새Job차단은 종료후 사용자 신규제출/새녹음/재응시 유래에 한정, 원 durable 접수에서 파생되는 Summary 최초생성과 시스템재시도는 생성시각과 무관하게 기존 멱등/lifecycle하에 허용. 원접수근거 필수·신규권한부여없음. R2/무료권정책/fixture설명/current 동기화.
+- 설계방향 이견없음 회신을 공동wire/테스트통과/구현·배포승인으로 확대하지 않음. 코드/DB/LC저장소/외부전송 변경없음. diff검사·Gradle미실행.
+
+
+## 2026-10-13 LC 공동 기술 계약 R1 초안 작성
+
+- 사용자 「어 만들어줘」에 따라 reserve/status 전환wire·INITIAL/REPLACEMENT문제선택·공개오류/영속거절·TTL후복구·역방향JWT/이벤트/digest·보존 및 fixture제작목록을 구체화. 기존3필드요청에restartContext 추가 영향 명시, 정책과기술후보구분. terminal tombstone/실배포값/삭제continuation 상세는 명시적잔여.
+- Billing/LC DTO코드 읽기확인, 문서/R2/PLAN011·012/current동기화. 코드/DB/타저장소/외부전송/배포/Git조작 없음. fixture실제제작/hash/테스트통과 주장없음. 문서diff/링크검사, Gradle미실행.
+
+## 2026-10-13 TMI-212 C2b 계정별 조회·페이지 복구·sync 연결·OFF runtime
+
+- 브랜치 feat/TMI-212-revenuecat-worker-reconciliation. 사용자 「어 해줘」 후 Jira212 완료조건을 읽고 C2a에 이어 계정별 실제 read adapter 연결을 구현했다. TMI212 전체/실판매 완료가 아니다.
+- 파일: PaymentAccountLookupSchema/Work/Worker, PaymentProviderWorkerProperties/Runtime/Configuration 신규. PaymentSyncService 검토 인계·새 요청 marker 반영, CleanupPurger lookup잠금 확인, application.yml 기본OFF 설정, PublicSecurityConfig 차단 이유 정합화. PaymentSyncIntegrationTest/CleanupIntegrationTest/PaymentProviderWorkerConfigurationTest/PaymentPhaseTwoConfigurationTest. account-lookup-r1/runbook·PLAN010 3차/worker-r1/provider-dispatch-r1/ADR004/current/본append.
+- 동작: PENDING sync부터 계정별 묶기→최초epoch/30초lease→기존 source/legacy terminal 우선 완료→Tx밖 RC 한페이지→guarded receive/apply/bind/complete→암호화 cursor 전진. 페이지전중단/재조회 멱등수렴, 잘못된owner/탈퇴 무지급. 404/빈목록은pending보존,Retry-After와5초~1h jitter중늦은시각,command24h예산 검토. AUTH/불명은marker먼저저장후100개씩인계·중단중crash에도HTTP자동복귀없음·새미확인sync도같은검토상태. 정상drain시IDLE/시도초기화해과거backoff가새구매를지연시키지않음.
+- schema: 기존 cursor에 optional lookup·암호화page envelope/명시strict-validator이관,기존2index보존·sync-command-r1필드불변. writer격리/ALL_BLOCKED/기존행적합성검사·drift거절. 205는lookup.owner가남으면삭제보류,자동삭제OFF. 계정generation은1생성/검증,승인재개도구는D후속으로명시.
+- runtime: provider.worker.enabled=false/poll1000ms/batch100,실boundedHTTPS+project공유budget,독립executor ApplicationReady후실행/종료정리·privacy-safe phase metric. ON시foundation/recovery/core/sync/cursor/sharedschema·catalog매핑·키검사. budget은명시별도DB/동일MongoClient cluster,모든환경동일cluster+DB필수·실topology미검증. fake/ready=true우회없음. 공개sync ON차단은D보존/검토/rollout gate전유지.
+- 테스트: 집중회귀후 최종 `./gradlew clean test bootJar` **1,380통과/실패0/오류0/skip0**,직전1,356대비24추가. 초기fixture 공유MongoClient조기종료와차단문구 assertion실패를수정했고backoff초기화보완뒤전체재실행했다. 계정격리/합치기/실decoder·budget·runtime배선무발신,암호화/페이지crash·epoch/lease/두worker/legacy terminal,101건AUTH·review·예산,빈목록404/429·잘못된owner/탈퇴·cipher/page상한·schema/삭제잠금/새구매재시도 검증. diff/링크검사 통과. 실제로컬replica-set/fakeHTTP이며실RC/Store/Atlas호출없음.
+- 위험/다음: D정기대사·구매별암호화reference영속화·terminal/cursor보존/cleanup·검토/AUTH 계정command재개·알림,공유DBtopology/대량적체explain·부하/StoreE2E 남음. 반환batch100은총DB스캔100상한아님. 실제schema이관/키설정/배포/판매/205삭제활성화 없음.
+- 외부API/Identity·LC/userJWT/지급정책·금융원장계약보존. 예상밖코드변경없음,동시LC공동계약/무료권정책등기존문서변경보존. 타서버파일·Jira쓰기/상태·commit/push변경없음.
+
+## 2026-10-14 TMI-212 D1 접수 보존 인계·완료 sync 정리 기반
+
+- 브랜치 feat/TMI-212-revenuecat-worker-reconciliation. 사용자 구현 요청 후 Jira212 완료조건 확인, 기존 C2b 작업에 이어 D의 보존·정리 vertical slice를 구현했다. D 전체와 운영 활성화 완료를 뜻하지 않는다.
+- 변경 파일: PaymentRetentionWorker/PaymentHourlyTask 신규, PurchaseCore.handoffAged 최초ticket overload, PaymentProviderWorkerProperties/Configuration/Runtime·application.yml 연결. PaymentSyncIntegrationTest/PaymentProviderWorkerConfigurationTest, retention-r1 규격/3차PLAN/CURRENT_STATE/본append.
+- 동작: 시간당 단계별 최대100건 RECEIVED119일이상 기존 case 인계(Transaction으로증거/pending책임보존), 완료sync APPLIED/REJECTED·counted=false·updatedAt120일경과 후보 점검. 실제삭제는 terminal-sync-delete-enabled=false 기본값이며 ON에서도 최초epoch/OPEN barrier/선택version/현재state/count/시각조건을 같은Tx 재검사한다. 금융원장·구매·기간권·case·계정/cursor·미해결sync는삭제하지않고 pending증감도없다. 실패task는다음시간재시도,다른workerphase실패와격리,개수metric만기록.
+- 계약: 기존 core-r4/sync-r1 schema/index/외부DTO·인증·지급정책 유지. runtime DDL/새TTL/외부서비스/의존성추가없음. provider inbox기존TTL를끄는기능이아니며 terminal source→미완료sync의장기보호를해결했다고주장하지않는다. 공개sync ON차단유지.
+- 테스트: 집중회귀 후 `./gradlew clean test bootJar` **1,388통과/실패0/오류0/skip0**,직전1,380대비8추가. 로컬replica-set에서119/120일exact경계·dry-run·미해결보존·batch·updatedAt/환경격리·old epoch/ALL_BLOCKED/PURCHASE_BLOCKED·두worker경합 검증. 시간당실패cadence/기본OFF/runtime phase회귀 통과. diff정적검사·신규규격/PLAN로컬링크검사통과. 실제RC/Store/Atlas호출없음.
+- 남은 D: 정기계정대사/공정순환·구매별암호화reference영속화·terminal inbox TTL경계의미완료sync근거보호·검토/AUTH계정command명시재개·운영알림/오래된cursor정리. 이후 전체통합·공유DBtopology·대량적체explain/부하·Store E2E가 필요하다. batch는반환상한이며총DB스캔상한이아니다. 후보metric은점검관측누계이지유일계정/거래수아니다.
+- 배포전: 실제삭제는별도승인·dry-run/복원/경합검증후활성화. 이번에는운영데이터삭제/외부알림/판매/205활성화없음. 예상밖코드변경없고기존A~C2b·동시LC/무료권문서변경보존. 타저장소·Jira쓰기·commit/push변경없음.
+
+
+## 2026-10-14 LC wire draft-1 검토 반영
+
+- LC 코드읽기로 삭제continuation 일반reserve/confirm전transfer와 기존EXAM_CREATION_PROCESSING/BILLING_TEMPORARILY_UNAVAILABLE RetryAfter1 확인. draft-2 §9에replay우선·삭제source매핑/후속transfer·누락context/phonepaid충돌·타입조합/OTHER제외·거절시각/상태·기존공개pending유지·canonical/digest/역순예외·32fixture명세 추가. 성공/실패receipt TTL 및 lifecycle삭제는 활성화gate로명시, 영구보존승인아님.
+- 문서/R2/PLAN011/current동기화, 코드/DB/실서비스/타저장소/배포/외부전송변경없음. fixture bytes/hash생성·검증 주장없음. diff/링크검사·Gradle미실행.
+
+
+## 2026-10-14 LC wire draft-2 재검토 문구 반영
+
+- 사용자 첨부 마지막 재검토를 기준으로 주요보완 이견없음 접수. draft-3으로 갱신하고 command operationId header는 reserve/confirm/cancel만, status는기존userId/operationId body·Idempotency-Key불필요·조회무command/ledger 명시. §8오류표현을 마무리guard기존409/일시장애기존503/신규두409로정리.
+- 잔여scope/보존/삭제/배포gate 유지, fixture생성/hash/독립검증·공동최종동결 주장없음. 코드/DB/LC저장소/외부전송/배포/테스트변경없음. diff/문구검사.
+
+
+## 2026-10-14 draft-3 전달본 분리
+
+- LC에서 전달첨부가draft-2와동일하다는 회신에 로컬정본 재확인: draft-3 §1status body/§8오류구분 반영됨. 첨부실물은이번메시지에없어전달오류원인단정안함. revision파일명 DRAFT-3 전달snapshot을동일bytes로작성. SHA256 ca812773863877ed7a067c69f1eabc4c0ad15a1fa6abbf64f71f16a103799603. 수정문구assert/동일bytes/diff검사. 외부전송/fixture제작/제품코드/DB변경없음.
+
+## 2026-10-14 TMI-212 D2 정기조회·원장완료·선택재개·참조저장·운영요약
+
+- 브랜치 feat/TMI-212-revenuecat-worker-reconciliation. 사용자 「어 해줘」 후 Jira212를 읽고 D1 이후 구현. D전체/운영판매 완료를 뜻하지 않는다.
+- 변경 파일: PaymentAccountLookupSchema/Work/Worker, PaymentSyncSchema/Service, PaymentLookupResumer 신규, PurchaseReferenceSchema/Store 신규, RevenueCatProjectBudget auth조회, PaymentProviderAlerts 신규, ProviderWorkerProperties/Configuration와application.yml. PaymentSyncIntegrationTest/ProviderWorkerConfigurationTest, review-resume/reconciliation/purchase-reference exact·운영안내·C2b/D1문서우선규칙·PLAN010/ADR004/current/본append.
+- 정기조회: 기존공유lease/epoch와projectbudget 사용, sync없이최근90일활동/구매계정및활성·예정권리대상조회. 페이지중단암호화checkpoint·중복수렴,전체순회24h/1000페이지상한,완료후pending5m/활성6h/기타1d,실패기존backoff/RetryAfter·AUTH/불명검토. 빈목록/404를부재·환불·삭제증거로쓰지않는다. 최근대상밖/사라진provider기록의전수복구를주장하지않는다.
+- 원장완료/재개: source TTL후 exact verified/allowed/ready Purchase·entitlement·ledger·계정/lifecycle 확인으로 PENDING sync만완료,같은Tx pending1감소·지급없음·case있으면차단. 기존source가있으면원래경로우선. 운영library는선택same-account최대100 unbound lookup오류만원version/사유·lease/generation·epoch검사후재개,createdAt보존/retryStartedAt새24h/최초backoff5초·pending불변. 상충account보류사유해제금지,partial선택/rollback,기존PENDING/활성lease있으면거절. account-only정기조회보류도exact사유로명시재개가능. projectAUTH해제/금전case해결은별도이며HTTP/자동재개를추가하지않았다.
+- 참조/관측: APPLIED검증구매에만purchaseId별독립AES256-GCM/AAD(env/project/app/txHMAC)참조저장,첫corecommit후저장실패는페이지재시도로수렴. 다른참조·변조·staleepoch거절,원장보존일기준읽기만료·목록재조회로연장없음. 시간당개수/age/AUTH/sample freshness gauge와일일review/AUTH장애·복구요약,전송interface구현. 개인/거래/토큰/raw예외로그없음. 실제Slackadapter없고alertsON에sink없으면기동거절. 전송실패는금융상태와분리,인스턴스단위throttle라replica/재시작중복가능.
+- schema/API: sync-r2 optional retryStartedAt, cursor-r2 optional reconcileAt/reconcileStartedAt, reference-r1전용collection/기본_id_only/TTL없음.기존writer격리/ALL_BLOCKED/exact이관·구행검사·verify-only기동,기존index보존. 외부DTO/Identity·LC/userJWT/지급·무료권계약불변. 기존C2b r1불변표현은개정문서로명시대체했다.
+- 검증: 집중테스트와전체1,407통과후재개backoff/상충사유보완을추가하고최종 `./gradlew clean test bootJar` **1,408통과/실패0/오류0/skip0**,D1대비20추가. 실제로컬replica-set/fakeHTTP로TTL후완료·guardrollback·24h재개·partial/overflow/oldlease/AUTHblock·schema이관·정기누락/6h/1d/다페이지crash/404/lease공유·암호화/충돌/변조/만료/재접수·요약OFF/개인정보/전송실패검증. diff/관련로컬링크검사통과. 실RC/Store/Atlas호출없음.
+- 남은작업/배포전: 외부Slackadapter/채널·담당자/운영재개도구권한·감사,5년reference physical purge와금융erasable정리연계·오래된cursorlease정리,실schema/키/공유DBtopology·explain/대량부하·StoreE2E·복원검증. 공개sync ON차단·worker/reconciliation/alerts/terminal삭제기본OFF·판매/205삭제활성화없음.
+- 예상밖코드변경없음. 기존A~D1코드및동시LC draft문서/AGENTS변경은보존했고타저장소·운영데이터·Jira쓰기/상태·commit/push변경없음.
+
+
+## 2026-10-14 LC 단순화 후속 인계
+
+- 사용자 인계요청으로 최신 단순화 요약문 작성. 전체답안접수 여부로 단일mock선정·공통기접수완료·Billing복원전담·불변group차단/버전제거·terminalAt재사용·정본문서통합방향. 원대상/접수판정 경합 및 신규INITIAL/REPLACEMENT구별 최소wire는 공동검토로 남겨 단일후보가 무검증을 뜻하지않게 명시. 기존draft3전달snapshot보존·정본초안에후속참조. 코드/DB/LC저장소/외부전송/배포없음. diff/링크검사, Gradle미실행.
+
+## 2026-10-14 TMI-212 Slack Incoming Webhook 전송
+
+- 브랜치 feat/TMI-212-revenuecat-worker-reconciliation. 사용자 구현승인 후 Jira212 읽기확인, 채널생성은나중에하고기존운영요약의외부전송코드만구현했다.
+- 파일: PaymentSlackSink/Properties/Configuration, application.yml, PaymentSlackSinkTest 신규, Slack 연결runbook 신규·기존reconciliation runbook/PLAN010 phase3/current/본append. 기존 A~D2 코드와동시 LC 문서작업은보존했다.
+- 동작: 공식Slack HTTPS host/path allowlist·no redirect/proxy·연결2초/전체대기5초/응답2KiB. whitelist 환경/enum/시각/개수/고정안내문만전송,식별자/토큰/원문/동적channel없음. 200/ok만성공,429/503 정수초·HTTP-date Retry-After와최소1시간,잘못된/중복/overflow header보류,401/403/404/410 프로세스내차단. 재시작초기화·replica/응답유실중복허용,영속알림원장없음. 예외/URL비로깅·interrupt보존·client종료.
+- 설정: worker/alerts/slack 세flag 기본OFF,Slack OFF는URL/HTTPclient없음,ON은유효URL필수. 실제Webhook은나중에배포secret으로제공. CleanupAlerts는범위밖이며provider요약만연결했다. 기존업무API/DTO/DBschema/Identity·LC인증·지급/환불계약변경없음.
+- 검증: `./gradlew clean test bootJar` **1,429통과/실패0/오류0/skip0**,직전1,408대비21추가. fake transport로URL우회거절/3종요약/음수·환경거절/전송실패·영구차단/Retry-After날짜·초·과거·누락·중복·overflow/응답상한·sanitized오류/interrupt·close/OFF·ON기동검증. 기존로컬replica-set전체회귀포함. 실제Slack/RevenueCat/Store호출없음. diff와관련문서로컬링크검사통과.
+- 위험/배포전: 채널·담당자·Webhooksecret·egress/TLS·실전송확인필요,APM/HTTPdebug의secret URL노출방지·전송실패metric외부감시필요. 시간당관측이라즉시pager아님. 실제연동·활성화미실시,D전체/판매완료아님. 기존운영도구권한/감사·5년physicalpurge/cursor정리·실환경검증후속.
+- 이번범위의예상밖변경없음. 동시LC문서추가는타작업으로보존. 타저장소/운영데이터/배포/Jira쓰기/commit/push변경없음.
+
+
+## 2026-10-14 요약 대기 시험의 직전 문제 제외 승인
+
+- 사용자 「어 그렇게 하는 게 좋을 거 같은데」에 따라 전체답안durable접수/채점요약대기 신규시험은 직전mock제외, 다른적격후보0확인시동일허용 확정. 부분접수동일·완료후기존선정 유지. 조회장애와0후보구별·동일operation선정고정·INITIAL판정/fixture사항 인계에명시. source/시작사유exactwire는후속.
+- 문서/PLAN011/결정서/current만수정, LC코드/DB/실서비스/배포/외부전송없음. diff·링크검사, Gradle미실행.
+
+## 2026-10-14 TMI-212 Slack 설정 확인·서버 연결 대기
+
+- 사용자 승인으로 비공개 billing-alerts-test 채널 및 Billing Alerts Test 앱 생성, 읽기 scope 없이 Incoming Webhook 설정. 사용자가 최종 허용한 뒤 Success 및 해당 채널 Webhook 행을 UI로 확인했다. Secret URL/토큰은 저장소와 응답에 기록하지 않았다.
+- 후속 secret 등록·테스트 발송 요청: 로컬에는 .github 배포 workflow가 없고 runbook은 환경변수명만 정의함을 확인. 열린 AWS ECS 화면은 만료 세션이며 재로그인 화면까지 이동했다. 과거 화면의 서비스 목록을 현재 상태 증거로 쓰지 않았다. Billing 실제 배포/secret 대상은 미확인이다.
+- 서버 secret 등록/권한변경/배포/flag 활성화/실제 Webhook POST는 수행하지 않음. 사용자 AWS 로그인과 배포 대상 확인 후 계속한다. 코드 변경 없음, Gradle 미실행. 기존 동시작업 보존, Jira/commit/push 변경 없음.
+
+## 2026-10-14 Slack 연결 대상 ECS 재확인
+
+- 사용자 재로그인 후 서울 리전 staging 클러스터 서비스목록을 현재시각으로조회. 전체10개/다음페이지없음,Identity·Learning Core·AI서비스만보이고Billing이름서비스없음. 다른배포위치부재를단정하지않고사용자대상확인을요청한다.
+- Secret등록/조회·실제Webhook발송·권한변경·배포·활성화없음. 코드변경/Gradle실행없음,문서기록만추가. 비밀URL/실제AWS식별자미기록,기존변경보존.
+
+
+## 2026-10-14 LC 유료 시험 공동 검토 정본 통합
+
+- 사용자 「좋아 해줘」에 따라 최신 승인과 LC 최소wire를 통합 R2 draft-1로 작성. startReason3/단일mock·전체접수직전제외·transition존재조건(완료원대상도포함)·불변revoke같은group새ID충돌·code+terminalAt 정리. 변경이력분리 및 종전후보문서/PLAN011~013/결정서에새기준참조. phone삭제/보존/실환경gate는확정으로가장하지않음.
+- S01~S16/V01~V07 검증범위23개, 실제fixture/hash/독립실행없음. draft3snapshot/Afixtures불변, 코드/DB/외부전송/배포없음. diff/로컬링크/ID검사, Gradle미실행.
+
+## 2026-10-14 TMI-212 운영 재개 도구 범위 확인
+
+- 브랜치 feat/TMI-212-revenuecat-worker-reconciliation. 사용자 다음작업확인 승인에 PaymentLookupResumer·공용budget해제·RecoveryOperator/CLI·fence·기존통합테스트/계약을정적검토했다.
+- 재개library의최대100건/같은계정·version/generation·lease/PENDING·case차단·원자rollback·새24h예산은존재. 실행도구/실행자권한·운영사유/작업ID·감사receipt는미연결이다. 기존failure enum은운영사유가아니며 boolean격리는실제중지증명이아니다.
+- 신규 gap-review 문서와current/본append만변경. CLI inspect/dry-run/apply·원자감사·project AUTH별도명령을권장하고ALL_BLOCKED에서는재개가거절됨을명시. schema/감사보존·권한배선은구현전명세후속. 제품정책/외부API/코드/DB/배포/Jira/Git쓰기없음.
+- 검증: 정적소스/기존테스트확인과diff/문서링크점검. 코드변경없어Gradle미실행,이전1429통과를새검증으로주장하지않음. 기존동시LC문서및코드작업보존,이번범위예상밖변경없음.
+
+
+## 2026-10-14 LC 통합 R2 draft-1 검토 수신
+
+- 첨부 §9 기준 주요기술1~3 이견없음 확인. draft-2에 inboxTTL후 retained group최초ID/digest로204/409, 원늦은완료가신규guard해제금지, 새source/사유권리부족이면기존시험보존을 본문/S09/S12/V01에명시. 기존불변식회귀이며 제품정책/field추가없음. LC/Billing 잔여담당·S15/V07미확정정상분기가짜통과금지명시.
+- 문서만, fixture생성/테스트/코드/DB/외부전송/배포없음. diff/링크/ID검사.
+
+
+## 2026-10-14 paid R2 오프라인 fixtures-1 제작
+
+- 사용자실행요청에 S01~14/S16/V01~06 자료제작: Node 생성기(임시키private메모리만)/별도Python strictJSON/canonical/OpenSSL 검사기. publicJWK/PEM·signedtoken22·canonical9·invalid13·HTTP판정표12·wire6/status3·상태givenwhen26, manifest/SHA256SUMS. 12파일bytes/hash/별도검사성공, 변조탐지·덮어쓰기거절확인.
+- 상태시나리오/실HTTP·Mongo경합/runtime은미실행으로표시, S15/V07보류·기존A불변. LC독립검증/최종동결미완료. 제품코드/DB/실서비스/배포/외부전송없음. 검증기실행/diff/링크검사, Gradle미실행.
+
+## 2026-10-14 TMI-212 운영 재개 CLI·원자 감사 구현
+
+- 브랜치 feat/TMI-212-revenuecat-worker-reconciliation. 사용자 「어 해줘」 구현승인 후 Jira212 목표/완료조건을읽었다. 신규운영시스템/관리자API없이기존재개library에독립CLI를연결했다. Jira는읽기만했다.
+- 변경파일: PaymentReviewOperator/Cli·PaymentOperatorSchema 신규, PaymentLookupResumer/RevenueCatProjectBudget의same-session·read-only 분기, PaymentRecoveryFence.check 신규(기존write acquire불변), build.gradle 명시task. CliTest 신규·PaymentSyncIntegrationTest 회귀추가. 운영runbook/exact 신규·기존재개계약/운영안내/PLAN010/current/본append.
+- 동작: inspect기본, resume는기본읽기전용사전검사,명시apply+writer격리확인필수. account한번최대100선택·버전/generation/최초epoch·활성lease/PENDING·case/소유검사유지. AUTH는SHARED scope의공유budgetDB별도명령/사유CREDENTIALS_FIXED·rate starts보존,금융/계정재개와독립. 외부HTTP/서버/worker기동없음.
+- 감사: 단일Mongo인증principal에서actorDigest생성,익명/다중principal거절·자칭operator옵션없음. request/target digest·표준사유·건수/완료시각·작업ID receipt를해당재개와같은Tx로저장,실패시rollback. 같은ID/동일입력은ALREADY_APPLIED,다른입력/주체거절. 응답유실은같은ID로result조회,NOT_FOUND가미진행확정은아님. 실패전체원문/credential/거래원문비로깅,내부commandhandle은제한된운영터미널만.
+- schema: additive payment_operator_receipts r1,strict/error/simple·기본_id_unique_only,TTL/자동purge없음,명시격리설치·기동verify만. account Billing DB와auth공유DB각자원자성,DB간전역Tx주장없음. 기존업무DTO/API/무료권/Identity·LC인증/지급·환불·sync/cursor schema불변. 새로운금융강제처리없음.
+- 검증: 집중Cli/Sync회귀통과후전체실행성공. inspect진행수/잠금표시최종수정반영후 `./gradlew clean test bootJar` 재실행 **1,455통과/실패0/오류0/skip0**,직전1429대비26추가. 실제로컬Mongo replica-set에서dry-run전체document불변·apply/replay/다른사유/다른actor·동시동일ID·stale/epoch/ALL_BLOCKED·receipt실패account/AUTH rollback·schema미설치/drift/TTL거절·인증principal/CLI인자숫자경계·비밀출력방지검증. 운영인증/실role/실API실행아님. diff/로컬문서링크검사통과.
+- 운영gate: 개인별운영DB자격증명/최소권한·실행환경감사와원입력관리·writer실제중지·감사보존기간확정필요. Boolean격리는정지증명이아니고공유DB계정은개인식별을보장하지않는다. 보존미확정으로자동삭제없으며무기한보존승인아님. 실제schema설치/worker/판매/자동삭제활성화/배포·운영DB실행/키발급없음. 5년physicalpurge·cursor정리·실환경검증은남음.
+- 이번범위예상밖변경없음. 작업중추가된LC정본/fixture/기타기존변경보존,타저장소/Jira쓰기/commit/push없음.
+
+
+## 2026-10-14 fixtures-2 escape/나노초 수정
+
+- LC 읽기검토 두지적 재현·수정: scalar문자열serializer/JSONroundtrip, 정수초+Decimal나노초clock. 새revision2 생성(구1 전체bytes불변), canonical18/clock5/invalid13/token31/HTTP판정12/wire6/status3·13파일hash 성공. 구escape9개실패/구floatclockmutation실패·파일변조거절·기존revision덮어쓰기거절·새검사기구1회귀통과.
+- 가짜키public만저장·private메모리, 제품코드/DB/배포/외부전송없음. LC독립/실HTTP/업무state26미실행·S15V07보류. 실행검사/diff/링크검사, Gradle미실행.
+
+## 2026-10-14 TMI-212 만료 참조·lookup lease 정리 부분 구현
+
+- 브랜치 feat/TMI-212-revenuecat-worker-reconciliation. 사용자 「어 해줘」 승인 후 AGENTS·보존 계약·Jira212를 읽고 구현. Jira는 읽기만 수행.
+- 변경 파일: PaymentReferenceRetentionWorker 신규, PaymentProviderWorkerConfiguration/Properties·application.yml 연결, PaymentSyncIntegrationTest 10회귀·WorkerConfigurationTest OFF 검증 보완. reference-retention-r1 신규·purchase-reference 계약/PLAN010/current/본 기록 갱신.
+- 동작: provider runtime 매시간 단계별 최대100개, 기본 read-only 점검. 독립 reference-retention-enabled=true에서만 참조 삭제·만료lease 해제. 최초epoch/OPEN·같은Tx fence와version 재검사, 현재 Purchase deadline/금액/READY·기간권/원장5년·pending/case/비terminal sync/접수/lookup 보호. 누락·불명은 보류. `_id` 순회로 보류 행 다음도 점검하며 오류는 별도 건수. 참조 원문·식별자 로그 없음.
+- lease: 만료owner/until만 비우고 row/lease version 증가. retry attempt·generation·페이지cursor·reference·실패/검토 상태·스케줄·pending을 보존. 활성/갱신 lease는 해제하지 않고 stale worker는 거절한다.
+- 범위 조정 사전 설명: 금융 Purchase.accountId/ownerRefId·entitlement.accountId가 필수라 임의 unset/가짜ID로 바꾸지 않았다. 암호화 참조 행 내 연결만 제거하며 금융 사용자 연결 physical purge는 schema/reader 이관 명세가 필요하여 미완료. 전체D/5년privacy purge 완료로 보고하지 않는다. 신규 ledger/reversal 타입은 현재 보류하며 PLAN012 통합 회귀 필요.
+- 검증: 집중 Sync/Configuration 회귀 성공 후 최종 `./gradlew clean test bootJar` 성공, **1,465개 통과/실패0/오류0/skip0**, 직전 대비10추가. 로컬 Mongo replica-set에서 dry-run 불변·현재 보존일 연장·기간권/원장 보호·금액불명/검토/미해결·환경/원구매누락·barrier·만료/renew/stale lease·동시삭제 수렴 검증. diff whitespace 검사 통과.
+- 유지: 외부 API/wire·사용자/Identity/LC JWT·지급/환불/무료권·금융 원장·205 계정 삭제 불변, 기존 schema/index/TTL 변경 없음. 운영 flags OFF·실서비스/실DB/배포/Secret/Jira 쓰기/commit/push 없음.
+- 남은 작업/위험: 금융 erasable 연결 모델·reader 명세, PLAN012 reversal 보존 연동, 운영 explain/부하·복원/backup35일·장기보류 처리 확인 뒤 별도 활성화. 기존 및 LC 동시 변경 보존, 이번 수정에서 예상 밖 범위 변경 없음.
+
+## 2026-10-14 TMI-212 금융 사용자 연결 제거 이관 설계
+
+- 브랜치 feat/TMI-212-revenuecat-worker-reconciliation. 사용자 후속 「어 해줘」에 따라 남은 schema/reader 이관 설계를 작성했다. PurchaseCore/Schema·SyncService·PaidEntitlementReader·CleanupPurger·참조 보존 계약을 정적 조사했다.
+- 변경 파일: docs/plans/TMI-212-financial-link-erasure-plan.md 신규, PLAN010 3차·CURRENT_STATE·본 기록. 구매별 accountId/ownerRefId null+connectionErasedAt, 기간권 accountId null과 linked-only partial unique 제안. 기존 전체 unique에서 서로 다른 계정 null/sequence 충돌 위험을 명시했다.
+- 지급 재관측/미소유 sync·참조 재생성·sourceObservationKey 및 PLAN011 사용 증거 역연결·PLAN012 늦은 반환·writer 격리와 reader-first/rollback 순서를 정리했다. 기존 금융 사실/HMAC 유지가 무기한 보관 승인·익명화 완료는 아님을 명시. 전체금융 최종삭제·후속반환·public오류 exact는 미확정이다.
+- 이번은 설계 문서만 변경. 제품 코드/DB/index/외부 API 계약·보존기간·무료/인증·운영 flags 불변. 정적 diff/로컬 문서 링크 검사 수행, 코드 변경 없어 Gradle 재실행 없음. 직전1465통과는 이 설계의 실행 검증 결과가 아니다.
+- 기존 dirty 및 LC 동시 변경 보존, 이번 예상 밖 변경 없음. Jira쓰기·외부메시지·실DB·배포·commit/push 없음. 다음은 남은 exact와 연계 보존 범위를 고정한 뒤 OFF 구현이다.
+
+## 2026-10-14 TMI-212 금융 연결 제거 복잡성 검토
+
+- 사용자 요청: 감수 가능한 위험 대비 과도한 설계 여부 확인. 설계 원문/현행 schema 및 직전 코드 조사 근거 대조. 최종 보존 처리가 미정인 채 nullable 중간 상태를 먼저 구현하는 범위가 과함을 확인했다.
+- 신규 문서 TMI-212-financial-link-erasure-simplification-review.md와 CURRENT_STATE/본 기록만 갱신. 최종 보존안 우선, 만료일 확인 후 개발 순서 분리, 초기 writer정지 CLI/소량 작업, 오래된 금전 예외 기존검토, writer가 보장하는 단일 retention 기준을 권장했다. Transaction/중복지급/개인정보/nullable unique 보호는 유지 필요.
+- 코드·기존 설계 확정 내용·보존정책·DB/index/flags 변경 없음. 실제 만료일/legacy 운영 자료 미조회. 테스트 미실행(문서 정적 분석), diff/문서 링크 검사 수행. 기존 변경 보존·예상 밖 수정 없음, Jira/외부메시지/배포/commit/push 없음. 다음은 단순안 수락 후 계획 개정이며 정책을 자동 변경하지 않는다.
+
+## 2026-10-14 5년 금융 정리 후속 분리 승인 반영
+
+- 사용자 「좋아 이렇게 하는 걸로 해서 수정해줘」에 따라 5년 만료 금융 정리/nullable 이관을 현재 결제 출시 선행 조건에서 분리했다. 결제·환불 구현을 우선하며 보존 기준과 만료 전 후속 작업을 유지한다.
+- 변경: 금융 연결 제거 설계 상단에 후속/역사적 제안 표시, PLAN010 3차의 즉시 구현·D 차단 표현 조정, PLAN013 보존/출시 gate 구분, reference 정리 계약·CURRENT_STATE·본 기록 갱신. 금융 전체 삭제 범위/자동지급 연령 exact를 새로 확정하지 않았다.
+- 최초 만료일/legacy 자료 미조회. 실제 대상 확인과 만료 전 담당/기한 지정 필요, 이미 만료·임박한 자료는 별도 처리. 미구매 탈퇴 계정15일·접수120일·Trial3년·backup35일 및 다른 인증/결제/환불/복원 gate 유지. 기존 정리 코드는 보존하고 삭제flagOFF 유지.
+- 문서 작업으로 Gradle 미실행, diff/로컬 링크 검사 수행. 코드/API/schema/DB/보존기간/실환경 flags 불변. 예상 밖 변경 없음·기존 동시 변경 보존. Jira쓰기/외부메시지/배포/commit/push 없음. 다음은 현재 결제·환불 잔여 구현/검증 확인이며 이번 승인만으로 판매/완료 처리하지 않는다.
+
+## 2026-10-14 결제·환불 잔여 작업 확인
+
+- 사용자 「다음 작업 해줘」를 직전 예고한 잔여 구현/환불 범위 확인으로 진행. CURRENT_STATE·PLAN010/012·LC R2·public/controller/worker/core/admission 코드와 Jira TMI-137 하위 목록을 읽었다.
+- 확인: sync ON 무조건기동실패, PaymentSyncService Spring bean 선언 없이 worker 내부에서만 생성. controller는 ObjectProvider로 없으면503. 환불 core는 PLAN012 검토 인계, admission은 interface/unavailable. 최신 confirm-before-refund 정책과 구 PLAN012 본문 역사적 문구를 구별했다.
+- 신규 문서 TMI-212-next-work-review-2026-10-14.md에 A public sync 실제 연결/준비 검사→B PLAN011/012 공동 exact 및 구현→C 실환경 gate 순서와 완료 기준 작성. current/본 기록 외 코드·계약·DB 수정 없음. 불필요한5년정리 선행조건은 추가하지 않았다.
+- 정적 diff/문서 링크 검사, Gradle 미실행(분석만). 기존1465테스트는 새연결 성공근거 아님. 실제API/배포/Store/키/Slack전송·Jira쓰기·commit/push없음. 기존 및 LC 동시변경 보존, 예상밖 수정 없음. 다음 구체적 구현은 A이며 기본OFF·판매보류 유지.
+
+## 2026-10-14 TMI-212 public sync 실제 service 연결 구현
+
+- 사용자 「어 해줘」로 A 구현 승인. Jira TMI-212 목표·완료조건 재조회 후 Billing만 변경. 현재 브랜치 feat/TMI-212-revenuecat-worker-reconciliation.
+- 변경 파일: PaymentProviderWorkerConfiguration의 조건부 public service bean, PaymentProviderWorkerRuntime의 동일 service 노출, PublicSecurityConfig의 구조적 준비 조건, PaymentSyncService 주석. SyncIntegrationTest/WorkerConfigurationTest/PhaseTwoConfigurationTest 보완. public-sync-wiring runbook 신규·PLAN010/이전sync/D2운영/다음작업계획/current/본기록 갱신.
+- 동작: worker가 실제 schema/key/app/catalog/budget을 검증하여 생성한 동일 service를 공개 controller에 주입. 별도API용 설정이나 ready=true 없음. sync ON은 worker/fence와 기존JWT/ingress/transaction/limiter 조건 필요. worker/config/schema누락은기동실패. syncOFF는service bean미노출, worker는기존별도flag로준비가능. 기본OFF·ApplicationReady후worker시작 유지, 앱요청은DB접수만수행.
+- 검증: 신규9테스트, 최종 `./gradlew clean test bootJar` **1,474통과/실패0/오류0/skip0**, 2분19초. 실제Spring context/로컬Mongo schema로동일객체·budget미설치/cursor drift·잘못된key/API설정/catalog·OFF·fence/public설정검증. MockMvc+실service/rate limiter/DB+fake provider worker로202중복접수→한번지급→200→탈퇴403확인. 인증완료principal주입테스트이므로해당통합경로자체를실JWT/네트워크E2E로주장하지않으며기존전체보안회귀도통과.
+- 중간 테스트 구성 오류(TraceCorrelation 생성자 인자, context가 테스트MongoClient를먼저닫는수명주기)를수정후재실행성공. 실RevenueCat HTTP는호출하지않음. 문서링크/diff검사통과.
+- 불변: 외부DTO/상태/202·Retry-After/200·인증scope·원장/지급정책·schema/보존기간·무료권/Identity/LC계약.5년정리/Slack/실제삭제ON을새기동의존성으로추가하지않음. 실키/DB설정/flags/배포/판매/Slack발송/Jira쓰기/commit/push없음.
+- 위험·다음: 정상기동은실Store지원·credential유효성·운영준비증명이아님. PLAN011/012공동exact및환불processor/revoke·입장구현,실Store/ALB/Identity/복원/운영권한검증후별도활성화. 기존미커밋및LC동시변경보존,이번예상밖범위변경없음.
+
+## 2026-10-14 프론트용 Notion API 1개 초안 작성
+
+- 브랜치 feat/TMI-212-revenuecat-worker-reconciliation. 사용자 요청으로 지정 Notion 결제 페이지(3f9dcc5dbaeb80618ec9ed3e5d8a5966)에 POST /api/v1/payments/sync 하나만 작성했다. TMI-211/212 구현 코드의 decoder/result/controller/service/limiter/응답 writer를 기준으로 인증·요청·202/200·오류·멱등 재시도·문의 안내를 정리했다.
+- 외부 변경은 지정 페이지 본문뿐이며 공유 권한은 변경하지 않았다. 로컬 변경은 CURRENT_STATE와 본 기록. 기본OFF·미배포·실Store 미검증과 SDK transactionId 매핑 확인 필요를 명시하고 후속 API는 사용자 형식 수정 후 작성한다.
+- 검증: 노션 본문 전체와 JSON 코드 블록 렌더링 확인 및 화면 저장, diff whitespace 검사. 코드 변경 없어 Gradle 재실행 없음. 직전1474통과는 이 문서 작업의 신규 테스트가 아니다.
+- 기존 dirty/LC 동시 변경 보존, 예상 밖 변경 없음. 코드/API/정책/flags/실DB/배포/Jira쓰기/commit/push 없음. 실제 credential·거래 원문을 기재하지 않고 가짜 예시만 사용했다.
+
+
+## 2026-10-14 — PLAN-011 R2 구현 계획 정리
+
+- 사용자 「어 정리해줘」에 따라 기존 PLAN-011을 현재 R2 정책 중심으로 재작성하고 직전 전문은 PLAN-011-HISTORY-BEFORE-R2-2026-10-14.md에 보존했다.
+- 별도 채점 승인 API/TRIAL fallback/종전 복원 금지 등 과거 요구를 현행에서 제거하고 P0 계약·schema → P1 source/복구 → P2 reserve/guard → P3 confirm/복원 → P4 LC 마무리 → P5 이용 증거/통합으로 정리했다.
+- 사용자 전달 LC 인수 보고의 독립89·전체948 통과와 원본14파일 동일을 보고 근거로 접수했다. 이번 턴에서 LC 테스트 재실행/공동 최종 수락은 하지 않았다.
+- 관련 PLAN-011/012/013, TMI-116/TMI-128/TMI-122 및 TMI-125. S15/V07 및 실환경/보존·배포 gate 유지, 기존 금융5년 정리 후속 분리와 구분했다.
+- 변경은 계획/이력/CURRENT_STATE/본 기록뿐. 기존 dirty 코드·문서는 보존했으며 제품/LC/DB/Jira/배포/commit/push 변경 없음. 계약/fixture 원본 hash·문서 링크·diff 확인, 문서 작업이라 Gradle 미실행. 예상 밖의 이번 변경 없음.
+
+## 2026-10-14 프론트 직접 호출 API 목록 확인
+
+- 사용자 질문에 public ingress/controller mapping을 정적 확인. products/purchase-account/sync/entitlements 네 개이며 RevenueCat webhook과 internal API는 프론트 대상이 아님을 안내했다. TMI-211/212 연계 문서 범위 확인으로 코드·계약·노션·Jira·배포 변경 없음.
+- 변경 파일은 CURRENT_STATE/본 기록뿐. 기존 dirty 변경 보존, 예상 밖 변경 없음. 코드 미변경으로 Gradle 미실행. 다음은 사용자 요청 시 나머지 세 API를 수정된 노션 형식으로 작성한다.
+
+
+## 2026-10-14 — PLAN-011 P0 저장/Transaction·공동 합의안 작성
+
+- 브랜치: feat/TMI-212-revenuecat-worker-reconciliation. 목표: 사용자 「어 만들어줘」에 따라 저장 구조/Transaction 설계와 공동 계약 마무리 자료 작성.
+- 변경: PLAN-011-STORAGE-TRANSACTION-DESIGN-R1.md, LC-BILLING-PAID-EXAM-R2-IMPLEMENTATION-AGREEMENT-R1.md 신규, PLAN-011 링크/CURRENT_STATE/본 기록 갱신.
+- 확인: Reservation/Group/Session/Grant/command의 trial 중심 구조, status의 command 의존, 무료 Spring executor와 payment explicit session 차이, 결제 strict schema. 단일 session adapter·source별 reference·guard/receipt·복원 unique·원자 거절 commit·T1~T6 설계 제안.
+- 공동 확인 J1~J4 및 S15/V07 미확정 유지. 기존 R2/fixtures-2 최종 수락/제품 구현/배포를 완료로 보고하지 않음. 관련 PLAN-011/012/013·TMI-116/TMI-128/TMI-122/TMI-125.
+- 검증: 문서 링크/diff 및 R2 계약·fixtures-2 SHA256SUMS/파일 hash 확인. 제품 코드 변경이 없어 Gradle 미실행. 실DB/AWS/LC 조회·Jira 변경/외부 회신/commit/push/배포 없음. 기존 dirty 변경 보존, 예상 밖의 이번 변경 없음.
+- 다음: 공동 확인 및 Billing schema/session adapter 설계 수락 후 승인 범위 구현. 보존/phone 정상 경로를 추정 구현하지 않는다.
+
+## 2026-10-14 프론트용 Notion API 네 개 문서화
+
+- 브랜치 feat/TMI-212-revenuecat-worker-reconciliation. 사용자 요청/중단 후 재개에 따라 지정 Notion 결제 페이지(3f9dcc5dbaeb80618ec9ed3e5d8a5966)의 기존 sync·사용자 오류 표를 보존하고 products, purchase-account, entitlements 세 API를 추가했다. TMI-201/211/212 관련 구현 정적 확인이며 이슈 변경 없음.
+- Controller/DTO/service/limiter/응답 writer 및 기존 reader 계약을 기준으로 인증·body/query 없음·응답/필드·빈값·오류·재시도 규칙 작성. 신규 구역은 사용자 형식의 상세 토글과 오류 표를 사용했다. 초기 브라우저 붙여넣기 서식 손실은 추가한 블록만 수정하고 native HTML paste로 토글/표/코드 블록을 확인했다.
+- products는 null이 아닌 []이며 SDK 가격/매핑과 구분, purchaseAccountRefId는 사용자·환경별 stable, 통합 무료 status와 paid.status 독립·확장OFF 시 필드생략·현 canTakeExam null/ADMISSION_NOT_READY fallback을 명시했다. 재응시 1회 UI와 신규 수량의 의미를 분리했다.
+- 외부 변경은 지정 노션 문서뿐이며 공유 권한·다른 API 문서는 불변. 로컬 변경은 CURRENT_STATE/본 기록뿐. 기존 dirty/LC 동시 작업 보존, 예상 밖 변경 없음. 코드·API·DB·flags·실Store·배포·Jira·commit/push 없음.
+- 검증: 노션 본문/마지막 문단·토글·표·JSON 렌더링과 완료 화면 확인, 로컬 diff whitespace 검사. 코드 변경 없어 Gradle 미실행. 실배포·실SDK transactionId 검증 완료를 주장하지 않으며 후속 구현 시 특히 시험 판정 설명을 갱신해야 한다.
+
+## 2026-10-14 머지 준비 상태 안내
+
+- 사용자 질문에 현재 브랜치 feat/TMI-212-revenuecat-worker-reconciliation, status/log/current와 diff whitespace를 확인했다. HEAD는 TMI-211 PR15 병합 커밋이며 TMI-212 코드/운영 문서와 LC·PLAN-011 계약/fixture가 미커밋 상태로 혼재한다.
+- 기본OFF 구현의 PR 통합을 권장하되 변경 범위 구분·최종 tree 테스트·CI/리뷰 확인이 선행돼야 한다고 안내. 현재1474통과는 이전 실행 기록이며 새 실행 또는 최종 코드 리뷰 결과가 아니다. 원격 PR/CI 상태는 조회하지 않았다.
+- CURRENT_STATE/본 기록만 갱신. 코드·기존 변경 보존, 예상 밖 변경 없음. commit/push/PR 생성/머지/Jira/배포/활성화 없음. 다음 요청 시 PR 준비 범위부터 정리한다.

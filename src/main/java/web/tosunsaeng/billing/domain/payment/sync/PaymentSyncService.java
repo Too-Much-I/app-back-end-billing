@@ -13,7 +13,7 @@ import web.tosunsaeng.billing.domain.payment.recovery.PaymentRecoveryFence;
 import web.tosunsaeng.billing.domain.payment.repository.PaymentStore;
 import static web.tosunsaeng.billing.domain.payment.exception.PaymentException.require;
 
-/** Explicit construction only. No live verifier/worker is registered by this phase. */
+/** Stable sync contract; shared by the default-OFF provider worker and public API binding. */
 public class PaymentSyncService {
     private final PaymentStore store;
     private final PaymentRecoveryFence fence;
@@ -30,7 +30,11 @@ public class PaymentSyncService {
         for (String name : List.of("purchases", PaymentSyncSchema.COLLECTION))
             require(c(name).find(new Document("environment", environment).append("lookupKeyVersion", new Document("$ne", lookup.version()))).first() == null);
         for (String name : List.of("payment_provider_inbox", "payment_purchase_cases"))
-            require(c(name).find(new Document("environment", environment).append("normalizedObservation.lookupKeyVersion", new Document("$ne", lookup.version()))).first() == null);
+            require(c(name).find(new Document("environment", environment).append("normalizedObservation", new Document("$ne", null))
+                    .append("normalizedObservation.lookupKeyVersion", new Document("$ne", lookup.version()))).first() == null);
+        for (String name : List.of("payment_provider_inbox", "payment_purchase_cases"))
+            require(c(name).find(new Document("environment", environment).append("receptionDigest", new Document("$exists", true))
+                    .append("receptionLookupKeyVersion", new Document("$ne", lookup.version()))).first() == null);
     }
     public PaymentSyncResult sync(String userId, Instant authorizationDeadline, PaymentSyncRequest request) {
         canonicalUser(userId);
@@ -70,6 +74,13 @@ public class PaymentSyncService {
                 throw new PaymentException(409, "PURCHASE_BINDING_CONFLICT");
             if (purchase != null && settled(s, purchase, row)) {
                 row.put("state", "APPLIED"); row.put("counted", false); row.put("purchaseId", purchase.getString("_id"));
+            } else {
+                Document cursor = c("payment_reconcile_cursors").find(s, new Document("accountId", account.getString("_id")).append("kind", "ACCOUNT_LOOKUP")).first();
+                Document work = cursor == null ? null : cursor.get("lookup", Document.class);
+                String failure = work == null ? null : work.getString("failure");
+                if (failure != null && Set.of("BLOCKED_AUTH", "PROVIDER_REVIEW", "PROVIDER_CONTRACT", "PAGE_LIMIT").contains(failure)) {
+                    row.put("state", "BLOCKED_AUTH".equals(failure) ? "BLOCKED_AUTH" : "REVIEW_REQUIRED"); row.put("errorCode", failure);
+                }
             }
             touch(s, row, row.getBoolean("counted") ? 1 : 0);
             commands().insertOne(s, row); authorized(authorizationDeadline);
@@ -82,8 +93,13 @@ public class PaymentSyncService {
 
     /** Only an already durable, verified source may be bound. No observation is created here. */
     public long bindObservation(String commandId, long expectedVersion, String eventKey, PaymentRecoveryFence.Ticket ticket) {
+        return bindObservation(commandId, expectedVersion, eventKey, ticket, s -> {});
+    }
+    public long bindObservation(String commandId, long expectedVersion, String eventKey, PaymentRecoveryFence.Ticket ticket,
+                                java.util.function.Consumer<ClientSession> guard) {
         return store.transaction(s -> {
             fence.acquire(s, ticket, PaymentRecoveryFence.Writer.PAYMENT_APPLY);
+            guard.accept(s);
             Document row = command(s, commandId); require("PENDING".equals(row.getString("state")) && row.getBoolean("counted"));
             require(row.getLong("version") == expectedVersion);
             Document source = source(s, eventKey); matchSource(row, source);
@@ -95,8 +111,13 @@ public class PaymentSyncService {
     }
     /** Completes the command only, never pays again. A withdrawal does not discard financial work. */
     public void complete(String commandId, long expectedVersion, PaymentRecoveryFence.Ticket ticket) {
+        complete(commandId, expectedVersion, ticket, s -> {});
+    }
+    public void complete(String commandId, long expectedVersion, PaymentRecoveryFence.Ticket ticket,
+                         java.util.function.Consumer<ClientSession> guard) {
         store.transaction(s -> {
             fence.acquire(s, ticket, PaymentRecoveryFence.Writer.PAYMENT_APPLY);
+            guard.accept(s);
             Document row = command(s, commandId);
             if ("APPLIED".equals(row.getString("state"))) { require(!row.getBoolean("counted")); return null; }
             require(row.getLong("version") == expectedVersion && row.getBoolean("counted") && row.getString("sourceObservationKey") != null);
@@ -124,6 +145,47 @@ public class PaymentSyncService {
         require(p != null && row.getString("purchaseId").equals(p.getString("_id")) && row.getString("accountId").equals(p.getString("accountId")));
         if (!settled(s, p, row)) return PaymentSyncResult.pending(row.getString("operationId"), true);
         return new PaymentSyncResult(row.getString("operationId"), PaymentSyncResult.Status.APPLIED, p.getString("_id"), p.getString("purchaseState"), null);
+    }
+
+    public enum LookupFailure { BLOCKED_AUTH, RETRY_EXHAUSTED, PROVIDER_REVIEW, PROVIDER_CONTRACT, PAGE_LIMIT }
+    /** Durable financial evidence outlives inbox TTL. Never creates a purchase or grants entitlement. */
+    public boolean completeVerifiedPurchase(String commandId, long expectedVersion, PaymentRecoveryFence.Ticket ticket,
+                                           java.util.function.Consumer<ClientSession> guard) {
+        return store.transaction(s -> {
+            fence.acquire(s, ticket, PaymentRecoveryFence.Writer.PAYMENT_APPLY); guard.accept(s);
+            Document row = command(s, commandId);
+            if ("APPLIED".equals(row.getString("state"))) { require(!row.getBoolean("counted")); return true; }
+            require(row.getLong("version") == expectedVersion && "PENDING".equals(row.getString("state")) && row.getBoolean("counted"));
+            Document p = purchase(s, row);
+            if (p == null || !Objects.equals(p.getString("accountId"), row.getString("accountId"))
+                    || !"VERIFIED".equals(p.getString("purchaseState")) || !"READY".equals(p.getString("processingStatus"))) return false;
+            Document account = c("payment_accounts").find(s, new Document("_id", row.getString("accountId"))
+                    .append("environment", environment).append("userId", row.getString("userId"))).first();
+            require(account != null);
+            Document cases = new Document("environment", environment);
+            for (String field : List.of("store", "appId", "transactionKey")) cases.append("normalizedObservation." + field, row.get(field));
+            if (c("payment_purchase_cases").find(s, cases).limit(1).first() != null || !settled(s, p, row)) return false;
+            update(s, row, new Document("state", "APPLIED").append("counted", false).append("purchaseId", p.getString("_id")));
+            touch(s, row, -1); return true;
+        });
+    }
+    public static Instant retryStartedAt(Document row) {
+        Date date = row.getDate("retryStartedAt");
+        return (date == null ? row.getDate("createdAt") : date).toInstant();
+    }
+    /** Operational handoff only: never releases pending evidence or changes a purchase. */
+    public void handoffLookup(String commandId, long expectedVersion, LookupFailure reason, PaymentRecoveryFence.Ticket ticket,
+                              java.util.function.Consumer<ClientSession> guard) {
+        Objects.requireNonNull(reason);
+        store.transaction(s -> {
+            fence.acquire(s, ticket, PaymentRecoveryFence.Writer.PAYMENT_APPLY); guard.accept(s);
+            Document row = command(s, commandId);
+            if (!"PENDING".equals(row.getString("state"))) return null;
+            require(row.getLong("version") == expectedVersion && row.getBoolean("counted"));
+            update(s, row, new Document("state", reason == LookupFailure.BLOCKED_AUTH ? "BLOCKED_AUTH" : "REVIEW_REQUIRED")
+                    .append("errorCode", reason.name()));
+            touch(s, row, 0); return null;
+        });
     }
     private boolean settled(ClientSession s, Document p, Document row) {
         require(lookup.version().equals(p.getString("lookupKeyVersion")));

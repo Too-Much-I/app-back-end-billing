@@ -19,6 +19,29 @@ billing:
     tls-key-store-password: ${BILLING_WORKLOAD_TLS_KEY_STORE_PASSWORD:}
   payment:
     sync-enabled: ${BILLING_PAYMENT_SYNC_ENABLED:false}
+    provider:
+      slack:
+        enabled: ${BILLING_PAYMENT_PROVIDER_SLACK_ENABLED:false}
+        webhook-url: ${BILLING_PAYMENT_PROVIDER_SLACK_WEBHOOK_URL:}
+      ingress-enabled: ${BILLING_PAYMENT_PROVIDER_INGRESS_ENABLED:false}
+      host: ${BILLING_PAYMENT_PROVIDER_HOST:}
+      project: ${BILLING_PAYMENT_PROVIDER_PROJECT:}
+      authorization: ${BILLING_PAYMENT_PROVIDER_AUTHORIZATION:}
+      signing-secret: ${BILLING_PAYMENT_PROVIDER_SIGNING_SECRET:}
+      lookup-key: ${BILLING_PAYMENT_PROVIDER_LOOKUP_KEY:}
+      lookup-key-version: ${BILLING_PAYMENT_PROVIDER_LOOKUP_KEY_VERSION:}
+      worker:
+        terminal-sync-delete-enabled: ${BILLING_PAYMENT_PROVIDER_TERMINAL_SYNC_DELETE_ENABLED:false}
+        reference-retention-enabled: ${BILLING_PAYMENT_PROVIDER_REFERENCE_RETENTION_ENABLED:false}
+        reconciliation-enabled: ${BILLING_PAYMENT_PROVIDER_RECONCILIATION_ENABLED:false}
+        alerts-enabled: ${BILLING_PAYMENT_PROVIDER_ALERTS_ENABLED:false}
+        enabled: ${BILLING_PAYMENT_PROVIDER_WORKER_ENABLED:false}
+        poll-millis: ${BILLING_PAYMENT_PROVIDER_WORKER_POLL_MILLIS:1000}
+        batch: ${BILLING_PAYMENT_PROVIDER_WORKER_BATCH:100}
+        api-key: ${BILLING_PAYMENT_PROVIDER_API_KEY:}
+        budget-database: ${BILLING_PAYMENT_PROVIDER_BUDGET_DATABASE:}
+        reference-key: ${BILLING_PAYMENT_PROVIDER_REFERENCE_KEY:}
+        reference-key-id: ${BILLING_PAYMENT_PROVIDER_REFERENCE_KEY_ID:}
     entitlement-query-enabled: ${BILLING_PAYMENT_ENTITLEMENT_QUERY_ENABLED:false}
     catalog-enabled: ${BILLING_PAYMENT_CATALOG_ENABLED:false}
     purchase-account-enabled: ${BILLING_PAYMENT_PURCHASE_ACCOUNT_ENABLED:false}

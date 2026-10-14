@@ -23,6 +23,13 @@ import static org.assertj.core.api.Assertions.*;
 
 @Testcontainers(disabledWithoutDocker = false)
 class CleanupIntegrationTest {
+    @Test void accountLookupLeaseBlocksCleanupEvenIfItsTimestampHasExpired() {
+        String id = ready(true); var purge = purger(); var lease = purge.claim(id);
+        db.getCollection("payment_reconcile_cursors").updateOne(new Document(), new Document("$set", new Document("lookup",
+                new Document("owner", "fake-owner").append("until", Date.from(NOW.minusSeconds(1))))));
+        assertThat(purge.purge(lease)).isEqualTo(CleanupPurger.Result.BLOCKED);
+        assertThat(db.getCollection("payment_accounts").countDocuments()).isEqualTo(1);
+    }
     @Container static final MongoDBContainer MONGO = new MongoDBContainer(DockerImageName.parse("mongo:7.0.14"))
             .withCommand("--replSet", "docker-rs", "--bind_ip_all", "--setParameter", "enableTestCommands=1");
     static final Instant NOW = Instant.parse("2026-10-13T00:00:00Z");

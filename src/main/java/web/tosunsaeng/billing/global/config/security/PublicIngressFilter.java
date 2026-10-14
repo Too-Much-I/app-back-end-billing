@@ -29,6 +29,8 @@ public class PublicIngressFilter extends OncePerRequestFilter {
         // Local port comes from the connector; forwarded/host/identity headers cannot select a trust boundary.
         boolean publicPort = request.getLocalPort() == properties.getPublicPort();
         String path = request.getRequestURI();
+        // The earlier provider guard and its exclusive security chain own this exact route, including OFF rejection.
+        if (web.tosunsaeng.billing.domain.payment.provider.RevenueCatWebhookFilter.PATH.equals(path)) { chain.doFilter(request, response); return; }
         if (publicPort || path.startsWith("/api/")) {
             writer.headers(response);
             boolean enabled = PATH.equals(path) ? properties.isEnabled()
