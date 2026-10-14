@@ -47,6 +47,10 @@ public class ReservationController {
     private final PhoneContinuationService phoneContinuationService;
     private final ReservationConverter converter;
 
+    private web.tosunsaeng.billing.domain.reservation.paid.PaidExamRouter paid;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setPaidRouter(web.tosunsaeng.billing.domain.reservation.paid.PaidExamRouter paid) { this.paid = paid; }
+
     public ReservationController(
             ReserveRequestDecoder decoder,
             IdempotencyKeyParser idempotencyKeyParser,
@@ -74,6 +78,8 @@ public class ReservationController {
                 request.getHeader("Idempotency-Key")
         );
         ReserveRequest reserveRequest = decoder.decode(readBoundedPayload(request));
+        if (paid != null && paid.handles(reserveRequest.userId(), operationId))
+            return ResponseEntity.ok(paid.reserve(converter.toReserveCommand(operationId, reserveRequest)));
         ReserveResult result = reserveService.reserve(
                 converter.toReserveCommand(operationId, reserveRequest)
         );

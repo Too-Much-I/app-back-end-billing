@@ -7,13 +7,24 @@ import java.util.concurrent.TimeUnit;
 import org.bson.Document;
 import web.tosunsaeng.billing.domain.payment.recovery.PaymentRecoveryFence;
 
-/** payment-purchase-core-r4: durable source worker, explicit maintenance only. */
+/** payment-purchase-core-r6: source worker and minimum exam usage, explicit maintenance only. */
 public final class PurchaseCoreSchema {
     private PurchaseCoreSchema() {}
     record Index(String name, Document keys, boolean unique, boolean ttl) {}
     record Definition(Document validator, List<Index> indexes) {}
 
     static Map<String, Definition> manifest() {
+        var result = examOperationManifest();
+        Definition old = result.get("payment_ledger");
+        Document event = schema(fields("_id", id(), "effectKey", type("string"), "type", values("EXAM_STATUS"),
+                "purchaseId", id(), "entitlementId", id(), "occurredAt", type("date"),
+                "sourceKind", values("EXAM_EVENT"), "eventId", id(),
+                "detail", schema(fields("attemptGroupId", id(), "sessionId", type("string"),
+                        "targetStatus", values("GRADING", "COMPLETED", "RETAKE_AVAILABLE"), "occurredAt", type("date"))).get("$jsonSchema")));
+        result.put("payment_ledger", new Definition(new Document("$or", List.of(old.validator(), event)), old.indexes()));
+        return result;
+    }
+    static Map<String, Definition> examOperationManifest() {
         var result = manifest(true, true, true);
         Definition old = result.get("payment_ledger");
         Document exam = schema(fields("_id", id(), "effectKey", type("string"),
@@ -122,6 +133,8 @@ public final class PurchaseCoreSchema {
         try { manifest(true).forEach((name, definition) -> verifyOne(db, name, definition)); return; }
         catch (IllegalStateException oldOrInvalid) { /* Verify exact old manifest before modifying. */ }
         try { verify(db); return; } catch (IllegalStateException oldOrInvalid) { /* Already r3 is also valid. */ }
+        try { examOperationManifest().forEach((name, definition) -> verifyOne(db, name, definition)); return; }
+        catch (IllegalStateException earlier) { /* Exact prior version only. */ }
         manifest(false).forEach((name, definition) -> verifyOne(db, name, definition));
         db.runCommand(new Document("collMod", "payment_ledger").append("validator", manifest(true).get("payment_ledger").validator())
                 .append("validationLevel", "strict").append("validationAction", "error"));
@@ -132,6 +145,8 @@ public final class PurchaseCoreSchema {
         var controls = db.getCollection(PaymentRecoveryFence.COLLECTION).find().into(new ArrayList<>());
         if (!writersIsolated || controls.isEmpty() || controls.stream().anyMatch(c -> !"ALL_BLOCKED".equals(c.getString("barrier")))) throw mismatch();
         try { verify(db); return; } catch (IllegalStateException earlier) { /* Already r4 needs no downgrade. */ }
+        try { examOperationManifest().forEach((name, definition) -> verifyOne(db, name, definition)); return; }
+        catch (IllegalStateException earlier) { /* Exact prior version only. */ }
         Map<String, Definition> old = manifest(true);
         Map<String, Definition> target = manifest(true, true);
         Set<String> changed = Set.of("payment_provider_inbox", "payment_purchase_cases");
@@ -152,7 +167,11 @@ public final class PurchaseCoreSchema {
         manifest().forEach((n, d) -> {
             if (!n.equals(name)) {
                 try { verifyOne(db, n, d); }
-                catch (IllegalStateException previous) { if (!n.equals("payment_ledger")) throw previous; verifyOne(db, n, manifest(true, true, true).get(n)); }
+                catch (IllegalStateException previous) {
+                    if (!n.equals("payment_ledger")) throw previous;
+                    try { verifyOne(db, n, examOperationManifest().get(n)); }
+                    catch (IllegalStateException beforeExam) { verifyOne(db, n, manifest(true, true, true).get(n)); }
+                }
             }
         });
         Definition old = manifest(true, true).get(name), target = manifest().get(name);
@@ -163,14 +182,18 @@ public final class PurchaseCoreSchema {
         if (!valid) throw mismatch();
         db.runCommand(new Document("collMod", name).append("validator", target.validator()).append("validationLevel", "strict").append("validationAction", "error"));
         Index index = target.indexes().getLast(); db.getCollection(name).createIndex(index.keys(), new IndexOptions().name(index.name()).unique(false));
-        try { verify(db); } catch (IllegalStateException previous) { manifest(true, true, true).forEach((n, d) -> verifyOne(db, n, d)); }
+        try { verify(db); } catch (IllegalStateException previous) {
+            try { examOperationManifest().forEach((n, d) -> verifyOne(db, n, d)); }
+            catch (IllegalStateException beforeExam) { manifest(true, true, true).forEach((n, d) -> verifyOne(db, n, d)); }
+        }
     }
-    /** Explicit r4 -> r5, prior writers isolated; no automatic startup modification. */
+    /** Explicit r4/r5 -> r6, prior writers isolated; no automatic startup modification. */
     public static void upgradeExamUsageUnderMaintenance(MongoDatabase db, boolean isolated) {
         var controls = db.getCollection(PaymentRecoveryFence.COLLECTION).find().into(new ArrayList<>());
         if (!isolated || controls.isEmpty() || controls.stream().anyMatch(c -> !"ALL_BLOCKED".equals(c.getString("barrier")))) throw mismatch();
         try { verify(db); return; } catch (IllegalStateException previous) { /* Verify exact r4 before DDL. */ }
-        manifest(true, true, true).forEach((name, definition) -> verifyOne(db, name, definition));
+        try { examOperationManifest().forEach((name, definition) -> verifyOne(db, name, definition)); }
+        catch (IllegalStateException notR5) { manifest(true, true, true).forEach((name, definition) -> verifyOne(db, name, definition)); }
         db.runCommand(new Document("collMod", "payment_ledger").append("validator", manifest().get("payment_ledger").validator())
                 .append("validationLevel", "strict").append("validationAction", "error"));
         verify(db);

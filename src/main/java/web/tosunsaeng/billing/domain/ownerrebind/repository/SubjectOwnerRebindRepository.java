@@ -6,7 +6,7 @@ import java.util.Optional;
 
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
-import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -17,9 +17,9 @@ import web.tosunsaeng.billing.domain.ownerrebind.domain.entity.SubjectOwnerRebin
 @Repository
 public class SubjectOwnerRebindRepository {
 
-    private final MongoTemplate mongoTemplate;
+    private final MongoOperations mongoTemplate;
 
-    public SubjectOwnerRebindRepository(MongoTemplate mongoTemplate) {
+    public SubjectOwnerRebindRepository(MongoOperations mongoTemplate) {
         this.mongoTemplate = mongoTemplate;
     }
 

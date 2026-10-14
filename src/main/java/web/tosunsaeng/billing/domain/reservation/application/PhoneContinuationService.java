@@ -61,7 +61,7 @@ public class PhoneContinuationService {
             AttemptGroup group = attemptGroupRepository
                     .findNonTerminalBySubject(link.getSubjectRefId())
                     .orElse(null);
-            if (group == null) {
+            if (group == null || group.isReplacementBlocked()) {
                 continue;
             }
             if (!link.getTrialClaimId().equals(group.getTrialClaimId())) {

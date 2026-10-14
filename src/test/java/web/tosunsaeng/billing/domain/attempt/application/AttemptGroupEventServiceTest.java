@@ -97,6 +97,15 @@ class AttemptGroupEventServiceTest {
     }
 
     @Test
+    void sourceDispatchStorageFailureKeepsTemporaryErrorAndDoesNotWriteInbox() {
+        reset(transactionExecutor, traceCorrelation);
+        when(groupRepository.findById(GROUP_ID)).thenThrow(new org.springframework.dao.DataAccessResourceFailureException("fake-storage-unavailable"));
+        assertThatThrownBy(() -> service.process(event(AttemptGroupEventTarget.COMPLETED, 25)))
+                .isInstanceOfSatisfying(InternalApiException.class, e -> assertThat(e.code()).isEqualTo("BILLING_TEMPORARILY_UNAVAILABLE"));
+        org.mockito.Mockito.verifyNoInteractions(inboxRepository, transactionExecutor);
+    }
+
+    @Test
     void appliesOpenToGradingWithoutClosingSession() {
         AttemptGroup group = openGroup();
         AttemptSession session = activeSession();

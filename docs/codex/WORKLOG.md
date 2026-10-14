@@ -5929,3 +5929,37 @@
 - 외부 계약: status body userId/operationId와 command header 유지, 기본OFF·기존 사용자 API/A·고정fixture 유지. 원 운영 schema 수정/키/Secret/외부 서비스 호출·배포/활성화 없음. 신규215는 commit/push하지 않았다.
 - 예상 밖 변경: 별도 작업의 RevenueCat/PLAN012 계획·이력·LC 인계서와 해당 CURRENT_STATE/WORKLOG 항목이 dirty 상태이며 본 작업은 이를 수정/포함하지 않고 보존했다. 나머지 코드 변경은 위215 범위다.
 - 다음:215 diff 검토/커밋 후216 HTTP·reader·이벤트/expiry 및 LC 실제 finalize 검증. 운영 설치 전 r3/r5 명시 maintenance와 reader-first·구 writer drain,217/012/013 gate 확인.
+
+## 2026-10-14 — TMI-215 커밋·PR19 병합 및 TMI-216 Billing 연결 구현
+
+- 요청/브랜치: 사용자 「좋아 커밋 푸시 머지한 다음 브랜치 파서 다음꺼 구현해줘」. TMI216 Jira 읽기 후 승인 범위로 작업. 215 commit34ad2f1/push·PR19 생성/첨부·head 확인 merge5d16ba4 완료. feature branch는 `feat/TMI-216-lc-paid-exam-integration`; 이번216 변경은 미커밋/미푸시다.
+- 보존: 215 commit은 해당 구현·기록만 선택했고 CURRENT_STATE/WORKLOG의 병행 RevenueCat/PLAN012 부분은 index-only 구분으로 제외했다. 기존/동시 PLAN012 계획·history·LC/Identity 인계·P0/단순화검토와 문서 이력은 유지했다. WORKLOG 과거 내용 변경 없음.
+- 구현: PaidExamRouter·PaidAttemptEventService·PaidExamQueryReader 신규, PaidExamConfiguration/기존 ReservationController·lifecycle·ReserveService·PhoneContinuationService/상태event/query service 연결. source별 owner/lifecycle·기존 phone exact fence·inbox/상태/guard/최소구매이용원장 단일ClientSession, late completion/new guard 보호, 유료기간·무료권/FIFO 수량·재응시/pending snapshot read, legacy command replay·sourceaware OFF writer 차단. 저장소 dispatch 실패도 기존503, 차단된 trial phone discovery 제외.
+- schema: PurchaseCoreSchema r6 strict EXAM_EVENT/EXAM_STATUS union, exact r4/r5→r6 명시maintenance·ALL_BLOCKED/격리 조건, r5 재실행/기존원장 보존. SubjectOwnerRebindRepository는 MongoOperations로 동일 session 참여. 자동DDL/index삭제/실DB이관 없음.
+- 문서: AGENTS/ADR004/PLAN011 동기화, TMI216 런타임 안내·공동28대응표 신규. LC HEAD001b575 및 P2/P2.1/P3진행은 읽기 확인만. E06-owner message/T04 operation120일 단일보관 서술 보완을 공동gate로 기록, 원본 fixture 변경 없음.
+- 검증: 최종 `./gradlew clean test` **1,570개, 실패0/오류0/skip0**, 신규24개 포함(런타임20·r5→r6 migration1·legacy rollback1·storage dispatch1·phone discovery1). PaidReservationIntegrationTest의 기존22개는 shared test support로 helper만 추출. 실Mongo7.0.14 replica set·기존실서비스/서명 JWT MVC·기본 security 회귀. 개발 중 추가테스트의 HTTP503/UTC밀리초 기대값과 Mockito 중첩 초기화를 수정한 뒤 선별/전체 재실행 통과. 기존 deprecated 경고 유지.
+- 무결성: frozen simplified 검사 hashFiles9/벡터80 및 R2 hashFiles13/canonical18/clock5/token31/invalid13/HTTP모형12/wire6/status3 통과. 이는 실제상태28 실행통과가 아니다. doc 상대링크/대응표메서드 참조·git diff --check 통과. config/fixture bytes 변경 없음.
+- 경계/다음: Billing 계정기반 연결 검증이며 LC finalize/lease/cleanup/Summary/삭제·보존 및 전체28 공동PASS 아님. Guest/legacy source coverage·구worker drain, LC P3~P6/공동E2E, TMI217 삭제/과거owner/purge, PLAN012 provider환불/revoke와013 실환경gate 필요. 기본OFF, 실서비스/TLS/ALB/Store/DB/배포/활성화·LC/Identity수정·Jira쓰기·외부회신 전송 없음. 기대 범위 밖 제품파일 변경 없음; 병행 문서변경은 이번 구현과 별개다.
+
+
+## 2026-10-14 — TMI-216 E06-owner fixture 문구 정정
+
+- 날짜: 2026-10-14 / 관련 TMI-216 / 브랜치 feat/TMI-216-lc-paid-exam-integration
+- revision: `lc-billing-paid-exam-simplified-exact-r1-fixtures-2`
+- 변경: E06-owner message를 `The operation owner does not match the current owner.`로 정정했다. HTTP409·OPERATION_OWNER_MISMATCH·retryable=false·기대 OWNER_BLOCKED는 그대로다.
+- 기존 fixtures-1의 10파일은 작업 전후 SHA-256이 동일하다. 새 버전의 데이터 차이는 해당 message 하나이며 README/revision/manifest/hash만 함께 갱신했다. 계약 snapshot과 나머지 데이터 파일은 byte 동일하다.
+- 생성기를 수정하고 검사기에 owner message exact 비교를 추가했다. 검사기 기본 대상은 fixtures-2이며 구 revision을 검증 성공으로 표시하지 않는다.
+
+## 전달 자료와 해시
+
+- 원본: `src/test/resources/contracts/lc-billing-paid-exam-simplified-exact-r1-fixtures-2`
+- ZIP: `build/handoffs/lc-billing-paid-exam-simplified-exact-r1-fixtures-2.zip` (build 정리 시 삭제될 수 있음)
+- SHA256SUMS 자체 SHA-256: `4e91332dfa549da63d13f3e07a1ec208018e02a353ccd780f12b8570eb2d4845`
+- ZIP SHA-256: `206c83a6ba8865650a07db3a56f67b210a0ad795d8b123cce811ef10ab2c6cb2`
+- 계약 SHA-256: `79bcfe3d79225c21d712791266bea10d4aed9eed3dc0529ddf86f7b29673a482`
+
+## 검증 결과와 다음 단계
+
+`python3 scripts/contracts/verify-paid-exam-simplified-fixtures-r1.py`: errors22/public4/time14/member29/phone11 = 80벡터 통과, 9파일 hash 모두 OK. 기존 잘못된 E06-owner는 CONTRACT_ERROR, 정정본은 OWNER_BLOCKED로 판정되는 회귀 확인. ZIP10파일을 원본 bytes와 재대조했다. 상태28개는 미실행 유지다.
+
+LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된다. 생산자 manifest의 lcIndependentValidation=false는 유지한다. 이번에는 fixture/도구/기록만 변경해 전체 Gradle은 재실행하지 않았다. runtime 오류를 발견·수정했다는 의미가 아니며 정책/API/제품 코드/DB/배포/타 저장소/외부 발송/commit/push 변경 없음. 기존 TMI-216 및 PLAN-012 작업을 보존했고 예상 밖의 이번 변경은 없다. T04와 다른 공동 gate는 별도다.

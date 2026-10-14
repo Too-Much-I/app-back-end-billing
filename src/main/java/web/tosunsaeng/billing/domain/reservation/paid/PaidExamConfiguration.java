@@ -24,9 +24,39 @@ public class PaidExamConfiguration {
             throw new IllegalStateException("Member recovery requires purchase-account evidence writer");
         return new MemberOperationRecovery(transactions, store, payment, workload.getEnvironment(), jwt.getIssuer(), clock);
     }
-    @Bean
+    @Configuration
     @ConditionalOnProperty(prefix = "billing.reservation", name = "paid-admission-enabled", havingValue = "true")
-    Object rejectPrematurePaidAdmission() {
-        throw new IllegalStateException("Paid admission requires the resolver/confirm runtime and joint activation gates");
+    static class Runtime {
+        @Bean
+        PaidReservationService paidReservationService(PaidExamTransactions tx, MemberOperationRecovery recovery, PaymentStore store,
+                web.tosunsaeng.billing.domain.payment.config.PaymentProperties payment,
+                web.tosunsaeng.billing.global.config.security.WorkloadJwtProperties workload,
+                web.tosunsaeng.billing.domain.eligibility.trial.config.TrialEligibilityProperties trial,
+                web.tosunsaeng.billing.domain.attempt.config.AttemptGroupEventProperties attempts, java.time.Clock clock) {
+            workload.validateEnvironment(payment.getEnvironment());
+            if (!workload.isLearningCoreReceiverEnabled() || !payment.isEntitlementQueryEnabled() || !attempts.isEnabled())
+                throw new IllegalStateException("Paid admission requires LC receiver, status events and integrated entitlement reader");
+            web.tosunsaeng.billing.domain.payment.purchase.PurchaseCoreSchema.verify(store.database());
+            return new PaidReservationService(tx, recovery, store, payment, workload.getEnvironment(), trial.getExpectedConsumerScopeId(), clock);
+        }
+        @Bean
+        PaidExamRouter paidExamRouter(MongoTemplate mongo, PaidReservationService service,
+                web.tosunsaeng.billing.domain.payment.config.PaymentProperties payment,
+                web.tosunsaeng.billing.global.config.security.WorkloadJwtProperties workload) {
+            return new PaidExamRouter(mongo, service, payment.getEnvironment(), workload.getEnvironment());
+        }
+        @Bean
+        PaidAttemptEventService paidAttemptEvents(PaidReservationService readiness, PaidExamTransactions tx, MongoTemplate mongo,
+                PaymentStore store, web.tosunsaeng.billing.domain.payment.config.PaymentProperties payment,
+                web.tosunsaeng.billing.global.config.security.WorkloadJwtProperties workload, java.time.Clock clock) {
+            return new PaidAttemptEventService(tx, mongo, store, payment, workload.getEnvironment(), clock);
+        }
+        @Bean
+        PaidExamQueryReader paidExamReader(PaidReservationService readiness, MongoTemplate mongo,
+                web.tosunsaeng.billing.domain.payment.config.PaymentProperties payment,
+                web.tosunsaeng.billing.domain.entitlement.config.EntitlementQueryProperties jwt,
+                web.tosunsaeng.billing.global.config.security.WorkloadJwtProperties workload) {
+            return new PaidExamQueryReader(mongo, workload.getEnvironment(), payment.getEnvironment(), jwt.getIssuer());
+        }
     }
 }

@@ -7,8 +7,8 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('src/test/resources/contracts/lc-billing-paid-exam-simplified-exact-r1-fixtures-1')
-REVISION = 'lc-billing-paid-exam-simplified-exact-r1-fixtures-1'
+ROOT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('src/test/resources/contracts/lc-billing-paid-exam-simplified-exact-r1-fixtures-2')
+REVISION = 'lc-billing-paid-exam-simplified-exact-r1-fixtures-2'
 DAYS120_MS = 10_368_000_000
 
 def require(ok, label='validation'):
@@ -59,7 +59,7 @@ def error_category(data):
             return 'WAITING_MEMBER'
         if code == 'RESERVE_REJECTED_BEFORE_CREATION' and status == 409 and not retry and data['endpoint'] == 'status':
             return 'PRE_RESERVE_TERMINAL'
-        if code == 'OPERATION_OWNER_MISMATCH' and status == 409 and not retry:
+        if code == 'OPERATION_OWNER_MISMATCH' and status == 409 and not retry and value['message'] == 'The operation owner does not match the current owner.':
             return 'OWNER_BLOCKED'
         if code == 'OPERATION_NOT_FOUND' and status == 404 and not retry and data['endpoint'] == 'status':
             return 'OPERATION_NOT_FOUND'

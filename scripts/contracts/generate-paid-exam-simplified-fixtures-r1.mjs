@@ -1,7 +1,7 @@
 // Fake offline vectors only. Never overwrite a published fixture revision.
 import {readFileSync,writeFileSync,mkdirSync,existsSync} from 'node:fs';
 import {createHash} from 'node:crypto';
-const revision='lc-billing-paid-exam-simplified-exact-r1-fixtures-1';
+const revision='lc-billing-paid-exam-simplified-exact-r1-fixtures-2';
 const dir='src/test/resources/contracts/'+revision;
 if(existsSync(dir))throw Error('Revision exists; use a new revision');
 const contractPath='docs/contracts/LC-BILLING-PAID-EXAM-SIMPLIFIED-EXACT-R1.md';
@@ -29,7 +29,7 @@ const terminal={code:'RESERVE_REJECTED_BEFORE_CREATION',message:'The reserve ope
 err('E06-terminal-status',{endpoint:'status',http:409,retryAfter:null},'PRE_RESERVE_TERMINAL',JSON.stringify(terminal));
 err('E06-terminal-reserve',{http:409,retryAfter:null},'CONTRACT_ERROR',JSON.stringify(terminal));
 err('E06-terminal-true',{endpoint:'status',http:409,retryAfter:null},'CONTRACT_ERROR',JSON.stringify({...terminal,retryable:true}));
-err('E06-owner',{endpoint:'status',http:409,retryAfter:null},'OWNER_BLOCKED',JSON.stringify({...terminal,code:'OPERATION_OWNER_MISMATCH'}));
+err('E06-owner',{endpoint:'status',http:409,retryAfter:null},'OWNER_BLOCKED',JSON.stringify({...terminal,code:'OPERATION_OWNER_MISMATCH',message:'The operation owner does not match the current owner.'}));
 err('E06-notfound',{endpoint:'status',http:404,retryAfter:null},'OPERATION_NOT_FOUND',JSON.stringify({...terminal,code:'OPERATION_NOT_FOUND'}));
 err('E06-empty404',{endpoint:'status',http:404,retryAfter:null},'CONTRACT_ERROR','');
 err('E06-temporary',{endpoint:'status'},'TEMPORARY_FAILURE',JSON.stringify({...body,code:'BILLING_TEMPORARILY_UNAVAILABLE'}));

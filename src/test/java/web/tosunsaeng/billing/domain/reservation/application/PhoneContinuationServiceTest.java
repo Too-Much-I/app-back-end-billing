@@ -41,6 +41,17 @@ class PhoneContinuationServiceTest {
     );
 
     @Test
+    void convertedTrialIsNotAdvertisedAsPhoneContinuation() {
+        AttemptGroup group = mock(AttemptGroup.class);
+        when(group.isReplacementBlocked()).thenReturn(true);
+        var link = phoneLink();
+        when(linkRepository.findActiveByOwnerAndScope(USER, "opaque-scope-v1", NOW, 101)).thenReturn(List.of(link));
+        when(groupRepository.findNonTerminalBySubject("subject-1")).thenReturn(Optional.of(group));
+        assertThat(service.resolve(USER)).isEmpty();
+        org.mockito.Mockito.verifyNoInteractions(claimRepository);
+    }
+
+    @Test
     void returnsAuthoritativePhoneRejoinGroupAndMockExam() {
         BillingSubjectLink link = phoneLink();
         AttemptGroup group = AttemptGroup.projection(

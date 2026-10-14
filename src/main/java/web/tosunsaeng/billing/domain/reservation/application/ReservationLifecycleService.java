@@ -78,6 +78,8 @@ public class ReservationLifecycleService {
     }
 
     public LifecycleResult confirm(ConfirmCommand command) {
+        if (paid != null && paid.handlesReservation(command.reservationId())) return paid.confirm(command);
+        rejectSourceAwareLegacy(command.reservationId());
         LifecycleIds ids = LifecycleIds.create();
         Instant now = clock.instant();
         for (int attempt = 1; attempt <= MAX_TRANSACTION_ATTEMPTS; attempt++) {
@@ -115,6 +117,8 @@ public class ReservationLifecycleService {
     }
 
     public LifecycleResult cancel(CancelCommand command) {
+        if (paid != null && paid.handlesReservation(command.reservationId())) return paid.cancel(command);
+        rejectSourceAwareLegacy(command.reservationId());
         LifecycleIds ids = LifecycleIds.create();
         Instant now = clock.instant();
         for (int attempt = 1; attempt <= MAX_TRANSACTION_ATTEMPTS; attempt++) {
@@ -180,7 +184,20 @@ public class ReservationLifecycleService {
         );
     }
 
+    private void rejectSourceAwareLegacy(String reservationId) {
+        try {
+            reservationRepository.findById(reservationId).filter(r -> r.getSourceSnapshot() != null).ifPresent(r -> {
+                throw ReservationException.temporarilyUnavailable();
+            });
+        } catch (DataAccessException | MongoException unavailable) { throw ReservationException.temporarilyUnavailable(); }
+    }
+    private web.tosunsaeng.billing.domain.reservation.paid.PaidExamRouter paid;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setPaidRouter(web.tosunsaeng.billing.domain.reservation.paid.PaidExamRouter paid) { this.paid = paid; }
+
     public boolean expire(String reservationId, Instant now) {
+        if (paid != null) { var result = paid.expire(reservationId); if (result.isPresent()) return result.get(); }
+        rejectSourceAwareLegacy(reservationId);
         String ledgerId = UUID.randomUUID().toString();
         for (int attempt = 1; attempt <= MAX_TRANSACTION_ATTEMPTS; attempt++) {
             try {
