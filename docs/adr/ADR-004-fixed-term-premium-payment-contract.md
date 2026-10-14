@@ -1,5 +1,7 @@
 # ADR-004: RevenueCat 기반 fixed-term premium 결제 계약
 
+> 2026-10-14 사용자 후속구현: [Session 생성 owner 근거](../runbooks/TMI-217-session-creation-owner-evidence.md)는 paid runtime 신규Session에 생성당시 검증user/reference/epoch를 저장한다. 기존 missing은unknown, 현재삭제권한/merge승인으로 사용하지 않으며 외부wire와기본OFF 불변. Guest/legacy 및최종보존/삭제연동은 후속이다.
+
 > 2026-10-14 TMI-216 Billing 연결: [런타임 안내](../runbooks/TMI-216-lc-paid-exam-integration.md)·[상태28 대응표](../runbooks/TMI-216-shared-state-verification.md). paid HTTP/lifecycle/expiry, source별 v1 상태 이벤트·guard·구매 이용 원장, read-only 통합 reader를 연결했다. 기본 OFF; admission ON은 foundation/recovery·MEMBER writer·LC receiver/event·통합 reader·r3/r6 schema를 요구한다. source-aware 구 writer 우회 금지. Guest/legacy coverage·LC P3 이후 전체공동검증·삭제보존217·PLAN012/013 활성화 gate는 남는다. TMI215는 commit34ad2f1·PR19 develop merge5d16ba4 완료,216은 feat/TMI-216-lc-paid-exam-integration 작업이다. 아래 admission 일괄 기동 거절/HTTP 미연결 표현은 해당 구현 범위에서 과거 기록이다.
 
 > 2026-10-14 TMI-215 구현: [유료 예약·복원 안내](../runbooks/TMI-215-paid-reservation-restoration.md). paid-first/동일 source replacement/phone target INITIAL·confirm/무료 hold/최초 trial 소비당 복원1회·원 group 재응시 차단·receipt/이용 원장을 단일 ClientSession으로 구현했다. r3 receipt/r5 payment ledger는 명시 maintenance만 가능하며 실DB 설치 없음. 기본 OFF/paid-admission 기동 거절 유지. HTTP/상태 이벤트 MEMBER 귀속·reader/expiry 연결/LC 전체28 검증은216, 삭제보존217·PLAN012/013 활성화 gate 별도. TMI214는 사용자 승인 commit3691f98·PR18 develop mergeebaf8d8 완료,215는 feat/TMI-215-paid-reservation-restoration 로컬 변경이다.
