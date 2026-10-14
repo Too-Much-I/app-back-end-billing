@@ -41,7 +41,10 @@ public final class PaidAttemptEventService {
                         || group.getSourceSnapshot() == null || session.getSourceSnapshot() == null
                         || !group.getSourceSnapshot().equals(session.getSourceSnapshot())) throw AttemptGroupEventException.targetConflict();
                 Document groupRow = c.operations().findById(group.getAttemptGroupId(), Document.class, "attempt_groups");
-                if (groupRow.getBoolean("deleted", false) || groupRow.getBoolean("lifecycleDenied", false)) throw AttemptGroupEventException.targetConflict();
+                Document sessionRow = c.operations().findById(session.getSessionId(), Document.class, "attempt_sessions");
+                if (groupRow.getBoolean("deleted", false) || groupRow.getBoolean("lifecycleDenied", false)
+                        || sessionRow.getBoolean("deleted", false) || sessionRow.getBoolean("lifecycleDenied", false))
+                    throw AttemptGroupEventException.targetConflict();
                 Document account = owner(c, group, session, event, now);
                 Document inbox = c.operations().findOne(new BasicQuery(new Document("eventId", event.eventId())), Document.class, "inbound_event_inbox");
                 if (inbox != null) {
@@ -49,16 +52,28 @@ public final class PaidAttemptEventService {
                     return AttemptGroupEventOutcome.DUPLICATE;
                 }
                 if (session.getState() == AttemptSession.State.PROPOSED) throw AttemptGroupEventException.projectionNotReady();
-                if (session.getState() == AttemptSession.State.ACTIVE && !event.sessionId().equals(group.getActiveSessionId()))
+                boolean historical = !event.sessionId().equals(group.getActiveSessionId());
+                // LC authenticates exact accepted work; Billing validates its own durable confirmation/owner facts.
+                // Never infer this permission from the current group, a timestamp comparison, or a Job claim.
+                if (session.getState() == AttemptSession.State.ACTIVE && historical
+                        && (!session.isCompletionAllowed() || session.getConfirmedAt() == null || session.getTerminalAt() != null))
                     throw AttemptGroupEventException.targetConflict();
-                boolean applicable = session.getState() == AttemptSession.State.ACTIVE && event.sessionId().equals(group.getActiveSessionId())
-                        && (group.getStatus() == AttemptGroup.Status.OPEN || group.getStatus() == AttemptGroup.Status.GRADING && !"GRADING".equals(event.targetStatus().name()));
+                boolean applicable = session.getState() == AttemptSession.State.ACTIVE && (historical
+                        // A historical GRADING notification cannot advance the current group's projection.
+                        ? event.targetStatus() != web.tosunsaeng.billing.domain.attempt.domain.enums.AttemptGroupEventTarget.GRADING
+                        : (group.getStatus() == AttemptGroup.Status.OPEN || group.getStatus() == AttemptGroup.Status.GRADING && !"GRADING".equals(event.targetStatus().name())));
                 String disposition = applicable ? "APPLIED" : "STALE";
                 c.operations().insert(new Document("_id", event.eventId()).append("eventId", event.eventId()).append("producer", event.producer())
                         .append("eventType", event.eventType()).append("schemaVersion", event.schemaVersion()).append("payloadDigest", event.payloadDigest())
                         .append("disposition", disposition).append("receivedAt", Date.from(now)).append("purgeAt", Date.from(now.plus(Duration.ofDays(120)))), "inbound_event_inbox");
                 if (!applicable) return AttemptGroupEventOutcome.STALE;
-                switch (event.targetStatus()) {
+                if (historical) {
+                    switch (event.targetStatus()) {
+                        case COMPLETED -> c.sessions().completeActive(session.getSessionId(), group.getAttemptGroupId(), group.getSubjectRefId(), session.getVersion(), event.occurredAt()).orElseThrow(AttemptGroupEventException::temporarilyUnavailable);
+                        case RETAKE_AVAILABLE -> c.sessions().failActive(session.getSessionId(), group.getAttemptGroupId(), group.getSubjectRefId(), session.getVersion(), event.occurredAt()).orElseThrow(AttemptGroupEventException::temporarilyUnavailable);
+                        case GRADING -> throw new IllegalStateException("Historical grading has no group projection");
+                    }
+                } else switch (event.targetStatus()) {
                     case GRADING -> c.groups().markGrading(group.getAttemptGroupId(), session.getSessionId(), group.getVersion(), now).orElseThrow(AttemptGroupEventException::temporarilyUnavailable);
                     case COMPLETED -> {
                         c.groups().markCompleted(group.getAttemptGroupId(), session.getSessionId(), group.getVersion(), event.occurredAt(), now).orElseThrow(AttemptGroupEventException::temporarilyUnavailable);

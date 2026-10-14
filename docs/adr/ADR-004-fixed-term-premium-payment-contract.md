@@ -1,5 +1,7 @@
 # ADR-004: RevenueCat 기반 fixed-term premium 결제 계약
 
+> 2026-10-14 사용자 승인 보완: [TMI-220 기접수 작업 경계](../contracts/TMI-220-REFUND-PROTECTED-SESSION-CLARIFICATION.md). 단일 confirmedSessionId를 유지하며 환불 전 confirm·재시작 전 영속 접수된 과거 Session 작업만 마무리한다. 신규 제출·새 녹음·새 Session 및 일부 문항만으로 전체 완료/Summary 허용은 금지한다. 삭제·탈퇴·확정 종료 우선, Billing late event는 해당 Session/이용 증거에만 반영하고 현재 group·Session·새 guard 불변이다. 아래 exact Session만 완료 표현은 이 좁은 경계로 보완한다. 문서 승인이지 구현·공동 E2E·배포 완료가 아니다.
+
 > 2026-10-14 사용자 후속구현: [Session 생성 owner 근거](../runbooks/TMI-217-session-creation-owner-evidence.md)는 paid runtime 신규Session에 생성당시 검증user/reference/epoch를 저장한다. 기존 missing은unknown, 현재삭제권한/merge승인으로 사용하지 않으며 외부wire와기본OFF 불변. Guest/legacy 및최종보존/삭제연동은 후속이다.
 
 > 2026-10-14 TMI-216 Billing 연결: [런타임 안내](../runbooks/TMI-216-lc-paid-exam-integration.md)·[상태28 대응표](../runbooks/TMI-216-shared-state-verification.md). paid HTTP/lifecycle/expiry, source별 v1 상태 이벤트·guard·구매 이용 원장, read-only 통합 reader를 연결했다. 기본 OFF; admission ON은 foundation/recovery·MEMBER writer·LC receiver/event·통합 reader·r3/r6 schema를 요구한다. source-aware 구 writer 우회 금지. Guest/legacy coverage·LC P3 이후 전체공동검증·삭제보존217·PLAN012/013 활성화 gate는 남는다. TMI215는 commit34ad2f1·PR19 develop merge5d16ba4 완료,216은 feat/TMI-216-lc-paid-exam-integration 작업이다. 아래 admission 일괄 기동 거절/HTTP 미연결 표현은 해당 구현 범위에서 과거 기록이다.

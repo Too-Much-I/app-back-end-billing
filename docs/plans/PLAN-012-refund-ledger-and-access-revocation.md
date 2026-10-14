@@ -14,7 +14,7 @@
 
 1. 문의·팀 검토·Store 처리·Billing 반영을 분리하고 검증된 최종 환불/revoke만 반영한다.
 2. 부분 환불도 해당 구매 잔여권을 종료하며 다른 구매·무료권·기지급 복원권은 보존한다.
-3. 환불 전 confirm된 exact Session만 기존 lifecycle 안에서 완료 가능하며 신규·replacement와 환불 선행 confirm은 차단한다.
+3. 환불 전 confirm된 보호 exact Session은 기존 lifecycle 안에서 완료 가능하며 신규·replacement와 환불 선행 confirm은 차단한다. 별도로 과거 Session의 환불 전 confirm·재시작 전 영속 접수 작업만 마무리한다. 신규 제출/새 녹음·일부 문항만으로 전체 완료/Summary 허용은 금지한다.
 4. 구매 root 차단·최초 appliedAt·reflow·금전 사실·분할 작업 등록을 원자 확정하고 LC 전달은 불변 outbox로 복구한다.
 5. 지금은 011 source/confirm/guard 접점을 맞춘다. 실제 금융 증거·Mongo 경합·역방향 JWT·LC 수신 검증 뒤 유료 입장을 켠다.
 
@@ -167,7 +167,7 @@ providerConfirmedAt은 없으면 null, firstVerifiedAt은 최초 검증, applied
 
 - POST /internal/v1/entitlements/access/events, AttemptGroupAccessRevoked v1. confirmedSessionId 필수 nullable, 최초 body 불변. gradingSessionId/accessVersion/stale-version protocol은 제외.
 - 같은 eventId/digest는 commit 확인 후 body 없는204. 같은ID 다른내용 EVENT_ID_CONFLICT, 같은 logical group 다른ID GROUP_REVOKE_CONFLICT. 2026-10-14 LC 회신 기준 별도 inbox 없이 그룹별 단일 revoke 문서에 멱등성/deny/보호 예외/최초 사실을 원자 저장한다. eventId/group 유일성은 유지하며 문서 폐기는 LC P6·TMI-217에서 확인한다. 종전 inbox TTL을 전체 문서에 전용하지 않는다.
-- revoke-before-session도 deny 영속. 보호된 exact Session만 완료 가능, 삭제/탈퇴/terminal 우선.
+- revoke-before-session도 deny 영속. 보호된 exact Session의 완료와 과거 Session의 기접수 작업 마무리를 구분하며 삭제/탈퇴/terminal 우선. 단일 confirmedSessionId는 유지한다. TMI-220은 LC 접수 증거 처리뿐 아니라 Billing 과거 Session 이벤트 처리도 포함하고, 늦은 완료로 현재 Session/group 포인터/새 guard를 변경하지 않는다. [승인 보완 및 C01~C06](../contracts/TMI-220-REFUND-PROTECTED-SESSION-CLARIFICATION.md)은 구현 예정이며 공동 E2E 통과가 아니다.
 - Billing→LC 전용 RS256 JWT·public JWK set·환경/issuer/sub/audience·TLS/connector. LC→Billing 키/권한과 분리, SigV4/무인증 fallback 금지.
 - 원 eventId/body 유지, JWT/jti만 매 전송 새 발급. exact204만 성공; 다른2xx/redirect 성공 간주 금지. 응답 유실은 동일 event 재전송.
 - 401/403 BLOCKED_AUTH, 영구 계약 오류/409 충돌은 격리·검토. 일시 장애 bounded backoff/jitter, 소진 후 책임/자료 보존. timeout/Retry-After/lease/횟수는 기존 worker와 대조해 P0에서 exact 고정.

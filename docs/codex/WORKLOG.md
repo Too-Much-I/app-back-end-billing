@@ -6185,3 +6185,33 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - 최종 코드 기준 `./gradlew clean test` BUILD SUCCESSFUL(3m16s), XML 집계1,602개/실패0/오류0/skip0. 신규25개: RefundEvidenceTest4, PurchaseRefundIntegrationTest18, PaidRefundIntegrationTest3. legacy bytes/digest 및 v2증거누락409/저장version불일치차단 보강 포함. 기존 deprecation/JVM 경고 외 실패 없음.
 - simplified/R2 offline+hash 검사 및 변경문서 로컬link/diff 검사 통과. 원 작업 폴더 TMI217 상태 재확인·변경보존, PR24 MERGED/c6f8044 재확인. 신규코드 미커밋/미푸시, Jira 상태 미변경. 실제 Store/LC HTTP·대규모 timeline 성능·운영 schema/권한/배포 검증은 수행하지 않았다.
 - 다음: TMI-220에서 refundWork 순차정리/보호증거/outbox/LC전달 연결, TMI-221 운영 및 실Store 공동검증. 기능 ON 전 해당 gate와 TMI217 보존 조건을 충족해야 한다.
+
+## 2026-10-14 — TMI219 병합·TMI220 선행 보호Session 계약 조사
+
+- 사용자 commit/push/merge후다음구현 승인. TMI219 18파일 commit09dbb9856c3fe776ad745803cb37ca454b51465f·PR25 https://github.com/Too-Much-I/app-back-end-billing/pull/25 생성/첨부. CodeRabbitSUCCESS/MERGEABLE/exacthead 확인 후 develop mergee8f55eec3c97bdb963df046bd8d80a718355565f 확인. 병합develop에서 codex/TMI-220-refund-cleanup-delivery 생성. 원작업폴더TMI217 변경보존.
+- Jira220 읽기·PLAN012R1/R2·LC인계/기존paid runtime 대조. R1§3.2의복수completionAllowed 우려를 실Mongo characterization 신규1개로재현: 같은group replacement확정뒤 S1/S2 모두ACTIVE/confirmedAt/terminal없음·S1completionAllowed. 선별test성공. 신규runtime코드변경없음.
+- LC /Users/msde76/app-back-end-learning-core HEADf59cf28 작업트리 읽기: AccessRevocationStore 비보호SessionaccessRevoked, ExamAcceptedWorkPolicy 접수작업도먼저거절, GradingService 연결확인. LC실행/배포조회는없음. Billing과LC 공동E2E 성공주장없음.
+- 단일confirmedSessionId/기접수작업완료의 의미를 임의변경할수없어 환불전달구현중단. 새wire/배열/자동terminal/접수작업권한확대없음. 기술확인인계서/CURRENT_STATE/본기록작성. 기존코어OFF·ON기동거절유지, Jira쓰기/외부메시지/LC수정/실DB/배포없음. 전체clean test실행중이며최종결과별도append. 예상밖변경없음.
+- 최종 `./gradlew clean test` BUILD SUCCESSFUL(3m6s), XML 집계 1,603개/실패0/오류0/skip0. 신규 재현1개 포함이며 LC 실행·공동 HTTP·배포 검증을 뜻하지 않는다. TMI220 테스트와 문서는 미커밋이며 제품 구현은 공동 보호 의미 확인 대기다.
+
+## 2026-10-14 — TMI-220 기접수 작업 경계 문서 보완
+
+- 브랜치 codex/TMI-220-refund-cleanup-delivery. 사용자 「이렇게 하자 문서 보완해줘」에 따라 clarification/R2/LC 인계/PLAN012/R1/ADR004/환불 정책/AGENTS/CURRENT_STATE를 동기화했다. 기존 조사·재현 테스트와 원 작업 폴더의 TMI217 변경은 보존했다.
+- 환불 전 confirm·재시작 전 영속 접수 작업만 완료, 신규 제출/새 녹음/새 Session 금지. 일부 문항으로 전체 완료/Summary를 추정하지 않으며 삭제·탈퇴·확정 종료 우선. Billing 과거 Session 이벤트는 해당 Session/이용 증거만 반영, 현재 group/Session/새 guard 불변. 단일 confirmedSessionId/wire/fixture/인증/금융 규격 유지.
+- C01~C06와 H11~H13 예정 회귀를 명시했다. 이번은 문서만 변경해 Gradle 재실행 없음; 이전 1,603 통과를 보완 구현 검증으로 재사용하지 않는다. diff/로컬 링크 정적 검증 수행. 코드/LC 저장소/Jira/외부 발송/commit/push/DB/배포 변경 없으며 예상 밖 변경 없음.
+- 다음: LC에 보완 문서를 전달하고 영속 접수·순서 판정/과거 이벤트 허용 전이 근거를 대조한 뒤 담당 범위 구현 및 공동 경합 검증. 정책 방향 승인을 구현 완료·공동 E2E 통과로 표시하지 않는다.
+
+## 2026-10-14 — TMI-220 LC 회신 접수·테스트 번호 정정
+
+- codex/TMI-220-refund-cleanup-delivery에서 사용자 반영 요청 수행. LC 정적 회신을 clarification §3.1·PLAN012 R1·LC 인계서에 반영하고 CURRENT_STATE 갱신. pendingAt 최초 접수 사용 금지, retry0 receipt/3일 TTL 및 전체접수 marker의 한계, 서버 시각만으로 commit 순서 추정 금지, Callback/기존 시스템 재시도/Summary/원 Session terminal·Billing late event 검증 범위를 명시했다.
+- 기존 H11~H13 내용/번호 유지, 신규 중복 세 항목만 H14~H16으로 정정하고 표 연속성 복구. LC 회신의 새 H11/H12/H13→H14/H15/H16 및 C01~C06 매핑 추가. 과거 WORKLOG는 보존한다. 공유 fixture ID/bytes·wire·단일 보호 ID·정책은 불변이다.
+- 문서 변경만으로 Gradle 미실행. diff/문서 링크·H01~H16 유일성 검사 수행. 기존 코드/재현 테스트 변경은 보존하며 이번 코드/LC 저장소/Jira/외부 발송/commit/push/DB/배포 변경 없음. 예상 밖 변경 없음. 다음은 양측 담당 구현 및 독립/공동 경합 검증이며 이번 회신을 구현·공동 E2E 완료로 표시하지 않는다.
+
+## 2026-10-14 — TMI-220 Billing 과거 Session 이벤트 보완 구현
+
+- 브랜치 codex/TMI-220-refund-cleanup-delivery. 사용자 보완 요청, Jira220 읽기 및 최신 승인 문서 대조 후 PaidAttemptEventService를 수정했다. LC 저장소는 변경하지 않았다. 과거 ACTIVE S1의 confirm/completionAllowed/source/owner/lifecycle 검증 후 terminal만 반영하고 현재 group/S2/guard를 쓰지 않는다. 과거 GRADING은 STALE/204로 저장해 현재 group을 채점 중으로 바꾸지 않는다. exact owner-rebind terminal cleanup과 inbox/이용 원장 단일Tx는 유지한다.
+- HistoricalPaidSessionEventIntegrationTest 실Mongo8개 추가: 실제 환불코어 후 late 완료/실패, 중복·역순, group/S2/guard 보존, missing confirm/permission·source mismatch, 삭제/탈퇴, 원장실패 rollback, 동시duplicate, 새pending guard 보존. LC 접수/부분문항/Summary 판정을 가짜 통과로 대체하지 않으며 C04~C06/H16의 Billing 범위다.
+- 선별 테스트 성공 후 첫 clean test는 1,611개 중 신규 테스트 데이터1건 실패: pendingOperationId만 세팅해 guard all-or-none schema 위반. 테스트의 pendingReservationId/pendingGroupId를 함께 설정하도록 수정했고 전체 재실행 중이다. 제품 코드 수정 사유가 아니며 최종 결과는 후속 기록한다.
+- runbook·PLAN012 R1·clarification·AGENTS·CURRENT_STATE 갱신. diff/문서 링크 정적검사 통과. wire/fixture·단일confirmedSessionId/금융root/기본OFF 불변. 원 작업폴더TMI217 및 기존 dirty 변경 보존, 이번 범위 밖 코드/LC/Jira/외부 메시지/commit/push/실DB/배포 변경 없음.
+- 다음: LC exact 접수/Callback/시스템 재시도/Summary 보완 및 실제 공동 HTTP 경합, TMI217 최종 삭제 접점 대조, TMI220 환불 정리/outbox/publisher. 이번 보완을 TMI220 전체 완료·공동 E2E·활성화 승인으로 표시하지 않는다.
+- 최종 `./gradlew clean test` BUILD SUCCESSFUL(3m12s), XML 집계 1,611개/실패0/오류0/skip0. 신규8개 모두 통과. 앞선 실패는 테스트 guard 데이터의 all-or-none 수정으로 해소됐다. diff/문서 링크 검사 통과, 실제 LC/Store/배포 검증 미수행. 변경은 로컬 미커밋이다.

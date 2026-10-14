@@ -1,5 +1,9 @@
 # 토선생 Billing Service Codex 작업 규칙
 
+> 2026-10-14 TMI-220 한정 보완: [과거 Session 이벤트 안내](docs/runbooks/TMI-220-historical-session-events.md). Billing 과거 ACTIVE Session의 confirm/completionAllowed/source/owner/lifecycle을 검증해 terminal·이용 원장만 반영하며 현재 group/Session/새 guard는 보존한다. 과거 GRADING은 STALE/204, LC 작업별 접수 검증을 대신하지 않는다. 환불 정리/publisher·LC 보완·공동 E2E·최종 삭제보존 연동은 후속이며 기본 OFF 유지. 아래 문서만 변경 설명은 해당 후속 코드 보완 범위에서 갱신한다.
+
+> 2026-10-14 사용자 문서 보완 승인: [TMI-220 기접수 작업 경계](docs/contracts/TMI-220-REFUND-PROTECTED-SESSION-CLARIFICATION.md). 단일 confirmedSessionId 유지. 환불 전 confirm·재시작 전 영속 접수된 과거 Session 작업만 마무리하며 신규 제출/새 녹음/새 Session은 금지한다. 일부 문항으로 전체 완료/Summary를 허용하지 않는다. 삭제·탈퇴·확정 종료 우선, Billing late event는 해당 Session/이용 증거만 반영하고 현재 group·Session·새 guard 불변. 아래 exact Session만 완료 표현은 이 범위에서 보완한다. 이번은 문서 변경이며 구현·공동 E2E·LC 수정·배포 승인이 아니다.
+
 > 2026-10-14 TMI-219: [환불 코어 안내](docs/runbooks/TMI-219-refund-ledger.md). 승인된 내부 refundEvidence·legacy digest·r7 명시schema, 원장/구매차단/appliedAt/reflow/refundWork의 단일Tx를 추가했다. 기존 paid root CAS/confirm replay·무료복원권 보존. 두flag 기본OFF이며 TMI-220 정리/전달·실provider 검증 전 processing ON 기동거절. actual Store adapter/LC 전달/실DB·배포·활성화 완료 아님. 아래 PLAN012 전체 미구현 설명은 이 내부코어 범위에서 대체한다.
 
 > 2026-10-14 TMI-216 Billing 연결: [런타임 안내](docs/runbooks/TMI-216-lc-paid-exam-integration.md)·[상태28 대응표](docs/runbooks/TMI-216-shared-state-verification.md). paid HTTP/lifecycle/expiry, source별 v1 상태 이벤트·guard·구매 이용 원장, read-only 통합 reader를 연결했다. 기본 OFF; admission ON은 foundation/recovery·MEMBER writer·LC receiver/event·통합 reader·r3/r6 schema를 요구한다. source-aware 구 writer 우회 금지. Guest/legacy coverage·LC P3 이후 전체공동검증·삭제보존217·PLAN012/013 활성화 gate는 남는다. TMI215는 commit34ad2f1·PR19 develop merge5d16ba4 완료,216은 feat/TMI-216-lc-paid-exam-integration 작업이다. 아래 admission 일괄 기동 거절/HTTP 미연결 표현은 해당 구현 범위에서 과거 기록이다.

@@ -21,7 +21,7 @@
 
 LC 저장은 **그룹별 단일 revoke 문서**로 접수 멱등성과 deny/보호 예외를 함께 처리한다. 별도 inbox collection을 추가하지 않는다. eventId/group 유일성·원자성·최초 불변 사실은 유지한다. 이 문서의 종전 inbox/deny 표현은 논리적 역할이지 두 저장소 요구가 아니다. 단일 문서의 폐기 기준은 P6에서 확인하며 옛 inbox120일 표현을 문서 전체 TTL 삭제로 전용하지 않는다. 원본 R2/fixture bytes는 그대로 보존한다.
 
-H01~H13 공동 검증은 미완료다. 이번 LC 회신은 검토·기록만 수행한 결과이며 새 코드/배포 변경을 뜻하지 않는다. LC P2~P6과 Billing PLAN-012 P0~P4는 서로 다른 단계 번호다.
+H01~H16 공동 검증은 미완료다. 이번 LC 회신은 검토·기록만 수행한 결과이며 새 코드/배포 변경을 뜻하지 않는다. LC P2~P6과 Billing PLAN-012 P0~P4는 서로 다른 단계 번호다.
 
 ## 1. 5줄 결론
 
@@ -78,7 +78,7 @@ H01~H13 공동 검증은 미완료다. 이번 LC 회신은 검토·기록만 수
 
 ## 4. 주요 위험과 미확인 사항
 
-- group 동일성만 확인하면 환불 뒤 무제한 재응시 우회가 생긴다. 예외는 exact Session 하나이며 currentSession으로 대체하지 않는다.
+- group 동일성만 확인하면 환불 뒤 무제한 재응시 우회가 생긴다. 기존 제출을 이어갈 보호 예외는 exact Session 하나이며 currentSession으로 대체하지 않는다. 별도로 환불 전 confirm·재시작 전 영속 접수된 과거 Session 작업만 마무리하며 신규 제출 권한은 부여하지 않는다.
 - 늦게 온 revoke가 이미 terminal인 Session을 다시 열어서는 안 된다. 먼저 온 revoke도 confirm 성공 증거를 무시한 무조건 종료 근거가 아니다.
 - confirm/refund 선후는 Billing Tx/CAS 기준이다. providerConfirmedAt·LC 수신시각·클라이언트 발생시각 비교로 바꾸지 않는다.
 - Billing root 차단과 LC 반영 사이 전파 지연은 존재한다. 신규 요청은 Billing에서 최종 차단하며 LC는 전파·복구 지연을 관측한다. 즉시 전역 동기 차단을 보장한다고 보고하지 않는다.
@@ -135,8 +135,15 @@ Billing은 동일 event/body를 재전송하고 JWT/jti만 새로 발급한다. 
 | H11 | 다른 구매/무료/기지급 복원권 존재 | 보존, 새 시작은 guard/자격 통과 후만 |
 | H12 | command TTL 소실·단일 revoke 문서 보존/폐기 경계·전파 장애 | 영속 근거에서 replay/deny, 진행 중 증거 보존·자료 없음으로 권한 부여0·적체 경보 |
 | H13 | 역방향 JWT 오류·OFF/다른port·실제 DB 장애 | R2 오류/무변경 경계, 미commit204 없음 |
+| H14 | 과거 S1 confirm/접수→S2 재시작→환불, S2 보호 | S1의 기존 영속 접수 작업만 마무리, 신규 제출·새 녹음·새 Session0. 단일 confirmedSessionId 유지 |
+| H15 | S1 일부 문항 접수·Summary 요건 미충족 | 일부 접수로 전체 완료/Summary 허용0, 기존 별도 접수·완료 요건 검증 |
+| H16 | S1 late event 중복/역순과 S2·새 guard 경합, 삭제/탈퇴/terminal | Billing은 허용된 S1 상태/이용 증거만 반영, 현재 group 포인터/S2/새 guard 변경0, lifecycle 우선 |
 
-Billing 담당: 금융/root/source/confirm·guard·불변 outbox·발신 및 Mongo 경합. LC 담당: receiver 원자성·operation/status 복구·Session 제출/Job/lifecycle·공개 오류. 양측 공동: H03~H10의 실제 HTTP/응답유실·동시성 및 실환경 gate.
+H14~H16은 2026-10-14 사용자 승인 [기접수 작업 보완](TMI-220-REFUND-PROTECTED-SESSION-CLARIFICATION.md)의 구현 예정 기준이다. 기존 H11~H13은 유지했고 중복됐던 새 세 항목만 재번호했다. LC 회신의 “새 H11/H12/H13”은 각각 H14/H15/H16으로 읽는다. C01·C02→H14, C03→H15, C04·C05→H16이며 C06은 공통 음성 경계다. 원 fixture ID/bytes는 변경하지 않는다.
+
+LC 회신 접수: retry0 receipt·전체접수 marker·접수차단 operation/confirm snapshot은 재사용 후보지만 새 예외 처리는 미구현이다. 변경되는 Job pendingAt을 최초 접수 증거로 쓰지 않는다. Callback·시스템 재시도·Summary·원 Session terminal 경로까지 exact 증거를 검증하고, Billing은 과거 Session 이벤트를 보완한다. 상세 증거/TTL/순서 조건은 보완 문서 §3.1을 따른다. 이번 기록은 외부 회신 발송·코드/공동 E2E 완료가 아니다.
+
+Billing 담당: 금융/root/source/confirm·guard·불변 outbox·발신 및 Mongo 경합. LC 담당: receiver 원자성·operation/status 복구·Session 제출/Job/lifecycle·공개 오류. 양측 공동: H03~H10 및 H14~H16의 실제 HTTP/응답유실·동시성 및 실환경 gate.
 
 코드 구현 후 각 저장소 단위/실제 Mongo/HTTP/공동 E2E 결과를 분리해 보고한다. 테스트 시 실제 결제/환불을 무단 실행하지 않는다. LC reader/receiver와 보호 예외가 준비된 뒤 publisher·환불 processor를 검증하고 유료 admission/판매는 마지막에 별도 승인한다. 구 GRADING-only consumer로 무조건 rollback하지 않는다.
 
