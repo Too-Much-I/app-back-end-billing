@@ -1,5 +1,7 @@
 # 토선생 Billing Service Codex 작업 규칙
 
+> 2026-10-14 TMI-219: [환불 코어 안내](docs/runbooks/TMI-219-refund-ledger.md). 승인된 내부 refundEvidence·legacy digest·r7 명시schema, 원장/구매차단/appliedAt/reflow/refundWork의 단일Tx를 추가했다. 기존 paid root CAS/confirm replay·무료복원권 보존. 두flag 기본OFF이며 TMI-220 정리/전달·실provider 검증 전 processing ON 기동거절. actual Store adapter/LC 전달/실DB·배포·활성화 완료 아님. 아래 PLAN012 전체 미구현 설명은 이 내부코어 범위에서 대체한다.
+
 > 2026-10-14 TMI-216 Billing 연결: [런타임 안내](docs/runbooks/TMI-216-lc-paid-exam-integration.md)·[상태28 대응표](docs/runbooks/TMI-216-shared-state-verification.md). paid HTTP/lifecycle/expiry, source별 v1 상태 이벤트·guard·구매 이용 원장, read-only 통합 reader를 연결했다. 기본 OFF; admission ON은 foundation/recovery·MEMBER writer·LC receiver/event·통합 reader·r3/r6 schema를 요구한다. source-aware 구 writer 우회 금지. Guest/legacy coverage·LC P3 이후 전체공동검증·삭제보존217·PLAN012/013 활성화 gate는 남는다. TMI215는 commit34ad2f1·PR19 develop merge5d16ba4 완료,216은 feat/TMI-216-lc-paid-exam-integration 작업이다. 아래 admission 일괄 기동 거절/HTTP 미연결 표현은 해당 구현 범위에서 과거 기록이다.
 
 > 2026-10-14 TMI-215 구현: [유료 예약·복원 안내](docs/runbooks/TMI-215-paid-reservation-restoration.md). paid-first/동일 source replacement/phone target INITIAL·confirm/무료 hold/최초 trial 소비당 복원1회·원 group 재응시 차단·receipt/이용 원장을 단일 ClientSession으로 구현했다. r3 receipt/r5 payment ledger는 명시 maintenance만 가능하며 실DB 설치 없음. 기본 OFF/paid-admission 기동 거절 유지. HTTP/상태 이벤트 MEMBER 귀속·reader/expiry 연결/LC 전체28 검증은216, 삭제보존217·PLAN012/013 활성화 gate 별도. TMI214는 사용자 승인 commit3691f98·PR18 develop mergeebaf8d8 완료,215는 feat/TMI-215-paid-reservation-restoration 로컬 변경이다.

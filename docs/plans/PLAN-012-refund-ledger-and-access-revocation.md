@@ -1,8 +1,10 @@
 # PLAN-012: 전액·부분 환불 원장·기간 재배치·시험 접근 철회
 
+> 2026-10-14 구현 갱신: 사용자 Git 병합 후 다음 구현 승인으로 TMI-219 내부 환불 코어를 추가했다. [구현·이관 안내](../runbooks/TMI-219-refund-ledger.md)를 따른다. TMI-220 정리/LC 전달·TMI-221 운영/실Store 검증은 후속이며 processing ON 기동 거절을 유지한다. 아래 설계 당시 미착수 표현은 해당 코어 범위에서 대체한다. API/공동 wire·실DB·배포/활성화는 변경하지 않았다.
+
 - 작성일: 2026-10-06 / 갱신일: 2026-10-14
-- 상태: PLAN-011 진행 중 선행 설계 보완. 승인된 제품 정책은 유지하고 내부 금융/schema/worker exact는 P0에서 동결한다. 코드 구현·LC 변경·실제 환불·배포 승인이 아니다.
-- 관련: 상위 TMI-137, PLAN-011 TMI-213~217. 이번에 PLAN-012 Jira 생성·조회·변경은 하지 않았다.
+- 상태: TMI-219 내부 금융 코어 구현, 기본 OFF. TMI-220 정리·전달 / TMI-221 운영·실환경 검증 후속. 실제 Store 환불·배포·판매 활성화 승인이 아니다.
+- 관련: 상위 TMI-137, PLAN-011 TMI-213~217, PLAN-012 TMI-219→220→221.
 - 선행: [PLAN-010](PLAN-010-purchase-ingestion-and-timeline.md), [PLAN-011](PLAN-011-paid-reservation-and-usage-evidence.md), [ADR-004](../adr/ADR-004-fixed-term-premium-payment-contract.md).
 - 기준: [confirm 선행 보호 정책](../contracts/PAYMENT-CONFIRMED-SESSION-REFUND-POLICY-2026-10-13.md), [R2 §5 revoke](../contracts/LC-BILLING-PAID-EXAM-CONTRACT-R2.md), [단순화 한정 수락](../contracts/LC-BILLING-PAID-EXAM-SIMPLIFIED-R1-ACCEPTANCE.md). 한정 수락은 전체 환불 runtime 완료가 아니다.
 - 개정 전 상세 전문은 [이력](PLAN-012-HISTORY-BEFORE-REFRESH-2026-10-14.md)에 보존한다. 종전 GRADING-only·별도 채점 승인 API·SigV4·group/version revoke는 현재 요구사항이 아니다. 고정 공동 계약/fixture bytes는 변경하지 않는다.
@@ -97,7 +99,7 @@ RevenueCat 고객 수동 삭제의 5영업일/30일 안은 아직 추천이다. 
 | LC 전달 실패 | 금융 rollback 금지·durable retry·인증 차단·지연 경보 |
 | RC 고객 삭제 후 조회 불가 | 필요한 최소 증거/미결 책임 인계. 삭제를 미구매/환불취소로 해석 금지 |
 
-현재 [PurchaseCore](../../src/main/java/web/tosunsaeng/billing/domain/payment/purchase/PurchaseCore.java)는 최초 reversal fence/검토 경로를 갖지만 기존 지급분 종료는 PLAN-012에 남겨 둔다. 이를 환불 원장·reflow·LC 전달 완료로 보고하지 않는다. 011 구현 상태는 해당 계획/runbook을 따른다. 이번에 코드 테스트·외부 provider 조회는 수행하지 않았다.
+현재 [PurchaseCore](../../src/main/java/web/tosunsaeng/billing/domain/payment/purchase/PurchaseCore.java)는 TMI-219에서 내부 환불 evidence·기존 지급분 종료·금전 원장·reflow·정리 책임 등록을 추가했다. evidence 없는 기존 입력은 기존 reversal fence/검토 경로다. 실제 provider 매핑/정리 runtime/LC 전달이 완료됐다는 뜻은 아니며 활성화는 거절한다. 테스트와 미확인 범위는 [구현 안내](../runbooks/TMI-219-refund-ledger.md)를 따른다.
 
 ## 5. 현재 작업과 직접 관련된 구현 계획
 
