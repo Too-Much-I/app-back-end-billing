@@ -35,6 +35,25 @@ public class Reservation {
         return this;
     }
 
+    private web.tosunsaeng.billing.domain.reservation.paid.RestartContext restartContext;
+    private web.tosunsaeng.billing.domain.reservation.paid.ExamTransition transition;
+    private String previousGroupId;
+    private Long previousOwnerEpoch;
+    private String confirmRejection;
+    public web.tosunsaeng.billing.domain.reservation.paid.RestartContext getRestartContext() { return restartContext; }
+    public web.tosunsaeng.billing.domain.reservation.paid.ExamTransition getTransition() { return transition; }
+    public String getPreviousGroupId() { return previousGroupId; }
+    public Long getPreviousOwnerEpoch() { return previousOwnerEpoch; }
+    public String getConfirmRejection() { return confirmRejection; }
+    public Reservation withTransitionContext(web.tosunsaeng.billing.domain.reservation.paid.RestartContext context,
+            String previousGroupId, Long epoch) {
+        if (this.previousGroupId != null) throw new IllegalStateException("Immutable transition context");
+        this.restartContext = context; this.previousGroupId = previousGroupId; this.previousOwnerEpoch = epoch;
+        if (context != null && reservationKind == Kind.INITIAL)
+            this.transition = new web.tosunsaeng.billing.domain.reservation.paid.ExamTransition(context.previousAttemptGroupId(), context.previousSessionId());
+        return this;
+    }
+
     @Id
     private String id;
     private String reservationId;

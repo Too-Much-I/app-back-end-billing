@@ -14,7 +14,15 @@ public final class PurchaseCoreSchema {
     record Definition(Document validator, List<Index> indexes) {}
 
     static Map<String, Definition> manifest() {
-        return manifest(true, true, true);
+        var result = manifest(true, true, true);
+        Definition old = result.get("payment_ledger");
+        Document exam = schema(fields("_id", id(), "effectKey", type("string"),
+                "type", values("EXAM_RESERVED", "EXAM_CONFIRMED", "EXAM_CANCELED", "EXAM_EXPIRED"),
+                "purchaseId", id(), "entitlementId", id(), "occurredAt", type("date"),
+                "sourceKind", values("EXAM_OPERATION"), "operationId", id(), "reservationId", id(),
+                "detail", schema(fields("attemptGroupId", id(), "sessionId", type("string"))).get("$jsonSchema")));
+        result.put("payment_ledger", new Definition(new Document("$or", List.of(old.validator(), exam)), old.indexes()));
+        return result;
     }
     static Map<String, Definition> manifest(boolean moneyEvidence) {
         return manifest(moneyEvidence, false);
@@ -115,7 +123,7 @@ public final class PurchaseCoreSchema {
         catch (IllegalStateException oldOrInvalid) { /* Verify exact old manifest before modifying. */ }
         try { verify(db); return; } catch (IllegalStateException oldOrInvalid) { /* Already r3 is also valid. */ }
         manifest(false).forEach((name, definition) -> verifyOne(db, name, definition));
-        db.runCommand(new Document("collMod", "payment_ledger").append("validator", manifest().get("payment_ledger").validator())
+        db.runCommand(new Document("collMod", "payment_ledger").append("validator", manifest(true).get("payment_ledger").validator())
                 .append("validationLevel", "strict").append("validationAction", "error"));
         manifest(true).forEach((name, definition) -> verifyOne(db, name, definition));
     }
@@ -141,7 +149,12 @@ public final class PurchaseCoreSchema {
         var controls = db.getCollection(PaymentRecoveryFence.COLLECTION).find().into(new ArrayList<>());
         if (!isolated || controls.isEmpty() || controls.stream().anyMatch(c -> !"ALL_BLOCKED".equals(c.getString("barrier")))) throw mismatch();
         String name = "payment_provider_inbox";
-        manifest().forEach((n, d) -> { if (!n.equals(name)) verifyOne(db, n, d); });
+        manifest().forEach((n, d) -> {
+            if (!n.equals(name)) {
+                try { verifyOne(db, n, d); }
+                catch (IllegalStateException previous) { if (!n.equals("payment_ledger")) throw previous; verifyOne(db, n, manifest(true, true, true).get(n)); }
+            }
+        });
         Definition old = manifest(true, true).get(name), target = manifest().get(name);
         boolean valid = false;
         for (var v : List.of(old.validator(), target.validator())) for (var indexes : List.of(old.indexes(), target.indexes())) {
@@ -150,6 +163,16 @@ public final class PurchaseCoreSchema {
         if (!valid) throw mismatch();
         db.runCommand(new Document("collMod", name).append("validator", target.validator()).append("validationLevel", "strict").append("validationAction", "error"));
         Index index = target.indexes().getLast(); db.getCollection(name).createIndex(index.keys(), new IndexOptions().name(index.name()).unique(false));
+        try { verify(db); } catch (IllegalStateException previous) { manifest(true, true, true).forEach((n, d) -> verifyOne(db, n, d)); }
+    }
+    /** Explicit r4 -> r5, prior writers isolated; no automatic startup modification. */
+    public static void upgradeExamUsageUnderMaintenance(MongoDatabase db, boolean isolated) {
+        var controls = db.getCollection(PaymentRecoveryFence.COLLECTION).find().into(new ArrayList<>());
+        if (!isolated || controls.isEmpty() || controls.stream().anyMatch(c -> !"ALL_BLOCKED".equals(c.getString("barrier")))) throw mismatch();
+        try { verify(db); return; } catch (IllegalStateException previous) { /* Verify exact r4 before DDL. */ }
+        manifest(true, true, true).forEach((name, definition) -> verifyOne(db, name, definition));
+        db.runCommand(new Document("collMod", "payment_ledger").append("validator", manifest().get("payment_ledger").validator())
+                .append("validationLevel", "strict").append("validationAction", "error"));
         verify(db);
     }
     private static void verifyOne(MongoDatabase db, String name, Definition definition) {

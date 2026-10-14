@@ -46,6 +46,10 @@ public final class MemberOperationRecovery {
         recoveryFence = new PaymentRecoveryFence(store, properties);
     }
     public Result reserve(ReserveCommand command, Admission admission) {
+        return reserve(command, admission, (context, account) -> true);
+    }
+    public Result reserve(ReserveCommand command, Admission admission,
+            java.util.function.BiPredicate<PaidExamTransactions.Context, Document> requiresMember) {
         Objects.requireNonNull(admission);
         var key = key(command.userId(), command.operationId());
         Document request = request(command);
@@ -58,21 +62,22 @@ public final class MemberOperationRecovery {
                 boolean newlyCreated = existing == null;
                 if (existing != null) {
                     owner(existing, account);
+                    reservationOwner(context, existing, account);
                     if (!command.payloadHash().equals(existing.getString("payloadHash"))) throw ReservationException.idempotencyConflict();
-                    if (!Long.valueOf(2).equals(existing.get("schemaVersion")) || !request.equals(existing.get("requestSnapshot")))
+                    if (!Set.of(2L, 3L).contains(existing.get("schemaVersion")) || !request.equals(existing.get("requestSnapshot")))
                         throw ReservationException.temporarilyUnavailable(); // Legacy/missing evidence must never be reconstructed.
                     consistency(context, existing);
                     if (!"WAITING_MEMBER_EVIDENCE".equals(existing.getString("state"))) return existing;
                 } else {
                     // This path cannot replace an operation whose command cache or durable reservation already exists.
-                    if (context.operations().exists(new BasicQuery(new Document("callerService", "LEARNING_CORE")
-                            .append("operationId", key.operationId()).append("subjectRefId", account.getString("paidSubjectRefId"))), "reservations"))
+                    if (!existingReservations(context, account, key.operationId()).isEmpty())
                         throw ReservationException.temporarilyUnavailable();
                     existing = context.paid().insertWaiting(key, command.payloadHash(), owner(account), clock.instant(), request);
                 }
+                boolean membershipRequired = requiresMember.test(context, account);
                 Document evidence = account.get("memberEvidence", Document.class);
-                if (evidence == null) return existing;
-                if (!VerifiedMemberEvidence.matches(evidence, key.userId(), properties.getEnvironment(), issuer))
+                if (membershipRequired && evidence == null) return existing;
+                if (membershipRequired && !VerifiedMemberEvidence.matches(evidence, key.userId(), properties.getEnvironment(), issuer))
                     throw ReservationException.temporarilyUnavailable();
                 Optional<String> reservationId = admission.reserve(context, command);
                 boolean saved;
@@ -83,7 +88,7 @@ public final class MemberOperationRecovery {
                     Reservation reservation = context.reservations().findById(reservationId.get()).orElseThrow(ReservationException::temporarilyUnavailable);
                     if (!command.operationId().equals(reservation.getOperationId()) || !command.payloadHash().equals(reservation.getPayloadHash())
                             || !command.sessionId().equals(reservation.getProposedSessionId()) || !command.mockExamId().equals(reservation.getMockExamId())
-                            || !account.getString("paidSubjectRefId").equals(reservation.getSubjectRefId())
+                            || !owns(context, account, reservation)
                             || reservation.getSourceSnapshot() == null || reservation.getStatus() != Reservation.Status.RESERVED)
                         throw ReservationException.temporarilyUnavailable();
                     saved = context.paid().reserveWaiting(key, command.payloadHash(), existing.getLong("version"), reservationId.get(),
@@ -115,6 +120,7 @@ public final class MemberOperationRecovery {
                 if (receipt == null) return Optional.empty(); // Existing free status remains authoritative for its own operations.
                 Document account = currentAccount(context, key, false);
                 owner(receipt, account);
+                reservationOwner(context, receipt, account);
                 consistency(context, receipt);
                 outcome(receipt, true);
                 Reservation r = context.reservations().findById(receipt.getString("reservationId"))
@@ -123,11 +129,12 @@ public final class MemberOperationRecovery {
                 return Optional.of(new ReservationStatusResult(operationId, r.getReservationId(), r.getReservationKind(), r.getStatus(),
                         r.getAttemptGroupId(), groupStatus, r.getProposedSessionId(), r.getMockExamId(), r.getContinuationReason(),
                         r.getContinuationId(), r.getExpiresAt(), r.getTerminalAt(),
-                        EntitlementSourceSnapshot.Type.valueOf(receipt.get("source", Document.class).getString("type"))));
+                        EntitlementSourceSnapshot.Type.valueOf(receipt.get("source", Document.class).getString("type")), r.getTransition(),
+                        r.getConfirmRejection() == null ? null : new ReservationStatusResult.ConfirmRejection(r.getConfirmRejection())));
             });
         });
     }
-    private Document currentAccount(PaidExamTransactions.Context context, PaidExamStore.Key key, boolean write) {
+    Document currentAccount(PaidExamTransactions.Context context, PaidExamStore.Key key, boolean write) {
         var query = new Document("environment", properties.getEnvironment()).append("userId", key.userId());
         Document lifecycle = context.operations().findOne(new BasicQuery(query), Document.class, "payment_account_lifecycles");
         Document account = context.operations().findOne(new BasicQuery(query), Document.class, "payment_accounts");
@@ -150,7 +157,7 @@ public final class MemberOperationRecovery {
         return new Document("kind", "MEMBER_ACCOUNT").append("reference", account.getString("_id"))
                 .append("version", account.getLong("version")).append("epoch", null);
     }
-    private static void owner(Document receipt, Document account) {
+    static void owner(Document receipt, Document account) {
         Document owner = receipt.get("owner", Document.class);
         if (owner == null || !"MEMBER_ACCOUNT".equals(owner.getString("kind")) || owner.get("epoch") != null
                 || !Objects.equals(account.getString("_id"), owner.getString("reference"))) throw ReservationException.operationOwnerMismatch();
@@ -158,17 +165,31 @@ public final class MemberOperationRecovery {
             throw ReservationException.temporarilyUnavailable();
         // Account version advances naturally on evidence refresh; it is not an identity/owner epoch.
     }
+    private static void reservationOwner(PaidExamTransactions.Context context, Document receipt, Document account) {
+        if (receipt.getString("reservationId") == null) return;
+        Reservation reservation = context.reservations().findById(receipt.getString("reservationId"))
+                .orElseThrow(ReservationException::temporarilyUnavailable);
+        if (!owns(context, account, reservation)) throw ReservationException.operationOwnerMismatch();
+    }
+    private static List<Reservation> existingReservations(PaidExamTransactions.Context context, Document account, String operationId) {
+        List<String> subjects = new ArrayList<>(); subjects.add(account.getString("paidSubjectRefId"));
+        context.operations().find(new BasicQuery(new Document("userId", account.getString("userId"))), Document.class, "billing_subject_links")
+                .forEach(link -> subjects.add(link.getString("subjectRefId")));
+        return context.operations().find(new BasicQuery(new Document("callerService", "LEARNING_CORE")
+                .append("operationId", operationId).append("subjectRefId", new Document("$in", subjects))).limit(2), Reservation.class);
+    }
     private static void consistency(PaidExamTransactions.Context context, Document receipt) {
         String state = receipt.getString("state");
         Document accountOwner = receipt.get("owner", Document.class);
         Document account = context.operations().findById(accountOwner.getString("reference"), Document.class, "payment_accounts");
         if (account == null) throw ReservationException.temporarilyUnavailable();
-        List<Reservation> reservations = context.operations().find(new BasicQuery(new Document("callerService", "LEARNING_CORE")
-                .append("subjectRefId", account.getString("paidSubjectRefId")).append("operationId", receipt.getString("operationId"))).limit(2), Reservation.class);
+        List<Reservation> reservations = receipt.getString("reservationId") == null
+                ? existingReservations(context, account, receipt.getString("operationId"))
+                : context.reservations().findById(receipt.getString("reservationId")).map(List::of).orElse(List.of());
         if (Set.of("WAITING_MEMBER_EVIDENCE", "FAILED_TERMINAL").contains(state)) {
             if (!reservations.isEmpty()) throw ReservationException.temporarilyUnavailable();
         } else {
-            if (reservations.size() != 1 || !Objects.equals(reservations.getFirst().getReservationId(), receipt.getString("reservationId"))
+            if (reservations.size() != 1 || !owns(context, account, reservations.getFirst()) || !Objects.equals(reservations.getFirst().getReservationId(), receipt.getString("reservationId"))
                     || !Objects.equals(reservations.getFirst().getPayloadHash(), receipt.getString("payloadHash"))
                     || reservations.getFirst().getSourceSnapshot() == null)
                 throw ReservationException.temporarilyUnavailable();
@@ -195,24 +216,39 @@ public final class MemberOperationRecovery {
         }
     }
     private PaidExamStore.Key key(String userId, String operationId) { return new PaidExamStore.Key(environment, userId, operationId, "RESERVE"); }
-    private static Document request(ReserveCommand c) {
+    static Document request(ReserveCommand c) {
         for (String token : List.of(c.sessionId(), c.mockExamId()))
             if (token.isBlank() || token.length() > 128 || !token.equals(token.strip()) || token.chars().anyMatch(Character::isISOControl))
                 throw InternalApiException.invalidRequest();
         if ((c.continuationReason() == null) != (c.continuationId() == null)
                 || (c.continuationReason() == null) != (c.expectedAttemptGroupId() == null)) throw InternalApiException.invalidRequest();
-        ReserveRequest request = new ReserveRequest(c.userId(), c.sessionId(), c.mockExamId(), c.continuationReason(), c.continuationId(), c.expectedAttemptGroupId());
+        ReserveRequest request = new ReserveRequest(c.userId(), c.sessionId(), c.mockExamId(), c.continuationReason(), c.continuationId(), c.expectedAttemptGroupId(), c.restartContext());
         if (!new ReservePayloadHasher().hash(request).equals(c.payloadHash())) throw InternalApiException.invalidRequest();
-        return new Document("userId", c.userId()).append("sessionId", c.sessionId()).append("mockExamId", c.mockExamId())
+        Document snapshot = new Document("userId", c.userId()).append("sessionId", c.sessionId()).append("mockExamId", c.mockExamId())
                 .append("continuationReason", c.continuationReason() == null ? null : c.continuationReason().name())
                 .append("continuationId", c.continuationId()).append("expectedAttemptGroupId", c.expectedAttemptGroupId());
+        if (c.restartContext() != null) {
+            if (c.continuationReason() != null) throw InternalApiException.invalidRequest();
+            snapshot.put("restartContext", new Document("previousAttemptGroupId", c.restartContext().previousAttemptGroupId())
+                    .append("previousSessionId", c.restartContext().previousSessionId()).append("startReason", c.restartContext().startReason().name()));
+        }
+        return snapshot;
     }
     private static Document snapshot(Reservation r) {
-        return new Document("operationId", r.getOperationId()).append("reservationId", r.getReservationId())
+        Document result = new Document("operationId", r.getOperationId()).append("reservationId", r.getReservationId())
                 .append("reservationKind", r.getReservationKind().name()).append("reservationStatus", "RESERVED")
                 .append("attemptGroupId", r.getAttemptGroupId()).append("sessionId", r.getProposedSessionId()).append("mockExamId", r.getMockExamId())
                 .append("continuationReason", r.getContinuationReason() == null ? null : r.getContinuationReason().name())
                 .append("continuationId", r.getContinuationId()).append("expiresAt", Date.from(r.getExpiresAt()));
+        if (r.getTransition() != null) result.put("transition", new Document("previousAttemptGroupId", r.getTransition().previousAttemptGroupId())
+                .append("previousSessionId", r.getTransition().previousSessionId()));
+        return result;
+    }
+    static boolean owns(PaidExamTransactions.Context c, Document account, Reservation r) {
+        if (account.getString("paidSubjectRefId").equals(r.getSubjectRefId())) return true;
+        Document link = c.operations().findById(r.getSubjectRefId(), Document.class, "billing_subject_links");
+        return link != null && link.getBoolean("active", false) && account.getString("userId").equals(link.getString("userId"))
+                && r.getSessionOwnerEpoch() != null && r.getSessionOwnerEpoch().equals(link.get("sessionOwnerEpoch"));
     }
     private static Document copy(Document value) { return Document.parse(value.toJson()); }
     private static <T> T translated(Supplier<T> work) {

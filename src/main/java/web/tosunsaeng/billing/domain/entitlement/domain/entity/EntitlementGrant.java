@@ -88,6 +88,8 @@ public class EntitlementGrant {
         grant.environment = environment; grant.ownerUserId = ownerUserId; grant.grantOrder = grantOrder;
         return grant;
     }
+    public Instant getCreatedAt() { return createdAt; }
+
     public String getEnvironment() { return environment; }
     public String getOwnerUserId() { return ownerUserId; }
     public Long getGrantOrder() { return grantOrder; }

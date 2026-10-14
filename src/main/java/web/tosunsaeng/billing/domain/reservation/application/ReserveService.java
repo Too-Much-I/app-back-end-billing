@@ -109,6 +109,8 @@ public class ReserveService {
     }
 
     public ReserveResult reserve(ReserveCommand command) {
+        // The legacy resolver must not silently discard the source-aware transition contract.
+        if (command.restartContext() != null) throw ReservationException.temporarilyUnavailable();
         ReserveIds ids = ReserveIds.create();
         for (int attempt = 1; attempt <= MAX_TRANSACTION_ATTEMPTS; attempt++) {
             try {

@@ -53,7 +53,7 @@ public class AttemptGroupRepository {
         Query query = Query.query(Criteria.where("attemptGroupId").is(attemptGroupId)
                 .and("version").is(expectedVersion)
                 .and("status").in(AttemptGroup.Status.OPEN, AttemptGroup.Status.RETAKE_AVAILABLE)
-                .and("openGuard").is(true));
+                .and("openGuard").is(true).and("replacementBlocked").ne(true));
         Update update = new Update()
                 .set("status", AttemptGroup.Status.OPEN)
                 .set("activeSessionId", sessionId)
@@ -115,7 +115,11 @@ public class AttemptGroupRepository {
                 .set("openGuard", true)
                 .unset("activeSessionId")
                 .inc("version", 1);
-        return findAndModify(query, update);
+        // A late failure may advance learning status but must never reopen the old group.
+        var blocked = findAndModify(Query.of(query).addCriteria(Criteria.where("replacementBlocked").is(true)),
+                new Update().set("status", AttemptGroup.Status.RETAKE_AVAILABLE).set("updatedAt", now)
+                        .unset("openGuard").unset("activeSessionId").inc("version", 1));
+        return blocked.isPresent() ? blocked : findAndModify(query.addCriteria(Criteria.where("replacementBlocked").ne(true)), update);
     }
 
     private Optional<AttemptGroup> findAndModify(Query query, Update update) {
@@ -131,7 +135,7 @@ public class AttemptGroupRepository {
     ) {
         return Query.query(Criteria.where("attemptGroupId").is(attemptGroupId)
                 .and("activeSessionId").is(sessionId)
-                .and("openGuard").is(true)
+                .orOperator(Criteria.where("openGuard").is(true), Criteria.where("replacementBlocked").is(true))
                 .and("version").is(expectedVersion));
     }
 }

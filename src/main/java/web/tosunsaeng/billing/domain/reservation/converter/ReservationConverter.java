@@ -40,7 +40,7 @@ public class ReservationConverter {
                 request.continuationReason(),
                 request.continuationId(),
                 request.expectedAttemptGroupId(),
-                reservePayloadHasher.hash(request)
+                reservePayloadHasher.hash(request), request.restartContext()
         );
     }
 
@@ -106,7 +106,8 @@ public class ReservationConverter {
                 result.operationId(), result.reservationId(), result.reservationKind(),
                 result.reservationStatus(), result.attemptGroupId(), result.attemptGroupStatus(),
                 result.sessionId(), result.mockExamId(), result.continuationReason(),
-                result.continuationId(), result.expiresAt(), result.terminalAt(), result.entitlementSource()
+                result.continuationId(), result.expiresAt(), result.terminalAt(), result.entitlementSource(), result.transition(),
+                result.confirmRejection() == null ? null : new ReservationStatusResponse.ConfirmRejection(result.confirmRejection().code())
         );
     }
 }

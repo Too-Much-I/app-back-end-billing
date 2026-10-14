@@ -3,7 +3,7 @@ package web.tosunsaeng.billing.domain.entitlement.trial.repository;
 import java.time.Instant;
 import java.util.List;
 
-import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -15,9 +15,9 @@ import web.tosunsaeng.billing.domain.eligibility.trial.domain.entity.TrialEligib
 @Repository
 public class TrialCandidateAliasRepository {
 
-    private final MongoTemplate mongoTemplate;
+    private final MongoOperations mongoTemplate;
 
-    public TrialCandidateAliasRepository(MongoTemplate mongoTemplate) {
+    public TrialCandidateAliasRepository(MongoOperations mongoTemplate) {
         this.mongoTemplate = mongoTemplate;
     }
 

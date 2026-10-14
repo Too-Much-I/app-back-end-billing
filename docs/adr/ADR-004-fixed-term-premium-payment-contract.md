@@ -1,5 +1,7 @@
 # ADR-004: RevenueCat 기반 fixed-term premium 결제 계약
 
+> 2026-10-14 TMI-215 구현: [유료 예약·복원 안내](../runbooks/TMI-215-paid-reservation-restoration.md). paid-first/동일 source replacement/phone target INITIAL·confirm/무료 hold/최초 trial 소비당 복원1회·원 group 재응시 차단·receipt/이용 원장을 단일 ClientSession으로 구현했다. r3 receipt/r5 payment ledger는 명시 maintenance만 가능하며 실DB 설치 없음. 기본 OFF/paid-admission 기동 거절 유지. HTTP/상태 이벤트 MEMBER 귀속·reader/expiry 연결/LC 전체28 검증은216, 삭제보존217·PLAN012/013 활성화 gate 별도. TMI214는 사용자 승인 commit3691f98·PR18 develop mergeebaf8d8 완료,215는 feat/TMI-215-paid-reservation-restoration 로컬 변경이다.
+
 > 2026-10-14 TMI-214 구현 동기화: 기존 purchase-account의 검증 principal→최소 MEMBER evidence를 lifecycle CAS와 같은 Tx로 저장한다. MEMBER operation은 대기 commit→503, status read-only, 동일 key HTTP 재개, J3 terminal/status·첫 source snapshot 복구를 제공한다. [구현/설정/schema 경계](../runbooks/TMI-214-member-evidence-operation-recovery.md)를 따른다. Identity 신규 claim/API 없음, raw JWT 없음, legacy 무료 source 추정 없음. paid resolver 연결·LC 런타임28시나리오·삭제보존·배포는 후속이다. 불변 공동 계약/fixture는 변경하지 않는다.
 
 > 2026-10-14 TMI-213 구현: [paid-exam-foundation-r1 안내](../runbooks/TMI-213-paid-exam-foundation.md)의 session-bound Transaction·명시 schema/unique/CAS·source reader를 적용했다. 업무 wire는 불변, 기본 OFF·실DB 설치 없음. MEMBER evidence API 연결/paid confirm/활성화는 후속이며 기반 테스트 통과를 전체 PLAN-011 완료로 해석하지 않는다.

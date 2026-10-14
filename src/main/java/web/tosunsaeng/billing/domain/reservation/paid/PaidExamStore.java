@@ -35,7 +35,7 @@ public final class PaidExamStore {
                 .append("version", 1L).append("receivedAt", ceilingMillis(receivedAt)).append("waitingSince", ceilingMillis(receivedAt))
                 .append("reservationId", null).append("source", null).append("responseSnapshot", null)
                 .append("errorCode", "MEMBER_EVIDENCE_PENDING").append("terminalAt", null).append("detailEligibleAt", null);
-        if (request != null) row.append("schemaVersion", 2L).append("requestSnapshot", request);
+        if (request != null) row.append("schemaVersion", request.containsKey("restartContext") ? 3L : 2L).append("requestSnapshot", request);
         return mongo.insert(row, RECEIPTS);
     }
     public Optional<Document> receipt(Key key, String digest) {
@@ -62,6 +62,24 @@ public final class PaidExamStore {
         return mongo.updateFirst(new BasicQuery(query), new Update().set("state", State.RESERVED.name())
                 .set("reservationId", reservationId).set("source", source.toDocument()).set("responseSnapshot", response)
                 .set("errorCode", null).inc("version", 1), RECEIPTS).getModifiedCount() == 1;
+    }
+    public void finishReserve(Key key, long version, web.tosunsaeng.billing.domain.reservation.domain.entity.Reservation.Status state, Instant now) {
+        if (!Set.of("CONFIRMED", "CANCELED", "EXPIRED").contains(state.name())) throw new IllegalArgumentException("Invalid terminal state");
+        if (mongo.updateFirst(new BasicQuery(keyDocument(key).append("version", version).append("state", "RESERVED")),
+                new Update().set("state", state.name()).set("terminalAt", ceilingMillis(now))
+                        .set("detailEligibleAt", ceilingMillis(now.plus(DETAIL_RETENTION))).inc("version", 1), RECEIPTS).getModifiedCount() != 1)
+            throw new IllegalStateException("Receipt version conflict");
+    }
+    public void insertLifecycle(Document reserve, String action, String digest, Document result,
+            web.tosunsaeng.billing.domain.reservation.domain.entity.Reservation.Status state, String rejection, Instant now) {
+        Key key = new Key(reserve.getString("environment"), reserve.getString("userId"), reserve.getString("operationId"), action);
+        Document row = keyDocument(key).append("_id", UUID.randomUUID().toString()).append("schemaVersion", 1L)
+                .append("payloadHash", digest).append("owner", reserve.get("owner")).append("state", state.name())
+                .append("version", 1L).append("receivedAt", ceilingMillis(now)).append("waitingSince", null)
+                .append("reservationId", reserve.get("reservationId")).append("source", reserve.get("source"))
+                .append("responseSnapshot", result.get("responseSnapshot")).append("errorCode", rejection)
+                .append("terminalAt", ceilingMillis(now)).append("detailEligibleAt", ceilingMillis(now.plus(DETAIL_RETENTION)));
+        mongo.insert(row, RECEIPTS);
     }
     public Document createGuard(String environment, String userId, Document owner) {
         // Reuse key validation, without introducing a command for the guard.

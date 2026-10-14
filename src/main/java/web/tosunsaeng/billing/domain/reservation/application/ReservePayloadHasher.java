@@ -23,6 +23,11 @@ public class ReservePayloadHasher {
                     + "\ncontinuationId=" + request.continuationId()
                     + "\nexpectedAttemptGroupId=" + request.expectedAttemptGroupId();
         }
+        if (request.restartContext() != null) {
+            var context = request.restartContext();
+            canonical += "\npreviousAttemptGroupId=" + context.previousAttemptGroupId()
+                    + "\npreviousSessionId=" + context.previousSessionId() + "\nstartReason=" + context.startReason();
+        }
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")
                     .digest(canonical.getBytes(StandardCharsets.UTF_8));

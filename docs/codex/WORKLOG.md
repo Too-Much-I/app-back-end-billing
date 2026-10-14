@@ -5917,3 +5917,15 @@
 - 원본 검증: python3 scripts/contracts/verify-paid-exam-simplified-fixtures-r1.py OFFLINE_CHECKS_PASSED(hashFiles9, 오류22/공개4/시간14/MEMBER29/phone11=80). state28/http 미실행 표기 유지. docs/contracts 및 src/test/resources/contracts 변경 없음. git diff --check 통과.
 - 문서: TMI-214 runbook 신규, AGENTS/ADR004/PLAN011/CURRENT_STATE 동기화와 본 기록 append. 별도 작업의 RevenueCat 수동 삭제 기한 CURRENT_STATE/WORKLOG 추가를 보존했다. 이번 구현 자체에 예상 밖 변경 없음.
 - 남은 범위:214 admission boundary를215 paid resolver/confirm/복원/원trial owner·guard와 연결,216 LC lease/cleanup/격리 예외·전체28시나리오,217 별도삭제/owner/purge. flags기본OFF, paid-admission ON기동거절 유지. 운영schema/실DB/LC·Identity저장소/실환경/배포·활성화 변경 없음. LC strict reader 선배포·운영키/port·보존 gate 전 활성화하지 않는다.
+
+## 2026-10-14 — TMI-214 병합 및 TMI-215 유료 예약·복원 구현
+
+- 요청/브랜치: 사용자 commit/push/merge 후 다음 구현 요청. TMI214 commit `3691f9882c3a8e21c0223fe2aee987ba984749dd`, PR18 develop merge `ebaf8d88644a6e7ac70970da5dbe63b049a26d76`; 원격 확인·PR attachment 완료. `feat/TMI-215-paid-reservation-restoration`는 병합된 origin/develop에서 생성. 별도 RevenueCat 문서를214 commit에서 제외하고 보존했다.
+- 선행: Jira TMI215 완료 조건 읽기 및216 경계 확인. 이슈 상태/댓글/담당은 변경하지 않았다. 승인된 R2/simplified exact·저장 설계·ADR을 구현 기준으로 사용했다.
+- 변경: PaidReservationService/PaidTrialFunding·RestartContext/ExamTransition, source/previous/confirmRejection과 AttemptGroup/Session 차단·완료 필드, session-bound trial 저장소, reserve decoder/hash·status DTO, PaidExamStore/Schema와 payment ledger r5 명시 이관, 관련 테스트·runbook·PLAN011/ADR004/AGENTS/CURRENT_STATE.
+- 동작: 기존 owner→동일 key replay 우선, source 고정, paid-first·무기한 무료 FIFO, reserve 실패/취소/만료의 원 시험 보존. confirm·복원·원 group 재응시 차단·새 current·원장/receipt는 동일Tx. 최초 trial 소비 원장 증명 및 소비당 unique 복원1회, phone target paid INITIAL/no transition/원 mock echo. 기존 무료 재응시는 현재 VERIFIED/candidate→Claim·retention 확인, MEMBER 복원권은 별도 owner 증거. 응답 유실/unknown commit·환불 선행 영속 거절·성공 replay 유지.
+- 검증: 최종 clean test 1,546개(신규23: 실Mongo22+strict wire1 포함), 실패/오류/skip0. frozen simplified80벡터/hash9파일 및 R2 canonical18/clock5/invalid13/token31/HTTP판정12/wire6/status3/hash13파일 모두통과. fixture bytes 수정/재생성 없음, git diff --check 통과. 중간 테스트 source 컴파일 실수는 수정 후 검증했으며 assertion 완화·재시도 한도 변경 없음.
+- 위험/범위: 새 서비스는 비활성 내부 Transaction 구현. HTTP admission·계정 없는 Guest 경로 결합·상태 이벤트 MEMBER owner·guard 완료·reader/expiry worker 배선은216, lifecycle 삭제/보존217, 실제 refund/outbox는012·운영013 gate다. paid-admission ON 기동거절 유지. 환불 상대는 테스트 Transaction이며 provider/refund 전체 구현 검증이 아니다. 실제28상태 전체·LC/Identity/E2E 통과로 합산하지 않는다.
+- 외부 계약: status body userId/operationId와 command header 유지, 기본OFF·기존 사용자 API/A·고정fixture 유지. 원 운영 schema 수정/키/Secret/외부 서비스 호출·배포/활성화 없음. 신규215는 commit/push하지 않았다.
+- 예상 밖 변경: 별도 작업의 RevenueCat/PLAN012 계획·이력·LC 인계서와 해당 CURRENT_STATE/WORKLOG 항목이 dirty 상태이며 본 작업은 이를 수정/포함하지 않고 보존했다. 나머지 코드 변경은 위215 범위다.
+- 다음:215 diff 검토/커밋 후216 HTTP·reader·이벤트/expiry 및 LC 실제 finalize 검증. 운영 설치 전 r3/r5 명시 maintenance와 reader-first·구 writer drain,217/012/013 gate 확인.

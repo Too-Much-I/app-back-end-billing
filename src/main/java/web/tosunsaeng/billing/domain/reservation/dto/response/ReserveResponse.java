@@ -16,6 +16,14 @@ public record ReserveResponse(
         String mockExamId,
         Reservation.ContinuationReason continuationReason,
         String continuationId,
-        Instant expiresAt
+        Instant expiresAt,
+        web.tosunsaeng.billing.domain.reservation.paid.EntitlementSourceSnapshot.Type entitlementSource,
+        web.tosunsaeng.billing.domain.reservation.paid.ExamTransition transition
 ) {
+    public ReserveResponse(String operationId, String reservationId, Reservation.Kind reservationKind,
+            Reservation.Status reservationStatus, String attemptGroupId, String sessionId, String mockExamId,
+            Reservation.ContinuationReason continuationReason, String continuationId, Instant expiresAt) {
+        this(operationId, reservationId, reservationKind, reservationStatus, attemptGroupId, sessionId, mockExamId,
+                continuationReason, continuationId, expiresAt, null, null);
+    }
 }
