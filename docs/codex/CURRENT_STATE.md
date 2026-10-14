@@ -1,5 +1,7 @@
 # Billing Service 현재 상태
 
+- 2026-10-14 PLAN012 승인 설계·운영 인계·R1 규격 및 TMI-219→220→221 분할을 문서 병합 브랜치로 분리했다. processing/publisher 두 flag 기본 OFF, 기존 schema/RC 검사 유지. 사용자 Git 병합 후 TMI-219 구현 승인; 아직 환불 코드·실DB·배포·활성화는 미완료. 병행 TMI217 작업 폴더는 보존한다.
+
 - 2026-10-14 단일병합계약 commit01d1350·PR22 develop merge3b00a61 완료. `feat/TMI-217-session-owner-evidence`에서 [Session 생성근거](../runbooks/TMI-217-session-creation-owner-evidence.md) 구현: paid runtime 신규Session에 검증user/계정 또는trial subject/epoch 불변저장, legacy추정/backfill0. 전체clean test1,577/실패0/오류0/skip0(신규7포함), 기존offline/diff통과. 삭제권한/route/merge검증/Guest coverage/보존은후속, 기본OFF·실DB/배포변경0. 신규구현미커밋, 병행012문서보존.
 
 - 2026-10-14 사용자 승인: TMI217 UserMerged는 같은 Session의 게스트→회원 단일이전만 확인. [정본draft-3](../contracts/LC-BILLING-EXAM-DELETION-RETENTION-R1.md)에 반영, 연속병합 계보추적/범용복구 제외. phone 별도·지연재확인/증거누락운영확인·원문정리/ACK경계 유지. 검증계획48개 미실행, 문서만 변경.
