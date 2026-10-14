@@ -38,7 +38,7 @@
 
 - 계정 없는 Guest와 retained legacy command는 기존 무료 경로다. source-null legacy의 전환 coverage/이관·구 reader/worker drain은 아직 활성화 gate다. 새 strict LC 경로에서 이를 무조건 EXAM_PASS로 추측하거나 payment account/MEMBER 증거를 생성하지 않는다. 이 작업만으로 Guest/legacy 포함 전체 전환이 준비됐다고 해석하지 않는다.
 - LC는 읽기 확인 시 HEAD `001b575`(P2/P2.1 merge)였고 CURRENT_STATE에 P3 진행이 기록돼 있었다. LC 마무리 Transaction/worker/MEMBER cleanup·삭제·Summary lifecycle은 여기서 구현하거나 테스트하지 않았다.
-- E06-owner는 별도 fixtures-2로 문구 정정했고 LC 독립 재검증 대기다. 원 fixtures-1은 보존했다. T04 operation120일 단일 보관 설명 보완은 공동 후속이다.
+- E06-owner는 별도 fixtures-2로 문구 정정했고 2026-10-14 LC 독립/loopback actual-client 재검증 회신으로 해소됐다. 실제 Billing HTTP/TLS/DB 공동 E2E 완료는 아니다. 원 fixtures-1은 보존했다. T04 operation120일 단일 보관 설명 보완은 공동 후속이다.
 - 별도 삭제 route/과거 귀속/개인정보 purge는 TMI-217, provider 환불·root 차단·durable revoke는 PLAN-012다. 테스트의 refund 상태 Transaction을 provider 전체 실행으로 보고하지 않는다.
 - MockMvc 검증은 실제 Billing decoder/ingress/auth/controller/paid Transaction을 실행하지만 실제 TLS socket·ALB·LC 서버·Store를 실행하지 않는다. 전체 suite의 기존 security/connector 검증과 실환경 E2E도 구분한다.
 

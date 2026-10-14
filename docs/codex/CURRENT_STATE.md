@@ -1,5 +1,9 @@
 # Billing Service 현재 상태
 
+- 2026-10-14 TMI-216 E06-owner LC 독립 재검증 접수·해소: [인계 후속](../contracts/LC-BILLING-SIMPLIFIED-FIXTURES-2-HANDOFF.md). ZIP10파일/hash 일치, LC oracle82·actual-client49 통과 보고, 전체1,149/실패0/오류0/기존skip1. loopback client이며 실제Billing/TLS/DB E2E 아님. 상태28/T04/삭제보존/실환경gate 유지, fixture 원본/제품code 변경 없음.
+
+- 2026-10-14 TMI216 commit780e677·[PR20](https://github.com/Too-Much-I/app-back-end-billing/pull/20) develop merge89ae574 완료. `feat/TMI-217-deletion-owner-retention-contract` 생성 후 [삭제·owner·보존 공동 계약안](../contracts/LC-BILLING-EXAM-DELETION-RETENTION-R1.md)·[검증 계획](../plans/TMI-217-DELETION-OWNER-RETENTION-VERIFICATION.md) 작성. Jira217은 계약 준비 과제, 신규wire/creationOwner/폐기는 제안·LC 회신 대기. 새제품code/fixture/DB/배포변경0, 문서검사·기존offline재검증통과. 병행012기록보존,217로컬미커밋.
+
 - 2026-10-14 TMI-216 E06-owner fixture 문구 정정: [fixtures-2 인계](../contracts/LC-BILLING-SIMPLIFIED-FIXTURES-2-HANDOFF.md). 기존10파일 보존, 새80벡터·hash9·ZIP10 byte 대조 통과. HTTP409/code/retryable 정책 불변, LC 독립 재검증 대기. 상태28 미실행, 이번 제품 코드 변경 없음.
 
 - 2026-10-14 TMI-215 commit `34ad2f1`·push·[PR19](https://github.com/Too-Much-I/app-back-end-billing/pull/19) develop merge `5d16ba4` 완료. 새 `feat/TMI-216-lc-paid-exam-integration`에서 [Billing 런타임 연결](../runbooks/TMI-216-lc-paid-exam-integration.md) 구현: paid HTTP/lifecycle/expiry·v1 상태event/source별 owner·guard/최소이용원장·통합 read-only reader·구 writer OFF우회 차단. r6 명시schema, 기본OFF 유지. 최종 clean test **1,570/실패0/오류0/skip0**(신규24 포함), frozen simplified/R2 검사·diff검사 통과. [상태28 대응표](../runbooks/TMI-216-shared-state-verification.md)는 부분검증/LC·삭제보존·E2E 미완료를 구분한다. LC HEAD001b575/P2.1·P3진행 읽기 확인만; Guest/legacy source coverage·E06-owner/T04 공동보완·TMI217/PLAN012/013 gate 잔여. TMI216 로컬 미커밋, 제품설정/실DB/배포/활성화/LC·Identity/Jira 변경 없음. 병행 PLAN012/RevenueCat 문서 보존.
