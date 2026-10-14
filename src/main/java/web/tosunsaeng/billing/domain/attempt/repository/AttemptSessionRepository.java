@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.Optional;
 
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
-import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -15,9 +15,9 @@ import web.tosunsaeng.billing.domain.attempt.domain.entity.AttemptSession;
 @Repository
 public class AttemptSessionRepository {
 
-    private final MongoTemplate mongoTemplate;
+    private final MongoOperations mongoTemplate;
 
-    public AttemptSessionRepository(MongoTemplate mongoTemplate) {
+    public AttemptSessionRepository(MongoOperations mongoTemplate) {
         this.mongoTemplate = mongoTemplate;
     }
 

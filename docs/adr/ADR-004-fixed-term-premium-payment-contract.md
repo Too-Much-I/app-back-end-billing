@@ -1,5 +1,22 @@
 # ADR-004: RevenueCat 기반 fixed-term premium 결제 계약
 
+> 2026-10-14 TMI-213 구현: [paid-exam-foundation-r1 안내](../runbooks/TMI-213-paid-exam-foundation.md)의 session-bound Transaction·명시 schema/unique/CAS·source reader를 적용했다. 업무 wire는 불변, 기본 OFF·실DB 설치 없음. MEMBER evidence API 연결/paid confirm/활성화는 후속이며 기반 테스트 통과를 전체 PLAN-011 완료로 해석하지 않는다.
+
+## PLAN-011 현재 결정 — 2026-10-14 동기화
+
+[한정 수락 기록](../contracts/LC-BILLING-PAID-EXAM-SIMPLIFIED-R1-ACCEPTANCE.md), [exact draft-3](../contracts/LC-BILLING-PAID-EXAM-SIMPLIFIED-EXACT-R1.md), [구현 계획 §5.0](../plans/PLAN-011-paid-reservation-and-usage-evidence.md)을 구현 기준으로 사용한다. 아래 과거 PLAN-011 제안과 충돌하는 범위에서는 이 절이 우선하며 PLAN-010의 기존 구현을 변경하는 결정은 아니다.
+
+- Billing paid confirm·최초 trial consumption당 복원1회·원 그룹 재응시 차단·원장/receipt는 단일 ClientSession Transaction이다. 유료/무료 저장소를 순차 호출하는 것으로 대체하지 않는다. LC는 기존 생성 operation과 local Transaction으로 새 시험 활성·이전 신규 제출 차단을 완료한 뒤 성공을 반환한다.
+- source는 EXAM_PASS/SUBSCRIPTION 필수이며 누락을 TRIAL로 추정하지 않는다. reserve/status의 저장 snapshot을 재현하고 status 조회는 기존 body userId/operationId를 유지한다. 기존 command header 범위를 넓히지 않는다.
+- 재가입은 target paid 우선 INITIAL, 없으면 유효한 기존 무료 REPLACEMENT다. phone INITIAL은 새 group·원 mock/reason/id echo·transition 없음이다. 자격 있는 C당 target에게 새 복원권1개를 지급하며 원 계정 paid/기지급 복원권을 이전하지 않는다.
+- MEMBER 유형 증거는 기존 purchase-account의 검증 JWT로 보강하고 현재 ACTIVE 증명으로 사용하지 않는다. 늦은 증거로 WITHDRAWN을 해제하지 않는다. 증거 부족은 영속 비종료 WAITING_MEMBER_EVIDENCE와 내부503 MEMBER_EVIDENCE_PENDING/Retry-After:1로 표현한다. LC 재개·격리 예외는 exact §3.4를 따른다.
+- 생성 중 삭제는 접수/대기열 없이 기존409 EXAM_CREATION_PROCESSING이다. 삭제한 Session의 과거 성공 key는404 EXAM_4004이며 재생성하지 않는다. 공개 MEMBER 대기는 기존503 BILLING_TEMPORARILY_UNAVAILABLE, 실패 result는 생략한다.
+- 멱등 보장은 최초 durable 접수부터120일 미만, terminal 상세 보존 후보는 terminalAt부터120일이다. 보장 종료 이후 적법하게 key 근거가 폐기된 옛 key가 새 요청이 될 위험은 수용한다. 영구 key 저장을 요구하지 않으며 미완료/금융/소비/복원1회/deny 증거는 별도다. 기간 경계가 자동 TTL/purge 전면 승인인 것은 아니다.
+- 모든 권리 전환에서 기접수 문항·파생 Summary·시스템 재시도는 lifecycle deny 아래 완료 허용한다. 새 제출 마감/전용 채점 승인 API를 만들지 않는다. 환불 전 confirm된 exact Session 보호와 환불 선행 CANCELED+confirmRejection/terminalAt를 유지하며 rejectedAt은 추가하지 않는다.
+
+양측 simplified 오프라인 검증 완료: Billing80벡터, LC81검사·전체1,029개(81 포함, 사용자 보고). 실제28시나리오·HTTP·Transaction은 미검증이다. 신규 삭제 route/인증·과거 owner 삭제 coverage·자료별 최종 purge·배포/활성화는 별도이며 이 문서 동기화로 구현 완료/승인을 확대하지 않는다.
+
+
 > 2026-10-14 TMI-212 D2: [운영 안내](../runbooks/TMI-212-reconciliation-and-review.md)에 따라 cursor-r2 정기조회 schedule, sync-r2 optional retryStartedAt/선택재개, 구매 원장 기반 TTL후sync완료, 구매별 암호화 reference 전용collection과privacy-safe운영요약을추가했다. 이전 C2b의 sync-r1불변/정기조회·재개미구현표현은이범위에서대체한다. schema는명시이관,API/지급정책불변·기본OFF. 실제Slack/운영도구권한·5년physicalpurge/cursor정리·실환경과판매활성화는별도다.
 
 > 2026-10-13 TMI-212 C2b: [계정 조회 계약](../contracts/TMI-212-account-lookup-r1.md)에 따라 sync-command-r1은 그대로 두고 기존 ACCOUNT_LOOKUP optional lookup/명시 cursor-r1 validator로 계정별 lease·암호화 pagination·sync 재시도/완료·AUTH/review 인계를 구현한다. 기본OFF 실제 runtime·shared budget 배선 추가, 기존 원장/외부 wire 불변. 공개sync 활성화·D 운영/보존·실환경은 별도다.

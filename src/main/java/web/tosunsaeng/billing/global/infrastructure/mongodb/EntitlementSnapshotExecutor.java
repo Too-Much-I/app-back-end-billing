@@ -20,6 +20,7 @@ public class EntitlementSnapshotExecutor {
         this.factory = factory;
     }
     public <T> T execute(Supplier<T> work) {
+        ExplicitMongoTransactionScope.requireNoExplicitTransaction();
         DEADLINE.set(System.nanoTime() + Duration.ofSeconds(2).toNanos());
         try {
             for (int attempt = 0; attempt < 2; attempt++) {

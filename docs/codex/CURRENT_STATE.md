@@ -1,5 +1,49 @@
 # Billing Service 현재 상태
 
+- 2026-10-14 [TMI-213 기반 구현](../runbooks/TMI-213-paid-exam-foundation.md): feat/TMI-213-paid-exam-transaction-foundation 생성/전환, 기존 dirty 보존. 동일 ClientSession raw/Spring 저장소 결합·중첩차단·Spring Mongo오류 retry, source reader·receipt/guard CAS·복원 grant/원장 unique 및 명시 schema 구현. 기본 OFF/paid admission 기동거절. 최종 clean test1,497개·신규23(3단위/20실Mongo) 포함, 실패/오류/skip0. offline80/hash·diff통과. 실제 업무28·LC/DB/배포/Jira상태/commit/push 없음. 다음214 MEMBER 증거/대기 연결,215 paid resolver/confirm,216 연동,217 삭제보존.
+
+- 2026-10-14 개인정보처리방침 준비 확인: 금융5년/접수120일/backup35일은 보존 정책이며 실제 배포·삭제 활성화 미확인. 금융 전체5년 purge는 후속, 현 Billing provider는 GET 전용으로 RevenueCat 고객 탈퇴 삭제 미구현. RC 공식 privacy/DPA의 processor 역할·미국 저장·삭제 API 지원 확인; 일반 privacy의6년을 토선생 최종사용자 보존기간으로 전용하지 않음. RC 보존/백업 삭제 SLA·앱 SDK 실제 전송항목·국외이전 근거 확인 후 방침 확정 필요.
+
+- 2026-10-14 사용자 요청으로 PLAN-011 Jira TMI-213~217 생성: Transaction 기반/MEMBER 복구/paid confirm·복원/LC 검증/삭제·보존 공동 계약. TMI-137 parent·해야 할 일·미할당 재조회 확인. 구현 선행 순서는 각 본문에 명시. 코드·기존 이슈 상태·DB·배포 변경 없음. 계획 링크와 WORKLOG 반영.
+
+- 2026-10-14 프론트 시험 시작 오류 확인: Billing reserve와 LC 공개 오류 매핑에서 402 ENTITLEMENT_INSUFFICIENT(사용 가능한 시험 응시권이 없습니다.) 확인. 409 EXAM_CREATION_PROCESSING은 처리 중으로 구분. R2 신규 ENTITLEMENT_REVOKED/EXAM_TRANSITION_CONFLICT는 후속 공동 계약이며 현재 LC 구현 완료로 안내하지 않음. 양 저장소 정적 읽기만·실환경 미검증.
+
+- 2026-10-14 PLAN-011/ADR-004/AGENTS·저장 설계 동기화: exact draft-3 한정 수락·양측 오프라인 완료를 현재 기준으로 반영. §5.0에 P0 단일 ClientSession/schema → P1 MEMBER 증거·영속 대기/receipt → P2/P3 선택·confirm/복원 → LC 연동 순서와 완료 증거 명시. phone 확정 범위와 삭제 route/과거 owner·자료별 purge 보류 분리. 검사기80벡터/hash 및 diff 검사 통과, 상태28/runtime 미실행. 문서만·제품/DB/배포 변경 없음. TMI-116/128/122/125.
+
+- 2026-10-14 단순화 fixture LC 독립 검증 완료 접수(사용자 보고): 원본10파일 bytes/hash 일치·81검사 통과·전체 clean test1,029(포함) 실패/오류/skip0. 양측 오프라인 완료, 상태28/runtime 미실행. 원본manifest/fixture 유지·삭제 route/과거owner/최종보존 별도. 코드/배포 승인 아님. TMI-116/128/122/125.
+
+- 2026-10-14 [단순화 exact 한정 수락/fixtures-1](../contracts/LC-BILLING-PAID-EXAM-SIMPLIFIED-R1-ACCEPTANCE.md): 사용자 승인으로 Billing 수락 기록·10파일/별도Node생성기/Python검사기 제작. errors22/public4/time14/resume29/phone11=80벡터 통과·5변조 거절·덮어쓰기 금지. 상태28 미실행, LC독립/runtime/배포 미완료. 원 A/R2 bytes 유지. TMI-116/128/122/125.
+
+- 2026-10-14 LC 단순화 exact draft-3 추가 이견 없음 접수: 격리 우선순위/E02-f 보완 의견 해소. 다음은 한정 공동 수락→새fixture→hash/LC독립검증. 별도 삭제 route/과거owner/자료별 보존 미확정 유지. 검토 확인이며 제작/구현/배포 승인 아님. TMI-116/128/122/125.
+
+- 2026-10-14 단순화 exact draft-3: NEEDS_REVIEW 기본 운영 확인, 동일 MEMBER 대기→소진 영속 원인 및 현재 안전 조건을 모두 충족한 경우만 제한적 재개 예외로 우선순위 명시. retry_exhausted 단독 불충분·E02-f 보완. 문서만, 코드/fixture/배포 없음. TMI-116/128/122/125.
+
+- 2026-10-14 단순화 exact draft-2: LC 의견 반영 MEMBER 비종료 receipt/status pending·LC PREPARED 대기이유·cleanup 전 분기·owner/lease/version same-key HTTP 재개·안전 cleanup/격리 제한적 재개·E02-a~h 추가. worker reserve 금지, 다른 격리/terminal 되돌림 금지. 신규 규격 공동검토/fixture 미실행, 코드/DB 불변. TMI-116/128/122/125.
+
+- 2026-10-14 [단순화 exact 계약 R1](../contracts/LC-BILLING-PAID-EXAM-SIMPLIFIED-EXACT-R1.md) 작성: MEMBER 내부503/public기존503, 삭제 미접수409·삭제 replay EXAM_4004/빈result생략, UTC120일 최초접수/terminal 경계·7일cache 이후증거, phone INITIAL echo/target복원 unique/경합, E/T/P/C19개 검증영역. 새 규격은 공동검토, fixture 미제작·runtime 미검증. 원본 bytes/코드/DB/배포 불변. TMI-116/128/122/125·LC193/136.
+
+- 2026-10-14 LC·Identity 단순화 정책 동기화 회신 접수(사용자 전달 근거): paid-first/target 복원·삭제 미접수·앱 MEMBER 보강·120일 보장/기간후 위험 수용. 정책 재결정 종료, 영구key 요구 해소. exact 오류/기간 경계/phone 귀속·경합/새 계약·fixture 검증만 후속. Identity 탈퇴 보존 불변. 코드/배포 승인 아님. TMI-116/128/122/125.
+
+- 2026-10-14 [단순화 사용자 승인](../contracts/PLAN-011-SIMPLIFICATION-DECISION-2026-10-14.md): 재가입 paid-first/target 최초trial 복원1회 유지, 생성 중 삭제 미접수·앱 MEMBER 보강·120일 이후 같은-key 보장 제외/종료 상세120일 채택. 금융/소비/복원/미완료 근거 보존 유지, 신규 시작권/영구key 시스템 제외. 문서만·runtime/purge 미실행. TMI-116/128/122/125·LC193/136.
+
+- 2026-10-14 [LC/Identity 회신 반영 R2](../contracts/PLAN-011-REMAINING-TECHNICAL-REVIEW-RESPONSE-R2.md): M1 방향 이견없음 접수·pending/보강, 삭제 checkpoint/교착·오류/귀속, phone echo/복원 수혜 후보 보완. 과거 UUID 재입력은120일/새 issuedAt으로 해결 불가→tombstone purge 미승인, 최초key fence/공개 계약 선택 필요. 문서만·미확정 fixture 생성 없음. TMI-116/128/122/125·LC193/136.
+
+- 2026-10-14 [PLAN011 남은 기술안 R1](../contracts/PLAN-011-REMAINING-TECHNICAL-PROPOSAL-R1.md) 작성: 기존 purchase-account 검증 MEMBER 증거 저장, 기존 LC 삭제 worker+최소 Billing 삭제 route/CAS, phone target paid-first 조합, 상세120일/최소 trial3년·금융5년 연계/미완료TTL없음 후보.120일 후 자동 retry 중단·폐기 gate 명시. 모두 공동 검토 제안, 코드/DB/LC/배포/fixture 변경 없음. TMI-116/128/122/125.
+
+- 2026-10-14 [J4/S15/V07 정책 동기화](../contracts/PLAN-011-J4-S15-V07-DECISIONS-2026-10-14.md): J4 MEMBER 증거 보존/기존 탈퇴, S15 명시 사용자 삭제 시 원 재응시 포기·사용 무료권 미복원/다른 권리 보존, V07 진행 중 유지·종료 후 최소 보존 승인 통합. MEMBER 최초 전달·삭제 전달/경합/new INITIAL wire·phone 선택·보존 exact는 후속. R2/fixtures-2 bytes 보존(새 정책 검증 아님). 문서만 변경. TMI-116/128/122/125.
+
+- 2026-10-14 [J4 ① 사용자 승인](../contracts/PLAN-011-J4-MEMBER-EVIDENCE-DECISION-2026-10-14.md): MEMBER→GUEST 없음·탈퇴 외 상태 없음 전제, Identity 검증 MEMBER 증거 보존 + 기존 탈퇴 이벤트/복구·지연 허용 채택. 매 시험 동기조회/새 전체 상태 동기화 제외. 증거 최초 전달 exact·부재 복구·지연 기준 후속, 코드/DB/배포 변경 없음. TMI-116/128/122/125.
+
+- 2026-10-14 LC J3/J4 draft-2 재검토 후속 접수: J3 요청 보완 반영·추가 이견 없음. J4 미확정 범위 설명 일치, 실제 증거 연동은 Identity 공동 확인 필요. J3 수락/별도 fixture와 J4 연동 계약을 분리 진행, 공동동결/fixture 제작/구현 승인 아님. S15/V07 보류. TMI-116/128/122/125.
+
+- 2026-10-14 LC J3/J4 첨부 재접수: 직전 draft-1 검토 회신과 byte 동일 확인. 새 draft-2 검토 결과 아님. 기존 draft-2 보완 유지, 추가 계약 변경 없음·MEMBER 증거 연동 미확정. TMI-116/128/122/125.
+
+- 2026-10-14 [J3/J4 draft-2](../contracts/LC-BILLING-PAID-EXAM-J3-J4-ADDENDUM-R1.md): LC 회신 반영, PREPARED/새 Session 부재/marker·lease/version·owner 재검증과 local Tx terminal/guard 조건, strict4-field 오류·status 전용 category·owner-blocked/auth circuit 분리 명시. 기존 withdrawal 계약의 local ACTIVE≠실시간 Identity ACTIVE 확인·MEMBER 증언 연동 질문 정리(방식 미선택). 추가 fixture 명세만, 제작/코드/공동수락/배포 없음. TMI-116/128/122/125.
+
+- 2026-10-14 프론트 주소/JWT 안내: 기존 서비스 명명 방식에 맞춘 예정 Base URL `https://billing-test.to-teacher.com` 제안, 실제 DNS/ALB/배포 주소로 검증한 것은 아님. 사용자 JWT는 Identity 발급 시 기존 LC aud를 유지하며 Billing aud/scope 추가하는 승인 계약이며 앱이 aud를 header/query에 붙이지 않음. 실제 Identity 배포/발급 상태 미확인.
+
+- 2026-10-14 [J3/J4 보완안](../contracts/LC-BILLING-PAID-EXAM-J3-J4-ADDENDUM-R1.md) 작성: LC J1/J2 요구 확인 접수·runtime 미검증. pre-reserve terminal 전용 status409/기존4-field 오류·worker reserve 재발행 금지·owner snapshot/version/epoch/lifecycle 표 제안. 신규 code·MEMBER 근거 연결 공동 확인, S15/V07 보류. 원 R2/fixtures-2 불변, 코드/DB/배포/Jira 변경 없음. TMI-116/128/122/125.
+
 - 2026-10-14 머지 준비 상태 확인: feat/TMI-212-revenuecat-worker-reconciliation의 TMI-212 코드 및 LC/PLAN-011 문서·fixture가 미커밋 상태로 혼재. 기본OFF 구현을 통합하는 방향은 가능하나 최종 변경 범위 분리·현재 tree 재테스트·PR/CI 확인 후 머지 권장. 직전1474통과 기록만 확인했으며 이번 재실행/원격 PR 확인/머지는 하지 않음. 판매·기능 활성화와 구분.
 
 - 2026-10-14 프론트용 [Notion 결제 API 문서](https://app.notion.com/p/3f9dcc5dbaeb80618ec9ed3e5d8a5966) 네 개 구성 완료: 사용자 수정 sync는 보존하고 products/purchase-account/entitlements를 제목·요약·상세 토글·오류 표로 추가. 실제 DTO/null/생략/제한과 기본OFF·미배포를 구분. 빈 상품은 []이며 종합 canTakeExam은 현 admission 미구현으로 null fallback임을 명시. 코드 변경·Gradle 실행·배포·Jira쓰기 없음.

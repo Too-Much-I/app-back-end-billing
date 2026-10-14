@@ -1,5 +1,9 @@
 # 토선생 Billing Service Codex 작업 규칙
 
+> 2026-10-14 TMI-213 기반 구현: [안내](docs/runbooks/TMI-213-paid-exam-foundation.md)의 단일 ClientSession·session-bound repository·source/receipt/guard·복원 unique/원장 기반을 추가했다. paid-foundation/paid-admission 기본 OFF, admission ON은 후속 runtime 전 기동 거절. 명시 maintenance schema이며 운영 설치 없음. MEMBER owner에 phone epoch를 발명하지 않는다. 실제 MEMBER 보강/paid resolver/confirm·LC 전체28시나리오는 TMI-214~216, 삭제·보존은217 후속이다.
+
+> 2026-10-14 PLAN-011 기준 동기화: [한정 수락](docs/contracts/LC-BILLING-PAID-EXAM-SIMPLIFIED-R1-ACCEPTANCE.md)·[ADR-004 현재 결정](docs/adr/ADR-004-fixed-term-premium-payment-contract.md)·[PLAN-011 §5.0](docs/plans/PLAN-011-paid-reservation-and-usage-evidence.md)을 따른다. target paid-first/원 소비당 target 복원1회, 생성 중 삭제 미접수, 기존 purchase-account MEMBER 보강·영속 대기/제한적 same-key 재개,120일 보장/기간후 위험 수용이 현재 기준이다. 종전 삭제 대기열·영구 key 요구·phone 무료 우선·새 제출 마감 전제는 대체한다. 양측 오프라인 검증 완료이며 상태28/runtime 미검증. 별도 삭제 route·과거 owner·자료별 purge·배포는 미확정 gate다. 이번 작업은 계획/ADR 동기화이며 제품 구현 완료를 뜻하지 않는다.
+
 > 2026-10-13 최신 단순화 승인: [무료권 정책 §1/3/4](docs/contracts/FREE-EXAM-PASS-AND-PAID-SWITCH-RESTORATION-2026-10-13.md) 우선. Billing은 paid confirm·복원 지급·원 그룹 재응시 차단을 같은 Transaction으로 확정하고 LC는 기존 Session을 순차 종료한다. 이미 접수된 무료 제출의 경합 완료와 복원권 동시 보유는 허용한다. 최초 trial consumption ID당 복원 1회, 복원권/초대권 재복원 없음. 현재 무기한·지급순만 구현하고 만료 기능은 후속. MEMBER 전용 보상권의 Guest merge 확장은 제외하며 기존 trial merge는 유지한다. 종전 무중첩 보장·일반 root 계보·현재 만료순 구현·보상권 merge 표현은 이 범위에서 대체한다.
 
 > 2026-10-13 사용자 승인: [공통 무료 모의고사권·유료 전환 복원](docs/contracts/FREE-EXAM-PASS-AND-PAID-SWITCH-RESTORATION-2026-10-13.md)을 우선 적용한다. ACTIVE paid로 새 시험을 성공적으로 confirm할 때 미완료 최초 trial 그룹을 종료하고 별도 무료권 1개를 원 lineage당 한 번 복원한다. 구매만으로 지급하지 않으며 원 TrialClaim/consumption은 보존한다. 기존 무료 replacement 우선·새 무료권 미지급 표현은 이 좁은 승인 범위에서 대체한다. 친구 초대는 출처 확장 경계만 준비하며 지급 구현은 후속이다. exact schema/wire·LC 공동 계약·구현/배포는 별도다.

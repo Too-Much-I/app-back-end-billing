@@ -16,6 +16,17 @@ public class AttemptSession {
         FAILED
     }
 
+    // Absent on legacy records; never infer TRIAL from absence.
+    private web.tosunsaeng.billing.domain.reservation.paid.EntitlementSourceSnapshot sourceSnapshot;
+
+    public web.tosunsaeng.billing.domain.reservation.paid.EntitlementSourceSnapshot getSourceSnapshot() { return sourceSnapshot; }
+    public AttemptSession withSourceSnapshot(web.tosunsaeng.billing.domain.reservation.paid.EntitlementSourceSnapshot source) {
+        java.util.Objects.requireNonNull(source);
+        if (sourceSnapshot != null && !sourceSnapshot.equals(source)) throw new IllegalStateException("Source snapshot is immutable");
+        sourceSnapshot = source;
+        return this;
+    }
+
     @Id
     private String id;
     private String sessionId;

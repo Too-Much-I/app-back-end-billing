@@ -16,6 +16,7 @@ public class MongoTransactionExecutor {
     }
 
     public <T> T execute(Supplier<T> operation) {
+        ExplicitMongoTransactionScope.requireNoExplicitTransaction();
         return transactionTemplate.execute(status -> operation.get());
     }
 }
