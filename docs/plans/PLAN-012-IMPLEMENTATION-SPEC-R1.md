@@ -1,5 +1,7 @@
 # PLAN-012 내부 구현 규격 R1
 
+> 2026-10-14 TMI-219: [코어 구현](../runbooks/TMI-219-refund-ledger.md)에서 refundEvidence/digest·r7 명시 schema·root/amount/reflow/work 등록을 추가했다. 기존 worker가 호출하는 PurchaseCore에 연결했으나 provider 매핑·정리 runtime 미완성으로 Spring activation은 거절한다. 나머지 규격은 TMI-220/221 후속이며 구현 완료로 표시하지 않는다.
+
 - 작성일: 2026-10-14. 상태: 사용자 요청에 따른 구현 설계. 코드·DB 적용·공동 wire 변경·판매 활성화 승인 아님.
 - 우선순위: 승인 제품 정책/R2 공동 wire → 본문 내부 구현 규격 → P0의 과거 후보. 실제 provider 필드는 검증 전까지 지원 완료로 표시하지 않는다.
 - 근거: [전체 계획](PLAN-012-refund-ledger-and-access-revocation.md), [P0 조사](PLAN-012-P0-MINIMAL-TECHNICAL-DESIGN-R1.md), [테스트 준비](../contracts/PLAN-012-REFUND-TEST-READINESS-2026-10-14.md).

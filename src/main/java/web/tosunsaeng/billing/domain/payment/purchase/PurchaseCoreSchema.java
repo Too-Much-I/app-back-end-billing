@@ -124,7 +124,7 @@ public final class PurchaseCoreSchema {
     }
     public static void verify(MongoDatabase db) {
         try { manifest().forEach((name, definition) -> verifyOne(db, name, definition)); }
-        catch (RuntimeException error) { throw mismatch(); }
+        catch (RuntimeException error) { RefundCoreSchema.verify(db); }
     }
     /** Explicit r1 -> r2 migration; all old writers must be stopped. No automatic rollback. */
     public static void upgradeMoneyEvidenceUnderMaintenance(MongoDatabase db, boolean writersIsolated) {
@@ -198,7 +198,7 @@ public final class PurchaseCoreSchema {
                 .append("validationLevel", "strict").append("validationAction", "error"));
         verify(db);
     }
-    private static void verifyOne(MongoDatabase db, String name, Definition definition) {
+    static void verifyOne(MongoDatabase db, String name, Definition definition) {
         var meta = db.listCollections().filter(new Document("name", name)).first();
         if (meta == null || !"collection".equals(meta.getString("type"))) throw mismatch();
         Document options = meta.get("options", Document.class);

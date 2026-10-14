@@ -19,6 +19,7 @@ public final class PurchaseCore {
     private final Clock clock;
     private final String environment, keyVersion;
     private final Map<PurchaseObservation.Store, String> apps;
+    private final boolean refundsEnabled;
 
     public PurchaseCore(PaymentStore store, PaymentProperties properties, Clock clock,
                         Map<PurchaseObservation.Store, String> apps, String keyVersion) {
@@ -28,8 +29,10 @@ public final class PurchaseCore {
         require(Set.of("SANDBOX", "PRODUCTION").contains(environment));
         PurchaseObservation.label(keyVersion); this.keyVersion = keyVersion;
         this.apps = Map.copyOf(apps); require(!this.apps.isEmpty());
+        refundsEnabled = properties.getRefund().isProcessingEnabled();
         this.apps.values().forEach(PurchaseObservation::text);
         PurchaseCoreSchema.verify(store.database());
+        if (refundsEnabled) RefundCoreSchema.verify(store.database());
         // A version change is a maintenance migration, never another uniqueness namespace.
         require(collection("purchases").find(new Document("environment", environment)
                 .append("lookupKeyVersion", new Document("$ne", keyVersion))).limit(1).first() == null);
@@ -60,7 +63,8 @@ public final class PurchaseCore {
             Document previous = collection("payment_provider_inbox").find(session, key).first();
             if (previous == null) previous = collection("payment_purchase_cases").find(session, key).first();
             if (previous != null) {
-                if (!observation.digest().equals(previous.getString("digest")))
+                if (Long.valueOf(2).equals(previous.get("digestVersion")) && observation.refundEvidence() == null
+                        || !observation.digest(previous.getLong("digestVersion")).equals(previous.getString("digest")))
                     throw new PaymentException(409, "EVENT_ID_CONFLICT");
                 return outcome(previous);
             }
@@ -68,7 +72,7 @@ public final class PurchaseCore {
             Document lifecycle = account == null ? null : lifecycle(session, account);
             if (lifecycle != null) touch(session, lifecycle.getString("_id"), 1);
             Instant now = clock.instant();
-            Document row = new Document(key).append("_id", uuid()).append("digestVersion", 1L)
+            Document row = new Document(key).append("_id", uuid()).append("digestVersion", observation.digestVersion())
                     .append("digest", observation.digest()).append("normalizedObservation", observation.body())
                     .append("accountId", account == null ? null : account.getString("_id"))
                     .append("lifecycleId", lifecycle == null ? null : lifecycle.getString("_id"))
@@ -101,7 +105,7 @@ public final class PurchaseCore {
             Document life = account == null ? null : lifecycle(session, account);
             if (life != null) touch(session, life.getString("_id"), 1);
             Instant now = clock.instant();
-            Document row = new Document(key).append("_id", uuid()).append("digestVersion", 1L)
+            Document row = new Document(key).append("_id", uuid()).append("digestVersion", observation == null ? 1L : observation.digestVersion())
                     .append("digest", observation == null ? receipt.receptionDigest() : observation.digest())
                     .append("receptionDigest", receipt.receptionDigest())
                     .append("receptionLookupKeyVersion", receipt.lookupKeyVersion())
@@ -141,7 +145,8 @@ public final class PurchaseCore {
             }
             if (!"RECEIVED".equals(row.getString("state"))) return outcome(row);
             PurchaseObservation o = PurchaseObservation.read(eventKey, row.get("normalizedObservation", Document.class));
-            require(o.digest().equals(row.getString("digest")) && keyVersion.equals(o.lookupKeyVersion())
+            require(Long.valueOf(o.digestVersion()).equals(row.get("digestVersion"))
+                    && o.digest(row.getLong("digestVersion")).equals(row.getString("digest")) && keyVersion.equals(o.lookupKeyVersion())
                     && environment.equals(o.environment()) && o.appId().equals(apps.get(o.store())));
             Document account = resolveAccount(session, o.ownerRefId());
             // Frozen attribution cannot be repaired using a new account or a guessed user ID.
@@ -155,6 +160,19 @@ public final class PurchaseCore {
                 return review(session, row, "OWNER_CONFLICT");
 
             if (o.kind() != PurchaseObservation.Kind.PURCHASE) {
+                if (refundsEnabled && o.refundEvidence() != null) {
+                    // Google is supplementary evidence for an existing, attributed purchase only.
+                    if (o.refundEvidence().source() == RefundEvidence.Source.GOOGLE_ORDERS
+                            && (purchase == null || purchase.get("productSnapshot") == null || purchase.get("purchasedAt") == null))
+                        return review(session, row, "REFUND_BINDING_UNRESOLVED");
+                    if (purchase == null) {
+                        purchase = observedPurchase(o, account, null, o.kind() == PurchaseObservation.Kind.REFUND ? "REFUNDED" : "REVOKED");
+                        collection("purchases").insertOne(session, purchase);
+                        ledger(session, purchase, "PURCHASE_OBSERVED", null, o, new Document("kind", o.kind().name()));
+                    }
+                    String reason = new PurchaseRefundCore(store.database(), clock).apply(session, purchase, o);
+                    return reason == null ? complete(session, row) : review(session, row, reason);
+                }
                 // First-seen reversal fences later purchase delivery. Existing grants need PLAN-012, not a partial revoke here.
                 if (purchase == null) {
                     purchase = observedPurchase(o, account, null, o.kind() == PurchaseObservation.Kind.REFUND ? "REFUNDED" : "REVOKED");
@@ -328,6 +346,13 @@ public final class PurchaseCore {
         review.remove("work");
         review.put("_id", uuid()); review.put("state", "REVIEW_REQUIRED"); review.put("version", 1L);
         review.put("reason", reason); review.put("createdAt", Date.from(clock.instant()));
+        if (refundsEnabled && reason.startsWith("REFUND_")) {
+            review.put("reviewState", "OPEN");
+            PurchaseObservation observation = PurchaseObservation.read(row.getString("providerEventKey"), row.get("normalizedObservation", Document.class));
+            Document purchase = collection("purchases").find(session, transactionKey(observation)).first();
+            review.put("purchaseId", purchase == null ? null : purchase.getString("_id"));
+            review.put("inquiryId", null); review.put("resolvedAt", null); review.put("actorDigest", null);
+        }
         collection("payment_purchase_cases").insertOne(session, review);
         if (row.getBoolean("counted")) touch(session, row.getString("lifecycleId"), 0);
         finishSource(session, row, "QUARANTINED");

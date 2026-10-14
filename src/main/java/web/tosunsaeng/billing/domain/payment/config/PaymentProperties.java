@@ -15,6 +15,12 @@ public class PaymentProperties {
     private boolean entitlementQueryEnabled;
     private Recovery recovery = new Recovery();
     private Cleanup cleanup = new Cleanup();
+    private Refund refund = new Refund();
+    @Getter @Setter
+    public static class Refund {
+        private boolean processingEnabled;
+        private boolean publisherEnabled;
+    }
     @Getter @Setter
     public static class Cleanup {
         private boolean reconciliationEnabled;

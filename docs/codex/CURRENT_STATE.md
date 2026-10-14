@@ -1,5 +1,7 @@
 # Billing Service 현재 상태
 
+- 2026-10-14 PLAN012 문서 commit28fdc00·PR24 develop mergec6f8044 완료. 별도 worktree의 `codex/TMI-219-refund-ledger`에서 [환불 코어](../runbooks/TMI-219-refund-ledger.md) 구현: refundEvidence/legacy digest/r7 명시schema, root·금액원장·appliedAt reflow·refundWork 단일Tx. 최종 clean test **1,602개/실패0/오류0/skip0(신규25)**, simplified/R2 offline/hash 및 문서link/diff 통과. 실제 Store adapter/예약·그룹정리/LC전달은 후속, 두flag OFF/processing ON 기동거절. 원 작업 폴더의 TMI217 변경 보존. 신규코드 로컬미커밋, 배포/실DB/Jira변경 없음.
+
 - 2026-10-14 PLAN012 승인 설계·운영 인계·R1 규격 및 TMI-219→220→221 분할을 문서 병합 브랜치로 분리했다. processing/publisher 두 flag 기본 OFF, 기존 schema/RC 검사 유지. 사용자 Git 병합 후 TMI-219 구현 승인; 아직 환불 코드·실DB·배포·활성화는 미완료. 병행 TMI217 작업 폴더는 보존한다.
 
 - 2026-10-14 단일병합계약 commit01d1350·PR22 develop merge3b00a61 완료. `feat/TMI-217-session-owner-evidence`에서 [Session 생성근거](../runbooks/TMI-217-session-creation-owner-evidence.md) 구현: paid runtime 신규Session에 검증user/계정 또는trial subject/epoch 불변저장, legacy추정/backfill0. 전체clean test1,577/실패0/오류0/skip0(신규7포함), 기존offline/diff통과. 삭제권한/route/merge검증/Guest coverage/보존은후속, 기본OFF·실DB/배포변경0. 신규구현미커밋, 병행012문서보존.

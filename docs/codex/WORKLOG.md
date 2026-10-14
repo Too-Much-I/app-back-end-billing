@@ -6172,3 +6172,16 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 
 - 사용자 commit/push/merge 및 다음 TMI-219 구현 승인. codex/plan012-refund-plan 별도 worktree로 PLAN012 문서9개와 이 대화 기록만 분리. 원 작업 폴더 TMI217 코드/ADR/PLAN011·기록은 수정하지 않았다.
 - Jira219 원문 확인. 문서 diff 검사, 제품 코드 변경 없어 Gradle 미실행. DB/배포/활성화 없음. 병합 후 새 브랜치에서 OFF 코어 구현 예정.
+
+## 2026-10-14 — PR24 병합·TMI-219 환불 코어 구현
+
+- 사용자 commit/push/merge후다음구현 승인. PLAN012 문서11파일 commit28fdc0099b99c7de4ac228b847ad4cd3cb7e65cc·PR24 https://github.com/Too-Much-I/app-back-end-billing/pull/24 생성/첨부, MERGEABLE/exacthead 확인 후 develop mergec6f8044a0d9e29d9dcd38a0f28e3e8d710da4dc1 확인. 신규 codex/TMI-219-refund-ledger는 병합 develop 기반 별도 worktree다. 원 작업 폴더의 TMI217 코드·문서·기록과 PLAN012 사본을 수정하지 않았다.
+- Jira219 완료조건 읽기. PurchaseCore/PurchaseObservation 확장, RefundEvidence/PurchaseRefundCore/RefundCoreSchema 및 두flag/기동차단 추가. 원금≠반환액·UNKNOWN/null·누적차이/authority중복방지·최초root차단/appliedAt/reflow/정리책임 단일ClientSession·기존paid rootCAS/confirm replay/복원권보존 구현. r6→r7 명시유지보수, actual schema 설치 없음. 기존manifest·RC검사/외부wire 유지.
+- 테스트: 최초 선별21개 중 테스트 자체 비동기완료 대기순서 오류1을 수정했고 첫 전체clean test 성공. 추가 schema/flag/digest 경계 보강 후 최종 검증은 아래 후속 기록에 남긴다. 실제 Mongo replica-set failpoint/rollback/동시append·confirm/환불 양순서 검증, 실제 provider HTTP/LC E2E 아님. 기존 simplified/R2 offline+hash 검사 통과, 공동상태28/HTTP 실검증으로 보고하지 않음.
+- 안내/PLAN012/R1/AGENTS/CURRENT_STATE 갱신, 링크/diff검사 통과. 실제RC/Google 금액매핑·큰timeline부하·TMI220정리/LC전달·TMI221운영은 남음. 처리flag ON은 기동거절하며 신규앱API/운영자금액입력·새범용복구·관리화면 없음. 실DB/외부설정/판매활성화/LC·Identity/Jira쓰기 없음. 구현 변경은 로컬 미커밋이며 예상밖범위변경 없음.
+
+### TMI-219 최종 검증
+
+- 최종 코드 기준 `./gradlew clean test` BUILD SUCCESSFUL(3m16s), XML 집계1,602개/실패0/오류0/skip0. 신규25개: RefundEvidenceTest4, PurchaseRefundIntegrationTest18, PaidRefundIntegrationTest3. legacy bytes/digest 및 v2증거누락409/저장version불일치차단 보강 포함. 기존 deprecation/JVM 경고 외 실패 없음.
+- simplified/R2 offline+hash 검사 및 변경문서 로컬link/diff 검사 통과. 원 작업 폴더 TMI217 상태 재확인·변경보존, PR24 MERGED/c6f8044 재확인. 신규코드 미커밋/미푸시, Jira 상태 미변경. 실제 Store/LC HTTP·대규모 timeline 성능·운영 schema/권한/배포 검증은 수행하지 않았다.
+- 다음: TMI-220에서 refundWork 순차정리/보호증거/outbox/LC전달 연결, TMI-221 운영 및 실Store 공동검증. 기능 ON 전 해당 gate와 TMI217 보존 조건을 충족해야 한다.

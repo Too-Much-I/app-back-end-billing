@@ -18,6 +18,9 @@ billing:
     tls-key-store: ${BILLING_WORKLOAD_TLS_KEY_STORE:}
     tls-key-store-password: ${BILLING_WORKLOAD_TLS_KEY_STORE_PASSWORD:}
   payment:
+    refund:
+      processing-enabled: ${BILLING_PAYMENT_REFUND_PROCESSING_ENABLED:false}
+      publisher-enabled: ${BILLING_PAYMENT_REFUND_PUBLISHER_ENABLED:false}
     sync-enabled: ${BILLING_PAYMENT_SYNC_ENABLED:false}
     provider:
       slack:
