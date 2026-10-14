@@ -1,5 +1,13 @@
 # LC–Billing 유료 시험 R2 — 공동 구현 합의안 R1
 
+> 2026-10-14 최신 사용자 승인: [단순화 결정](PLAN-011-SIMPLIFICATION-DECISION-2026-10-14.md). 재가입 유료 우선·원 소비당 target 복원1회 유지, 생성 중 삭제 미접수·앱 MEMBER 보강·120일 멱등 보장/종료 상세 기록 정리 채택. 이후 과거 key 신규 처리 위험 수용, 금융/소비/미완료 증거 보존은 유지. 아래 대기열 삭제/영구 key 보장 전제는 이 범위에서 대체하며 구현·공동 exact는 후속이다.
+
+> 2026-10-14 최신 사용자 승인: [J4·S15·V07 통합 결정](PLAN-011-J4-S15-V07-DECISIONS-2026-10-14.md). 명시적 사용자 시험 삭제는 원 재응시 포기·사용 무료권 미복원, 다른 권리/기지급 복원권 보존. V07은 진행 중 증거 유지·종료 후 최소 보존 방향 확정. 아래 삭제 continuation 복구 제안은 이 범위에서 대체하며, phone·삭제 전달/경합·보존기간 exact는 후속이다.
+
+> 2026-10-14 사용자 승인: [J4 ① 채택](PLAN-011-J4-MEMBER-EVIDENCE-DECISION-2026-10-14.md). Identity 확인 MEMBER 증거 보존 + 기존 탈퇴 이벤트/복구, 전파 지연 허용. 아래 방식 미선택 표현은 이 범위에서 대체한다. 최초 증거 전달 exact·구현/공동 검증은 후속이며 실시간 ACTIVE 증명으로 해석하지 않는다.
+
+> 2026-10-14 LC 회신 후속: [J3/J4 보완안 R1 draft-2](LC-BILLING-PAID-EXAM-J3-J4-ADDENDUM-R1.md)에 status 영속 거절 관측·worker 종료와 source별 owner/lifecycle 상세를 제안했다. J1/J2는 요구 이견 없음이며 runtime 통과가 아니다. 보완안 최종 수락/fixture 제작은 대기한다.
+
 - 날짜: 2026-10-14 / revision: lc-billing-paid-exam-r2-implementation-agreement-r1
 - 상태: 공동 최종 수락을 위한 제안. LC 최종 수락·제품 구현·배포 승인을 대신하지 않는다.
 - 대상: [R2 draft-2](LC-BILLING-PAID-EXAM-CONTRACT-R2.md), lc-billing-paid-exam-r2-fixtures-2.

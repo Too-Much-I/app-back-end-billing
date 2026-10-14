@@ -15,6 +15,9 @@ public class EntitlementGrant {
     private String sourceType;
     private String sourceId;
     private String subjectRefId;
+    private String environment;
+    private String ownerUserId;
+    private Long grantOrder;
     private int totalUnits;
     private int availableUnits;
     private int heldUnits;
@@ -71,6 +74,23 @@ public class EntitlementGrant {
                 grantId, benefitCode, sourceType, sourceId, subjectRefId, totalUnits, now
         );
     }
+
+    /** Persistence foundation only: caller proves MEMBER, eligibility and original consumption in its transaction. */
+    public static EntitlementGrant restoredTrial(String grantId, String environment, String ownerUserId,
+            String originalConsumptionId, long grantOrder, Instant now) {
+        if (!java.util.Set.of("test", "staging", "production").contains(environment)
+                || ownerUserId == null || !ownerUserId.matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+                || grantOrder < 1 || grantId == null || grantId.isBlank()) {
+            throw new IllegalArgumentException("Invalid restoration owner/order");
+        }
+        EntitlementGrant grant = unitGrant(grantId, "FREE_EXAM_ONCE", "TRIAL_PAID_RESTORATION",
+                originalConsumptionId, null, 1, java.util.Objects.requireNonNull(now));
+        grant.environment = environment; grant.ownerUserId = ownerUserId; grant.grantOrder = grantOrder;
+        return grant;
+    }
+    public String getEnvironment() { return environment; }
+    public String getOwnerUserId() { return ownerUserId; }
+    public Long getGrantOrder() { return grantOrder; }
 
     public String getGrantId() {
         return grantId;

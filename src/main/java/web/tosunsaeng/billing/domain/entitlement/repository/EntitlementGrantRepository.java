@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.Optional;
 
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
-import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -15,9 +15,9 @@ import web.tosunsaeng.billing.domain.entitlement.domain.entity.EntitlementGrant;
 @Repository
 public class EntitlementGrantRepository {
 
-    private final MongoTemplate mongoTemplate;
+    private final MongoOperations mongoTemplate;
 
-    public EntitlementGrantRepository(MongoTemplate mongoTemplate) {
+    public EntitlementGrantRepository(MongoOperations mongoTemplate) {
         this.mongoTemplate = mongoTemplate;
     }
 

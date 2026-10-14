@@ -1,7 +1,7 @@
 package web.tosunsaeng.billing.domain.entitlement.repository;
 
 import org.springframework.data.domain.Sort;
-import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Repository;
@@ -11,9 +11,9 @@ import web.tosunsaeng.billing.domain.entitlement.domain.entity.EntitlementLedger
 @Repository
 public class EntitlementLedgerRepository {
 
-    private final MongoTemplate mongoTemplate;
+    private final MongoOperations mongoTemplate;
 
-    public EntitlementLedgerRepository(MongoTemplate mongoTemplate) {
+    public EntitlementLedgerRepository(MongoOperations mongoTemplate) {
         this.mongoTemplate = mongoTemplate;
     }
 

@@ -5726,3 +5726,182 @@
 - 사용자 질문에 현재 브랜치 feat/TMI-212-revenuecat-worker-reconciliation, status/log/current와 diff whitespace를 확인했다. HEAD는 TMI-211 PR15 병합 커밋이며 TMI-212 코드/운영 문서와 LC·PLAN-011 계약/fixture가 미커밋 상태로 혼재한다.
 - 기본OFF 구현의 PR 통합을 권장하되 변경 범위 구분·최종 tree 테스트·CI/리뷰 확인이 선행돼야 한다고 안내. 현재1474통과는 이전 실행 기록이며 새 실행 또는 최종 코드 리뷰 결과가 아니다. 원격 PR/CI 상태는 조회하지 않았다.
 - CURRENT_STATE/본 기록만 갱신. 코드·기존 변경 보존, 예상 밖 변경 없음. commit/push/PR 생성/머지/Jira/배포/활성화 없음. 다음 요청 시 PR 준비 범위부터 정리한다.
+
+
+## 2026-10-14 — LC 합의안 R1 회신 반영·J3/J4 보완안
+
+- 브랜치: feat/TMI-212-revenuecat-worker-reconciliation. 목표: 사용자 전달 LC 회신의 exact 실패 관측 및 owner 표 요청 보완. 관련 PLAN-011/012/013·TMI-116/TMI-128/TMI-122/TMI-125.
+- 변경: LC-BILLING-PAID-EXAM-J3-J4-ADDENDUM-R1.md 신규, 합의안/저장설계 후속 링크, CURRENT_STATE/본 기록.
+- Billing 현 오류4-field/status/subject link/account/withdrawal CAS를 읽고 status 전용 RESERVE_REJECTED_BEFORE_CREATION·OPERATION_OWNER_MISMATCH 제안, local guard terminal 조건·reserve worker 재발행 금지·same-key 우선순위·source별 내부 owner snapshot·version 증가와 ownership 변경 분리를 작성했다.
+- 신규 code/fixture 명세는 후보이며 제품/runtime/공동 동결 완료 아님. ACTIVE MEMBER 근거의 실제 연결과 S15/V07 미확정 명시. 원 R2/fixtures-2 유지.
+- 문서 링크·diff 및 원본 hash 검증. 제품 변경이 없어 Gradle 미실행. LC 코드/DB/AWS/Jira/배포/외부 메시지/commit/push 변경 없음, 기존 dirty 보존. 다음은 LC exact 검토 및 합의 후 별도 fixture revision 제작.
+
+## 2026-10-14 테스트 Billing 주소와 사용자 audience 안내
+
+- feat/TMI-212-revenuecat-worker-reconciliation. 사용자 질문에 application.yml·공동 인계·CONTRACT_DECISIONS의 사용자 JWT 발급 계약 확인. 기존 서비스 주소 양식에 맞춘 billing-test.to-teacher.com을 예정 표기로 제안하며 DNS/ALB/실배포 확인과 구분했다.
+- Identity가 기존 LC audience를 보존하며 tosunsaeng-billing과 route scope를 발급하는 방향, 앱은 동일 Bearer 토큰 사용·별도 aud 요청 불필요·구토큰은 재발급 필요를 설명. 현재 Identity 코드/실토큰/배포 완료는 이번에 확인하지 않았다.
+- CURRENT_STATE/본 기록만 갱신. 제품 코드/인프라/노션/배포/Jira/commit/push 없음. 정적 문서 확인으로 Gradle 미실행, 기존 동시 변경 보존·예상 밖 변경 없음. 다음은 환경 구성 시 예정 host와 실제 발급 토큰의 별도 검증.
+
+
+## 2026-10-14 — LC J3/J4 R1 회신 반영 draft-2
+
+- 브랜치: feat/TMI-212-revenuecat-worker-reconciliation. 사용자 첨부 LC 검토 회신 전체를 읽고 J3/J4 문서를 draft-2로 보완했다. 관련 PLAN-011/012/013, TMI-116/TMI-128/TMI-122/TMI-125.
+- 변경: J3/J4 보완안, 상위 합의안/저장설계 링크, CURRENT_STATE/본 기록. PREPARED·새 Session 부재·commit marker·조회 전후 lease/version/owner·원자 guard 해제·local 시각·strict 오류·owner-blocked를 명확히 하고 J3-08~12 fixture 제작 명세를 추가했다.
+- 기존 Identity 결제/withdrawal 계약과 Billing account 생성 코드를 읽어 local ACTIVE의 한계를 확인했다. 권위/전달/최신성/deny 순서/장애·worker 근거 질문을 정리했으며 새 Identity API/이벤트/claim 방식은 선택하지 않았다.
+- S15/V07 및 MEMBER_GRANT 정상 경로 미확정 유지. LC current client/worker 미지원은 사용자 전달 조사 결과로 접수, LC 자체 읽기/실행 없음. 원 R2/fixtures-2 변경 없음.
+- 문서 링크/diff·원 계약/fixture hash 확인. 문서 변경이므로 Gradle 미실행. 코드/DB/Jira/배포/외부 전송/commit/push 없음, 기존 dirty 보존. 다음은 draft-2 LC 검토 및 Identity 증거 연동 계약 확인.
+
+
+## 2026-10-14 — J3/J4 중복 검토 회신 확인
+
+- 브랜치: feat/TMI-212-revenuecat-worker-reconciliation. 사용자 새 첨부와 직전 첨부 byte 대조 결과 동일, 둘 다 draft-1 대상이다. 현재 정본 draft-2 확인. 관련 TMI-116/TMI-128/TMI-122/TMI-125.
+- CURRENT_STATE/본 기록만 갱신. 계약/fixture/제품/DB/배포 변경 없음. 문서 확인이므로 Gradle 미실행, diff 검사. 다음은 draft-2 검토와 Identity MEMBER 증거 계약 확인.
+
+
+## 2026-10-14 — LC J3/J4 draft-2 재검토 접수
+
+- 브랜치: feat/TMI-212-revenuecat-worker-reconciliation. 사용자 첨부 전체 및 신규 후속절 확인. J3 보완 해소·추가 이견 없음, J4 증거 연동 미확정 유지로 접수했다. 관련 TMI-116/TMI-128/TMI-122/TMI-125.
+- 변경: J3/J4 보완안에 접수 후속절, CURRENT_STATE/본 기록. 검토 확인을 공동 최종 동결/fixture 제작/구현 승인으로 확대하지 않음. 다음은 J3 수락 범위와 별도 fixture, J4 Identity 증거 계약 확인.
+- 문서 diff 검사. 문서 접수라 Gradle 미실행. 제품/원 R2/fixture/DB/Jira/배포/외부 메시지/commit/push 변경 없음, 기존 변경 보존.
+
+
+## 2026-10-14 — J4 ① MEMBER 증거 보존·기존 탈퇴 연동 승인 반영
+
+- 브랜치: feat/TMI-212-revenuecat-worker-reconciliation. 사용자 「j4도 1번으로 해줘」와 앞선 계정 유형/탈퇴 전제·지연 수용을 결정 문서로 기록했다. 관련 PLAN-011/012/013·TMI-116/TMI-128/TMI-122/TMI-125.
+- 변경: PLAN-011-J4-MEMBER-EVIDENCE-DECISION-2026-10-14.md 신규, PLAN-011/저장설계/합의안/J3J4 상단 승인 참조, CURRENT_STATE/본 기록. 최초 증거 전달 exact와 부재 복구/지연 운영 기준은 후속.
+- 문서 링크/diff 검사, 문서 변경이라 Gradle 미실행. 원 R2/fixtures·제품/LC/Identity/DB/Jira/배포/외부 회신/commit/push 변경 없음. 기존 변경 보존. 다음은 최초 MEMBER 증거 전달 계약 구체화·공동 확인.
+
+
+## 2026-10-14 — J4/S15/V07 승인 정책 문서 동기화
+
+- 브랜치: feat/TMI-212-revenuecat-worker-reconciliation. 사용자 「어 해줘」에 따라 최근 S15 삭제②·V07 권장 및 J4① 승인을 통합했다. 관련 PLAN-011/012/013·TMI-116/TMI-128/TMI-122/TMI-125.
+- 변경: PLAN-011-J4-S15-V07-DECISIONS-2026-10-14.md 신규, PLAN-011/저장설계/공동합의안/J3J4 최신 승인 참조 및 PLAN-011 잔여 표현 갱신, CURRENT_STATE/본 기록.
+- 명시 사용자 삭제와 단순 Session 부재/중도 이탈 분리. 기존 삭제 continuation 재응시 복구 제외, 삭제 사실 전달·confirm 경합·새 INITIAL wire는 별도 기술 계약으로 남김. V07 보존기간 숫자는 승인되지 않았으므로 발명하지 않음.
+- 문서 링크/diff·기존 R2/fixtures-2 hash 검사, 문서 작업이라 Gradle 미실행. 원 계약/fixture·제품/DB/LC/Identity/Jira/배포/외부 전송/commit/push 변경 없음, 기존 dirty 보존. 다음은 LC 삭제 기술안/phone·보존 exact 및 Identity 최초 MEMBER 증거 확인.
+
+
+## 2026-10-14 — PLAN011 네 잔여 기술안 작성
+
+- 브랜치: feat/TMI-212-revenuecat-worker-reconciliation. 사용자 요청에 따라 MEMBER 최초 증거/삭제 전달·경합/phone 권리선택/보존기간 권장안 작성. 관련 TMI-116/TMI-128/TMI-122/TMI-125.
+- Billing purchase-account JWT/scope/계정Tx·phone 코드 및 LC 삭제 store/ExamSessionManager 읽기. 기존 경로 재사용과 필요한 최소 새 deletion route 제안, phone INITIAL 예외는 새 wire 검토로 명시.
+- PLAN-011-REMAINING-TECHNICAL-PROPOSAL-R1.md 신규, 통합결정/PLAN011 링크·CURRENT_STATE/본 기록 갱신. 보존 숫자·지연 SLO·새 route는 후보이며 승인/구현 완료 아님.
+- 문서 링크/diff·R2/fixtures-2 hash 검사. 코드 미변경이라 Gradle 미실행. LC/Identity 수정·DB/AWS/Jira/배포/외부 전송/commit/push 없음. 기존 dirty 보존. 다음은 한 문서로 LC/Identity 공동 검토.
+
+
+## 2026-10-14 — PLAN011 남은 기술안 LC·Identity 검토 접수
+
+- 브랜치: feat/TMI-212-revenuecat-worker-reconciliation. LC 첨부 전체·Identity 사용자 회신 검토, LC DeletionAccess/생성 saga 일부 읽기. 관련 PLAN011/012/013·TMI116/128/122/125·LC193/136.
+- 변경: PLAN-011-REMAINING-TECHNICAL-REVIEW-RESPONSE-R2.md 신규·R1 후속 링크·CURRENT_STATE/본 기록. M1 pending/선보강, 삭제 checkpoint/기존 생성 복구 예외·exact 오류, phone 응답/수혜 예제 제안.
+- 핵심 보정:120일 실행 상한/LC 새 issuedAt은 모든 증거 폐기 뒤 앱 과거 UUID 신규 재입력 차단 못함. 자동 tombstone 폐기 미승인·대안 비교, 보존 기간/개인정보 무기한 정책 확정 금지.
+- 문서 링크/diff·원본 R2/fixture hash 확인. 코드 미변경이라 Gradle 미실행. Identity 코드/환경 미검증, LC 수정/DB/Jira/배포/외부 전송/commit/push 없음. 다음은 M/D/P exact 검토·V 최초key 증거와 폐기 계약 선택.
+
+
+## 2026-10-14 — 재가입 paid-first 유지 및 나머지 단순화 승인
+
+- 브랜치: feat/TMI-212-revenuecat-worker-reconciliation. 사용자 인용 재가입 정책은 유지하고 나머지 단순화안을 채택한다는 요청 반영. 관련 PLAN011/012/013·TMI116/128/122/125·LC193/136.
+- 변경: PLAN-011-SIMPLIFICATION-DECISION-2026-10-14.md 신규, 계획/설계/통합결정/기술안/회신/합의안 최신 승인 참조, CURRENT_STATE/본 기록.
+- 생성 중 삭제 queue 대신 미접수 재시도, 앱 purchase-account MEMBER 보강,120일 멱등보장 및 terminal 상세120일 정리·기간후 UUID 신규처리 위험 수용 명시. 금융/소비/복원unique/unknown 증거는 별도 유지.
+- 문서 링크/diff·원본 계약/fixtures hash 검사. 제품/DB/purge/LC/Identity/Jira/외부 전송/배포/commit/push 없음, 문서 작업이라 Gradle 미실행. 다음은 공동 exact 변경 동기화와 새로운 fixture.
+
+
+## 2026-10-14 — LC·Identity 단순화 정책 동기화 접수
+
+- 브랜치: feat/TMI-212-revenuecat-worker-reconciliation. 사용자 전달 양측 회신을 근거로 정책 동기화 완료 접수, 타 저장소 독립 검증은 하지 않음. 관련 PLAN011/012/013·TMI116/128/122/125.
+- 단순화 결정 문서 후속절/CURRENT_STATE/본 기록만 갱신. 이전 영구 key 보장 요구 해소·금융/소비/권한/미완료 및 Identity 탈퇴 보존 분리 명시.
+- 다음은 exact 오류·120일 경계·phone snapshot/owner/복원 경합·새 계약/fixture 독립 검증. 문서 diff 검사, 문서 작업이라 Gradle 미실행. 제품/DB/fixture/LC/Identity/Jira/배포/외부 전송/commit/push 변경 없음.
+
+
+## 2026-10-14 — 단순화 exact 계약 R1 작성
+
+- 브랜치: feat/TMI-212-revenuecat-worker-reconciliation. 사용자 요청에 따라 정책 재논의 없이 오류/120일 경계/phone 귀속·복원 경합을 문서화했다. 관련 PLAN011/012/013·TMI116/128/122/125·LC193/136.
+- LC ErrorStatus/삭제 advice/BaseResponse/phone client/terminal retention 및 Billing ReserveCommand 읽기. 공개 result null은 생략됨 확인, 기존 code 재사용과 삭제 endpoint 안내 변경 구분.
+- LC-BILLING-PAID-EXAM-SIMPLIFIED-EXACT-R1.md 신규·PLAN011/단순화결정 참조·CURRENT_STATE/본 기록. E/T/P/C19개 검증영역은 제작 명세이며 실제 fixture/테스트 통과 아님.
+- 문서 링크/diff·원본 R2/fixtures-2 hash 검사. 제품 코드 변경 없으므로 Gradle 미실행. LC/Identity 수정/DB/Jira/배포/외부전송/commit/push 없음. 다음은 양측 exact 검토·수락 후 별도 fixture 생성/독립 검증.
+
+
+## 2026-10-14 — MEMBER 대기·same-key 재개 exact draft-2
+
+- 브랜치: feat/TMI-212-revenuecat-worker-reconciliation. LC 회신의 stale PREPARED cleanup으로 앱 재개가 막히는 지적 반영. LC saga/reconciliation/operation 저장 코드 읽기 확인. 관련 TMI116/128/122/125.
+- 단순화 exact 문서 draft-2·CURRENT_STATE/본 기록 변경. Billing 비종료 waiting receipt/status 및 LC waitingReason/lease CAS·cleanup/격리 제한적 재개·응답유실 E02-a~h 제안. 새 규격 검토 필요, 기존 offline 결과로 검증됐다고 보고하지 않음.
+- 문서 링크/diff·원본 계약/fixture hash 확인, 코드 미변경이라 Gradle 미실행. LC/Identity 코드/DB/Jira/배포/외부전송/commit/push 없음. 다음은 대기 상태/status/재개 exact 공동 수락 후 fixture 검증.
+
+
+## 2026-10-14 — exact draft-3 격리 예외 우선순위
+
+- 브랜치: feat/TMI-212-revenuecat-worker-reconciliation. LC 사용자 전달 후속 의견에 따라 NEEDS_REVIEW/retry 소진 행 겹침 해소. 관련 TMI116/128/122/125.
+- exact 계약 draft-3 §3.4/E02-f 및 CURRENT_STATE/본 기록만 변경. MEMBER 대기→소진 영속 원인+현재 status/owner/lease/version/무예약·무Session 조건으로 좁은 예외, retry_exhausted 단독·불명/혼재 원인은 운영 확인.
+- diff·문서 링크 검사, 문서 작업이므로 Gradle 미실행. 코드/DB/fixture/LC/Identity/Jira/배포/외부전송/commit/push 변경 없음. 다음은 수정 우선순위 공동 확인 후 fixture 명세 수락.
+
+
+## 2026-10-14 — LC exact draft-3 이견 없음 접수
+
+- 브랜치: feat/TMI-212-revenuecat-worker-reconciliation. 사용자 전달 LC 회신의 격리 예외/E02-f 반영·이전 의견 해소 기록. 관련 TMI116/128/122/125.
+- exact 문서 접수 후속절/CURRENT_STATE/본 기록만 갱신. 공동 최종 수락/fixture 생성/구현으로 확대하지 않음. 삭제 route/owner/자료별 보존은 별도 유지.
+- 문서 diff 검사, 문서 접수로 Gradle 미실행. 제품/fixture/LC/DB/Jira/배포/외부전송/commit/push 변경 없음. 다음은 검토된 범위 공동 수락과 별도 fixture 제작·독립 검증.
+
+
+## 2026-10-14 — 단순화 exact 한정 수락·새 fixture 제작
+
+- 브랜치: feat/TMI-212-revenuecat-worker-reconciliation. 사용자 「어 해줘」로 수락 기록/fixture 준비. LC 이전 회신은 검토 이견 없음으로 접수하고 신규 bytes 인수/독립 검증은 대기 표시. 관련 PLAN011/012/013·TMI116/128/122/125.
+- 신규 수락/검증 문서, fixture10파일, Node 생성기·Python 독립 모형 검사기, PLAN011 참조·CURRENT_STATE/본 기록. 원 exact snapshot/계약 hash를 fixture에 포함, exact 원문은 변경하지 않음.
+- 오프라인80벡터 통과, 상태28 미실행 표시·계약 traceability.5변조 거절·생성기 덮어쓰기 금지, 기존 R2 검사 통과. 최초 불완전 생성은 표 공백 차이 coverage 검사 실패로 중단 후 수정·최종 검증 완료.
+- 실제 HTTP/worker/DB/Transaction·LC 독립 검증 미완료, 삭제 route/owner/최종 보존 제외. Java 변경 없어 Gradle 미실행. 코드/DB/LC/Identity/Jira/외부전송/배포/commit/push 없음. 다음은 LC 원본hash 인수·독립검증.
+
+
+## 2026-10-14 — 단순화 fixture LC 독립검증 완료 접수
+
+- 브랜치: feat/TMI-212-revenuecat-worker-reconciliation. 사용자 전달 LC 결과10파일 동일·81검사/전체1,029 통과(포함), 실패/오류/skip0 접수. 관련 TMI116/128/122/125.
+- 수락 기록/CURRENT_STATE/본 기록 갱신. LC 테스트 자체 재실행/코드 확인 없음. manifest 제작 당시 상태/fixture bytes 보존, 상태28 및 삭제 route/owner/보존 미완료 구분.
+- diff 검사, 접수 문서 작업으로 Gradle 미실행. 제품/DB/fixture/LC/Identity/Jira/외부전송/배포/commit/push 변경 없음. 다음은 한정 범위 구현과 남은 경로 exact 준비, 실제 구현 승인은 별도.
+
+
+## 2026-10-14 — PLAN-011 구현 기준·착수 범위 동기화
+
+- 브랜치: feat/TMI-212-revenuecat-worker-reconciliation. 관련 PLAN-011/012/013, TMI-116/TMI-128/TMI-122/TMI-125.
+- 요청: 양측 오프라인 검증 뒤 계획·ADR 동기화 및 구현 범위 정리 제안에 사용자 「해줘」. 이번에는 문서 동기화로 수행했으며 제품 구현/활성화 완료로 확대하지 않음.
+- 변경: PLAN-011 본문의 오래된 LC 검증/phone 미확정 문구 갱신, §5.0에 착수 순서·검증·서비스 분담·보류 범위 추가. ADR-004 현재 결정과 AGENTS 우선 규칙, 저장 Transaction 설계의 MEMBER 비종료 receipt·120일·phone 보완 및 CURRENT_STATE 갱신.
+- 구현 순서: 단일 ClientSession/schema/index와 OFF 구성 → MEMBER 증거·WAITING_MEMBER_EVIDENCE/status/replay → paid-first reserve/confirm/복원 unique/guard → LC 마무리·최소 이용 증거/조회 통합. 실제 코드·schema 설치는 수행하지 않음.
+- 유지: 원 계약/fixture bytes, 기존 사용자/서비스 인증·status body·command header,120일 승인 위험, 재가입 target paid-first/복원1회. 원본 manifest false는 제작 당시 기록으로 보존.
+- 검증: verify-paid-exam-simplified-fixtures-r1.py의80벡터/9파일hash 통과. git diff --check 통과. 문서 상대 링크 확인. Java 변경이 없어 Gradle/LC 테스트 재실행 없음; LC81/1,029는 앞선 사용자 보고. 실제 상태28·HTTP·Transaction 미실행.
+- 위험/다음: 삭제 route/인증·과거 owner 삭제 coverage·자료별 purge 공동 계약, 이후 실제 구현의 replica-set rollback/unknown commit/경합 검증 필요. 운영 키/port/TLS·배포는 별도.
+- 범위: 기존 dirty 변경 보존. 이번 변경은 문서6개(AGENTS, PLAN-011, 저장 설계, ADR-004, CURRENT_STATE, WORKLOG)뿐이며 예상 밖 변경 없음. LC/Identity·제품·DB·fixture·Jira·외부 회신·commit/push·배포 변경 없음.
+
+## 2026-10-14 시험 생성 자격 거절 오류 안내
+
+- 사용자 질문에 Billing Reservation exception/R2 계약과 LC ErrorStatus·BillingExamCreationSaga 매핑을 읽기 확인. 기존 402 ENTITLEMENT_INSUFFICIENT 및 사용자 문구 확인, 처리 중409/일시503과 구분하고 신규 refund409는 계약/후속 상태로 안내했다.
+- feat/TMI-212-revenuecat-worker-reconciliation, CURRENT_STATE/본 기록만 수정. 코드·LC 문서·노션·Jira·배포 변경 없음. 정적 확인으로 Gradle 미실행·실환경 응답 미검증. 기존 dirty 보존·예상 밖 변경 없음. 프론트는 시작 시402에 조회 갱신/이용권 안내, 자동 반복 재시도 금지.
+
+
+## 2026-10-14 — PLAN-011 Jira 구현 작업 우선 등록
+
+- 브랜치 feat/TMI-212-revenuecat-worker-reconciliation. 사용자 「지라 먼저 생성해줘」 승인으로 TMI-137 하위 작업 TMI-213~217 생성.
+- 일반 Rovo 검색 timeout 뒤 JQL로 기존 PLAN-011 검색 및 에픽/유형 확인. 기존 검색 결과는 PLAN010의210/211/212로 신규 구현 과제 중복 없음 확인.
+- 213 공통 Transaction/schema,214 MEMBER 증거·영속 대기/복구,215 paid-first confirm/복원,216 LC 연동·실제 검증,217 삭제/owner/보존 공동 계약. 각 본문에 범위·완료조건·선행·고정 계약hash와 오프라인/runtime 경계를 명시.
+- 생성 후5개 재조회로 parent137/해야 할 일/미할당 확인. 기존 이슈 본문·상태·담당·댓글 변경 없음. 신규 이슈 의존 순서는 본문으로 기록.
+- Billing PLAN-011 및 CURRENT_STATE 링크/진행 상태 동기화. WORKLOG append. 문서 diff 검사, 제품 코드 변경 없어 Gradle 미실행.
+- 코드/DB/배포·LC/Identity·동결 contract/fixture·commit/push 변경 없음. 기존 dirty 보존, 예상 밖 변경 없음. 다음 실제 구현은 TMI-213,217의 공동 계약/실환경 gate는 별도.
+
+- [TMI-213](https://to-teacher.atlassian.net/browse/TMI-213): 공통 Transaction·저장 기반
+- [TMI-214](https://to-teacher.atlassian.net/browse/TMI-214): MEMBER 증거·대기·같은 key 복구
+- [TMI-215](https://to-teacher.atlassian.net/browse/TMI-215): 유료 우선 reserve·confirm·무료권 복원
+- [TMI-216](https://to-teacher.atlassian.net/browse/TMI-216): LC 연동·이용 증거·실제 경합 검증
+- [TMI-217](https://to-teacher.atlassian.net/browse/TMI-217): 삭제 전달·과거 owner·자료별 폐기 공동 계약
+
+## 2026-10-14 개인정보처리방침 결제 보존·RevenueCat 확인
+
+- 사용자 요청으로 Billing PurchaseCore/암호화참조/retention/cleanup 및 provider transport를 정적 확인. 거래·계정연결·상품/금액·권리시각 저장과5년 정책,120일 접수/완료sync 예외,금융전체purge 후속·삭제OFF를 구분했다. Billing RC 고객 DELETE 경로는 찾지 못했고 GET 전용 연동을 확인했다. 실DB/실배포/앱SDK 설정은 미조회.
+- 국가법령정보센터 시행령6조의 계약/청약철회·대금결제/공급5년·불만분쟁3년 및 개인정보보호법28조의8, RevenueCat 공식 privacy/DPA/customer deletion 문서를 조회. 미국 저장·processor 역할·대시보드/API 고객 삭제 지원을 확인했으며 RC의 일반6년 문구를 최종사용자 보유기간으로 확정하지 않았다. 실제 SDK 수집항목·삭제/backup SLA 및 국외이전 법적 근거는 확인 필요.
+- CURRENT_STATE/본 기록만 변경. 개인정보처리방침 게시·정책 확정·RC삭제·지원메일 발송·코드/외부계정/배포/Jira 변경 없음. 코드 미변경으로 Gradle 미실행. 기존 dirty 보존·예상 밖 변경 없음. 다음은 RC 보유/삭제 기간 확인 및 탈퇴 삭제와 환불재조회 보호 범위 결정 후 고지·구현 정합화.
+
+
+## 2026-10-14 — TMI-213 공통 Transaction·유료 시험 저장 기반 구현
+
+- 사용자 요청: 기존 feat/TMI-* 방식으로 브랜치 전환 후 구현. TMI-213 Jira 본문/완료조건을 읽고 feat/TMI-213-paid-exam-transaction-foundation으로 신규 전환, 기존 dirty 문서/fixture 보존. Git metadata/Gradle cache sandbox 제한은 승인된 실행으로 해결했다.
+- 변경: PaymentStore.transactionWithTemplate/중첩방지 scope 및 Spring wrapping Mongo 오류 retry. MongoTransactionExecutor/EntitlementSnapshotExecutor 중첩 거절. Reservation/Allocation/Grant/Ledger/Group/Session repository에 MongoOperations 주입을 허용하여 동일 ClientSession 바인딩. 기존 무료 호출 방식 유지.
+- 저장: EntitlementSourceSnapshot·기존 Reservation/group/session optional reader, PaidExamStore waiting receipt·immutable source/response CAS·guard 획득/확정/해제·FIFO, MEMBER restoration grant/ledger factory, paid-exam-foundation-r1 strict schema/index·명시 maintenance install/read-only verify. MEMBER owner epoch는 null·TRIAL만 실제 epoch 필수. 기존 grant/ledger unique 불변.
+- 설정: billing.reservation paid-foundation-enabled/paid-admission-enabled 기본false. foundation ON은 schema 정확검증, admission ON은 후속 runtime 미완료로 기동거절. 공개 API/업무 wire/실제 paid resolver·confirm은 변경하지 않았다.
+- 검증: 최종 ./gradlew clean test1,497개 실패0/오류0/skip0. 신규23개(단위3/실제 Mongo20) 포함. raw결제+6repo+guard/receipt 9단계rollback·동시CAS·중복복원/FIFO·늦은완료보호·source roundtrip·strictschema/TTL·중첩거절·unknowncommit 검증. 기존 simplified80벡터/hash 재검사와 diff/링크 통과. 기존 VM/deprecated 경고 유지.
+- 중간 결과: session-bound API 호출 및 AssertJ 타입 추론 컴파일 수정, Mongo transient의 Spring wrapping을 재시도에서 놓치는 경합을 수정. commit91은 topology재탐색/2초기한 영향을 포함하므로 기존 방식의 code1+UnknownTransactionCommitResult로 commit재시도만 검사. 최종 테스트는 모든 수정 뒤 재실행했다.
+- 문서: TMI-213 runbook 신규, AGENTS/ADR004/PLAN011/CURRENT_STATE 동기화, WORKLOG append. source factory는 자격 판단기가 아니며 후속 업무Tx에서 owner/account/purchase fence를 반드시 구현. schema 설치/strict 기존 collection paid writer 전환·운영 rollback은 별도.
+- 범위/위험: 실제 계약28개 전체 실행·LC/Identity 수정·운영 DB·외부 HTTP·배포/활성화·Jira 상태/댓글·commit/push 없음. 기존 dirty를 보존했고 예상 밖 변경 없음. 실제 유료 선택·confirm/phone/환불/삭제 통합은 미완료다.
+- 다음: TMI-214 MEMBER 증거·대기/API/status 복구 →215 paid reserve/confirm/복원 →216 LC 연동·검증.217 삭제/과거owner/자료별purge는 별도 공동계약. 운영키/port/TLS/DB 설치 및 판매활성화는 별도 승인·검증이다.

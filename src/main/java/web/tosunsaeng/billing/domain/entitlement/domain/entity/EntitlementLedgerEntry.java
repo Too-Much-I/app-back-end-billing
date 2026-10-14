@@ -76,6 +76,14 @@ public class EntitlementLedgerEntry {
         );
     }
 
+    public static EntitlementLedgerEntry restoredTrial(String ledgerEventId, EntitlementGrant grant, Instant occurredAt) {
+        if (!"TRIAL_PAID_RESTORATION".equals(grant.getSourceType()) || grant.getOwnerUserId() == null) {
+            throw new IllegalArgumentException("A MEMBER restoration grant is required");
+        }
+        return new EntitlementLedgerEntry(ledgerEventId, grant.getGrantId(), 1, EventType.GRANTED,
+                null, null, null, null, "TRIAL_PAID_RESTORATION:" + grant.getEnvironment() + ":" + grant.getSourceId(), occurredAt);
+    }
+
     public static EntitlementLedgerEntry reserved(
             String ledgerEventId,
             String grantId,

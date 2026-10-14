@@ -6,7 +6,7 @@ import java.util.Optional;
 
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
-import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -17,9 +17,9 @@ import web.tosunsaeng.billing.domain.reservation.domain.entity.Reservation;
 @Repository
 public class ReservationRepository {
 
-    private final MongoTemplate mongoTemplate;
+    private final MongoOperations mongoTemplate;
 
-    public ReservationRepository(MongoTemplate mongoTemplate) {
+    public ReservationRepository(MongoOperations mongoTemplate) {
         this.mongoTemplate = mongoTemplate;
     }
 

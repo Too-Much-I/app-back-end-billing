@@ -1,5 +1,19 @@
 # PLAN-011 저장 구조·Transaction 설계 R1
 
+현재 보완 기준: [exact 한정 수락](../contracts/LC-BILLING-PAID-EXAM-SIMPLIFIED-R1-ACCEPTANCE.md)·[PLAN-011 §5.0](PLAN-011-paid-reservation-and-usage-evidence.md). 아래 과거 제안의 J3/phone/120일 미확정 표시는 해당 수락 범위에서 갱신한다. 내부 schema/index 명칭은 구현 시 대조하고 삭제 route/과거 owner·최종 purge는 별도다.
+
+receipt 설계에는 비종료 WAITING_MEMBER_EVIDENCE와 최초 대기/원인 증거·동일 key payload/owner fence를 포함한다. pending은 commit 후503으로 변환하며 Reservation/hold/소비/복원을 만들지 않는다. status는 보강 후에도 저장된 대기를 반환할 수 있고 쓰기 없이 관측한다. HTTP same-key reserve만 안전 검증 후 진행하며 worker reserve는 금지한다. 상세120일과 unresolved 보존을 분리하고 일괄 TTL을 설치하지 않는다. LC firstAcceptedAt와 Billing 접수 시각을 임의로 동일시하지 않는다.
+
+phone target paid INITIAL은 transition 없는 예외이며 새 group/원 mock/reason/id snapshot을 보존한다. 동일 ClientSession의 owner epoch·원 consumption unique로 target 복원1회를 보장한다. 실제 삭제 증거 전달 계약이 없는데 원 Session 부재를 삭제/미삭제 증거로 사용하지 않는다.
+
+> 2026-10-14 최신 사용자 승인: [단순화 결정](../contracts/PLAN-011-SIMPLIFICATION-DECISION-2026-10-14.md). 재가입 유료 우선·원 소비당 target 복원1회 유지, 생성 중 삭제 미접수·앱 MEMBER 보강·120일 멱등 보장/종료 상세 기록 정리 채택. 이후 과거 key 신규 처리 위험 수용, 금융/소비/미완료 증거 보존은 유지. 아래 대기열 삭제/영구 key 보장 전제는 이 범위에서 대체하며 구현·공동 exact는 후속이다.
+
+> 2026-10-14 최신 사용자 승인: [J4·S15·V07 통합 결정](../contracts/PLAN-011-J4-S15-V07-DECISIONS-2026-10-14.md). 명시적 사용자 시험 삭제는 원 재응시 포기·사용 무료권 미복원, 다른 권리/기지급 복원권 보존. V07은 진행 중 증거 유지·종료 후 최소 보존 방향 확정. 아래 삭제 continuation 복구 제안은 이 범위에서 대체하며, phone·삭제 전달/경합·보존기간 exact는 후속이다.
+
+> 2026-10-14 사용자 승인: [J4 ① 채택](../contracts/PLAN-011-J4-MEMBER-EVIDENCE-DECISION-2026-10-14.md). Identity 확인 MEMBER 증거 보존 + 기존 탈퇴 이벤트/복구, 전파 지연 허용. 아래 방식 미선택 표현은 이 범위에서 대체한다. 최초 증거 전달 exact·구현/공동 검증은 후속이며 실시간 ACTIVE 증명으로 해석하지 않는다.
+
+> 2026-10-14 LC 회신 후속: [J3/J4 보완안 R1 draft-2](../contracts/LC-BILLING-PAID-EXAM-J3-J4-ADDENDUM-R1.md)에 status 영속 거절 관측·worker 종료와 source별 owner/lifecycle 상세를 제안했다. J1/J2는 요구 이견 없음이며 runtime 통과가 아니다. 보완안 최종 수락/fixture 제작은 대기한다.
+
 - 날짜: 2026-10-14 / revision: plan-011-storage-transaction-r1
 - 상태: Billing 구현 설계 제안. 사용자 요청으로 작성했으며 schema 설치·제품 구현·최종 공동 수락은 수행하지 않았다.
 - 기준: [PLAN-011](PLAN-011-paid-reservation-and-usage-evidence.md), [R2 draft-2](../contracts/LC-BILLING-PAID-EXAM-CONTRACT-R2.md), [공동 구현 합의안](../contracts/LC-BILLING-PAID-EXAM-R2-IMPLEMENTATION-AGREEMENT-R1.md).
