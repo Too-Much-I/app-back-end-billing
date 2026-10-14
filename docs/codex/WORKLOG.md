@@ -6007,3 +6007,168 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - 테스트: 선별실Mongo5개통과, 최종 ./gradlew clean test1,577개 실패0/오류0/skip0(신규통합5+단위2 포함). 생성원자성/receipt실패rollback·confirm/replay/계정refresh불변·trial link변경후과거근거유지·legacy부재·epoch종류검증. 최초sandbox Gradlecache lock제한은승인실행으로해소. 기존deprecated경고유지. simplified80/hash9·R2검사·문서링크/diff통과.
 - 문서: 안내/PLAN011/ADR004/CURRENT_STATE/본기록. 자동DDL/validator/index설치·운영DB·LC/Identity·fixturebytes·Jira쓰기·외부발송·배포/활성화변경0. 기존paid flags OFF 유지. 운영attempt_sessions별도validator/reader coverage·개인연결보존은rollout gate.
 - 다음: 수정계약 공동coverage와단일merge/eventId증거확인, Guest/legacy writer범위확정후삭제receiver/ACK/경합구현. 현재근거는최초귀속일뿐삭제권한허용아님. 병행012문서보존·이번예상밖변경없음. 새구현은로컬미커밋/미푸시.
+
+## 2026-10-14 — RevenueCat 수동 삭제 기한 권장
+
+- 목표: 탈퇴 후 필요한 처리 뒤 수동 삭제하는 운영안의 기한 제안. 확인한 현재 브랜치 feat/TMI-214-member-evidence-operation-recovery의 기존 변경은 보존하며 CURRENT_STATE/WORKLOG만 기록한다.
+- 검토: 개인정보보호법21조의 불필요한 개인정보 지체 없는 파기 기준 확인(https://www.law.go.kr/lsLinkCommonInfo.do?lsJoLnkSeq=1027063705). 일반 건 즉시 착수·5영업일 이내 내부 처리목표, 실제 미결 거래/환불 건30일 이내 최종 검토·처리를 권장한다. 법정 유예기간이나 RevenueCat 완전삭제 SLA로 주장하지 않는다.
+- 결정/위험: 사용자 승인 전 제안이며30일 일괄보유·무기한 미결연장을 허용하지 않는다. 예외는 구체적 법적 근거/필요·최소 항목·담당자/다음 기한을 정하고 목적 종료 시 지체 없이 삭제. Billing 기존15일 연결 정리와5년 금융기록 정책은 별개로 유지한다.
+- 검증/범위: 문서 기록만, 코드 미변경으로 Gradle 미실행. 외부 고객삭제·정책 게시·Jira·배포·commit/push 없음. RC 비동기 삭제/백업 SLA 미확인. 다음은 사용자 기한 선택 후 수동 운영 안내 정합화.
+
+
+
+## 2026-10-14 — PLAN-012 환불 선행 설계 보완
+
+- 요청/목표: 진행 중인011과 병행해012 계획 구체화. 작업 도중 현재 브랜치가 feat/TMI-214-member-evidence-operation-recovery에서 feat/TMI-215-paid-reservation-restoration으로 변경된 것을 관측했다. 이 작업은 branch 전환/코드수정을 하지 않았고 동시011 변경을 보존했다.
+- 변경: PLAN-012 본문 갱신, PLAN-012-HISTORY-BEFORE-REFRESH-2026-10-14에 이전 전문 보존, CURRENT_STATE/WORKLOG 기록. 최신 정책/R2/한정수락/011·013과 PurchaseCore reversal 경로를 정적 대조했다.
+- 계약: confirm 선행 exact Session 보호·불변 group revoke·전용 역방향 JWT·appliedAt reflow·부분 환불 잔여권 종료 유지. 종전 GRADING-only/채점 승인 API/SigV4/version revoke는 현재 계획에서 제거. source/공통Tx/guard/이용증거의011 분담과 P0~P4·테스트·판매전 활성화 표 명시. 고정 계약/fixture bytes 수정 없음.
+- 결정/미확인: 금융 source 매핑·schema/index·worker exact는 P0 후속이며 provider 실제 부분 환불 지원/양측 runtime 미검증. RC5영업일/30일 삭제안은 추천 상태로 유지. 장기금융/RC삭제 구현·정책 변경 승인 아님.
+- 검증: 문서 diff/상대 링크와 이력 원문 보존 검사 수행. Java 변경 없는 계획 작업으로 Gradle 미실행. Jira 생성/수정·외부메시지·Store 조회/환불·LC/Identity·DB·배포·commit/push 없음. 이번 작업 변경은 위 문서4개이며 별도 진행 코드 변경은 건드리지 않았다.
+- 다음: 사용자 계획 검토 후012 P0 exact를 작성하고 구현 단위/Jira 별도 승인. 011 TMI-215 공통 경합·216 실제 통합·217 삭제보존과 연결, 판매 활성화는013 별도 gate.
+
+
+## 2026-10-14 — PLAN-012 LC 환불·Session 인계
+
+- 요청/목표: 환불 선행/confirm 선행 및 같은 그룹 재응시 차단을 LC에 전달할 문서 작성. 현재 feat/TMI-215-paid-reservation-restoration, 별도 진행 중인011 코드 변경 보존.
+- 변경: docs/contracts/PLAN-012-LC-REFUND-SESSION-HANDOFF-2026-10-14.md 신규, PLAN-012 링크·CURRENT_STATE·WORKLOG 갱신. exact S1 보호/새 S2 차단/응답유실 replay, 서비스 분담·LC 회신 항목·H01~13 공동 테스트 정리.
+- 유지 계약: 기존 confirm 성공/환불 거절 replay·R2 불변 event/group 두409·역방향JWT·lifecycle 우선·기본OFF. 신규 wire/기한/오류·이어풀기 기능 없음. 프론트/문의 운영 요지는 포함하되 외부 문서는 수정하지 않음.
+- 검증: 문서 상대 링크·diff 검사. 코드 미변경으로 Gradle 미실행, LC 코드 독립 검증/외부조회 미수행. 고정 fixture/정책·Jira·DB·배포·외부 메시지·commit/push 변경 없음. 이번 범위 밖 동시 코드 변경은 보존했고 문서4개 외 직접 변경 없음.
+- 다음: 사용자가 LC에 공유 후 실제 구현 위치·상태/테스트·보존 미확정 회신 확인,012 P0 및215/216/217 접점 정리. 인계서 작성은 상대 수락·활성화 완료가 아님.
+
+
+## 2026-10-14 — LC 환불 인계 검토 회신 접수
+
+- 근거: 사용자 전달 LC 회신. feat/TMI-215-paid-reservation-restoration에서 PLAN-012/LC 인계서/CURRENT_STATE/본 기록만 정합화하고 진행 중 코드 변경 보존.
+- 반영: 정책 일치·P2 거절 응답/증거 기반 구현 보고와 P2.1→P3 다음 순서, P4 보호Session/P5 수신/P6 보존 후속을 구분. 단일 group revoke 문서로 논리 inbox/deny 역할 통합, 별도 inbox 추가 금지. eventId/group 유일성과 원자성·최초 보호 대상 불변 유지.120일 inbox TTL을 단일 문서 전체 삭제로 전용하지 않음.
+- 검증/한계: 문서 diff 검사, H01~13 공동 검증 미완료. LC 코드/테스트 독립 실행 없음, Java 변경 없어 Gradle 미실행. 고정 계약/fixture bytes·Jira·외부메시지·DB·배포·commit/push 변경 없음. 이번 범위 밖 코드 변경은 보존.
+- 다음: LC는 기존 P2.1→P3, Billing은011 및012 P0 기술 상세 진행. 두 서버 단계 번호를 혼동하지 않으며 P5/P6 실제 수신·보존 완료 전 활성화하지 않음.
+
+
+## 2026-10-14 — LC 환불 인계 재검토 3점 보완
+
+- 목표/근거: 사용자 전달 재검토 의견을 feat/TMI-215-paid-reservation-restoration에서 반영. LC 인계서·CURRENT_STATE·WORKLOG만 수정, 기존 코드/문서 변경 보존.
+- 내용: 현재 LC P2는011 reserve/status 읽기·검증·증거 및 confirmRejection 해석이며012 수신/Session 보호 착수가 아님을 명시. 앱 이탈·통신/일시 채점 실패와 lifecycle 종료 확정 구분. same-key 복구120일 보장/lifecycle 한계·삭제/종료 재생성 금지, 과거 결과 replay와 현재 이용 허용 구분. H03/H09 테스트 기대값 정합화.
+- 유지/검증: 단일 group revoke·금융/receipt/보호 증거 보존 구분·고정wire/fixture 불변. 문서 diff 검사, 코드 미변경으로 Gradle 미실행. LC 독립 코드검증·Jira·외부메시지·DB·배포·commit/push 없음. 이번 직접 수정은 문서3개이며 범위 밖 변경 없음.
+- 다음: LC 회신/구현 검증은 별도, 기존011 진행과012 P0 준비를 분리 유지. 인계로 후속 구현/활성화를 승인하지 않음.
+
+
+
+## 2026-10-14 — PLAN-012 복잡도·단순화 검토
+
+- 요청: 일부 위험을 수용해012 단순화 가능성 확인. feat/TMI-215-paid-reservation-restoration에서 계획/현재 PurchaseCore reversal 경계 정적 검토, 실제 환불 구현 완료와 구분했다.
+- 변경: PLAN-012-SIMPLIFICATION-REVIEW-2026-10-14 신규 및 CURRENT_STATE/WORKLOG. provider별 금액근거 고정·모호한정정 기존case·최소job/기존worker/운영도구 재사용 권장. 기존 LC 단일문서/채점API 제외는 이미 반영된 단순화로 구분.
+- 유지/위험: 승인 전 제안으로 계획/코드 변경 없음. 실제누적액 제공 미확인·운영검토지연·대량처리속도 tradeoff 명시. root/confirm CAS·동일Session 보호·멱등원장·reflow·durable전달/핵심검증 유지. 금전사실 누락/수동DB정정 허용 아님.
+- 검증: 문서diff/링크 확인, 코드미변경으로 Gradle 미실행. provider실조회·LC/Identity·Jira·배포·commit/push 없음. 진행중215 변경보존, 이번문서3개 외 변경없음. 다음은 사용자 선택 뒤012 P0의 최소구현범위 정리,011 계속 진행.
+
+
+## 2026-10-14 — PLAN-012 최소 구현 방향 승인 반영
+
+- 요청/브랜치: 사용자 「어 그렇게 하자」. 현재 feat/TMI-216-lc-paid-exam-integration이며 이번 작업에서 branch 전환 없음. PLAN-012/단순화검토/CURRENT_STATE/WORKLOG만 변경, 동시011 구현 보존.
+- 결정: 팀 수동심사 유지·실제검증 플랫폼별 결과 고정매핑·불명확한 금액/귀속 durable case+Slack·root 먼저 차단 후 작은묶음 순차처리·전용관리화면 제외. 전액/부분 실제검증으로 자동화범위 확인, 예외빈도 낮다고 가정하지 않음. 중복알림은 자동 멱등처리.
+- 보호/미확인: confirm/refund 원자성·Session/lifecycle·다른권리·reflow·outbox/lease/CAS/재시도 유지. 귀속불명 임의차단·금액발명·반환사실누락 금지. 실제 provider증거/운영담당·적체기준/exact는 후속.012 착수/실거래/공동테스트/배포승인 아님.
+- 검증: 문서 diff 검사, 코드미변경으로 Gradle 미실행. LC/Identity·고정fixture·Jira·외부메시지·DB·commit/push 변경 없음. 다음은011 계속 진행,012 P0에서 최소 지원경로/검증표 정리.
+
+
+## 2026-10-14 — PLAN-012 P0 기술 초안·Identity 문의 정적 확인
+
+- 요청/브랜치: 사용자 「어 해줘」로012 P0 및 Identity 연동 필요 확인. feat/TMI-216-lc-paid-exam-integration, 기존011 코드 변경 보존.
+- 확인: PurchaseObservation STORE_PAID는 구매액, RC REST refunded 금액null/webhookCANCELLATION review, 현재reversal PLAN012보류·paid root CAS·기존worker/lease/operator/alerts 대조. Identity 로컬HEAD eec6018b support 소스에서 인증REFUND·ACTIVE·거래필드부재·Slack문의번호본문·RECEIVED/90일 확인. 실배포/전체감사 아님.
+- 변경: P0-MINIMAL-TECHNICAL-DESIGN-R1 및 Identity SUPPORT-HANDOFF 신규, PLAN012/CURRENT_STATE/WORKLOG. 최소증거/기존collection확장/outbox/index·순차worker수치 후보·검증표 작성. 현재operator는ACCOUNT/AUTH뿐임과환불case확장 필요 명시, 문의보존/구매연결 운영미확인 분리.
+- 검증/범위: 문서 diff/상대링크 검사. 코드 미변경으로 Gradle 미실행. 실제Store/RC/Identity API·법률조회·LC/Identity수정·Jira·외부발송·DB·배포·commit/push 없음. 이번문서5개 외 직접변경 없음.
+- 다음: Identity운영조회/결과기록/90일보존경계 회신, provider전액/부분증거와 schema/worker exact 검토 후P0동결.012착수/활성화 아님,011진행 유지.
+
+
+## 2026-10-14 — Identity PLAN-012 운영 회신 접수
+
+- 근거: 사용자 전달 및 Identity PLAN-012-support-Identity-response-2026-10-14.md 원문 읽기. feat/TMI-216-lc-paid-exam-integration, 다른 구현 변경 보존.
+- 변경: Identity 인계서·P0·CURRENT_STATE·WORKLOG. API재사용 확인과 문의90일/멱등7일·이메일선택/소유미검증·GUEST접수·권한조회/구매검증 분리·Slack복제본 별도보존을 반영. 담당/답변기록위치/연락·보존기간·인계성공은 미확정운영gate 유지.
+- 검증/범위: 문서diff검사, 코드미변경으로 Gradle 미실행. Identity코드·실DB/권한·법률·외부발송·Jira·배포·commit/push 변경없음.012착수/공동테스트 통과 아님. 다음은012 P0 기술검토와 운영항목 확정,011 계속 진행.
+
+
+## 2026-10-14 — 환불 문의 담당·Notion·연락 창구 방향 승인
+
+- 요청: 본인담당/팀원대행, Notion기록 적합성 질문 및 기존지원메일/최소보존방향 수락. feat/TMI-216-lc-paid-exam-integration에서 인계/P0/CURRENT_STATE/WORKLOG만 수정.
+- 반영: 제한된Notion 최소기록·공개공유금지/금융원장은Billing, 지원메일 tosunsaeng093@gmail.com, 금융5년/해당불만분쟁최소3년/불필요원문분리. 정확기산점/실권한·페이지·이메일본인확인·SaaS개인정보처리 및 복제본삭제는 미확인으로 분리.
+- 검증: 문서diff검사, 코드미변경으로 Gradle 미실행. 외부Notion페이지/권한·메일·Jira·DB·LC/Identity·배포·commit/push 변경없음. 실제 개인정보 입력·법적 적합성 검증/012착수 아님. 기존 동시구현 보존.
+
+
+
+## 2026-10-14 — Notion 환불 빈 기록 양식 작성
+
+- 요청/브랜치: 지정 Notion 페이지 3f9dcc5dbaeb80cbbfaef77ab7410ad6에 양식작성. feat/TMI-216-lc-paid-exam-integration. 고객 실데이터 없이 담당/메일/건별기록/답변/체크리스트/최소보존 주의 작성.
+- 공유확인: 웹게시 탭은 게시 전, 일반권한 초대받은 사용자만. 상위문서 사용자2명 상속을 확인했고 사용자가 팀원이라고 확인했다. 권한변경/초대/공개게시 없음. 담당자만 접근하도록 운영 유의, 전체 워크스페이스 보안감사 완료 아님.
+- 검증: UI/스크린샷으로 결과 확인. 초기 HTML붙여넣기 서식불량을 텍스트양식으로 정리했고 자체생성 중복초안만 제거, 원 사용자콘텐츠 없음. 증빙 /private/tmp/billing-refund-notion-template.png. Notion 공식 privacy/data-residency/DPA 검색으로 해외처리 가능·삭제/backup 조건 확인 필요 안내. 실제 방침문서/국외이전 적법성/정확보존기산점 검증은 미완료.
+- 범위: 노션요청페이지와 CURRENT_STATE/WORKLOG만 변경. 코드/DB/Identity·LC/Jira/메일발신/배포/commit/push 없음. 기존 동시작업 보존, 코드미변경으로 Gradle 미실행. 다음은 실제정보입력전 방침/처리조건·기록별삭제 운영 확인.
+
+
+## 2026-10-14 — PLAN-012 환불 테스트 준비 읽기 확인
+
+- 브랜치 feat/TMI-217-deletion-owner-retention-contract. 목표: Store/RC 설정과 실제 환불 검증 준비 구분. 신규 Jira 없음.
+- RC premium 양 Store 5종 연결, Google 5종 활성 옵션, Apple 5종 초안/제출 준비 중 직접 확인. RC webhook 미등록, Google credentials valid/connected이나 알림 수신 없음, SDK data 없음. 과거 Draft 기록과 현재 차이를 분리했다.
+- 변경: PLAN-012-REFUND-TEST-READINESS-2026-10-14.md 신규 및 CURRENT_STATE/WORKLOG. 코드 reversal review/금액 불명 처리 정적 확인. 실제 거래·Orders 인증·Apple 세부 알림·Billing 배포 미검증.
+- 검증: 콘솔 UI·정적 파일 조회, 문서 diff 검사. 코드 변경 없어 Gradle 미실행. 정책/계약·PLAN011 진행/012 후속 유지, 외부 설정/거래/환불/DB/배포/Jira/commit/push 없음. 기존 동시작업 보존, 이번 예상 밖 변경 없음.
+- 다음: 테스트 앱/계정 및 수신 인증 호환성 확인→테스트 구매/알림→환불 증거 확보. 불명 금액은 추정하지 않으며 실제 실행은 별도 승인.
+
+
+
+## 2026-10-14 — PLAN-012 내부 구현 규격 구체화
+
+- 요청: 기술 규격 구체화. 현재 feat/TMI-217-lc-deletion-handoff, 동시 작업의 branch 변경을 따라 읽기만 했으며 직접 전환하지 않았다. 신규 Jira 없음.
+- 조사: PurchaseObservation/Schema/Core, paid reserve/confirm/source/AttemptSession, 기존 source worker, R2와 TMI217 보존 제안. INITIAL은 confirm 때 group 생성하므로 RESERVED 정리 phase가 필요함을 명시했다.
+- 변경: PLAN-012-IMPLEMENTATION-SPEC-R1 신규, PLAN012/P0 연결, CURRENT_STATE/WORKLOG. 필드/타입/unique·금액unknown·legacy digest 호환·root CAS·confirm 증거·예약/group 단계·worker 수치·운영flag·F01~12 테스트를 정리했다.
+- 유지: 제품 정책/R2 wire/기존 fixture bytes, 수동 심사·검증된 Store 사실만 반영. 실제 provider 매핑/복수 Session 보호 충돌/TMI217 증거/큰 timeline/운영 보존은 gate이며 완료로 위장하지 않는다.
+- 검증: 정적 조회·문서 링크/diff 검사. 문서만 작성해 Gradle 미실행. 코드/외부설정/LC·Identity/DB/실거래/Jira/commit/push 변경 없음. 기존 동시작업 보존, 이번 예상 밖 변경 없음.
+- 다음: 구현 단위/Jira 준비 후 OFF 구현. 실Store·양측통합·실Mongo/배포 조건 검증은 별도.
+
+
+
+## 2026-10-14 — PLAN012 R1 예외 범위 재검토
+
+- 요청: 불필요하게 넓힌 일반 예외 확인. feat/TMI-217-lc-deletion-handoff. PLAN-012-IMPLEMENTATION-SPEC-R1 정적 재검토, 코드/실환경 추가검증 없음.
+- 발견/권장: malformed·중복 Retry-After 즉시 REVIEW_REQUIRED는 기본 backoff+관측으로 축소 검토(상대 계약 대조 필요). 정상 긴 대기 지시를 무시하는 변경은 제외. group 증거 하나 부족할 때 purchase 전체cursor 정지 대신 해당group durable 미결 기록과 나머지 진행 제안(미결을 완료로 표시 금지). legacy 포인터 일반 이관은 실제 대상 조사 후 한정하고 없으면 신규writer부터 적용. 실제 provider 확인 전 범용 금액adapter/추가복구 도구 확장 금지.
+- 유지: root/confirm 공통CAS·다른권리보존·중복금액방지·예약정리·고정event/outbox·lease/version·Session보호. 정책이나 정확성 핵심 제거를 권하지 않음.
+- 변경은 CURRENT_STATE/WORKLOG 분석기록만, 설계 본문·제품·공동계약·Jira·외부설정·DB·배포 변경 없음. 승인 후 필요한 설계만 수정. 문서 diff 검사, Gradle 미실행. 기존 동시작업 보존, 예상 밖 변경 없음.
+
+
+## 2026-10-14 — PLAN012 예외 축소 승인 반영
+
+- 사용자 「어 그렇게 하는 걸로 해줘」. 현재 feat/TMI-217-session-owner-evidence, 직접 branch 전환 없음. 기존 병행 작업 보존.
+- R1/PLAN/P0 수정: malformed/중복/overflow Retry-After 기본 backoff+관측(유효 긴 지시/24h 한도 유지), 증거불명 group만 기존group refundReview에 보류 후 cursor 전진, 실제legacy 조사 후 대상한정 이관. 가짜outbox/추정Session 금지, 보류/cursor 원자성과 재확인/미완료집계·purge 보호 및 F06/F07/F09 회귀 반영. 남아 있던 두 절 제목 외국어 표기도 한국어로 정리.
+- CURRENT_STATE/WORKLOG 갱신. root CAS·금융멱등·Session/다른권리 보호·공동wire/기존sender 불변. 별도 범용 복구/관리 화면 추가 없음.
+- 검증: 문서 diff/링크 검사, 코드 변경 없어 Gradle 미실행. 제품/fixture/타저장소/외부설정/DB/Jira/배포/commit/push 변경 없음. 이번 예상 밖 변경 없음. 다음: 구현 착수 시 현재schema·LC 전송규격 대조 및 승인범위 회귀.
+
+
+## 2026-10-14 — 기존 결제 구현의 단순화 여지 검토
+
+- 요청: 복잡하게 구현된 부분과 작은 위험으로 단순화 가능성 확인. PaymentSourceWork/Worker, ReviewOperator, ProviderRuntime/Configuration/Alerts, RC ProjectBudget/BudgetedTransport 및 schema검사 호출을 정적 확인했다. PLAN012 reversal은 후속 미구현임을 구분.
+- 산출물: PLAN-012-IMPLEMENTED-COMPLEXITY-REVIEW-2026-10-14, CURRENT_STATE/WORKLOG. 반복schema검사 구성진입점 통합, 응답후permit 운영검사 조건부축소, 미구현refund flag3→2 후보를 제안. 잠금/금융보호 제거 권고 없음.
+- 현재 feat/TMI-217-session-owner-evidence 동시 코드 변경 보존. 제품·기술규격 본문·Jira·외부·DB·배포·commit/push 변경0. 정적 문서검사, Gradle/성능실측 미실행. 이번 예상밖변경 없음. 다음: 승인된 후보만 보장/테스트 대조 후 범위 확정.
+
+
+
+## 2026-10-14 — RC 응답 후 DB 검사 축소 가능성 확인
+
+- 요청: 응답후 permit검사 필요성 확인. 현재 feat/TMI-217-trial-session-owner-evidence, 직접 branch전환 없음. RC ReadClient/HttpTransport/BudgetedTransport/decoder, BudgetIntegrationTest 및 AccountLookupWorker guard 경로 정적 조회.
+- 확인: HTTP5초/permit30초, 늦은응답 및 다른요청AUTH차단 뒤200응답 거절을 기존테스트로 명시. 정상200 post검사만 생략하면 진행중응답유예를 허용하며 신규발신·자기401/403차단/거래검증/업무lease/epoch는 유지 가능. finally release DB실패 영향은 여전히 존재. 성능병목·빈번한permit만료는 실측하지 않음.
+- 변경: 복잡성검토문서 후속절/CURRENT_STATE/WORKLOG만. 정책 변경 자동승인 아님, 코드/테스트 수정 없음. 기존테스트 읽기만, Gradle 미실행. 문서diff검사. 외부/DB/Jira/배포/commit/push 없음. 병행코드 보존, 이번 예상밖변경 없음. 다음: 진행중200응답유예 수락 시 좁은 구현·회귀.
+
+
+## 2026-10-14 — PLAN012 스위치 두 개로 확정
+
+- 요청: 환불 스위치2개 계획 반영. feat/TMI-217-trial-session-owner-evidence. processing-enabled로 환불 반영+정리를 묶고 publisher-enabled로 LC 전달 분리, 기본OFF/독립fanout flag없음. ON/OFF 적체보존·OFF/ON 기동거절·재개 회귀 명시.
+- 기존 구현 schema반복검사/RC응답후검사는 유지하며 앞선 후보는 미채택으로 표시. 구현 리팩터링을 PLAN012 선행조건으로 두지 않음.
+- 변경: PLAN012/P0/내부규격/복잡성검토/CURRENT_STATE/WORKLOG. 문서diff·링크검사, Gradle 미실행. 제품/설정/DB/배포/타저장소/Jira/commit/push 변경 없음. 동시코드변경 보존, 이번예상밖변경없음. 다음: 승인된 두flag기준 OFF구현/회귀 준비.
+
+
+
+## 2026-10-14 — PLAN012 Jira 3단계 생성
+
+- 사용자 Jira생성 요청. TMI137 에픽/유형metadata 조회, Rovo검색 앱미설치403으로 Jira JQL 조회 대체, 부모/환불제목 검색에서 중복 PLAN012 없음 확인.
+- TMI-219 금융코어·차단·reflow, TMI-220 예약/시험정리·보호Session·LC전달, TMI-221 운영조회·Slack·실Store/LC통합검증 생성. 모두 작업/부모TMI137/해야할일/미배정. 219 blocks220,220 blocks221 관계 및 부모/상태를 재조회 확인.
+- 승인된 두flag/예외축소/기존schema·RC검사유지·미검증provider gate·실거래/권한/배포별도승인 및 테스트 완료조건 기재. 기준문서가 로컬변경 포함임을 명시했다.
+- 현재 feat/TMI-217-trial-session-owner-evidence. PLAN012/CURRENT_STATE/WORKLOG 기록만 로컬변경. 코드·설정·DB·배포·commit/push 없음, 동시011 코드 보존. 문서diff검사, Gradle미실행. 예상밖변경없음. 다음 첫 구현대상은219.
+
+## 2026-10-14 — PLAN012 문서 병합 준비
+
+- 사용자 commit/push/merge 및 다음 TMI-219 구현 승인. codex/plan012-refund-plan 별도 worktree로 PLAN012 문서9개와 이 대화 기록만 분리. 원 작업 폴더 TMI217 코드/ADR/PLAN011·기록은 수정하지 않았다.
+- Jira219 원문 확인. 문서 diff 검사, 제품 코드 변경 없어 Gradle 미실행. DB/배포/활성화 없음. 병합 후 새 브랜치에서 OFF 코어 구현 예정.
