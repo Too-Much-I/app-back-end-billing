@@ -109,7 +109,9 @@ status의 optional `confirmRejection`은 `{code:"ENTITLEMENT_REVOKED"}`만 사�
 
 버전/high-water/stale/별도 semantic digest는 없다. canonical SHA-256 하나를 사용한다. 동일 eventId·동일digest는204, 같은ID다른내용은409 EVENT_ID_CONFLICT, 같은group에다른ID는 내용이 같아도409 GROUP_REVOKE_CONFLICT다. 검사 순서는 eventId충돌→group충돌→최초적용/duplicate다. LC는 eventId와group 양쪽 unique 및 Transaction으로 inbox/deny를 원자 저장한다. 최초/duplicate는 commit 확인 후 body없는204, 동시first수신도 하나로 수렴한다. inbox TTL 뒤에도 group의 최초 eventId/digest가 남아 있으면 그 증거로 같은ID·같은내용은204, 같은ID다른내용은 EVENT_ID_CONFLICT409, 같은group다른ID는 GROUP_REVOKE_CONFLICT409로 처리한다. inbox 부재만으로 새 최초 사실을 만들지 않는다.
 
-최초 eventId·reason·occurredAt·confirmedSessionId(null 포함)는 불변이다. 차단된 group의 신규사용/replacement는 금지하되 보호된 exact Session의 완료만 허용한다. lifecycle deny/삭제/탈퇴/terminal 종료가 우선이다. 과거 원 owner 정보로 권리를 다른 사용자에게 자동 이전하지 않는다.
+최초 eventId·reason·occurredAt·confirmedSessionId(null 포함)는 불변이다. 차단된 group의 신규사용/replacement는 금지하되 보호된 exact Session의 기존 제출·완료를 허용한다. 별도로, 환불 전 confirm되고 재시작 전에 이미 영속 접수된 과거 Session 작업은 그 접수 범위에서만 완료 허용한다. 이는 과거 Session의 신규 제출·새 녹음 재시도·새 Session 권한이 아니며 일부 문항 접수로 전체 완료/Summary를 허용하지 않는다. lifecycle deny/삭제/탈퇴/terminal 종료가 우선이다. 과거 원 owner 정보로 권리를 다른 사용자에게 자동 이전하지 않는다.
+
+2026-10-14 사용자 승인 문서 보완: [기접수 작업 경계·C01~C06](TMI-220-REFUND-PROTECTED-SESSION-CLARIFICATION.md)을 따른다. 단일 confirmedSessionId·wire/fixture는 불변이며 보호 ID 외 Session의 신규 사용 차단과 기존 접수 작업 처리를 분리한다. LC는 exact 작업의 영속 접수 근거를 확인하고, Billing은 귀속/confirm/완료 허용/lifecycle을 확인한 과거 Session 이벤트만 해당 Session과 이용 증거에 반영한다. 과거 완료로 현재 group 포인터·새 Session·새 operation guard를 변경하지 않는다. null은 보호 Session 없음이며 기접수 사실을 만들어내는 값이 아니다. 보완 구현·공동 E2E는 미완료다.
 
 ### 5.1 canonical bytes와 오류
 

@@ -1,5 +1,7 @@
 # 환불 전 confirm Session 완료 허용 — 정책 변경
 
+> 2026-10-14 사용자 승인 보완: 단일 보호 Session과 별개로 환불 전 confirm되고 재시작 전에 영속 접수된 과거 Session 작업만 마무리한다. 신규 제출·새 녹음 재시도·새 Session 생성은 허용하지 않고, 일부 문항 접수만으로 전체 완료/Summary를 허용하지 않는다. 삭제·탈퇴·확정 종료 우선, 과거 완료가 현재 Session·group 포인터·새 guard에 영향을 주지 않는다. 아래 exact Session만 완료 표현은 [TMI-220 보완 기준](TMI-220-REFUND-PROTECTED-SESSION-CLARIFICATION.md)의 좁은 기접수 경계로 보완한다. 단일 confirmedSessionId/wire 불변, 구현·공동 검증은 후속이다.
+
 > 2026-10-13 사용자 확인: 새 제출 시간 제한은 추가하지 않는다. 아래 “기존 시험/제출 기한”은 새30분/60분/24시간 마감 도입 근거가 아니다. 환불 전 confirm된 exact Session 완료 허용과 기존 채점/lifecycle 종료 규칙을 따른다. 상세 보완은 [인계 R2](LC-BILLING-PAID-EXAM-HANDOFF-R2.md) §2를 우선한다.
 
 - 승인일: 2026-10-13

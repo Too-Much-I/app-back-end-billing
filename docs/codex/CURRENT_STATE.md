@@ -1,5 +1,13 @@
 # Billing Service 현재 상태
 
+- 2026-10-14 TMI-220 [과거 Session 이벤트 보완](../runbooks/TMI-220-historical-session-events.md): confirm/completionAllowed/source/owner/lifecycle 확인 후 과거 S1 terminal만 반영, 현재 group/S2/새 guard 무변경. 과거 GRADING은 기존 STALE/204, inbox·이용 원장·S1 단일Tx. 신규 실Mongo8회귀 포함 최종 clean test 1,611개/실패0/오류0/skip0. LC/공동 E2E·환불 정리/publisher·TMI217 최종 삭제 접점은 후속, 기본 OFF·ON 기동거절 유지. wire/fixture/외부 서비스/Jira/배포 변경 없음. 로컬 미커밋.
+
+- 2026-10-14 TMI-220 LC 회신 반영: 인계서 기존 H11~H13 보존, 중복 신규 항목을 H14~H16으로 정정하고 C01~C06 매핑 명시. [보완 §3.1](../contracts/TMI-220-REFUND-PROTECTED-SESSION-CLARIFICATION.md)에 pendingAt 최초접수 사용 금지·retry0 receipt/TTL/전체접수 marker 한계·서버 시각만의 순서 추정 금지·Callback/시스템재시도/Summary/terminal 범위를 반영했다. 아래 이전 기록의 신규 H11~H13은 H14~H16으로 읽는다. 문서만 변경, 구현/공동 E2E 미완료, LC/Jira/fixture 미변경.
+
+- 2026-10-14 TMI-220 사용자 보완 방향 승인·문서 반영: [기접수 작업 경계](../contracts/TMI-220-REFUND-PROTECTED-SESSION-CLARIFICATION.md) 및 R2/LC 인계/PLAN012/R1/ADR/정책/AGENTS 동기화. 단일 보호ID 유지, 과거 Session은 환불 전 confirm·재시작 전 영속 접수 작업만 완료. LC 접수 판정과 Billing 과거 상태 이벤트 양쪽 보완, 일부문항→전체/Summary 확대·현재Session/새guard 변경 금지. C01~C06/H11~H13은 예정 테스트이며 미실행. 이번 문서만 변경, 코드/fixture/LC/Jira/배포 미변경. 이전 1,603 통과는 새 보완 구현 검증이 아니다.
+
+- 2026-10-14 TMI219 commit09dbb98·PR25 develop mergee8f55ee 완료, `codex/TMI-220-refund-cleanup-delivery` 생성. [보호Session 공동확인](../contracts/TMI-220-REFUND-PROTECTED-SESSION-CLARIFICATION.md): 동일group replacement 뒤 두 confirmed ACTIVE/이전completionAllowed를 실Mongo 재현(선별1통과). LC HEADf59cf28 작업트리는 비보호Session accessRevoked 및 접수Job도거절. 단일보호ID/기접수완료의 의미 확인 전 publisher 구현 중단; 새제품코드없음·재현테스트/문서만. 외부발송/Jira/실DB/배포없음. 최종 clean test 1,603개/실패0/오류0/skip0.
+
 - 2026-10-14 PLAN012 문서 commit28fdc00·PR24 develop mergec6f8044 완료. 별도 worktree의 `codex/TMI-219-refund-ledger`에서 [환불 코어](../runbooks/TMI-219-refund-ledger.md) 구현: refundEvidence/legacy digest/r7 명시schema, root·금액원장·appliedAt reflow·refundWork 단일Tx. 최종 clean test **1,602개/실패0/오류0/skip0(신규25)**, simplified/R2 offline/hash 및 문서link/diff 통과. 실제 Store adapter/예약·그룹정리/LC전달은 후속, 두flag OFF/processing ON 기동거절. 원 작업 폴더의 TMI217 변경 보존. 신규코드 로컬미커밋, 배포/실DB/Jira변경 없음.
 
 - 2026-10-14 PLAN012 승인 설계·운영 인계·R1 규격 및 TMI-219→220→221 분할을 문서 병합 브랜치로 분리했다. processing/publisher 두 flag 기본 OFF, 기존 schema/RC 검사 유지. 사용자 Git 병합 후 TMI-219 구현 승인; 아직 환불 코드·실DB·배포·활성화는 미완료. 병행 TMI217 작업 폴더는 보존한다.

@@ -56,7 +56,10 @@ LC route/body/오류/인증은 [R2 §5](../contracts/LC-BILLING-PAID-EXAM-CONTRA
 - `attempt_groups.lastConfirmedSessionId` nullable opaque string: 성공 confirm Tx만 기록. Session의 sourceSnapshot·group·confirmedAt 존재를 함께 검증한다. RESERVED/상태event/expiry는 변경하지 않는다.
 - paid confirm은 이미 purchase/entitlement version을 touch한다. 환불도 같은 purchase version에 CAS하여 커밋 순서를 만든다. root 차단 뒤 성공 confirm/group 삽입이 불가능하므로 마지막 confirm 포인터가 안정된다. 별도 시계 비교나 전역 순번은 불필요하다.
 - legacy는 해당 유료 group의 실제 존재 여부와 증거 coverage부터 읽기 조사한다. 대상이 없으면 신규 confirm writer부터 적용하며 범용 backfill worker/이관 시스템을 만들지 않는다. 대상이 있으면 확인된 목록만 영속 Reservation CONFIRMED/Session/source/group 증거로 한정 이관한다. 현재 activeSession을 무조건 복사하거나 여러 미완료 후보를 임의 선택하지 않는다. 미입증 group은 아래 최소 보류 기록을 남긴 뒤 cursor를 전진해 나머지를 처리한다.
-- 단일 보호 S1이라는 R2 계약과 기존 completionAllowed의 복수 과거 Session이 충돌하는 사례는 자동 탈락시키지 않는다. 구현 경합 테스트로 확인하고 실제 복수 보호가 필요하면 LC 공동 보완 gate로 보고한다.
+- 2026-10-14 승인 보완: 단일 보호 confirmedSessionId는 유지한다. 환불 전 confirm되고 재시작 전에 영속 접수된 과거 Session의 작업만 별도로 마무리하며, 신규 제출·새 녹음·새 Session은 차단한다. LC의 작업별 접수 증거와 Billing의 confirm/source/귀속·completionAllowed/lifecycle을 검증한다. completionAllowed만으로 작업 접수나 전체 완료/Summary를 추정하지 않는다. [보완 기준 C01~C06](../contracts/TMI-220-REFUND-PROTECTED-SESSION-CLARIFICATION.md)을 따른다.
+- Billing 과거 Session 상태 이벤트 경로를 TMI-220에 포함한다. 허용된 늦은 이벤트는 해당 Session 및 이용 증거만 전진시키며 group.activeSessionId·현재 Session·새 operation guard는 수정/해제하지 않는다. 멱등성·revision·terminal 우선 규칙을 유지한다. 삭제·탈퇴·확정 종료는 기접수 예외보다 우선하며 LC 수정만으로 완료 처리하지 않는다.
+- Billing 측 보완 구현은 [과거 Session 이벤트 안내](../runbooks/TMI-220-historical-session-events.md)를 따른다. 과거 GRADING은 현재 group을 전진시키지 않는 STALE/204이고 COMPLETED/RETAKE_AVAILABLE은 검증된 S1만 terminal 전이한다. 새 Session 상태/schema·wire는 추가하지 않는다. 이는 LC 작업별 접수 검증이나 환불 정리/publisher 구현 완료가 아니다.
+- LC 회신의 증거 경계는 [보완 §3.1](../contracts/TMI-220-REFUND-PROTECTED-SESSION-CLARIFICATION.md)을 따른다. 변경되는 pendingAt/Job 존재만으로 최초 접수를 증명하지 않으며 receipt TTL 뒤 전체접수 marker를 부분접수에 일반화하지 않는다. 서버 시각만이 아니라 confirm·접수차단 operation·환불의 영속 사실로 순서를 검증한다. Callback/시스템 재시도/파생 Summary/원 Session terminal 및 Billing late event까지 검증 범위다. 인계서 신규 테스트 ID는 H14~H16(기존 H11~H13 보존), C06 증거 음성 경계 포함이며 아직 미실행이다.
 - `payment_access_outbox`: _id/eventId(UUIDv4), environment, producer, consumerScopeId, attemptGroupId, purchaseId, refundEffectId, body(기존 R2 exact), digest, createdAt, deliveredAt(nullable), work. body/digest는 immutable. work는 READY/BLOCKED_AUTH/REVIEW_REQUIRED/DELIVERED와 위 lease/generation/retry 필드를 사용한다.
 - 미전송 outbox·미해결 case는 TTL 없음. 전달 완료 상세 폐기는 TMI-217 보존 계약 확인 전 구현하지 않는다. 금융5년을 모든 메시지 원문 보존 근거로 쓰지 않는다.
 
@@ -161,7 +164,7 @@ production paid admission은 processing/publisher 모두 ON과 LC 수신 검증�
 | F07 | 20건 초과 page·동시worker·cursor/outbox 원자성·중복 event/body 불변. 중간 group 증거 불명에도 후속 처리, 보류저장/cursor 원자성, 재확인 뒤 최초outbox, OPEN 남은 DONE을 전체 완료로 오표시하지 않음 |
 | F08 | 후속 slot 앞당김/시작한 slot 불변, 다른 구매·무료/복원권 불변, paid confirm 복원과 양순서 |
 | F09 | LC exact204/응답유실/409/인증/Retry-After 경계, JWT/port/TLS 회귀. malformed/중복/overflow 기본backoff, 유효한 긴 대기 조기재전송 금지,24h 소진/다른 sender 불변 |
-| F10 | reader/resolver 일치, 보호 S1과 신규 입장 구분, 지연 worker의 새 guard 해제 금지 |
+| F10 | reader/resolver 일치, 보호 Session과 신규 입장 구분, 지연 worker의 새 guard 해제 금지. C01~C06: 과거 Session 기접수 작업만 완료, 신규 제출/녹음 차단, 일부 문항→전체/Summary 확대 금지, 삭제/탈퇴/terminal 우선, late event의 현재 group/Session/guard 불변 |
 | F11 | schema 혼재/중단재개/구 writer 거절, 금융/미완료 보존, 거대 timeline 측정 |
 | F12 | Slack 실패에도 case 유지, 감사 기록을 남기는 재개,24h 보류. 두flag OFF/OFF·ON/OFF·ON/ON, OFF/ON 기동거절, publisher 재개 시 동일outbox 재전송, processing OFF 시 접수/진행 보존, OFF 무의존 |
 
