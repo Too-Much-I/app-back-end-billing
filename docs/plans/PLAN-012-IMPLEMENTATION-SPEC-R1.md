@@ -1,5 +1,7 @@
 # PLAN-012 내부 구현 규격 R1
 
+> 2026-10-14 후속: [TMI220 fan-out·전달 코어](../runbooks/TMI-220-refund-fanout-delivery.md)를 explicit constructor/기본OFF로 추가했다. lastConfirmedSessionId/예약정리/불변outbox/전용JWT 송신·재시도는 내부 구현이며 body는 canonical JSON 문자열 저장이다. Spring 활성 구성·검증provider·LC공동E2E·운영재개/경보·TMI217 보존 gate는 미완료, processing ON 기동거절 유지.
+
 > 2026-10-14 TMI-219: [코어 구현](../runbooks/TMI-219-refund-ledger.md)에서 refundEvidence/digest·r7 명시 schema·root/amount/reflow/work 등록을 추가했다. 기존 worker가 호출하는 PurchaseCore에 연결했으나 provider 매핑·정리 runtime 미완성으로 Spring activation은 거절한다. 나머지 규격은 TMI-220/221 후속이며 구현 완료로 표시하지 않는다.
 
 - 작성일: 2026-10-14. 상태: 사용자 요청에 따른 구현 설계. 코드·DB 적용·공동 wire 변경·판매 활성화 승인 아님.

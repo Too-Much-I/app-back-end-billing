@@ -196,6 +196,14 @@ public final class PaidReservationService {
                 Instant now = clock.instant();
                 if (r.getStatus() != Reservation.Status.RESERVED) {
                     if (expiry) return lifecycleRow(r, null);
+                    if ("CONFIRM".equals(action) && r.getStatus() == Reservation.Status.CANCELED) {
+                        Document stored = doc(c, "reservations", reservationId);
+                        if ("ENTITLEMENT_REVOKED".equals(stored.getString("confirmRejection"))) {
+                            Document row = lifecycleRow(r, "ENTITLEMENT_REVOKED");
+                            c.paid().insertLifecycle(receipt, action, hash, row, r.getStatus(), "ENTITLEMENT_REVOKED", r.getTerminalAt());
+                            return row;
+                        }
+                    }
                     if ("CANCEL".equals(action) && r.getStatus() == Reservation.Status.CANCELED) {
                         Document row = lifecycleRow(r, null);
                         c.paid().insertLifecycle(receipt, action, hash, row, r.getStatus(), null, r.getTerminalAt());
@@ -267,6 +275,11 @@ public final class PaidReservationService {
         var proposed = c.sessions().findBySessionId(r.getProposedSessionId()).orElseThrow(ReservationException::temporarilyUnavailable);
         c.sessions().activateProposed(proposed.getSessionId(), proposed.getAttemptGroupId(), proposed.getSubjectRefId(), proposed.getOperationId(), proposed.getVersion(), now)
                 .orElseThrow(ReservationException::temporarilyUnavailable);
+        if (source.type() == EntitlementSourceSnapshot.Type.SUBSCRIPTION) {
+            // Only a successful confirm writes this durable pointer. No command TTL or wall-clock ordering.
+            require(c.operations().updateFirst(new BasicQuery(new Document("_id", r.getAttemptGroupId())),
+                    new Update().set("lastConfirmedSessionId", proposed.getSessionId()), "attempt_groups").getMatchedCount() == 1);
+        }
         Document latestGuard = existingGuard(c, account.getString("userId"));
         require(c.paid().confirmGuard(environment, account.getString("userId"), latestGuard.getLong("version"), r.getOperationId(), r.getReservationId(), r.getAttemptGroupId(), r.getProposedSessionId()));
     }
@@ -313,6 +326,30 @@ public final class PaidReservationService {
         c.sessions().failProposed(session.getSessionId(), session.getAttemptGroupId(), session.getSubjectRefId(), session.getOperationId(), session.getVersion(), now)
                 .orElseThrow(ReservationException::temporarilyUnavailable);
         require(c.paid().release(environment, userId, guard.getLong("version"), r.getOperationId(), r.getReservationId()));
+    }
+    /** Called only in the fan-out's root/lease-fenced transaction. Never manufactures a CONFIRM request hash. */
+    void cancelRefunded(PaidExamTransactions.Context c, Reservation r, Document purchase, Instant now) {
+        var source = r.getSourceSnapshot();
+        require(r.getStatus() == Reservation.Status.RESERVED && source != null
+                && source.type() == EntitlementSourceSnapshot.Type.SUBSCRIPTION
+                && source.purchaseId().equals(purchase.getString("_id")) && source.accountId().equals(purchase.getString("accountId"))
+                && payment.getEnvironment().equals(purchase.getString("environment")) && "REVOKED".equals(purchase.getString("accessState")));
+        Document account = doc(c, "payment_accounts", source.accountId());
+        require(payment.getEnvironment().equals(account.getString("environment")) && MemberOperationRecovery.owns(c, account, r));
+        String userId = account.getString("userId");
+        var key = new PaidExamStore.Key(environment, userId, r.getOperationId(), "RESERVE");
+        Document receipt = c.paid().receipt(key).orElseThrow(ReservationException::temporarilyUnavailable);
+        MemberOperationRecovery.owner(receipt, account);
+        require(r.getReservationId().equals(receipt.getString("reservationId")));
+        Document guard = existingGuard(c, userId);
+        require(r.getOperationId().equals(guard.getString("pendingOperationId")) && r.getReservationId().equals(guard.getString("pendingReservationId")));
+        Ids ids = new Ids();
+        finishRelease(c, guard, r, userId, now, ids);
+        var canceled = c.reservations().transitionReserved(r.getReservationId(), r.getVersion(), Reservation.Status.CANCELED, now)
+                .orElseThrow(ReservationException::temporarilyUnavailable);
+        c.operations().updateFirst(new BasicQuery(new Document("_id", r.getReservationId())), new Update().set("confirmRejection", "ENTITLEMENT_REVOKED"), Reservation.class);
+        c.paid().finishReserve(key, receipt.getLong("version"), Reservation.Status.CANCELED, now);
+        usage(c, canceled, "EXAM_CANCELED", now, ids.usage);
     }
     private Document activePaid(PaidExamTransactions.Context c, Document account) {
         // Shared lifecycle/recovery write fence already serializes even an empty timeline with purchase application.
