@@ -1,5 +1,19 @@
 # TMI-217 — LC 기술 검토 인계
 
+> **Billing 후속 구현:** [삭제 receiver R2 안내](../runbooks/TMI-217-deletion-receiver-r2.md)에 요청/인증/원자 deny·receipt/204·삭제 후 INITIAL 및 검증 범위를 기록했다. 기본 OFF·LC sender/204 저장 및 공동31개 전체 검증·배포는 별도다. 아래 구현 미완료 표기는 각 초안 작성 당시 기록이며 최종 실행 수치는 CURRENT_STATE를 따른다.
+
+> **2026-10-16 구현 기준 동결:** [Billing 수락 접수 기록](TMI-217-DELETION-EXACT-R2-ACCEPTANCE.md). LC 수락 원문과 초안3개 해시 일치를 확인했다. draft-3 > draft-2 > draft-1 순서로 적용하며 아래 재확인 대기는 과거 기록이다. 전체 fixture·서버 경합31개·제품 구현·배포 완료는 아니다. 동결 원문 바이트는 보존한다.
+
+> **최신 exact 보완:** [draft-3](TMI-217-DELETION-EXACT-R2-DRAFT-3.md) §2·3의 기존 재시도 하한 유지와 UUID에 한정하지 않는 correlationId 형식을 공동 재확인한다. LC draft-2 hash2/raw7/추가거절3 검증 결과를 확인했으며 아래 독립검증 미완료 표기는 당시 기록이다. 경계·경합31개와 제품 runtime은 여전히 미실행이며 전체 동결/구현 완료가 아니다.
+
+> **LC E1~E5 후속:** [exact draft-2](TMI-217-DELETION-EXACT-R2-DRAFT-2.md)에 cleanup 독립/200회·24h 경계/completedAt+120일/인증·HTTP 분류를 보완했다. 신규raw7개와경계명세31개는 정적검사만 수행했으며 제품/독립검증 미완료다. draft-2 §5 재확인을 요청한다. 실제 전송이나 상대수락을 뜻하지 않는다.
+
+> **저장·오류 공동검토 초안:** [exact R2 draft-1](TMI-217-DELETION-EXACT-R2-DRAFT-1.md)의 E1~E5 및 44개 사례를 확인한다. R2 방향 수락과 별개로 두 최소 collection/415·재시도 수치/120일 검토기준은 새 공동확인 대상이다. byte-level fixture 동결/제품테스트/구현 완료가 아니다.
+
+> **최신 인계(2026-10-16):** [단순화 R2 사용자 승인안](TMI-217-DELETION-SIMPLIFIED-R2.md)을 우선 전달한다. 이미삭제 exactSession은 다른event도204/no-op, 사용자 인가는LC 단일책임으로 바뀌었다. Billing 별도merge증거/backfill·LC의operation간 최초fact참조 요구는 제외한다. 아래 과거 owner독립검증/다른event409 제안은 대체됐으며 R2 S1~S4 회신이 필요하다. 실제 외부전송/상대수락은 하지 않았다.
+
+> 2026-10-16: [삭제 전달·단일 이전 증거·ACK 보완안 R1](TMI-217-DELETE-DELIVERY-ACK-ADDENDUM-R1.md)에 내부 저장/처리 접점과 LC 수락 요청 D1~D6를 추가했다. draft-3의 7필드 wire는 유지하며, 보완안은 아직 공동 수락/구현 완료가 아니다. 실제 환불 자료 없이 삭제 연동을 먼저 준비하고 최종 물리 purge는 분리한다.
+
 - 날짜: 2026-10-14
 - 기준: `lc-billing-exam-deletion-retention-r1-draft-3`
 - 상태: Billing 제안 정리·LC 검토 요청용. 제품 정책 재선택 요청이 아니다. 외부 전송/상대 수락/제품 구현 완료 아님.

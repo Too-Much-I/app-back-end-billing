@@ -1316,13 +1316,81 @@ class ReserveMongoIntegrationTest {
         assertThat(databaseSnapshot()).isEqualTo(before);
     }
 
+    @Test
+    void trialCreationOwnerIsStableAcrossReplayConfirmAndSingleGuestMerge() {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        var service = evidenceService("test");
+        var request = command(USER_ONE, OP_ONE, "owner-guest", "mock-1", "hash");
+        var result = service.reserve(request);
+        var original = mongoTemplate.findById("owner-guest", AttemptSession.class).getCreationOwner();
+        var link = mongoTemplate.findAll(BillingSubjectLink.class).getFirst();
+        assertThat(original).isEqualTo(new web.tosunsaeng.billing.domain.attempt.domain.model.SessionCreationOwner(
+                "test", web.tosunsaeng.billing.domain.attempt.domain.model.SessionCreationOwner.Kind.TRIAL_SUBJECT,
+                USER_ONE, link.getSubjectRefId(), 1L));
+        service.reserve(request);
+        lifecycleService.confirm(confirmCommand(result, "confirm"));
+        var current = subjectLinkRepository.findBySubjectRefId(link.getSubjectRefId()).orElseThrow();
+        writeTransactions.execute(() -> subjectLinkRepository.rebindOwner(current, USER_TWO, NOW, "USER_MERGED", "merge").orElseThrow());
+        assertThat(mongoTemplate.findById("owner-guest", AttemptSession.class).getCreationOwner()).isEqualTo(original);
+        assertThat(subjectLinkRepository.findBySubjectRefId(link.getSubjectRefId()).orElseThrow().getUserId()).isEqualTo(USER_TWO);
+    }
+
+    @Test
+    void phoneReplacementRecordsTargetWithoutRelabelingOriginalSession() {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        var service = evidenceService("staging");
+        var first = service.reserve(command(USER_ONE, OP_ONE, "owner-source", "mock-1", "hash-a"));
+        lifecycleService.confirm(confirmCommand(first, "confirm-a"));
+        var source = mongoTemplate.findById("owner-source", AttemptSession.class).getCreationOwner();
+        applyVerified(USER_TWO, 1, "00000000-0000-4000-8000-000000000002", CANDIDATE);
+        var link = mongoTemplate.findAll(BillingSubjectLink.class).getFirst();
+        writeTransactions.execute(() -> subjectLinkRepository.rebindOwner(link, USER_TWO, NOW, "PHONE_REJOIN", "transition-b").orElseThrow());
+        service.reserve(command(USER_TWO, OP_TWO, "owner-target", "mock-1", "hash-b"));
+        var target = mongoTemplate.findById("owner-target", AttemptSession.class).getCreationOwner();
+        assertThat(target.userId()).isEqualTo(USER_TWO);
+        assertThat(target.epoch()).isEqualTo(2L);
+        assertThat(target.environment()).isEqualTo("staging");
+        assertThat(mongoTemplate.findById("owner-source", AttemptSession.class).getCreationOwner()).isEqualTo(source);
+    }
+
+    @Test
+    void invalidOwnerEnvironmentRollsBackAllTrialIssuance() {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        var before = databaseSnapshot();
+        assertThatThrownBy(() -> evidenceService("").reserve(command(USER_ONE, OP_ONE, "invalid-owner", "mock-1", "hash")))
+                .isInstanceOfSatisfying(InternalApiException.class, e -> assertThat(e.code()).isEqualTo("BILLING_TEMPORARILY_UNAVAILABLE"));
+        assertThat(databaseSnapshot()).isEqualTo(before);
+    }
+
+    @Test
+    void receiverOffLeavesUnknownAndReplayDoesNotBackfillWhenEnabled() {
+        applyVerified(USER_ONE, 1, "00000000-0000-4000-8000-000000000001", CANDIDATE);
+        var request = command(USER_ONE, OP_ONE, "legacy-owner", "mock-1", "hash");
+        serviceWith(writeTransactions).reserve(request);
+        assertThat(mongoTemplate.findById("legacy-owner", AttemptSession.class).getCreationOwner()).isNull();
+        evidenceService("test").reserve(request);
+        assertThat(mongoTemplate.findById("legacy-owner", AttemptSession.class).getCreationOwner()).isNull();
+    }
+
     private ReserveService serviceWith(MongoTransactionExecutor executor) {
+        return serviceWith(executor, new web.tosunsaeng.billing.global.config.security.WorkloadJwtProperties());
+    }
+
+    private ReserveService evidenceService(String environment) {
+        var workload = new web.tosunsaeng.billing.global.config.security.WorkloadJwtProperties();
+        workload.setLearningCoreReceiverEnabled(true);
+        workload.setEnvironment(environment);
+        return serviceWith(writeTransactions, workload);
+    }
+
+    private ReserveService serviceWith(MongoTransactionExecutor executor,
+            web.tosunsaeng.billing.global.config.security.WorkloadJwtProperties workload) {
         return new ReserveService(
                 eligibilityRepository, benefitCatalog, claimRepository, aliasRepository,
                 subjectLinkRepository,
                 grantRepository, ledgerRepository, reservationRepository, allocationRepository,
                 commandRepository, attemptGroupRepository, attemptSessionRepository, executor,
-                eligibilityProperties, reservationProperties, reserveMetrics, clock
+                eligibilityProperties, reservationProperties, reserveMetrics, clock, workload
         );
     }
 

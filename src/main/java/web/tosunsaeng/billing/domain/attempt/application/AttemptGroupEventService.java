@@ -137,6 +137,7 @@ public class AttemptGroupEventService {
                 .orElseThrow(AttemptGroupEventException::projectionNotReady);
 
         validateRelationships(group, session, event);
+        if (session.isDeleted()) throw AttemptGroupEventException.targetConflict();
         if (session.getState() != AttemptSession.State.ACTIVE) {
             return saveStale(event, group, receivedAt);
         }

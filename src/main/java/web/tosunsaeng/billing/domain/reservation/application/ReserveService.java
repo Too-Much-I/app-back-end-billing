@@ -1,6 +1,8 @@
 package web.tosunsaeng.billing.domain.reservation.application;
 
 import java.time.Clock;
+import web.tosunsaeng.billing.domain.attempt.domain.model.SessionCreationOwner;
+import web.tosunsaeng.billing.global.config.security.WorkloadJwtProperties;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.HashSet;
@@ -69,6 +71,7 @@ public class ReserveService {
     private final ReservationProperties reservationProperties;
     private final ReserveMetrics metrics;
     private final Clock clock;
+    private final WorkloadJwtProperties workload;
 
     public ReserveService(
             TrialEligibilityRepository eligibilityRepository,
@@ -87,7 +90,8 @@ public class ReserveService {
             TrialEligibilityProperties eligibilityProperties,
             ReservationProperties reservationProperties,
             ReserveMetrics metrics,
-            Clock clock
+            Clock clock,
+            WorkloadJwtProperties workload
     ) {
         this.eligibilityRepository = eligibilityRepository;
         this.benefitCatalog = benefitCatalog;
@@ -106,6 +110,7 @@ public class ReserveService {
         this.reservationProperties = reservationProperties;
         this.metrics = metrics;
         this.clock = clock;
+        this.workload = workload;
     }
 
     public ReserveResult reserve(ReserveCommand command) {
@@ -224,10 +229,22 @@ public class ReserveService {
                 now, expiresAt
         ).withSessionOwnerEpoch(boundLink.sessionEpochForWrite());
         reservationRepository.insert(reservation);
-        attemptSessionRepository.insert(AttemptSession.proposed(
+        AttemptSession session = AttemptSession.proposed(
                 command.sessionId(), attemptGroupId, claim.subjectRefId(),
                 command.operationId(), now
-        ).withSessionOwnerEpoch(boundLink.sessionEpochForWrite()));
+        ).withSessionOwnerEpoch(boundLink.sessionEpochForWrite());
+        // Only the configured LC receiver supplies the trusted deployment environment.
+        // Offline/legacy callers without that context keep unknown evidence; never guess test/prod.
+        if (workload.isLearningCoreReceiverEnabled()) {
+            try {
+                session.withCreationOwner(new SessionCreationOwner(workload.getEnvironment(),
+                        SessionCreationOwner.Kind.TRIAL_SUBJECT, command.userId(),
+                        boundLink.getSubjectRefId(), boundLink.sessionEpochForWrite()));
+            } catch (IllegalArgumentException | NullPointerException invalidContext) {
+                throw ReservationException.temporarilyUnavailable();
+            }
+        }
+        attemptSessionRepository.insert(session);
 
         IdempotencyCommand.ResponseSnapshot snapshot = new IdempotencyCommand.ResponseSnapshot(
                 command.operationId(), reservation.getReservationId(), kind,

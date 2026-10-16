@@ -24,10 +24,12 @@ import web.tosunsaeng.billing.domain.payment.config.PaymentProperties;
 import web.tosunsaeng.billing.global.config.mongodb.BillingMongoProperties;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties({WorkloadJwtProperties.class, EntitlementQueryProperties.class})
+@EnableConfigurationProperties({WorkloadJwtProperties.class, EntitlementQueryProperties.class,
+        web.tosunsaeng.billing.domain.examdeletion.DeletionProperties.class})
 public class WorkloadSecurityConfiguration {
-    @Bean FilterRegistrationBean<WorkloadIngressFilter> workloadIngressGuard(WorkloadJwtProperties p, PaymentProperties payments, OwnerRebindProperties owners, AttemptGroupEventProperties attempts) {
-        var bean = new FilterRegistrationBean<>(new WorkloadIngressFilter(p, payments, owners, attempts)); bean.setOrder(Ordered.HIGHEST_PRECEDENCE + 10); return bean;
+    @Bean FilterRegistrationBean<WorkloadIngressFilter> workloadIngressGuard(WorkloadJwtProperties p, PaymentProperties payments, OwnerRebindProperties owners, AttemptGroupEventProperties attempts,
+            web.tosunsaeng.billing.domain.examdeletion.DeletionProperties deletions) {
+        var bean = new FilterRegistrationBean<>(new WorkloadIngressFilter(p, payments, owners, attempts, deletions)); bean.setOrder(Ordered.HIGHEST_PRECEDENCE + 10); return bean;
     }
     @Bean WebServerFactoryCustomizer<TomcatServletWebServerFactory> workloadConnector(WorkloadJwtProperties p,
             PaymentProperties payments, EntitlementQueryProperties publicProperties, BillingMongoProperties mongo,

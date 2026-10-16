@@ -45,17 +45,24 @@ public final class PaymentSlackSink implements PaymentProviderAlerts.Sink, AutoC
         if (closed || blocked || clock.instant().isBefore(retryAt)) return false;
         try {
             if (summary == null || summary.kind() == null || summary.asOf() == null
-                    || !Set.of("SANDBOX", "PRODUCTION").contains(summary.environment()) || !"TMI-212".equals(summary.runbookKey())
+                    || !Set.of("SANDBOX", "PRODUCTION").contains(summary.environment())
+                    || !(summary.kind().name().startsWith("REFUND_") ? "TMI-221" : "TMI-212").equals(summary.runbookKey())
                     || summary.pending() < 0 || summary.review() < 0 || summary.cases() < 0 || summary.oldestPendingHours() < 0 || summary.overdueReview() < 0) return false;
             String title = switch (summary.kind()) {
                 case DAILY_REVIEW -> "Billing 일반 검토 요약";
                 case AUTH_INCIDENT -> "Billing 장애: RevenueCat 인증 차단";
                 case AUTH_RECOVERY -> "Billing 복구: RevenueCat 인증 차단 해제";
+                case REFUND_DAILY -> "Billing 환불 검토 요약";
+                case REFUND_AUTH -> "Billing 장애: LC 환불 전달 인증 차단";
+                case REFUND_DELAY -> "Billing 환불 정리·전달 지연";
+                case REFUND_RECOVERY -> "Billing 환불 정리·전달 경보 회복";
             };
             String text = "[" + summary.environment() + "] " + title + "\n기준 시각: " + summary.asOf()
-                    + "\n확인 대기: " + summary.pending() + " / 검토 요청: " + summary.review() + " / 구매 검토 기록: " + summary.cases()
+                    + (summary.kind().name().startsWith("REFUND_") ? "\n정리 미완료: " : "\n확인 대기: ") + summary.pending()
+                    + (summary.kind().name().startsWith("REFUND_") ? " / 시험 보류: " : " / 검토 요청: ") + summary.review()
+                    + (summary.kind().name().startsWith("REFUND_") ? " / LC 미전송: " : " / 구매 검토 기록: ") + summary.cases()
                     + "\n가장 오래된 대기: " + summary.oldestPendingHours() + "시간 / 7일 이상 검토: " + summary.overdueReview()
-                    + "\n운영 안내: TMI-212 (각 건수는 중복될 수 있음)";
+                    + "\n운영 안내: " + summary.runbookKey() + " (각 건수는 중복될 수 있음)";
             byte[] json = new ObjectMapper().writeValueAsBytes(Map.of("text", text, "mrkdwn", false));
             Response response = transport.post(target, json);
             if (Set.of(401, 403, 404, 410).contains(response.status())) blocked = true;

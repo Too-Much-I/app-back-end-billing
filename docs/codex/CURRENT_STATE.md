@@ -1,5 +1,43 @@
 # Billing Service 현재 상태
 
+- 2026-10-16 사용자 요청으로 TMI221/217 누적 변경의 commit/push/develop PR 병합을 준비한다. origin/develop=17edd0d, GitHub Actions workflow 0개 및 저장소 Dockerfile/배포 정의 부재 확인. AWS CLI credential/profile/region이 없어 테스트 인프라 조회·배포는 차단 상태다. 기존 전체 테스트 XML 1749/실패0/오류0/skip0를 재확인했으며 이번 제품 변경·테스트 재실행은 없다. 기능 기본OFF/실provider ON 거절 유지, 신규 인프라·운영환경 변경 없음. 병합 결과는 후속 기록한다.
+
+- 2026-10-16 남은 작업 재정리: Billing 삭제 수신은 구현/로컬1749회귀 완료. 최신 LC 진행을 이번에 재조회하지 않았으므로 LC sender/204저장/TTL 연결은 완료 여부 확인 및 공동검증 대상으로 유지한다. Billing의 실제 환불 provider adapter·금융case 재조회/해결은 남음. 이후 Store sandbox/공동경합·운영schema/키/Slack/배포·판매승인, 별도최종purge 순서다. 기존221 안내의 삭제writer 미구현 문구는217 후속구현 이전 기록이다. 상태설명만, 새테스트/제품/외부변경 없음.
+
+- 2026-10-16 TMI217 후속 [Billing 삭제 receiver R2](../runbooks/TMI-217-deletion-receiver-r2.md) 구현: 전용LC JWT 목적/strict7필드/canonical·두collection 명시schema·단일Tx deny/현재group/자기guard/fact/receipt·empty204·삭제후INITIAL. 사용자 승인으로 원 작업트리 무료 생성owner 코드/4회귀를 통합했고 원본은 무변경. 최종 `./gradlew clean test` 1,749개/실패0/오류0/skip0(3m54s), 신규삭제75개(실Mongo17) 포함. 동결원문3개/fixture해시불변·diff/링크통과. LC sender/204저장·공동31개전체·legacy coverage·실DB설치/배포/활성화/최종purge는 남음. 기본OFF, 기존221 dirty보존, Jira/commit/push 없음.
+
+- 2026-10-16 TMI217 [공동 구현 기준 동결 접수](../contracts/TMI-217-DELETION-EXACT-R2-ACCEPTANCE.md): LC 수락 원문 및 draft1~3 해시 일치 확인. draft-3 > draft-2 > draft-1, 두 미결 규칙 해소. 원문/fixture 보존·새 수락 기록으로 상태 갱신. 전체 scalar/JWT·서버 경합31개 및 제품 구현/배포는 미완료, 기본OFF 유지. 문서/hash/diff 검사만, Gradle·외부변경 없음.
+
+- 2026-10-16 TMI217 [exact draft-3](../contracts/TMI-217-DELETION-EXACT-R2-DRAFT-3.md): LC 제한적 독립 검증 회신 확인 후 retryNotBefore 기존 하한 보존/max 스케줄·correlationId ASCII1~128자(UUID 필수 아님)를 명확화했다. 새 사례6개/추적값8개·길이경계3개/정상503 정적 대조 통과. LC hash2/raw7/추가거절3 통과와 runtime 경합31개 미실행을 구분한다. 두 규칙은 공동 재확인 대상, 전체 동결 아님. 제품/기존fixture/외부변경 없음, Gradle 미실행.
+
+- 2026-10-16 TMI217 [exact draft-2](../contracts/TMI-217-DELETION-EXACT-R2-DRAFT-2.md): LC E1~E5 조건부회신 원문대조 후 delivery/cleanup예산격리·200번째유효204/다음발신금지·24h정각·LC완료+120일·인증401/403/HTTP보완. raw7개/canonical기대값 및 경계명세31개 추가, JSON/ID/hash/invalidUTF8/기산일 정적검사통과. 전체raw suite·서명JWT·독립decoder/실Mongo/worker 미실행, 공동동결아님. 구44개원본보존·제품/외부변경없음.
+
+- 2026-10-16 TMI217 [exact R2 draft-1](../contracts/TMI-217-DELETION-EXACT-R2-DRAFT-1.md) 작성: 최초deny/event receipt 두최소collection·명시index·원자처리·오류/retry·LCtarget/204·보존경계 제안. 공통사례44개 JSON구문/ID중복 검사통과, runtime NOT_EXECUTED. 415·재시도수치/120일검토기준은LC E1~E5 수락대상, 자동purge/동결/구현아님. 제품코드/기존fixture/외부변경없음.
+
+- 2026-10-16 TMI217 LC R2 회신 원문 확인: S1~S4 설계방향수락, exact저장/오류/보존/fixture 미동결. 원Session deny/event별멱등증거 분리와 LC요청별payload·필요204·30일TTL보호가 다음 명세다. sender/수신/ACK runtime 구현이나 공동테스트완료 아님. R2 회신기록 갱신만, 제품/외부변경없음.
+
+- 2026-10-16 TMI217 단순화1·2 사용자승인: [R2](../contracts/TMI-217-DELETION-SIMPLIFIED-R2.md) 우선. 이미삭제 exactSession은다른event도204/no-op, 같은전송retry불변·같은event다른body409유지. 사용자인가LC책임/Billing인증·대상연결·현재권리영향검사, 새merge증거/backfill·operation간최초fact추적제외. LC인가오류의독립방어감소 위험수락. 문서/검증계획수정만, LC공동exact/멱등저장schema/fixture·구현미완료. 기본OFF/최종purge별도 유지.
+
+- 2026-10-16 TMI217 [복잡도 검토](../contracts/TMI-217-SIMPLIFICATION-REVIEW-2026-10-16.md): 원fact의 operation간 추적을 줄이는 already-deleted/no-op204 후보와 기존cleanup/전달 최소진행을 우선 권장. 소유인가 LC단일책임은 별도 신뢰경계/위험수락 선택지. draft-3/R1 정본·코드 변경 없이 검토만, 공동수락/구현 아님.
+
+- 2026-10-16 결제 진행 요약: 상품/구매계정·구매검증/기간권·통합조회 및 유료시험 Billing 기반은 구현, 환불 금융/정리/전달 코어는 PR27까지 병합. TMI221 운영조회/재개/Slack은 로컬미커밋이며 직전전체1670통과. 현재 TMI217 삭제전달/단일merge/성공응답과 생성차단 기술보완안을 LC 확인용으로 작성한 단계다. 실제환불 adapter·금융case 재조회/해결·삭제연동·Store/LC통합 및 PLAN013 배포/판매검증은 남는다. 상태조회만으로 운영활성화를 확인하지 않았고 신규테스트 없음.
+
+- 2026-10-16 ACK 용어 확인: TMI203/204에서 제거한 것은 별도 원격 복구완료 ACK/API·양측 checkpoint다. 기존 push204는 유지했다. TMI217의 ACK는 삭제 POST의 commit 후204를 LC에 전달완료로 기록한다는 뜻이며 별도 ACK API/역방향호출이 아니다. 새시험 전 성공응답 대기 조건은 draft-3/보완안의 공동수락 대상으로 유지한다. 코드/정책 변경 없음.
+
+- 2026-10-16 TMI217 [D1~D6 공동 수락 요청안](../contracts/TMI-217-DELETE-DELIVERY-ACK-ADDENDUM-R1.md) 작성. 기존LC target에 불변fact/원사실재사용, Billing subject 단일merge근거 및 LC exact근거, cleanup/ACK/생성허용 분리·30일TTL 경계 제안. 새wire/제품코드 변경 없이 draft-3 인계서 연결. 공동수락/구현/fixture 미완료, Gradle미실행·정적diff검사. 최종purge는 별도이며 미정 보존의 무기한 승인 아님.
+
+- 2026-10-16 TMI217 [삭제 연동 선행 확인](../contracts/TMI-217-IMPLEMENTATION-READINESS-2026-10-16.md): Store와 독립적으로 선행 가능. LC 생성중삭제409와 Billing 생성owner 구현을 확인했으며 기존무료writer는 원폴더 미커밋이다. 새 sender/receiver·eventId/ACK·단일merge 증거는 공동 수락/구현 필요. 물리purge는 별도 단계로 권장하며 현재 미확정 보존을 임의 승인하지 않는다. 분석/문서만, 테스트·제품코드·외부변경 없음.
+
+- 2026-10-16 TMI221 선행 재확인: 두 로컬 worktree/branch와 provider decoder·fixture 경로를 조회했다. 원폴더 TMI217은 trial 생성 귀속 보완 중이며 최종 삭제 writer는 확인되지 않았다. PLAN012 R1은 실제 응답 fixture 후 provider 필드 매핑을 고정하도록 요구한다. 이번은 새 제품코드 없이 선행 자료 확인만 수행했으며 테스트 앱·기존 테스트 환불 응답 준비 여부 확인이 필요하다. 1670 통과는 직전 구현 결과, 이번 테스트 재실행 없음. 기본OFF 및 기존 dirty 변경 보존.
+
+- 2026-10-16 TMI221 금융 검토 조회 보완: `case-list`/`case-show`를 추가했다. 환경별 OPEN 및 legacy 환불/revoke 검토만100건 페이지로 조회하며 개인정보/거래/원문은 제외, 쓰기/강제완료 없음. 실제 provider 필드 매핑은 규격상 실제 fixture 확보가 선행하며 TMI217은 이 브랜치에 최종 삭제 writer가 없다. 금융 case 재조회/해결도 미구현으로 명시했다. 최종 clean test1670개/실패0/오류0/skip0(3m43s), diff통과; 아래1666개는 직전 결과다. 기본OFF/ON거절·외부계약 유지, 기존 로컬변경 보존. 실제Store/LC·DB설치·배포·Jira·commit/push 없음.
+
+- 2026-10-16 TMI221 후속 운영 구현: [runbook §5/6](../runbooks/TMI-221-refund-operations.md)에 outbox/fanout 재개·group 증거 재확인·단일Tx 감사/멱등 result, 기존 operator receipts 명시 validator 확장, Slack 집계/인증/5분지연/회복·조건부 Spring 구성 추가. dry-run 기본, apply격리·epoch/version/generation/lease·미래Retry-After 보호. 최종 clean test1666/실패0/오류0/skip0(3m41s), diff통과. 실제 provider RefundEvidence adapter·TMI217 최종 삭제 경로/LC E2E는 남아 processing ON 거절 유지. 로컬미커밋/미푸시, 실DB schema/Slack/배포/Jira/타저장소 변경 없음.
+
+- 2026-10-16 TMI221 조회 slice 최종 선별9개(실Mongo6·CLI3) 실패/오류/skip0, diff 통과. 신규 변경 후 전체 재실행은 미수행이며 아래 병합 전1645개 결과와 구분한다.
+
+- 2026-10-16 TMI220 commit04511c4·[PR27](https://github.com/Too-Much-I/app-back-end-billing/pull/27) develop merge17edd0d 확인. 병합 전 전체1645/실패0/오류0/skip0. `codex/TMI-221-refund-operations`에서 [읽기 전용 운영 조회](../runbooks/TMI-221-refund-operations.md) 추가: purchase/outbox show, DONE≠전체완료,100건상한/미해결·미전송 구분, 인증Mongo·원문비노출. 감사재개/Slack/실provider·LC E2E/보존 연결은 후속, 기본OFF·ON거절 유지. 신규221 미커밋/미푸시, 실제DB/배포/Jira변경 없음.
+
 - 2026-10-14 Notion 결제 페이지(3f9dcc5dbaeb80618ec9ed3e5d8a5966)의 네 API 구조를 유지해 최신화. 종합 판정 true/false/null·미연결 fallback, 무료권 복원·환불 기접수 작업·병합/로컬/미배포 경계 반영. 브라우저 결과 확인; 코드/배포/Jira 변경 및 테스트 재실행 없음.
 
 - 2026-10-14 TMI-220 과거Session 보완 commit6de78ac·PR26 develop mergee48efb7 완료. 사용자 요청대로 후속 브랜치 `feat/TMI-220-refund-fanout` 생성/이름 변경. [fan-out·전달 코어](../runbooks/TMI-220-refund-fanout-delivery.md): 성공confirm 포인터, 예약취소/거절replay, 건별Tx/lease/cursor/보류재확인, 불변outbox/JWT/HTTP 분류 추가. 최종 clean test 1,645개/실패0/오류0/skip0(신규34: Mongo15·publisher/로컬HTTP19). Spring bean/실provider/운영재개·Slack/TMI217보존/LC공동E2E는 후속; processing ON 거절·기본OFF 유지. 실제DB/LC/Jira/배포 변경 없음, 신규 구현 로컬 미커밋.

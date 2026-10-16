@@ -20,6 +20,8 @@ public class PaymentProperties {
     public static class Refund {
         private boolean processingEnabled;
         private boolean publisherEnabled;
+        private String learningCoreOrigin = "";
+        private String privateJwk = "";
     }
     @Getter @Setter
     public static class Cleanup {

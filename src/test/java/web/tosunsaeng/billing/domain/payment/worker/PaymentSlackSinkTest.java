@@ -28,7 +28,7 @@ class PaymentSlackSinkTest {
         public void close() { closes++; }
     }
     static PaymentProviderAlerts.Summary summary(PaymentProviderAlerts.Kind kind) {
-        return new PaymentProviderAlerts.Summary("SANDBOX", kind, NOW, 1, 2, 3, 4, 5, "TMI-212");
+        return new PaymentProviderAlerts.Summary("SANDBOX", kind, NOW, 1, 2, 3, 4, 5, kind.name().startsWith("REFUND_") ? "TMI-221" : "TMI-212");
     }
     @Test void rendersOnlyWhitelistedSummaryForAllKinds() throws Exception {
         Fake fake = new Fake();
@@ -38,7 +38,7 @@ class PaymentSlackSinkTest {
                 var json = new ObjectMapper().readTree(fake.payload);
                 assertThat(json.size()).isEqualTo(2);
                 assertThat(json.get("mrkdwn").booleanValue()).isFalse();
-                assertThat(json.get("text").textValue()).contains("SANDBOX", "TMI-212").doesNotContain("FAKESECRET");
+                assertThat(json.get("text").textValue()).contains("SANDBOX", summary(kind).runbookKey()).doesNotContain("FAKESECRET");
             }
             assertThat(sink.toString()).doesNotContain("FAKESECRET");
         }

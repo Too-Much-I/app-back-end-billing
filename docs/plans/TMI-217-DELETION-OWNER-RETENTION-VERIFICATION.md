@@ -1,5 +1,7 @@
 # TMI-217 — 공동 검토·fixture·실행 검증 계획
 
+> 2026-10-16: [단순화 R2](../contracts/TMI-217-DELETION-SIMPLIFIED-R2.md)를 우선 적용한다. 아래 최초draft 기반 owner독립검증/최초event 추적 요구는 대체되며 사용자인가 LC책임·Billing대상/영향검사로 분담한다. 모든 케이스는 계속 미실행이다. exact 저장/fixture는 공동확인 후 확정한다.
+
 - 날짜: 2026-10-14 / 브랜치: `feat/TMI-217-deletion-owner-retention-contract`
 - 대상: [삭제·owner·보존 계약안](../contracts/LC-BILLING-EXAM-DELETION-RETENTION-R1.md) `lc-billing-exam-deletion-retention-r1-draft-3`
 - 상태: 검증 **계획**. 아래 케이스는 미실행이고 아직 frozen fixture가 아니다.
@@ -45,8 +47,8 @@
 | W07 | 각 업무 오류/code/message/retryable/header | 네필드 exact,503만 Retry-After1 |
 | W08 | 같은event 같은body 재전송·응답유실 | 최초commit 확인/204, effects1 |
 | W09 | 같은event 다른body/다른Session |409 EVENT_ID_CONFLICT |
-| W10 | 다른event 같은Session·내용 또는 다른삭제operation |409 DELETION_FACT_CONFLICT 제안, alias 생성0 |
-| W11 | 삭제재시도/재접수/상세보존만료·최초eventId | 최소원사실에서원ID재사용 coverage, 소실시임의새ID/성공0 |
+| W10 | 다른event·새삭제operation의 이미삭제 exactSession | 인증/대상연결 확인후204/no-op, 최초사실·현재group/guard 불변. 다른group/unknown은거절 |
+| W11 | 같은전송retry와 별도새삭제요청 | retry는원event/body, 새요청은새event가능. 처리한같은event/다른body409 보존, operation간원fact참조 불필요 |
 | A01 | LC 올바른issuer/sub/새aud | 새route만 허용 |
 | A02 | 기존reservation/attempt aud→삭제, 새aud→기존여섯POST |403, DB호출0 |
 | A03 | Identity/user/역방향Billing key·동일kid 다른keySet | 인증/인가 계약대로401/403, fallback0 |
@@ -57,13 +59,13 @@
 | A08 | trailing slash/encoded path·기존user/Identity path inventory | alias 우회0·기존chain 유지 |
 | O01 | 현재trial Session 귀속+epoch 일치 | Session deny·현재group 재응시/복원 차단 |
 | O02 | 과거source A→target B 이후 A의 exactSession 삭제 | A만deny, B 권리·guard 유지 |
-| O03 | phone B가 A의과거Session 삭제·epoch만 있는legacy |409 owner, 성공추정0 |
+| O03 | phone B가 A의과거Session 삭제 주장 | LC사용자인가에서거절. Billing은LC독립인가를반복하지않으며 대상연결/현재target권리보호 검증 |
 | O04 | MEMBER paid/복원권·account refresh version | 원계정 귀속, version을epoch로 오인0 |
 | O05 | source 탈퇴 후 지연 삭제 | 증거 있는exact삭제만, ACTIVE복구0 |
 | O06 | 같은owner 오래된Session 삭제·현재새Session | 새group/session/guard 보존 |
 | O07 | group/session 미존재·상호불일치·owner 근거소실 |409 unresolved/owner 구분, payload보존 |
-| O08 | 게스트A→회원B 단일 USER_MERGED 이후 같은Session | 검증된이전+현재귀속 입증시204 후보, 생성자A만으로 거절0; coverage입증전 동결보류 |
-| O09 | 단일merge 증거불일치/소실·적용지연 | 성공추정0, 원event보존·증거확인후재개 검토 |
+| O08 | 게스트A→회원B 이후 같은Session | LC현재소유인가·유효전송, Billing대상연결/영향판정. Billing전용merge증거 요구0 |
+| O09 | Billing과거merge근거부재 / 현재group영향불명 | 전자만으로삭제거절0, 후자는임의group변경/성공0. legacy대상연결unknown은거절 |
 | O10 | USER_MERGED로 paid/MEMBER복원권 이전 주장 | 기존trial merge 승인 확대0 |
 | R01 | LC 생성commit 선행→삭제 | 공개409, 삭제command/queue0 |
 | R02 | LC 삭제commit 선행→생성 | 삭제fence 차단, 부분Session0 |

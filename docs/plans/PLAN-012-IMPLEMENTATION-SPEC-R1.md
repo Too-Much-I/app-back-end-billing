@@ -10,6 +10,10 @@
 
 > 2026-10-14 사용자 승인: 잘못된 Retry-After는 기본 backoff, 증거 불명은 해당 group만 영속 보류하고 나머지 진행, legacy 이관은 실제 대상이 있을 때만 한정한다. 공동 wire·인증·금융/Session 보호는 유지한다.
 
+> 2026-10-16 TMI221: [운영 도구](../runbooks/TMI-221-refund-operations.md)에 재개·재확인/기존 operator receipt 확장·Slack 집계·조건부 runtime 구성 추가. provider 실증거 adapter 및 TMI217 삭제 경로는 미완료이며 ON 거절 유지. 새 audit collection은 만들지 않고 기존 payment_operator_receipts의 명시 validator 확장을 사용한다.
+
+> 2026-10-16 추가: 금융 환불 `case-list`/`case-show` 읽기 기능(legacy OPEN·환경 격리·100건 페이지)을 추가했다. 금융 case 재조회/해결은 아직 미구현이며 group-recheck와 구분한다. 실제 provider 필드 근거 및 TMI217 최종 writer 없이 adapter/삭제 연결 완료로 기록하지 않는다.
+
 ## 1. 결론
 
 1. 접수는 기존 inbox, 금전은 기존 ledger, 예외는 기존 case를 확장한다. 새 collection은 LC 전달 outbox 하나다.

@@ -35,7 +35,7 @@ public final class PaymentOperatorSchema {
             var meta = db.listCollections().filter(new Document("name", COLLECTION)).first();
             if (meta == null || !"collection".equals(meta.getString("type"))) throw mismatch();
             var options = meta.get("options", Document.class);
-            if (!validator().equals(options.get("validator")) || !"strict".equals(options.getString("validationLevel"))
+            if (!(validator().equals(options.get("validator")) || web.tosunsaeng.billing.domain.reservation.paid.RefundOperatorSchema.validator().equals(options.get("validator"))) || !"strict".equals(options.getString("validationLevel"))
                     || !"error".equals(options.getString("validationAction")) || options.getBoolean("capped", false)) throw mismatch();
             simple(options);
             var indexes = db.getCollection(COLLECTION).listIndexes().into(new ArrayList<>());

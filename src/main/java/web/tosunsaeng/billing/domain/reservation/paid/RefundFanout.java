@@ -169,6 +169,10 @@ public final class RefundFanout {
         });
     }
     private void group(PaidExamTransactions.Context c, Document purchase, Document group, Instant now) {
+        reconcileGroup(c, purchase, group, now, environment, scope, properties.getEnvironment());
+    }
+    static void reconcileGroup(PaidExamTransactions.Context c, Document purchase, Document group, Instant now,
+            String environment, String scope, String paymentEnvironment) {
         require(group.getLong("version") > 0 && group.getLong("version") < Long.MAX_VALUE);
         String id = group.getString("_id"), purchaseId = purchase.getString("_id");
         Document refund = purchase.get("refund", Document.class), source = group.get("sourceSnapshot", Document.class);
@@ -186,7 +190,7 @@ public final class RefundFanout {
             boolean evidence = session != null && session.getDate("confirmedAt") != null && id.equals(session.getString("attemptGroupId"))
                     && Objects.equals(group.getString("subjectRefId"), session.getString("subjectRefId"))
                     && source.equals(session.get("sourceSnapshot", Document.class)) && account != null
-                    && properties.getEnvironment().equals(account.getString("environment"));
+                    && paymentEnvironment.equals(account.getString("environment"));
             if (!evidence) {
                 if (group.get("refundReview") == null) update.set("refundReview", new Document("effectId", refund.getString("effectId"))
                         .append("state", "OPEN").append("reason", "REFUND_EVIDENCE_MISSING").append("createdAt", Date.from(now)).append("resolvedAt", null));
