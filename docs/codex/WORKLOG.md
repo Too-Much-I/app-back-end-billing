@@ -6215,3 +6215,19 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - runbook·PLAN012 R1·clarification·AGENTS·CURRENT_STATE 갱신. diff/문서 링크 정적검사 통과. wire/fixture·단일confirmedSessionId/금융root/기본OFF 불변. 원 작업폴더TMI217 및 기존 dirty 변경 보존, 이번 범위 밖 코드/LC/Jira/외부 메시지/commit/push/실DB/배포 변경 없음.
 - 다음: LC exact 접수/Callback/시스템 재시도/Summary 보완 및 실제 공동 HTTP 경합, TMI217 최종 삭제 접점 대조, TMI220 환불 정리/outbox/publisher. 이번 보완을 TMI220 전체 완료·공동 E2E·활성화 승인으로 표시하지 않는다.
 - 최종 `./gradlew clean test` BUILD SUCCESSFUL(3m12s), XML 집계 1,611개/실패0/오류0/skip0. 신규8개 모두 통과. 앞선 실패는 테스트 guard 데이터의 all-or-none 수정으로 해소됐다. diff/문서 링크 검사 통과, 실제 LC/Store/배포 검증 미수행. 변경은 로컬 미커밋이다.
+
+## 2026-10-14 — PR26 병합·TMI-220 환불 순차 정리/전달 코어
+
+- 사용자 commit/push/merge후후속구현 요청으로 기존 보완14파일 commit6de78ac3afc36986f3308b27c0a53b8f5b5546f0·PR26 생성/첨부. MERGEABLE/exacthead 확인(조회 당시 check rollup 없음) 뒤 develop mergee48efb79b66e8519a4e4aa96b610a9736dcef05a 확인. 새 codex/TMI-220-refund-fanout 브랜치를 만들고 사용자의 추가 요청에 따라 feat/TMI-220-refund-fanout으로 이름 변경했다. 현재 신규 브랜치는 미푸시이며 원 작업 폴더 TMI217과 무관한 변경은 보존했다.
+- PaidReservationService 성공confirm 포인터 및 refund 취소/실제confirm 거절receipt 연결, RefundFanout/RefundFanoutSchema 추가. source/계정/lease/recovery fence·건별Tx, RESERVED→GROUPS,20단계·30초lease, 증거불명review/cursor와 재확인/첫outbox 원자화. 기존 source/guard/무료권 보존, legacy추정·가짜CONFIRMhash·전체단일Tx 없음.
+- RefundAccessPublisher/RefundAccessHttpTransport 추가. 불변 canonical JSON 문자열/digest·전용RS256 JWT, 빈204/두409/auth/retry 분류, Retry-After fallback·긴대기/24h보류,5초/16KiB/redirect없음, 응답유실/오래된lease결과 방어. 기존 Identity/LC 수신·공유 fixture·금융규격은 변경하지 않았다.
+- schema는 isolated/ALL_BLOCKED 아래 명시 설치만 제공,실DB설치없음. 두tick에5초annotation은 있으나 Spring bean/provider연결·운영재개CLI/감사/Slack·LC공동E2E·TMI217최종보존은 후속이다. 기존 processingON 기동거절/기본OFF 유지. 운영자동실행·판매가능으로 보고하지 않는다.
+- 선별 Mongo/로컬HTTP 테스트 통과 및 첫 전체clean test BUILD SUCCESSFUL(3m28s). 이후 DONE재확인실패의nextAttemptAt불변·groupversionoverflow검사 및 publisher새generation/24시간 경계2개를 포함해 최종 전체재실행 중. 최종 XML 결과는 아래 append한다.
+- runbook·AGENTS·PLAN012 R1·CURRENT_STATE 동기화, diff/문서링크 검사 통과. 신규코드는 로컬미커밋, 타저장소/Jira쓰기/실제Store거래/배포/활성화 변경 없음. 실제공동E2E/미검증provider 지원 완료 아님. 예상밖범위 변경 없음.
+- 최종 `./gradlew clean test` BUILD SUCCESSFUL(3m27s), XML 집계1,645개/실패0/오류0/skip0. 신규34개(RefundFanoutIntegrationTest15, RefundAccessPublisherTest19). 실제 replica-set Mongo·모의LC transport·테스트키 서명·로컬 HTTP 경계 결과이며 실제LC/Store/ALB E2E 아님. 최종 diff/링크 검사 통과. 새 브랜치에는 commit/push하지 않았다.
+
+## 2026-10-14 — Notion 프론트 결제 안내 최신화
+
+- 사용자 지정 결제 페이지(3f9dcc5dbaeb80618ec9ed3e5d8a5966)를 브라우저에서 수정했다. 기존 네 API 구조/표 유지, 종합 판정 미구현 문구를 PaidExamQueryReader·ExamAvailability 코드의 true/false/null 및 미연결 fallback 구분으로 교체했다.
+- 무료권 복원·hasPendingSync·최종 reserve/confirm 판정·환불 문의/권리 종료·기접수 작업 예외·병합/로컬 구현/배포 대기 범위를 추가하고 화면 내용으로 반영을 확인했다. 실제 Store/LC 공동 검증 완료로 표현하지 않았다.
+- 이번은 Notion과 작업 기록 변경만 수행. 기존 로컬 구현 보존, 코드/타 저장소/Jira/배포/flag/commit/push 변경 및 Gradle 재실행 없음.

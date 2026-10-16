@@ -1,5 +1,9 @@
 # Billing Service 현재 상태
 
+- 2026-10-14 Notion 결제 페이지(3f9dcc5dbaeb80618ec9ed3e5d8a5966)의 네 API 구조를 유지해 최신화. 종합 판정 true/false/null·미연결 fallback, 무료권 복원·환불 기접수 작업·병합/로컬/미배포 경계 반영. 브라우저 결과 확인; 코드/배포/Jira 변경 및 테스트 재실행 없음.
+
+- 2026-10-14 TMI-220 과거Session 보완 commit6de78ac·PR26 develop mergee48efb7 완료. 사용자 요청대로 후속 브랜치 `feat/TMI-220-refund-fanout` 생성/이름 변경. [fan-out·전달 코어](../runbooks/TMI-220-refund-fanout-delivery.md): 성공confirm 포인터, 예약취소/거절replay, 건별Tx/lease/cursor/보류재확인, 불변outbox/JWT/HTTP 분류 추가. 최종 clean test 1,645개/실패0/오류0/skip0(신규34: Mongo15·publisher/로컬HTTP19). Spring bean/실provider/운영재개·Slack/TMI217보존/LC공동E2E는 후속; processing ON 거절·기본OFF 유지. 실제DB/LC/Jira/배포 변경 없음, 신규 구현 로컬 미커밋.
+
 - 2026-10-14 TMI-220 [과거 Session 이벤트 보완](../runbooks/TMI-220-historical-session-events.md): confirm/completionAllowed/source/owner/lifecycle 확인 후 과거 S1 terminal만 반영, 현재 group/S2/새 guard 무변경. 과거 GRADING은 기존 STALE/204, inbox·이용 원장·S1 단일Tx. 신규 실Mongo8회귀 포함 최종 clean test 1,611개/실패0/오류0/skip0. LC/공동 E2E·환불 정리/publisher·TMI217 최종 삭제 접점은 후속, 기본 OFF·ON 기동거절 유지. wire/fixture/외부 서비스/Jira/배포 변경 없음. 로컬 미커밋.
 
 - 2026-10-14 TMI-220 LC 회신 반영: 인계서 기존 H11~H13 보존, 중복 신규 항목을 H14~H16으로 정정하고 C01~C06 매핑 명시. [보완 §3.1](../contracts/TMI-220-REFUND-PROTECTED-SESSION-CLARIFICATION.md)에 pendingAt 최초접수 사용 금지·retry0 receipt/TTL/전체접수 marker 한계·서버 시각만의 순서 추정 금지·Callback/시스템재시도/Summary/terminal 범위를 반영했다. 아래 이전 기록의 신규 H11~H13은 H14~H16으로 읽는다. 문서만 변경, 구현/공동 E2E 미완료, LC/Jira/fixture 미변경.

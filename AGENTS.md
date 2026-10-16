@@ -1,5 +1,7 @@
 # 토선생 Billing Service Codex 작업 규칙
 
+> 2026-10-14 TMI-220 후속 코어: [fan-out·전달 안내](docs/runbooks/TMI-220-refund-fanout-delivery.md). 성공confirm lastConfirmedSessionId, RESERVED→GROUPS 건별Tx/30초lease/20단계·증거불명review, canonical 불변outbox·전용JWT/HTTP 재시도 코어를 추가했다. Spring 빈 등록/실provider·LC공동E2E·운영재개/Slack·TMI217보존 확인은 후속이고 processing ON 거절·기본OFF 유지. 명시schema만 제공하며 실제DB 설치 없음. 이전 과거Session 보완은 commit6de78ac·PR26 develop mergee48efb7, 현재 브랜치는 사용자 지정 feat/TMI-220-refund-fanout다.
+
 > 2026-10-14 TMI-220 한정 보완: [과거 Session 이벤트 안내](docs/runbooks/TMI-220-historical-session-events.md). Billing 과거 ACTIVE Session의 confirm/completionAllowed/source/owner/lifecycle을 검증해 terminal·이용 원장만 반영하며 현재 group/Session/새 guard는 보존한다. 과거 GRADING은 STALE/204, LC 작업별 접수 검증을 대신하지 않는다. 환불 정리/publisher·LC 보완·공동 E2E·최종 삭제보존 연동은 후속이며 기본 OFF 유지. 아래 문서만 변경 설명은 해당 후속 코드 보완 범위에서 갱신한다.
 
 > 2026-10-14 사용자 문서 보완 승인: [TMI-220 기접수 작업 경계](docs/contracts/TMI-220-REFUND-PROTECTED-SESSION-CLARIFICATION.md). 단일 confirmedSessionId 유지. 환불 전 confirm·재시작 전 영속 접수된 과거 Session 작업만 마무리하며 신규 제출/새 녹음/새 Session은 금지한다. 일부 문항으로 전체 완료/Summary를 허용하지 않는다. 삭제·탈퇴·확정 종료 우선, Billing late event는 해당 Session/이용 증거만 반영하고 현재 group·Session·새 guard 불변. 아래 exact Session만 완료 표현은 이 범위에서 보완한다. 이번은 문서 변경이며 구현·공동 E2E·LC 수정·배포 승인이 아니다.
