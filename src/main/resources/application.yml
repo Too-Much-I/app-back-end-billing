@@ -1,3 +1,8 @@
+app:
+  billing:
+    exam-deletion:
+      enabled: ${BILLING_EXAM_DELETION_ENABLED:false}
+
 spring:
   application:
     name: app-back-end-billing

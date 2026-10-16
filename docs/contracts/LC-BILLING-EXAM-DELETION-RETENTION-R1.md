@@ -1,5 +1,7 @@
 # TMI-217 — 시험 삭제·과거 owner·자료별 보존 공동 계약안 R1
 
+> **2026-10-16 사용자 승인 변경:** [단순화 R2](TMI-217-DELETION-SIMPLIFIED-R2.md)가 본문의 다른event 동일Session409·최초event의 operation간 재사용·Billing 독립 사용자소유검사/merge증거 요구를 대체한다. 해당 기존 §3.3~3.5/§4.1/§5의 문구는 변경 이력이다. 사용자 인가는 LC 책임, Billing은 인증/대상연결/현재권리 영향검사, 이미삭제 exact대상은204/no-op이다. LC 공동exact 수락/구현은 아직 아니다. 이외 정책은 유지한다.
+
 - 날짜: 2026-10-14 / revision: `lc-billing-exam-deletion-retention-r1-draft-3`
 - 상태: **공동 검토용 제안**. 기존 승인 정책을 구체화하며 신규 wire·보존 수치의 공동 수락/제품 구현/활성화 완료가 아니다.
 - 관련: TMI-217, PLAN-011/012/013, LC TMI-116/128/122/125/193/136.

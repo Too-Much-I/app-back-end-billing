@@ -11,7 +11,7 @@ import web.tosunsaeng.billing.domain.payment.sync.PaymentSyncSchema;
 
 /** Privacy-safe operational summaries. A channel-specific transport must be explicitly supplied to enable delivery. */
 public final class PaymentProviderAlerts {
-    public enum Kind { DAILY_REVIEW, AUTH_INCIDENT, AUTH_RECOVERY }
+    public enum Kind { DAILY_REVIEW, AUTH_INCIDENT, AUTH_RECOVERY, REFUND_DAILY, REFUND_AUTH, REFUND_DELAY, REFUND_RECOVERY }
     public record Summary(String environment, Kind kind, Instant asOf, long pending, long review, long cases,
                           long oldestPendingHours, long overdueReview, String runbookKey) {}
     @FunctionalInterface public interface Sink { boolean send(Summary summary); }

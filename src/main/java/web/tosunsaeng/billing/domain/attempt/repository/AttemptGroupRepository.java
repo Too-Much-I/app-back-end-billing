@@ -111,13 +111,14 @@ public class AttemptGroupRepository {
                 ));
         Update update = new Update()
                 .set("status", AttemptGroup.Status.RETAKE_AVAILABLE)
+                .set("lastConfirmedSessionId", sessionId)
                 .set("updatedAt", now)
                 .set("openGuard", true)
                 .unset("activeSessionId")
                 .inc("version", 1);
         // A late failure may advance learning status but must never reopen the old group.
         var blocked = findAndModify(Query.of(query).addCriteria(Criteria.where("replacementBlocked").is(true)),
-                new Update().set("status", AttemptGroup.Status.RETAKE_AVAILABLE).set("updatedAt", now)
+                new Update().set("status", AttemptGroup.Status.RETAKE_AVAILABLE).set("lastConfirmedSessionId", sessionId).set("updatedAt", now)
                         .unset("openGuard").unset("activeSessionId").inc("version", 1));
         return blocked.isPresent() ? blocked : findAndModify(query.addCriteria(Criteria.where("replacementBlocked").ne(true)), update);
     }

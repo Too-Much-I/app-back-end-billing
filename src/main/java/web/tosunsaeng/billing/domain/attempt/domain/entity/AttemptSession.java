@@ -42,6 +42,8 @@ public class AttemptSession {
     }
 
     private boolean runtimeManaged;
+    private boolean deleted;
+    public boolean isDeleted() { return deleted; }
     private boolean completionAllowed;
     public AttemptSession withPaidRuntime() { runtimeManaged = true; activeGuard = null; return this; }
     public boolean isCompletionAllowed() { return completionAllowed; }

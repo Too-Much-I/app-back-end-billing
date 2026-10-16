@@ -137,11 +137,22 @@ public final class PaidReservationService {
             return null;
         }
         AttemptGroup group = c.groups().findById(id).orElseThrow(ContextConflict::new);
-        if (group.getSourceSnapshot() == null) throw ReservationException.temporarilyUnavailable();
         Document row = doc(c, "attempt_groups", id);
-        if (row.getBoolean("deleted", false) || row.getBoolean("lifecycleDenied", false) || group.isReplacementBlocked()) throw new ContextConflict();
         Long epoch = trialEpoch(c, command.userId(), group.getSubjectRefId(), clock.instant(), true);
         if (epoch == null && !account.getString("paidSubjectRefId").equals(group.getSubjectRefId())) throw ReservationException.operationOwnerMismatch();
+        if (row.getBoolean("deleted", false)) {
+            var restart = command.restartContext();
+            if (restart == null || command.continuationReason() != null || row.getBoolean("lifecycleDenied", false)
+                    || guard.getString("currentGroupId") != null) throw new ContextConflict();
+            Document fact = c.operations().findById(environment + ':' + restart.previousSessionId(), Document.class,
+                    web.tosunsaeng.billing.domain.examdeletion.DeletionService.FACTS);
+            if (fact == null || !id.equals(fact.getString("attemptGroupId"))
+                    || !"CURRENT_GROUP_BLOCKED".equals(fact.getString("disposition"))) throw new ContextConflict();
+            // A verified deletion is a new INITIAL decision, never replacement/restore of this consumption.
+            return null;
+        }
+        if (group.getSourceSnapshot() == null) throw ReservationException.temporarilyUnavailable();
+        if (row.getBoolean("lifecycleDenied", false) || group.isReplacementBlocked()) throw new ContextConflict();
         if (command.continuationReason() != null) {
             BillingSubjectLink link = new BillingSubjectLinkRepository(c.operations()).findBySubjectRefId(group.getSubjectRefId()).orElseThrow(ContextConflict::new);
             if (epoch == null || !"PHONE_REJOIN".equals(link.getOwnerTransitionReason()) || !command.continuationId().equals(link.getOwnerTransitionId())
