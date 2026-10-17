@@ -6700,3 +6700,126 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - 사용자 명시 요청으로 이번 Git 작업에 한해 commit/push/merge 수행. 브랜치 `codex/billing-test-deployment`, 원격 develop과 HEAD 동일(60d5f6c) 및 기존 PR 없음 확인. 이전 테스트 배포 준비(Dockerfile/ops/refund test activation/문서)와 TMI-205 관측 기반 삭제 변경을 함께 반영한다. 원본 Billing 작업트리·Identity/LC는 변경하지 않는다.
 - 검증은 직전 Java21 clean test 1,798개 전부 통과(이후 제품코드 변경 없음), diff --check, ops 셸 문법 검사. 비밀값 패턴 검사는 기존 PaymentSlackSinkTest의 fixture만 탐지했고 새 파일에서 발견되지 않았다. 이전 동시성 실패 기록은 보존한다.
 - 새 제품정책·wire·기본OFF 변경 없음. Git 병합은 서버 재배포나 자동삭제/Identity 연동 활성화가 아니다. PR 검사와 원격 병합 결과는 실행 후 사용자에게 보고한다. Jira·실제DB·AWS 설정 변경 없음.
+
+## 2026-10-17 — TMI-205 테스트 구매·탈퇴 설정 활성화
+
+- 브랜치 codex/billing-test-deployment. 사용자 명시 승인 범위: 테스트 ALB 탈퇴 POST 1개·Identity 구매 scope/fence/탈퇴 발신·Billing 수신. 최종 답변에 따라 실제 사용자 탈퇴 E2E는 하지 않는다. 운영/LC 변경 없음.
+- PR29 develop merge a432079 제품 트리 bootJar/amd64 이미지 빌드·ECR push, test10의 실제 설정을 보존한 test11 배포. 기존 Identity key/phone receiver 설정 보존, withdrawal ON. ALB priority87에 승인 host/source/method/path만 추가하고 기존 규칙 불변 확인.
+- Billing ECS COMPLETED·실행1개, 대상 healthy. 공개4API 무인증401. 기존 Identity 키를 사용하는 빈 JSON 인증 진단 exit0: unsigned401/signed400/wrong audience403/expired401. 최초 진단의 mongosh await 문법 오류는 async wrapper로 수정했고 제품 오류로 집계하지 않는다. 사용자 데이터·키/토큰 출력 없음.
+- 읽기 전용 DB 점검: cleanup jobs0건/validator없음, recovery control SANDBOX/billing/schemaVersion1/OPEN. 필요한 r2/control4 미충족으로 cleanup reconciliation/purge는 OFF 유지. 버전 숫자만 바꾸거나 준비 증거를 발명하지 않는다.
+- Identity test46 이미지·capture·phone·키 보존하여 test47에 승인 환경변수5개만 변경, 배포 요청. 안정화는 후속 기록. 새 scope는 새 토큰 발급부터 적용.
+- 완료된 임시 preflight/auth 진단 task 정의3개는 INACTIVE로 전환, 로그는 보존. 제품코드 변경 없음; 전체 테스트는 직전1798통과 이후 변경 없어 재실행하지 않았고 이번에는 bootJar 및 실제 비파괴 연결 점검 수행.
+- 변경 문서: 이 기록·CURRENT_STATE·TMI-205-TEST-ACTIVATION-2026-10-17.md. 예상 밖 제품 diff 없음. 다음: Identity 안정화, 정식 cleanup schema 유지보수, 프론트 전용 계정 E2E. 실제 탈퇴204/자동삭제/복구 전체 검증 완료로 기록하지 않는다.
+- 최종: Billing test11·Identity test47 모두 ECS COMPLETED/실행1/pending0, 신규 ALB 대상 healthy. Identity 구 대상은 draining. 구매 scope/fence·탈퇴 publisher 및 Billing withdrawal ON 대조, cleanup reconciliation/purge는 미설정/default false. Identity 시작 성공/확인한100로그 ERROR0. diff --check 통과. 기존 사용자 계정/탈퇴/결제 자료를 진단용으로 변경하지 않았다. 이번 문서 commit/push/Jira 변경 없음.
+
+## 2026-10-17 — TMI-205 cleanup 활성화 후속 사전 확인
+
+- 사용자 자동삭제 준비·활성화 요청. 브랜치 codex/billing-test-deployment, 기존 문서 변경 보존. CleanupSchema/Configuration·RecoveryOperator·기존 bootstrap을 읽어 exact r2/control4 및 writer isolation 요구 재확인.
+- Atlas 테스트 프로젝트의 Billing 계정은 test DB readWrite와 RC budget collection readWrite만 표시된다. cleanup jobs collMod 임시 권한·테스트 Billing 중지·검증 설치·권한 회수의 적용 직전 승인을 요청했다. 아직 외부 권한/DB/서비스 설정은 변경하지 않았다.
+- 기존 fresh-test bootstrap의 empty 제한을 우회하거나 RecoveryOperator OPEN의 baseline/feed 조건을 발명하지 않는다. control 이관은 현재 자료 확인 후 명시 유지보수로 수행해야 한다. 실제 삭제 활성화 직전 조건·대상을 확인하며 실제 사용자 탈퇴 E2E는 수행하지 않는다.
+- 변경 파일: WORKLOG/CURRENT_STATE만 추가 기록. 제품코드 변경 없어 테스트 미실행; 소스·Atlas 권한 읽기 확인. 다음: 승인 후 유지보수/이관 검증 및 cleanup 활성화. 운영·Identity·LC 변경 없음.
+
+## 2026-10-17 — TMI-205 cleanup 테스트 유지보수·ON 배포
+
+- 사용자 적용 직전 승인: 테스트 cleanup jobs 한정 collMod 임시 부여/중지/설치/회수 및 조건부 물리삭제 ON. 브랜치 codex/billing-test-deployment, 기존 문서 변경 보존.
+- 추가 파일: scripts/ops/billing-test-cleanup-maintenance.js와 async fake DB 테스트, docs/runbooks/TMI-205-cleanup-test-maintenance-2026-10-17.md. 제품 Java/API·보존 조건·provider 계약 변경 없음.
+- 테스트: Node8개 및 Java21 clean test1798개/실패0/오류0/skip0(3분59초). 최초 도구 DB 비동기 처리 누락으로 실DB dry-run 두 번 실패했으나 쓰기는 없었고, explicit await 및 async fake 회귀 후 dry-run exit0. 서버 중지 전 가드도 설치를 거절했으며 정상 종료 확인 후에만 실행했다.
+- Atlas 전용 cleanup collMod 역할만 일시 연결, 원래 readWrite 권한 보존. Billing test11 desired0/ALB300초 drain/모든 writer STOPPED 확인. 최소 v1 control·cleanup0·정확 validator/index 검사 후 ALL_BLOCKED CAS → cleanup r2 설치/검증 → control4·기존 OPEN 복원. epoch·기존 inbox/phone/product 자료 보존. 설치 exit0.
+- 임시 역할 연결 제거 저장 및 별도 새 DB connectionStatus에서 collMod=false 검증. 설치 후 control Long4/OPEN·cleanup0·strict/error·인덱스4개 확인. 역할 정의만 비연결로 남으며 로그/진단 기록은 보존.
+- test11 동일 이미지/키/role/container 유지하고 reconciliation/purge 두 env만 true인 test12 등록/서비스 기동. 기동 로그 Started/확인100개 ERROR0, task definition 두 flag true 확인. ALB 최종 안정화는 후속 기록.
+- 실제 사용자 탈퇴/구매/삭제 사례는 수행하지 않았다. 운영·Identity·LC 설정 변경 없음. cleanup 전용 Slack sink 미구현으로 alerts OFF 유지. 다음은 최종 헬스 확인과 프론트 전용 계정 E2E이며 자동삭제 성공 사례를 주장하지 않는다. commit/push/Jira 변경 없음.
+- 최종 test12 ECS COMPLETED/실행1/pending0, public/workload ALB 모두 healthy, 공개4API HTTPS 무인증401. 두 cleanup flag 및 기존 withdrawal=true 재대조. 임시 task 정의5개는 STOPPED 확인 후 INACTIVE, 로그 보존. diff --check 통과. 기존 문서 외 예상 밖 제품 변경 없음. 실제 삭제 사례/cleanup Slack 연결은 남는다.
+
+## 2026-10-17 미귀속 결제 전체 사용자 조회 차단 보완
+
+- 사용자 승인: 미귀속 환불 식별 지연 위험을 수락하고 작은 격리 수정·commit/push/merge/테스트 재배포 요청. 브랜치 codex/billing-test-deployment, 신규 Jira 변경 없음.
+- PaidEntitlementReader의 환경 전체 미귀속 case/inbox 검사만 제거. 본인 계정 환불/검토·탈퇴·복구 barrier·무쓰기 조회 불변. 예약/확정 제품 코드는 변경하지 않고 Mongo 회귀 추가.
+- 두 관련 통합 클래스 통과, 전체 clean test/bootJar 진행 중. 기존 유지보수 문서/스크립트 변경은 보존하며 이번 제품 수정과 구분한다.
+- 실DB 진단: PLAY_STORE 구매2건 VERIFIED/ALLOWED/READY 및 sync APPLIED, 미귀속 OWNER_UNRESOLVED case2건의 전역 조회 영향 확인. 자료/계정/토큰 상세를 기록하지 않는다.
+- 다음: 전체 회귀 완료 후 사용자 요청 Git 작업 및 테스트 이미지만 교체. 운영·Identity·LC 설정 변경 없음, 실제 앱 인증 E2E는 별도다.
+- 전체 Java21 clean test/bootJar 1801개/실패0/오류0/skip0(4분3초). commit2eef569 push·PR30 develop merge3d27016 완료, 빌드 소스와 develop의 src/main/src/test/빌드 설정 동일 확인. 기존 유지보수 미커밋 파일 제외.
+- 검증 JAR SHA256 4065e39450058d0257b0845022d55f195368a5b63bba26b86564fbbd48319fcb. 기존 test12 이미지 digest 기반으로 동일 런타임에 JAR만 교체한 isolation-2eef569 digest510db0b4209549ddd4c494112e1a4eb7fcdaa1a00f14566519b2f0a5f5e73f81 준비. CloudShell 빌드 문자열 초회 문법 오류는 실행 전 실패, 등록 초회 빈 tags 거절은 서비스 변경 전 실패. 수정 후 테스트 전용 배포 진행 중.
+- test13 등록 및 서비스 이미지 교체 요청 성공. 기존 test12 환경변수·secret 참조 동일 assertion 통과. 새 태스크 8082/8083/8443 기동·Started 확인, 조회한 기동 로그26개 ERROR0/WARN1. 이 시점은 ALB 안정화/구 태스크 종료 전이며 실제 인증 사용자 GET 확인은 아직 아니다.
+- 최종: ECS test13 COMPLETED/desired1/running1/pending0, 새 태스크 HEALTHY·두 ALB 대상 healthy. 앱 target 초기 unhealthy는 이후 healthy로 수렴했으며 old/new subnet·SG·ALB 동일 확인, 네트워크 변경 없음. 이전 target은 draining, 현재 서비스 task는 새 이미지1개. 공개4API HTTPS401 확인(전환 중); 완료 뒤에도 동일 검사 수행. DB write/실제 결제/사용자 JWT 발급은 하지 않았으므로 인증된 사용자 paid/시험 E2E는 프론트 재조회 대상. 작업기록의 기존 유지보수 변경은 보존하고 별도 미커밋 유지.
+
+## 2026-10-17 구버전 무료 시험 공존 확인
+
+- 브랜치 codex/billing-test-deployment. 사용자 요청에 따라 LC 코드 읽기만 수행, 결과를 LC-legacy-free-coexistence-review-2026-10-17.md에 기록했다.
+- 동일 생성 API/전역 전환·LegacyExamWriterGuard·고정 manifest로 현재 구신 공존은 불가. 신규 명시적 경로 및 legacy 무료 출처/lifecycle 공존 보완 권장. 구버전 무료는 신앱 무료권 소비와 별개이며 단순 URL/버전 헤더로 우회를 완전히 막을 수 없음.
+- 제품 코드/LC 파일/실DB/prod 설정·배포·Jira·Git 변경 없음, 정적 조사로 테스트 미실행. 기존 미커밋 변경 보존. 다음은 LC 공존 설계 인계 및 사용자 승인 후 구현이다.
+
+## 2026-10-17 자동삭제 Slack 연결·복구 활성화 준비
+
+- 브랜치 codex/billing-test-deployment. 사용자 구현 요청 범위에서 CleanupAlerts/Configuration/Worker, PaymentSlackSink와 cleanup/Slack 테스트를 변경했다. 관련 TMI-205/209·204의 기존 정책/복구 구현을 유지하며 Jira는 변경하지 않았다.
+- 기존 전송기 재사용으로 요약/장애/복구를 연결했다. OFF는 DB 요약 조회/전송 없음, ON은 Slack bean 필수. false/예외 전송 실패 지표와 시간당 재시도, 오류 없는 실제 처리 tick의 복구 통지를 추가했다. 별도 알림 DB·채널·원문 전송 없음.
+- recovery HTTP/JWT·snapshot/feed worker는 이미 구현됐다. Identity 코드는 읽기만 확인했다. 기존 control의 baseline 없는 OPEN 상태를 새 INITIAL/가짜 checkpoint로 우회하지 않는 활성화 안내를 추가하고 과거 runbook에 최신 링크를 붙였다.
+- 테스트: Java21 clean test 1804개/실패0/오류0/skip0. 이후 기동 검증 순서를 앞당기고 설정 ON/OFF 구성 테스트를 추가해 관련 최종 재검증 중. git diff --check 통과.
+- API/body·JWT·구매보호·삭제조건·보존기간 불변. 기존 LC 공존/테스트 유지보수 dirty 파일은 이번 범위가 아니며 보존했다. 예상 밖 제품 코드 변경 없음.
+- 실제 Slack·양서버 복구 E2E, 환경 키/ALB/최초 baseline 적용은 남는다. 커밋/push/배포/DB·Secret·Identity/LC 수정 없음. 다음은 최종 테스트 결과 기록 후 환경 활성화 별도 진행이다.
+- 최종 보완 후 cleanup/Slack 관련126개 실패0/오류0/skip0 통과(25초). 전체1804개 결과는 그 직전 실행이며 두 결과를 합산하지 않는다. 최종 diff 공백 검사 통과. 다음 작업은 테스트 환경 Slack 수신과 Identity recovery 연결/최초 baseline 검증이며 운영 활성화는 별도다.
+
+## 2026-10-17 cleanup Slack 테스트 배포·Identity 준비 확인
+
+- 사용자 후속 진행 승인. 브랜치 codex/billing-test-deployment, 기존 dirty 변경 보존. Java21 bootJar 통과, JAR SHA256 bd79bb733ae765003569bd7b6236ef701ec84f0f00f21b34ee4a2604b6bad85e. 직전 전체1804/관련126 테스트 결과 재사용, 이번 테스트 재실행 없음.
+- ECS 읽기: Billing test13 실행1/pending0, Slack transport true·webhook Secret 참조 있음. Identity test47 실행1이나 recovery 설정/수신 JWK 주입 미확인, Billing recovery private JWK 주입 없음. 외부 설정원 부재까지 단정하지 않는다.
+- 기존 test13 runtime digest 기반 JAR 교체 이미지 cleanup-alerts-bd79bb73 생성, digest 5f1723774ca6beb43c27af0a610d8e0fecf512aa70071400b08eacf2334954a9. 업로드 동명 파일 충돌은 기존 파일 보존 후 새 파일명으로 해결. task14 등록·서비스 변경 요청, image와 cleanup alerts true만 변경 assertion 통과. 기존 Secret/IAM/네트워크/DB·Identity/LC·prod 변경 없음.
+- Identity-recovery-test-readiness-request-2026-10-17.md 작성. 키/전용 경로·실stream·baseline·E2E 준비가 필요해 recovery는 OFF 유지. 실제 탈퇴/구매·임의 checkpoint·barrier 조작 없음. Slack 수신/ECS 안정화는 후속 확인 중이며 아직 완료로 기록하지 않는다. 커밋/push/merge·Jira 변경 없음.
+- 후속 확인: task14 RUNNING/HEALTHY·service running1/pending0, 두 ALB 새 target healthy 및 이전 target draining. 초기8083 unhealthy는 정상으로 수렴했다(30초 간격/정상5회). 21:24 기존 문의-테스트 채널에 자동삭제 요약 수신, 보류0/기한초과0. 증빙 /private/tmp/billing-cleanup-slack-received-20261017.png. 공개4API 무인증401 확인. 실제 사용자 구매/탈퇴·복구E2E는 미실행이며 rollout 최종 완료 여부 추가 확인 중.
+- 최종 AWS services-stable waiter 성공(BILLING_TEST14_STABLE). 정상 새 태스크와 Slack 실제 수신 확인 완료. 다음은 Identity 준비 요청에 따른 복구 전용 키/경로·baseline 검증이다. 이번 범위 외 설정/운영 변경 없음.
+
+## 2026-10-17 prod 세 서버 배포의 구앱 호환 검토
+
+- codex/billing-test-deployment. 사용자 경로 분리 완료 안내에 맞춰 LC 최신 코드/공존 인계서와 Identity JwtAccessTokenIssuer를 읽기 확인했다. v1은 TransitionFreeExamService, v2는 paid saga로 분리됐다. 기존 미분리 조사 문서는 과거 시점 기록이다.
+- v1 legacy-create 기본false, owner fence/runtime 및 기존 Session manifest를 요구한다. 진행 중 paid/미완료 operation은 v1 거절을 유지한다. Identity는 기존 audience를 보존하면서 Billing audience를 추가하지만 실제 prod의 구토큰 수용/키·설정은 이번에 확인하지 않았다.
+- 코드 분리만으로 prod 무영향을 확정하지 않는다. prod 무료 생성 ON·기존 Session 준비·로그인/토큰갱신/생성/기존 제출/결과 smoke 확인 필요. 심사 중 강제 업데이트/구경로 차단 금지. API 변경·타 서버 수정·DB·배포·Jira/Git 변경 없음, 정적 확인이라 테스트 미실행. 기존 dirty 보존, 예상 밖 변경 없음.
+
+## 2026-10-17 prod 실제 설정·기동 조건 후속 점검
+
+- 브랜치 codex/billing-test-deployment. 목표는 세 서버 배포 시 구앱 무료 경로 호환 여부의 읽기 검증이다.
+- LC PaidExamTestActivation은 정확히 test profile/환경만 허용한다. paid ON prod 기동 거절과 paid OFF 시 v1 필수 LegacyExamRuntime 미생성의 양쪽 위험을 확인했다. legacy-create flag만으로 해결되지 않는다.
+- 서울 ECS 전체 cluster/service 및 태스크 설정·ALB를 읽기 조회했다. LC prod7/Identity prod12 실행1, Billing은 test14만 확인. LC prod 태스크 legacy-create 설정 부재·creation saga false. Identity audience는 LC 유지, issuer staging 호스트, 최소버전 양 플랫폼2.0.1. 실제 운영 host→prod target 연결 확인.
+- 변경 파일: prod-coexistence-readiness-2026-10-17.md 신규, CURRENT_STATE/WORKLOG. API/인증/원장 계약은 변경하지 않았으며 기존 dirty 보존, 예상 밖 제품 코드 변경 없음.
+- 정적 검토/AWS describe만 수행해 Gradle 미실행. 운영 DB manifest/control/index·구앱 실제 로그인/생성/제출/결과 E2E는 미확인. 비밀키/토큰/사용자 자료 조회와 서버·DB·배포·Jira·commit/push 없음.
+- 다음은 LC 운영 readiness 보완과 운영 데이터 준비 검증, Billing prod 준비 후 구앱/신앱 smoke다. test 설정 복사나 안전 검사 제거로 우회하지 않는다.
+
+## 2026-10-17 LC 운영 기동 준비 후속 구현
+
+- 사용자 후속 「어 해줘」로 직전 제안한 LC 준비 코드 보완 착수. Billing 브랜치 codex/billing-test-deployment, LC feat/lc-review-coexistence. 기존 dirty 보존.
+- LC의 환경별 기동 검증·application.yml·테스트와 작업 문서 보완. production 승인 기본 OFF, prod 단독 profile과 production wire 환경 매핑. test 승인 복사 불가, 기존 manifest/owner/index·인증 검증 유지. Billing은 CURRENT_STATE/WORKLOG만 갱신.
+- clean test1396개 중1395통과/skip1. Docker API 기본값 불일치로 첫 Mongo 시작 실패 후 테스트 프로세스 API1.44 지정으로 rollout 검증 통과. 전체 Mongo 검증 진행. 제품 API·원장·보존기간·v1/v2 정책 불변.
+- 운영 DB/설정/활성화/배포·Identity 수정·commit/push 없음. 다음은 운영 DB/인증 준비 검증과 Billing prod 준비 및 실제 구앱 호환 smoke. 코드 준비가 실제 운영 무영향 보증은 아니다.
+- 최종 LC 전체 Mongo336개 통과/실패·skip0, diff 공백 검사 통과. clean test1395통과/기존skip1과 구분해 기록한다. 예상 밖 변경 없이 기존 사용자 dirty 보존.
+
+## 2026-10-17 LC commit/push·Billing 운영 기반 준비
+
+- 사용자 commit/push·운영 DB/키 확인·Billing prod 구성 요청. LC feat/lc-review-coexistence의 이번 8파일만9fb8f71 commit/push, 공유 기록/DS_Store/기존 scripts 제외. main/develop 머지·제품 배포 없음. Billing codex/billing-test-deployment의 제품 dirty 보존.
+- AWS 메타데이터·운영 DB 연결 읽기 성공. LC manifest2collection/creation operations 없음·owner guards 존재, Billing DB는 현재 접속 계정에서 미발견. 기존 전용 Billing prod Secret/task/role도 미발견. 비밀값·개별 자료 출력 없음.
+- 사용자 운영 전용 범위 승인 후 빈 Secret8개·ECS execution role(exact8 Secret+표준ECR/log)·로그30일·ALB SG-only inbound task SG·8083/8443 target group 생성. 모든 Secret 버전0, actual ECS task/service 및 DNS/listener는 아직 미생성. 기존 서비스/데이터/키 값 무변경.
+- Atlas 권한 선택 안전 검토 거절 후 exact Project0/tosunsaeng-billing-prod/readWrite@to-teacher-billing-prod 승인 재확인. 해당 권한 UI만 준비, 사용자 비밀번호·제출은 대기. 우회/credential 자동생성 없음.
+- 문서 billing-prod-foundation-2026-10-17.md/CURRENT_STATE/WORKLOG 갱신. 기존 LC1395+Mongo336 결과 재사용, 제품 코드 미변경으로 재실행 없음. 운영 준비 완료/활성화/E2E로 주장하지 않는다. 다음은 사용자 계정 생성 후 Secret 저장·키/TLS·schema·서비스·route 준비다.
+
+## 2026-10-17 운영 DB 확인·키 생성 사용자 실행 준비
+
+- 브랜치 codex/billing-test-deployment. 사용자 후속 요청으로 운영 기반 준비 지속. 사용자가 생성한 계정의 MongoDB Secret 저장 후 read-only 인증·collection metadata·connectionStatus 검사 성공: to-teacher-billing-prod, 컬렉션0, readWrite 역할1개만 확인. 실제 자료 write 없음.
+- CloudShell에 환불/복구용 독립 RSA3072 RS256 JWK(sign/verify 구분), limiter HMAC32byte, ALB→task 전용 자체서명 TLS365일/PKCS12 생성·기존 빈Secret4개 저장 명령을 붙여넣었다. credential 생성은 사용자 Enter 실행 대기이며 완료로 기록하지 않는다. 기존 Secret 값이 있으면 중단하고 비밀값/URI는 출력하지 않는다.
+- CURRENT_STATE/WORKLOG 기록만 갱신, 제품 코드/외부 계약 불변. 제품 테스트는 미실행(인프라 준비), 실제 DB 읽기 검사만 성공. 미커밋 기존 제품 변경 보존. 다음은 사용자 실행 후 키 검증·Java PKCS12 호환 검사·상대 공개키 준비·명시 schema·OFF 배포. 운영 기능 ON/상대 서버 변경 없음.
+
+## 2026-10-17 운영 키 저장 후 독립 검증
+
+- codex/billing-test-deployment. 사용자 생성 실행 성공4건 확인 후 Secret을 프로세스 내부에서만 읽어 검증했다. RSA3072 독립2키 서명/검증, JWK sign/verify·공개키 private필드 부재, HMAC32byte 통과. TLS 키/인증서/SAN/지문 일치 및 Java keytool PKCS12 읽기 성공. 임시 PKCS12는 권한0600 임시 디렉터리에서 검사 후 정리했다. 비밀값 출력 없음.
+- CURRENT_STATE/운영기반 runbook/WORKLOG 갱신, 제품 코드·wire·서비스·DB 무변경. 테스트 전용 bootstrap의 prod 차단을 확인해 그대로 실행하지 않음. 스키마 전용 초기화/권한, 상대 수신키/RevenueCat, 실제 앱 기동과 ALB TLS 검증은 남는다. 제품 변경이 없어 Gradle 미실행; 이번 검증은 실제 Secret 암호학/Java 저장소 검사이며 공동 E2E가 아니다. 기존 dirty 보존.
+
+## 2026-10-17 운영 전용 초기 설치 도구·로컬 검증
+
+- codex/billing-test-deployment에서 BillingProdSchemaBootstrap.java 추가. 명시 prod DB/host/PRODUCTION/격리/DB명 승인 및 컬렉션0을 모두 요구. 기존 무료 initializer와 payment/paid/refund/sync/deletion/snapshot/cursor/reference/cleanup installer 재사용, PRODUCTION ALL_BLOCKED만 생성하며 open/삭제/재설치 없음.
+- 최초 로컬 설치는 entitlement_grants 선행 부재로 거절됐다. 무료 index initializer를 앞에 연결한 뒤 새 로컬DB에서41collection 설치/전체 verify 성공, 같은 DB install 재실행 exit1로 거절. 기존 테스트 전용 도구와 runtime 계약 무변경. 최초 JAR 추출 디렉터리 execute 권한 부재로 javac 실패, 이번 임시 추출물에만 owner 권한 보완 후 컴파일 성공.
+- 전체 clean test1806/실패0/오류0/skip0,4분5초 성공. 도구 로컬 DDL 검증은 standalone Mongo7.0.14이며 전체 회귀의 transaction 테스트와 구분. 로컬 컨테이너 billing-prod-bootstrap-check-20261017 중지, 자료 삭제 없음.
+- 사용자 '승인할게'로 운영DB 내8collection 임시collMod·설치후회수 범위를 승인. 대상은 purchases/subscription_entitlements/payment_timelines/payment_ledger/payment_provider_inbox/payment_purchase_cases/payment_reconcile_cursors/payment_account_cleanup_jobs. 이번 턴에서는 실제 권한 부여/운영DB DDL/서비스배포/flag ON 미실행. 다음은 실행 패키지 준비→권한 추가→운영 빈DB·writer 부재 재확인→설치/verify→권한 회수→OFF 배포. 기존 dirty 보존, commit/push 없음.
+
+## 2026-10-17 운영 스키마 실제 설치·권한 회수·OFF 서비스 준비
+
+- codex/billing-test-deployment. 승인된 prod8collection collMod custom role만 사용자에 임시 부여했다. inspect exit0/collection0 및 기존 Billing prod 서비스 부재 확인 후 install-empty task revision2 exit0/ALL_BLOCKED, 별도 verify revision3 exit0/41collection/ALL_BLOCKED 성공. 최초 RunTask override8192자 제한은 실행 전 거절, 별도 task definition으로 해결했다. 기존DB 재설치·레코드 삭제 없음.
+- 임시 역할 계정 연결 제거·저장 후 Atlas 새로고침에서 readWrite@to-teacher-billing-prod만 확인하고 반영 중 배너 소멸 확인. custom role 정의 자체는 미할당 보존. 비밀값·사용자 레코드 출력 없음.
+- 사용자 이번 변경 commit/push·Billing prod OFF 배포 예외 승인 수신. 기존 검증 image digest를 고정한 prod:1/service 생성(1task 요청), 모든 업무flag 기본OFF/자동DDL OFF/transaction 요구ON. 외부 listener와 DNS는 아직 연결하지 않음. 실제 startup/health 확인 중이며 앱 연결·결제 준비 완료가 아니다.
+- 변경파일은 운영 bootstrap 및 기반 runbook/CURRENT_STATE/WORKLOG. runtime API/body·JWT·보존/삭제 계약 불변, 기존 cleanup Slack 등 dirty 보존. 직전 clean test1806통과/실패0/skip0 이후 제품코드 무변경이라 Gradle 재실행 없음. 실환경 검증은 위 schema installer/verify이며 구매·환불·탈퇴E2E를 대신하지 않는다. 다음은 health 확인·이번 범위 Git 전달, DNS/ALB·상대 공개키·RC·backup/capacity 준비 후 별도 활성화다.
+- 후속 기동 확인: prod:1 task a61012db80ab46d7bdf13981fb501b2c RUNNING/HEALTHY, 실행1·대기0. healthcheck는 localhost HTTP8082 /actuator/health200을 요구. Tomcat/앱 Started, 최근100로그 Exception class 없음. 외부 ALB/TLS·앱E2E 미검증. 이번 운영 도구/기록4파일만 stage하며 기존 cleanup Slack/테스트 도구 등은 변경 없이 보존했다. 예상 밖 제품 변경 없음.
