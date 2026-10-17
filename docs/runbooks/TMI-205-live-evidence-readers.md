@@ -36,5 +36,4 @@
 - public/internal wire·보존기간·삭제 대상·Identity/LC 인증과 설정 불변. 기존 dirty 변경은 보존했다.
 # 2026-10-17 후속 승인 및 구현
 
-[관측 기반 삭제 R1](../contracts/TMI-205-OBSERVED-ABSENCE-R1.md) 승인 후 `CleanupDeletionPolicy`와 조건부 purger를 연결했다. 아래 ‘coverage 미발급/purge ON 무조건 거절’은 직전 단계 기록이며 현재 구현에서는 승인 기준 충족 시 증거를 생성한다. 기본 OFF와 실환경 미활성화는 유지한다. 구매 계정/sync 토큰 수명 30분 상한도 Billing에서 검사한다. 운영 전 Identity 실제 TTL·탈퇴 발급 차단 확인이 필요하다.
-
+[관측 기반 삭제 R1](../contracts/TMI-205-OBSERVED-ABSENCE-R1.md) 승인 후 `CleanupDeletionPolicy`와 조건부 purger를 연결했다. 위 ‘coverage 미발급/purge ON 무조건 거절’은 직전 단계 기록이며 현재 구현에서는 승인 기준 충족 시 증거를 생성한다. 기본 OFF와 실환경 미활성화는 유지한다. 구매 계정/sync 토큰 수명 30분 상한도 Billing에서 검사한다. 운영 전 Identity 실제 TTL·탈퇴 발급 차단 확인이 필요하다.
