@@ -141,6 +141,15 @@ class PaymentControllerTest {
         mvc.perform(get(PublicIngressFilter.PRODUCTS).with(r -> { r.setLocalPort(8083); return r; }).header("Authorization", "Bearer bad"))
                 .andExpect(status().isUnauthorized());
     }
+    @Test void longLivedPurchaseTokenCannotReachAccountWriter() throws Exception {
+        when(identityUserJwtDecoder.decode("long")).thenReturn(Jwt.withTokenValue("fake").header("alg", "RS256")
+                .subject(USER).claim("account_type", "MEMBER").claim("scope", "billing:purchase")
+                .issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(1801)).build());
+        mvc.perform(post(PublicIngressFilter.ACCOUNT).with(r -> { r.setLocalPort(8083); return r; })
+                .header("Authorization", "Bearer long")).andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("code").value("UNAUTHENTICATED"));
+        verifyNoInteractions(accounts, limiter);
+    }
     static Jwt token(Object type, String scope) {
         return Jwt.withTokenValue("fake").header("alg", "RS256").subject(USER).claim("account_type", type)
                 .claim("scope", scope).issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(60)).build();

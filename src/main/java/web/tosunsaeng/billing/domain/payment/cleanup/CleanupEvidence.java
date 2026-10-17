@@ -4,7 +4,7 @@ import com.mongodb.client.ClientSession;
 import java.time.Instant;
 import java.util.List;
 
-/** Internal ports. No production provider or absence-proof capability exists in PR1. */
+/** Internal evidence ports. Runtime uses the explicitly approved observed-absence policy. */
 public final class CleanupEvidence {
     private CleanupEvidence() {}
     public enum Local { FOUND, NONE, PENDING, UNKNOWN }

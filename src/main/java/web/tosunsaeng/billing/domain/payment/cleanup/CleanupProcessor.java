@@ -10,7 +10,7 @@ import web.tosunsaeng.billing.domain.payment.recovery.PaymentRecoveryFence;
 import static web.tosunsaeng.billing.domain.payment.cleanup.CleanupEvidence.*;
 import static web.tosunsaeng.billing.domain.payment.exception.PaymentException.require;
 
-/** Evidence/job processor. Production wiring has no purge capability; PR2 tests exercise the separate core. */
+/** Evidence/job processor. Deletion is supplied only when the separate purge flag is enabled. */
 public final class CleanupProcessor {
     public record Due(String id, Instant at) {
         @Override public String toString() { return "CleanupDue[REDACTED]"; }
@@ -32,7 +32,7 @@ public final class CleanupProcessor {
                             LocalReader local, ProviderReader provider, CoveragePolicy coverage) {
         this(store, properties, clock, local, provider, coverage, null);
     }
-    // No production wiring supplies a purger until real coverage/drain and financial writers are ready.
+    // Reconciliation alone never deletes; the purge capability is explicit.
     CleanupProcessor(PaymentStore store, PaymentProperties properties, Clock clock,
                      LocalReader local, ProviderReader provider, CoveragePolicy coverage, CleanupPurger purger) {
         this.store = store; this.properties = properties; this.clock = clock;

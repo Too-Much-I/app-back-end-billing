@@ -3,6 +3,7 @@ package web.tosunsaeng.billing.domain.payment.worker;
 import java.util.concurrent.*;
 import io.micrometer.core.instrument.MeterRegistry;
 import web.tosunsaeng.billing.domain.payment.sync.PaymentSyncService;
+import web.tosunsaeng.billing.domain.payment.cleanup.CleanupEvidence.ProviderReader;
 
 /** Dedicated single-thread scheduler, started only after ApplicationReady. All identifiers stay out of metrics. */
 public final class PaymentProviderWorkerRuntime implements AutoCloseable {
@@ -10,6 +11,7 @@ public final class PaymentProviderWorkerRuntime implements AutoCloseable {
     private final MeterRegistry metrics;
     private final long pollMillis;
     private final PaymentSyncService sync;
+    private final ProviderReader cleanupReader;
     private ScheduledExecutorService executor;
     private boolean closed;
     public PaymentProviderWorkerRuntime(Runnable sources, Runnable accounts, Runnable shutdownTransport, MeterRegistry metrics, long pollMillis) {
@@ -20,9 +22,19 @@ public final class PaymentProviderWorkerRuntime implements AutoCloseable {
     }
     public PaymentProviderWorkerRuntime(Runnable sources, Runnable accounts, Runnable retention, Runnable shutdownTransport,
                                         MeterRegistry metrics, long pollMillis, PaymentSyncService sync) {
+        this(sources, accounts, retention, shutdownTransport, metrics, pollMillis, sync, null);
+    }
+    public PaymentProviderWorkerRuntime(Runnable sources, Runnable accounts, Runnable retention, Runnable shutdownTransport,
+                                        MeterRegistry metrics, long pollMillis, PaymentSyncService sync, ProviderReader cleanupReader) {
         if (pollMillis < 1000 || pollMillis > 60000) throw new IllegalArgumentException("Invalid provider poll interval");
         this.sources = sources; this.accounts = accounts; this.retention = retention; this.shutdownTransport = shutdownTransport; this.metrics = metrics; this.pollMillis = pollMillis;
         this.sync = sync;
+        this.cleanupReader = cleanupReader;
+    }
+    /** Shares the validated catalog, environment, HTTP transport and cross-environment RC budget. */
+    public ProviderReader cleanupReader() {
+        if (cleanupReader == null) throw new IllegalStateException("Provider runtime has no cleanup reader");
+        return cleanupReader;
     }
     /** Expose the exact service used by the validated pipeline, never a separately configured API copy. */
     public PaymentSyncService syncService() {

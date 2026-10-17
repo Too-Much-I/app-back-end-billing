@@ -28,7 +28,8 @@ public final class VerifiedMemberEvidence {
                 || !jwt.getIssuedAt().isBefore(jwt.getExpiresAt())
                 || jwt.getIssuedAt().isAfter(now.plus(skew)) || !now.isBefore(jwt.getExpiresAt().plus(skew)))
             throw new PaymentException(401, "UNAUTHENTICATED");
-        return new VerifiedMemberEvidence(jwt.getSubject(), environment, trustedIssuer, jwt.getIssuedAt(), now, jwt.getExpiresAt().plus(skew));
+        return new VerifiedMemberEvidence(jwt.getSubject(), environment, trustedIssuer, jwt.getIssuedAt(), now,
+                PurchaseTokenLifetime.deadline(jwt, skew));
     }
     public String userId() { return userId; }
     public String environment() { return environment; }

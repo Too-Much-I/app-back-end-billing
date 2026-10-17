@@ -97,7 +97,8 @@ public class PaymentProviderWorkerConfiguration {
                     metrics.counter("billing_payment_lookup_leases_released").increment(cleanup.leasesReleased());
                     metrics.counter("billing_payment_reference_retention_failed").increment(cleanup.failed());
                 } finally { alerts.poll(); }
-            }), http::close, metrics, config.getPollMillis(), sync);
+            }), http::close, metrics, config.getPollMillis(), sync,
+                    new web.tosunsaeng.billing.domain.payment.cleanup.CleanupProviderReader(reader, clock, p.getEnvironment()));
         } catch (RuntimeException error) { http.close(); throw error; }
     }
     @Bean ApplicationListener<ApplicationReadyEvent> paymentProviderWorkerReady(ObjectProvider<PaymentProviderWorkerRuntime> runtime) {

@@ -51,6 +51,7 @@ public class PaymentController {
         String outcome = "SUCCESS";
         try (Tracer.SpanInScope scope = tracer == null ? null : tracer.withSpan(span)) {
             if (purchase && !"MEMBER".equals(principal.getClaims().get("account_type"))) throw new PaymentException(403, "FORBIDDEN");
+            var deadline = purchase ? PurchaseTokenLifetime.deadline(principal, jwt.getClockSkew()) : null;
             if (request.getQueryString() != null || request.getInputStream().read() != -1) throw new PaymentException(400, "INVALID_REQUEST");
             long retry = limiter.acquire(purchase, principal.getSubject());
             if (retry > 0) {
@@ -59,7 +60,7 @@ public class PaymentController {
             Object result = !purchase ? catalog.read() : properties.isMemberEvidenceEnabled()
                     ? accounts.getOrCreate(VerifiedMemberEvidence.fromAuthenticated(principal, jwt.getIssuer(),
                             properties.getEnvironment(), jwt.getClockSkew(), clock.instant()))
-                    : accounts.getOrCreate(principal.getSubject(), principal.getExpiresAt().plus(jwt.getClockSkew()));
+                    : accounts.getOrCreate(principal.getSubject(), deadline);
             writer.paymentSuccess(response, result);
         } catch (RuntimeException error) {
             int status = error instanceof PaymentException p ? p.status() : 503;

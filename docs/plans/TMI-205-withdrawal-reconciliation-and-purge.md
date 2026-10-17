@@ -1,5 +1,7 @@
 # TMI-205 — 미구매 탈퇴 계정 거래 확인·15일 조건부 정리
 
+> 현재 기준: 2026-10-17 사용자 승인 [관측 기반 삭제 R1](../contracts/TMI-205-OBSERVED-ABSENCE-R1.md). 기존 미관측 Store 거래 부재 증명 요구를 대체하고 지연 거래 수동 검토 위험을 수용한다. 실제 활성화는 별도다.
+
 > 2026-10-13 PR1(TMI-209) 구현: 상태/lease/판정/검토 일정 및 fake 알림 기반을 추가했다. 실제 wiring은 UNKNOWN-only, purge/외부alerts true는 기동 거절이다. schema/동작/PR1 한계는 [구현 안내](../runbooks/TMI-209-cleanup-foundation.md)를 따른다. PR2/PR3·실운영은 미완료이며 전체205완료가 아니다.
 
 > PR0 상세 후보: [cleanup-r1 기술 규격](../contracts/TMI-205-cleanup-technical-spec-r1.md). 아래 refSetRevision/financialInputRevision 후보는 공통 lifecycle.version으로 단순화하고, 검토 기한은 cleanup.reviewDueAt으로 구체화했다. CLEANUP/PURGE writer·job/proof null 규칙·상태 전이·schema/index·Slack 전송 규격을 담았다. 기술 검토안이며 구현/운영 활성화 승인이 아니다.

@@ -20,14 +20,19 @@ public final class RevenueCatHttpTransport implements RevenueCatReadClient.Trans
                 }).build();
     }
     @Override public RevenueCatReadClient.Response get(URI uri, String bearer) {
+        return get(uri, bearer, Duration.ofSeconds(5));
+    }
+    @Override public RevenueCatReadClient.Response get(URI uri, String bearer, Duration timeout) {
+        if (timeout.isNegative() || timeout.isZero() || timeout.compareTo(Duration.ofSeconds(5)) > 0)
+            throw RevenueCatFailure.contract();
         if (!"https".equals(uri.getScheme()) || !"api.revenuecat.com".equals(uri.getRawAuthority()) || uri.getFragment() != null
                 || !uri.getRawPath().startsWith("/v2/projects/")) throw RevenueCatFailure.contract();
         CompletableFuture<HttpResponse<byte[]>> pending = null;
         try {
-            var request = HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(5)).GET()
+            var request = HttpRequest.newBuilder(uri).timeout(timeout).GET()
                     .header("Authorization", "Bearer " + bearer).header("Accept", "application/json").build();
             pending = client.sendAsync(request, info -> new BoundedBody());
-            var r = pending.get(5, TimeUnit.SECONDS);
+            var r = pending.get(timeout.toNanos(), TimeUnit.NANOSECONDS);
             return new RevenueCatReadClient.Response(r.statusCode(), r.headers().map(), r.body());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt(); throw new RevenueCatFailure(RevenueCatFailure.Kind.RETRY, null);
