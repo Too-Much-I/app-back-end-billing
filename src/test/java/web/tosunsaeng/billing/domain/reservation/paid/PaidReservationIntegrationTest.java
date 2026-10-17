@@ -25,6 +25,23 @@ import static org.assertj.core.api.Assertions.*;
 
 @Testcontainers(disabledWithoutDocker = false)
 class PaidReservationIntegrationTest extends PaidReservationTestSupport {
+    @Test void unattributedCaseDoesNotBlockPaidReserveOrConfirm() {
+        purchase();
+        var lookup = new web.tosunsaeng.billing.domain.payment.purchase.PurchaseLookupKey(new byte[32], "fake-v1");
+        var core = new web.tosunsaeng.billing.domain.payment.purchase.PurchaseCore(payment, properties, clock,
+                Map.of(web.tosunsaeng.billing.domain.payment.purchase.PurchaseObservation.Store.PLAY_STORE, "fake.app"), lookup.version());
+        var unknown = new web.tosunsaeng.billing.domain.payment.purchase.PurchaseObservation("SANDBOX",
+                web.tosunsaeng.billing.domain.payment.purchase.PurchaseObservation.Store.PLAY_STORE, "fake.app",
+                lookup.transaction("SANDBOX", "PLAY_STORE", "fake.app", "unknown"), lookup.version(), lookup.event("SANDBOX", "project", "unknown"),
+                web.tosunsaeng.billing.domain.payment.purchase.PurchaseObservation.Kind.PURCHASE, UUID.randomUUID().toString(), "PREMIUM_1D", NOW.minusSeconds(10), null);
+        core.receive(unknown); core.apply(unknown.providerEventKey());
+        var quarantined = db.getCollection("payment_purchase_cases").find().first();
+        assertThat(quarantined.getString("reason")).isEqualTo("OWNER_UNRESOLVED");
+        var runtime = runtime(); var command = command(); var reserved = runtime.reserve(command);
+        assertThat(reserved.source().getString("type")).isEqualTo("SUBSCRIPTION");
+        assertThat(runtime.confirm(confirm(command, reserved)).snapshot().reservationStatus()).isEqualTo(Reservation.Status.CONFIRMED);
+        assertThat(db.getCollection("payment_purchase_cases").find().first()).isEqualTo(quarantined);
+    }
     @Test void paidReserveConfirmReplayPreservesSourceAndWritesUsageAtomically() {
         purchase(); var command = command(); var runtime = runtime(); var first = runtime.reserve(command);
         assertThat(first.source().getString("type")).isEqualTo("SUBSCRIPTION");

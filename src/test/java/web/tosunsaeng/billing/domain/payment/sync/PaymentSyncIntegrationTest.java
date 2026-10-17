@@ -1170,6 +1170,28 @@ class PaymentSyncIntegrationTest {
         core.receive(observation("refund", "a", PaymentOffer.PREMIUM_1D, PurchaseObservation.Kind.REFUND));
         assertThat(read(NOW).status()).isEqualTo(PaidQueryResponse.Status.PENDING);
     }
+    @ParameterizedTest @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void unattributedEvidenceDoesNotBlockOtherAccountsOrCreateRights(boolean reviewed) {
+        apply(purchase("owned", "owned"));
+        var unknown = new PurchaseObservation("SANDBOX", PurchaseObservation.Store.PLAY_STORE, "fake.app",
+                lookup.transaction("SANDBOX", "PLAY_STORE", "fake.app", "unknown"), lookup.version(),
+                lookup.event("SANDBOX", "fake-project", "unknown"), PurchaseObservation.Kind.PURCHASE,
+                UUID.randomUUID().toString(), PaymentOffer.PREMIUM_1D.name(), NOW.minusSeconds(100), null);
+        core.receive(unknown);
+        if (reviewed) core.apply(unknown.providerEventKey());
+        var before = first("payment_purchase_cases");
+        if (reviewed) assertThat(before.getString("reason")).isEqualTo("OWNER_UNRESOLVED");
+        var inbox = db.getCollection("payment_provider_inbox").find(new Document("accountId", null)).into(new ArrayList<>());
+        assertThat(read(NOW).status()).isEqualTo(PaidQueryResponse.Status.READY);
+        assertThat(read(NOW).active()).isTrue();
+        assertThat(read(NOW).hasPendingSync()).isFalse();
+        var absent = snapshots.execute(() -> reader.read("22222222-2222-4222-8222-222222222222", NOW));
+        assertThat(absent.status()).isEqualTo(PaidQueryResponse.Status.READY);
+        assertThat(absent.active()).isFalse();
+        assertThat(first("payment_purchase_cases")).isEqualTo(before);
+        assertThat(db.getCollection("payment_provider_inbox").find(new Document("accountId", null)).into(new ArrayList<>())).isEqualTo(inbox);
+        assertThat(db.getCollection("purchases").countDocuments()).isOne();
+    }
     @Test void sameSnapshotDoesNotMixConcurrentPaymentCommit() throws Exception {
         reader.prepare();
         snapshots.execute(() -> {

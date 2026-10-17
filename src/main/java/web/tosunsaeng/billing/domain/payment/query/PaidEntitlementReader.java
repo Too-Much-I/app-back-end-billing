@@ -38,12 +38,11 @@ public final class PaidEntitlementReader {
         boolean pending = id != null && exists("payment_sync_commands", env().append("accountId", id)
                 .append("state", new Document("$in", List.of("PENDING", "REVIEW_REQUIRED", "BLOCKED_AUTH"))));
         if (life != null && "WITHDRAWN".equals(life.getString("state"))) return PaidQueryResponse.empty(pending);
-        boolean unresolved = exists("payment_purchase_cases", env().append("accountId", null))
-                || exists("payment_provider_inbox", env().append("accountId", null).append("state", "RECEIVED"));
-        if (account == null) return unresolved || !"OPEN".equals(control.getString("barrier")) ? PaidQueryResponse.unknown(false) : PaidQueryResponse.empty(false);
+        // Unattributed evidence stays quarantined; it must not block unrelated accounts.
+        if (account == null) return !"OPEN".equals(control.getString("barrier")) ? PaidQueryResponse.unknown(false) : PaidQueryResponse.empty(false);
         require("ACTIVE".equals(account.getString("state")));
         require(one("purchase_account_refs", env().append("_id", account.getString("activeRefId")).append("accountId", id).append("active", true)) != null);
-        unresolved |= exists("payment_purchase_cases", env().append("accountId", id))
+        boolean unresolved = exists("payment_purchase_cases", env().append("accountId", id))
                 || exists("payment_provider_inbox", env().append("accountId", id).append("state", "RECEIVED")
                         .append("normalizedObservation.kind", new Document("$in", List.of("REFUND", "REVOKE"))));
         if (unresolved) return PaidQueryResponse.unknown(pending);
