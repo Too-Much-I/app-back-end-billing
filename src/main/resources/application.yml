@@ -26,6 +26,8 @@ billing:
     refund:
       processing-enabled: ${BILLING_PAYMENT_REFUND_PROCESSING_ENABLED:false}
       publisher-enabled: ${BILLING_PAYMENT_REFUND_PUBLISHER_ENABLED:false}
+      learning-core-origin: ${BILLING_PAYMENT_REFUND_LEARNING_CORE_ORIGIN:}
+      private-jwk: ${BILLING_PAYMENT_REFUND_PRIVATE_JWK:}
     sync-enabled: ${BILLING_PAYMENT_SYNC_ENABLED:false}
     provider:
       slack:

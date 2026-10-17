@@ -1,5 +1,109 @@
 # Billing Service 현재 상태
 
+- 2026-10-17 사용자 명시 승인으로 `codex/billing-test-deployment`의 테스트 배포 준비·TMI-205 관측 기반 삭제 코드/문서를 커밋·푸시하고 develop PR 병합 진행. 전체 1,798개 통과 결과 유지, diff/셸 문법 검사 통과. 이번 Git 반영은 재배포·자동삭제·Identity 연동 활성화가 아니다.
+
+- 2026-10-17 재검증 완료: Java21 clean test 전체 1,798개/실패0/오류0/skip0(3분54초). 이전 구매 동시성 실패는 이번 전체 실행에서 재현되지 않았으나 원인 해결로 단정하지 않는다. Identity test45의 TTL=PT30M/session fence=true 확인, 구매 scope/fence/control writer 및 탈퇴 publisher는 task definition에 미설정(해당 Secret 참조 없음). 로컬 기본OFF와 구분해 실제 활성화 확인이 필요하다. [담당 확인서](../contracts/TMI-205-IDENTITY-ACTIVATION-CHECK-2026-10-17.md). 자동삭제 미배포/OFF 유지, 코드·타서버·DB·설정 변경 없이 확인 문서만 추가했다.
+
+- 2026-10-17 최종 검증 주의: 관측 기반 삭제 연결 전체1798개 실행에서 기존 구매 동시성1개 실패, 해당 구매 클래스+변경관련171개 재실행은 전부통과. 원인 확정/전체무결점 통과로 보고하지 않는다. 자동삭제 기본OFF/서버미배포이며 배포 전 전체회귀·Identity TTL/탈퇴 발급 차단·운영준비 확인이 남는다.
+
+- 2026-10-17 TMI-205 관측 기반 삭제 승인/구현: 사용자 지연 거래 수동 검토 위험 수용. [최신 계약](../contracts/TMI-205-OBSERVED-ABSENCE-R1.md)과 CleanupDeletionPolicy를 통해 정상 전체 ref 조회·로컬 미해결 없음·15일/요청 종료·최종 CAS로 조건부 purger 연결. 구매 계정/sync에 30분 token 수명 상한 추가. 기본 OFF, 실제 서버·Identity/LC 미변경. 과거 ‘RC 밖 미관측 거래 증명 필수/purge 무조건 기동 거절’ 설명은 대체. 배포 전 Identity 실제 TTL/탈퇴 발급 차단 및 worker/schema/중단·알림 준비 확인 필요. 전체 검증 결과 WORKLOG 참조.
+
+- 2026-10-17 TMI-205 거래 확인 연결: `CleanupLocalReader` 실제 금융/미처리/lease 읽기와 `CleanupProviderReader` 전체 ref·bounded pagination을 reconciliation에 연결했다. provider runtime의 검증된 설정·공유budget/HTTP를 재사용하고 잔여 timeout을 전달한다. [상세/남은 gate](../runbooks/TMI-205-live-evidence-readers.md). 기존 task9 서버에는 아직 배포하지 않았다. provider 빈 목록은 Store 미관측 거래 부재/구요청 drain 증명이 아니므로 coverage 발급·purge ON은 여전히 차단한다. Identity/phone 작업 제외. 전체 테스트 결과는 WORKLOG 참조.
+
+- 2026-10-17 task9 완료: 주기적RC조회·terminal sync120일 정리·reference5년 정리 세 기능 ON, 단일 COMPLETED/running1/pending0 및 새 두target healthy 확인(구target draining). 기존 앱4API/웹훅 무인증401, webhookGET/health404 유지. 실제 만료대상 삭제건수/RC 재조회 업무결과는 이번에 검증하지 않았다. 계정자동삭제는 adapter 미구현, Identity/phone은 전용키/양측설정 미준비로 OFF 유지하며 전체 활성화 완료 아님.
+
+- 2026-10-17 추가 활성화 점검: 사용자 세 항목 일괄 점검/가능분 활성화 승인. 실제 test DB/host·SANDBOX·공유budget 설정을 검사한 후 provider periodic reconciliation/terminal sync120일 삭제/reference5년 정리의 세 flag만 켜는 배포 요청. 계정cleanup purge는 실제 local/provider/coverage adapter 미연결로 코드상 ON 기동거절이므로 OFF 유지. Identity test44에 Billing 전용 signing key/발신 설정 부재, Billing에도 Identity public JWK 미설정이므로 이벤트/phone 연동은 추가 준비 필요. 보호조건·보존기간·운영·Identity/LC 설정은 변경하지 않았다. 배포 결과 후속 확인 중.
+
+- 2026-10-17 webhook 연결 검증 완료: task8 단일 COMPLETED/running1/pending0, 새 public/workload target healthy(구 target draining). RC 실제 iOS/Play app 각각 TEST 서명delivery200, 별도 Test Store app은422로 거절. 테스트 시 app필터를 각 앱으로 잠시 바꾼 뒤 All apps/Sandbox only/All events로 복구·저장했다. HMAC+Authorization 유지, 무인증 webhookPOST401/GET404·기존 네 앱API401·health404 확인. TEST는 ignored 접수이며 실제 구매/환불 원장·권리/시험 E2E 성공이 아니다. 다음은 frontend 정상로그인 sandbox 구매→sync/웹훅→권리/시험 검증이다.
+
+- 2026-10-17 webhook 활성화 진행: 사용자 숨김 입력 뒤 WEBHOOK_SECRET_SAVED 확인, RC HMAC true/Save disabled 확인. 기존 test Secret의 두 필드를 주입하고 ingress/host만 추가한 task8 배포 시작. 기존 ALB443 priority99에 test host+POST+/api/v1/payments/revenuecat/events만 추가, 기존 경로/역할/키/이미지 불변. 최종 배포 및 RC test event 결과는 후속 확인 중이다.
+
+- 2026-10-17 Sandbox webhook 등록: 사용자 단일 POST 공개/Secret/수신ON 승인 후 RC billing-test-sandbox(whintgr337a41788a)를 Sandbox only로 등록했다. 공식 문서와 생성 후 화면에서 HMAC 지원·일회성 secret 표시 확인. Authorization/HMAC은 아직 미설정, Billing ingress OFF/ALB 경로 미추가로 실제 수신 불가. 사용자 직접 RC 인증값 설정·HMAC 생성 및 CloudShell getpass2개 입력 대기. 기존 Secret에 두 필드만 보존 병합하는 명령을 시작했고 저장 성공은 아직 확인하지 않았다. 실제 키/토큰 미조회·기존 task7 불변.
+
+- 2026-10-17 웹훅 연결 준비: RevenueCat Active0·기존 webhook없음 확인, billing-test-sandbox/기존 test host의 POST revenuecat/events/Sandbox only 미저장 초안 준비. 생성화면에는 signing secret 항목이 없어 생성 후 제공 방식 확인 필요. Authorization+HMAC/300초 검증은 유지. 기존 네 앱 API 외 webhook 단일 경로 노출·test Secret 항목·수신ON/재배포 범위 확인 전 저장·AWS변경 없음. 실제 프론트 구매 E2E는 사용자 로그인 앱에서 수행할 후속이다.
+
+- 2026-10-17 task7 재배포 완료: ECS 단일 COMPLETED/desired1/running1/pending0·task HEALTHY, public8083/workload8443 target 모두 healthy. cursor/reference exact 설치 성공 뒤 임시 collMod 사용자 할당 제거 및 Atlas 반영 완료를 확인했다. 실제 billing-test DNS/TLS 경유 네 앱 API 무인증401, internal삭제/actuator/DELETE account404 확인. catalog/sync/provider worker ON이며 기존 타flag/키/이미지·운영/LC/Identity 불변. 일회성 준비 task definition3개는 INACTIVE 정리. 다음은 프론트 정상로그인·sandbox 구매→sync→권리/시험 E2E 및 별도 webhook 연결이며, 결제 전체 검증 완료로 보지 않는다.
+
+- 2026-10-17 cursor/reference 유지보수 성공: 사용자 한정 승인으로 task6 정상복구 확인 후 테스트 서비스 desired/running/pending0에서 수행. cursor 전용 collMod 역할만 임시 부여, recovery OPEN→ALL_BLOCKED CAS 후 PurchaseReferenceSchema/PaymentAccountLookupSchema 명시 설치·exact 검증 성공(exit0). 기존 모든 컬렉션 건수 보존, epoch 유지·OPEN 복귀. Atlas 사용자에서 임시 역할 제거 저장 확인(기존 Billing/budget readWrite만 보존). task7 재배포·최종 정상상태는 후속 확인 중이며 실제 결제 E2E 완료 아님.
+
+- 2026-10-17 provider 준비 후 기동 차단: premium Offering 대조·SANDBOX10개 catalog 단일Tx 등록, 별도 budget strict schema 검증 성공. Secret 내부 lookup/reference 키 준비·값 미출력. task7 catalog/worker/sync ON 배포는 `Purchase reference schema mismatch`로 기동 실패, 정상 task6 복구 요청. DNS 정상해석 확인. reference collection 및 account-lookup cursor 검증 규칙의 명시 maintenance가 남아 있으며, cursor 전용 임시collMod·테스트 서비스 중지/재배포 승인을 요청했다. task7의 실제 구매 처리·E2E 성공 아님. 기존 상품 매핑/예산DB/Secret 준비는 보존, webhook·자동삭제는 계속OFF.
+
+- 2026-10-17 테스트 앱 접속 준비: 사용자 생성 RevenueCat 키를 직접 hidden-input으로 Secret에 저장 완료, Billing 테스트 execution role에 해당 Secret GetSecretValue만 추가·재조회 확인. Atlas 기존 Billing DB 권한을 보존하고 budget DB의 revenuecat_read_budgets 컬렉션 readWrite만 추가(화면 저장 확인, schema 설치·실접속 미검증). 기존 ALB 네 public method/path만 8083로 연결하고 host 나머지404·ALB SG만8083 허용. task6 단일 COMPLETED/running1/pending0·8083 healthy. 기존 이미지/flag/secret 주입·8443 계약 불변. 가비아 billing-test CNAME TTL600 저장 완료, CloudShell DNS는 전파 대기. TLS 검증 유지한 connect-to 점검: entitlement/account401, OFF products/sync404, internal/health/잘못된method404. 실제 결제 가능 아님: catalog/package 매핑, budget schema, provider key 주입/worker·sync 및 webhook 준비·실구매 검증은 남음.
+
+- 2026-10-17 테스트 결제 실연결 조사: 사용자 앱결제 준비 요청. AWS Billing task5의 sync/catalog/provider worker/ingress는 미설정/defaultOFF, provider 설정·Secret 미주입, portMappings8082/8443·ALB8443만, billing-test DNS 없음 확인. RevenueCat 실제 프로젝트에서 Google5상품 Published/Apple5상품 Ready to Submit, 서버Secret API key0·활성integration0 확인. V2 Purchases Read only 키 발급 초안만 준비(미발급); 사용자 직접생성 및 public4route/Secret·budgetDB 최소권한 승인 대기. HMAC 공식규격은 재확인했지만 프로젝트 signing 설정/실delivery 미검증. 실제 판매가능/활성화 완료 아님.
+
+- 2026-10-17 LC test 후속 활성화 완료: task42 단일 배포 COMPLETED/running1/pending0·health200, 새8080/8444 target healthy 확인. ATTEMPT_GROUP_EVENT_WRITER_ENABLED·ATTEMPT_GROUP_EVENT_PUBLISHER_ENABLED·BILLING_EXAM_DELETION_SENDER_ENABLED=true 재조회. 이미지·키/IAM·네트워크·타flag 불변. 아래 준비/배포대기 기록은 이 결과로 갱신한다. 사용자 승인한 테스트 challenge2건만 삭제(백업 없음), 삭제 전달 index/준비기록 설치 검증 성공. 지정 UID 계정 로그인 불가로 정상 사용자 시험·환불·삭제 공동 업무E2E는 미완료이며 UID를 Identity JWT로 대체하지 않았다.
+
+- 2026-10-17 LC 삭제 전달 준비: 최초 유지보수는 challenge_10s_attempts 2건 발견으로 DB 쓰기 전에 중단했고 task41/health200·8080/8444 healthy 복구를 확인했다. 사용자가 해당 테스트 기록의 미보존·진행을 승인하여 재시도: 정확2건 삭제, 다른 시험/생성/삭제/outbox 자료0 재검증, 삭제 전달 index 및 billingDeliveryVerified 준비 성공(exit0). 별도 백업 없음·복구 보장 없음. 이는 저장소 준비이며 업무 E2E 성공이 아니다. LC 세 flag 묶음 배포 결과는 후속 확인 중이다.
+
+- 2026-10-17 공동E2E 사전확인: 실제 LC task41/running1/pending0, paid/saga/workload sender/access receiver ON. ATTEMPT_GROUP_EVENT_WRITER_ENABLED·PUBLISHER_ENABLED=false, BILLING_EXAM_DELETION_SENDER_ENABLED 미설정/코드기본false 확인. 시험 상태·삭제204 end-to-end는 상대 활성화 및 격리 테스트 계정 지정 전 미실행. LC 설정/데이터·서명키 권한 무변경. 기존 LC auth E2E 스크립트는 로컬 계정 생성/과거 시험 흐름용이므로 그대로 실환경에 실행하지 않았다.
+
+- 2026-10-17 테스트 묶음 활성화 배포 완료: 사용자 key_ops=[sign] 보완 확인 후 task5 재배포, ECS 단일 PRIMARY COMPLETED/running1/pending0, 새 task RUNNING/HEALTHY·ALB healthy. 시험 foundation/recovery/admission·MEMBER evidence/account·통합reader·상태/삭제·expiry·환불후속 processing/publisher/Slack ON, barrier OPEN. 실제 ALB probe 재실행 exit0/ALB_ACTIVATION_PROBE_OK: 6경로 무인증·잘못된JWT401, 비허용/OFF 경로 및 GET삭제404. 앱용 외부노출·provider sync/worker/Store·자동purge·Identity수신은 미활성화. 정상서명·시험/환불/삭제 공동 업무E2E는 별도 미완료. 아래 기동실패/복구 기록은 이 후속으로 해소.
+
+- 2026-10-17 묶음 활성화 시도: writer 중지·빈 테스트DB/schema 검증 후 maintenance7 OPEN 성공(exit0). task5(시험/상태/삭제/환불후속·Secret3개) 기동은 refund private JWK의 key_ops 누락으로 실패(exit1). task4로 rollback 요청 후 running1/pending0·ALB healthy 확인(rollout IN_PROGRESS/container health UNKNOWN 확인 시점). DB barrier는 OPEN이며 ALL_BLOCKED로 돌아갔다고 간주하지 않는다. 동일 키에 key_ops=[sign]만 추가하는 사용자 실행 명령을 CloudShell에 미실행 준비했다. 업무 활성화/인증 probe 성공 미완료, LC/Identity·IAM·외부 노출 무변경.
+
+- 2026-10-17 활성화 준비 후속: 누락된 payment_sync_commands·exam_deletion_facts·exam_deletion_receipts schema를 maintenance task6으로 설치/검증(exit0/BILLING_SCHEMA_OK install). Billing task4 desired1/running1/pending0/COMPLETED·ALB healthy로 복구. 사용자 승인한 삭제 POST 경로만 ALB priority89로 추가(host·NAT /32·HTTPS8443 유지), 기존19개 규칙 불변 확인. LC task41 수신 TLS와 공개키 일치 확인. 업무 flag·ALL_BLOCKED 유지, signed 공동 E2E/활성화는 미완료. 상세는 테스트 환불 활성화 runbook.
+
+- 2026-10-17 새 이미지 배포 완료: `tosunsaeng-billing-test:4`, ECS running1/pending0/COMPLETED, 새 task RUNNING/HEALTHY 및 ALB 새 target healthy 확인. ECR `refund-20261017` digest `sha256:1b15b2b1037c8d1ef5511d5860ca2fb85c1fc8edbd30f0948a4917c04b807666`. task3 대비 이미지 외 등록 설정 동일 검증. ECR scan COMPLETE/HIGH·CRITICAL0/MEDIUM2/UNDEFINED4. 환불OFF·ALL_BLOCKED 유지, LC/Identity·DB·권한 불변. 아래 업로드 차단은 네이티브 Chrome 파일 선택으로 해소했다. 기능 활성화/공동 E2E 완료는 아니다.
+
+- 2026-10-17 배포 후속: 새 amd64 이미지 `billing-test:refund-20261017` 및 `/private/tmp/billing-test-refund-20261017.tar` 준비. CloudShell 재연결 후에도 파일 업로드 메뉴가 대화상자를 열지 않아 업로드/새 task 배포는 미완료. 기존 Billing task3 유지, LC task39 receiver OFF 확인에 따라 환불 발신/ALL_BLOCKED 유지. 타 서버·권한·DB 변경 없음.
+
+- 2026-10-17 사용자 재로그인 후 Billing 테스트 사용자에서 임시 `billing-test-schema-collmod` 역할 연결 제거를 저장했다. Atlas 목록은 `readWrite @ to-teacher-billing-test`만 표시하며 이전 회수 미완료 기록을 갱신한다. 역할 정의 자체는 미삭제/미연결로 남긴다. 제품코드·데이터·배포/feature flag·타 사용자 권한은 불변. 새 이미지 배포·LC 수신 준비·공동 활성화는 여전히 후속이다.
+
+- 2026-10-16 후속: schema 오류는 RefundCoreSchema collMod line81/code8000 재현. 사용자 승인 후 `to-teacher-billing-test`에만 collMod custom role을 임시 연결하여 재실행, 실제 task exit0/BILLING_SCHEMA_OK install 확인. 서비스 task3 desired1/running1/pending0/COMPLETED 복구. **임시 권한 회수 저장이 Atlas 인증 만료로 거절되어 아직 남아 있음**: 사용자에게 재로그인 요청. 로그인 후 이 권한 회수가 최우선. ALL_BLOCKED/환불OFF 유지, 새이미지 배포 미완료.
+
+- 2026-10-16 테스트 HMAC Secret/payment-runtime 및 정확1개 읽기 정책 사용자 승인 후 생성. 전체회귀1763/실패0·bootJar·amd64 이미지 빌드 성공. 실제 DB는 기본혜택1건 외 비어 있음을 확인하고 Billing writer 중지 후 명시 schema 설치를 시도했으나 MongoCommandException/exit1. 후속 read-only 검증에서 foundation/recovery/paid schema를 지나 RefundCoreSchema validator 불일치 확인: 일부 DDL 적용 상태이며 설치완료 아님. recovery control1건/ALL_BLOCKED 유지, 삭제·OPEN 전환·새기능 활성화 없음. 기존 task3 desired1 재가동 요청. LC task39 환불 receiver OFF/8080만 노출하여 공동배포는 미완료. 상세는 테스트 환불 활성화 runbook.
+
+- 2026-10-16 사용자 승인으로 Billing 테스트 실행 역할에 환불 서명키·기존 문의-테스트 Slack Secret 정확2개 읽기 권한 추가/재조회 완료. 일회성 ECS probe에서 Secret 주입 및 실제 Slack 테스트 메시지 수신 확인. 상시 Billing task3·환불 OFF/LC/Identity/DB 불변. 새 빌드는 준비됐으나 schema·LC 수신 준비 후 활성화 배포가 남는다. 상세는 [활성화 안내](../runbooks/BILLING-TEST-REFUND-ACTIVATION-2026-10-16.md).
+
+- 2026-10-16 위 테스트 환불 기동 보완의 전체 회귀: `./gradlew clean test` 1,763건 통과, 실패/오류/skip0. 실제 배포·Store·LC E2E는 수행하지 않았다.
+
+- 2026-10-16 테스트 환불 후속 처리 기동 보완: test 단일 profile/workload test/SANDBOX/실제 test DB 이름/recovery fence 조건에서 기존 fanout·publisher 런타임 기동 허용. production/staging 차단·기본 OFF 유지. LC origin/private JWK 환경변수 연결, cleanup 미구현 adapter/sink 오류 구분. [안내](../runbooks/BILLING-TEST-REFUND-ACTIVATION-2026-10-16.md). 실제 Store 증거 adapter·cleanup·외부 설정/배포/공동 E2E는 미완료.
+
+- 2026-10-16 사용자 요청으로 Notion 결제 페이지의 기존5번 POST /api/v1/exams 제목 아래 LC시험생성 안내 추가. 기존 양식의 설명/상세토글/호출조건·요청·응답·처리규칙·오류표 사용. LC DTO/오류코드 확인, 기존4개API 본문보존. 실제배포/공동E2E 미완료 명시. 코드/설정변경·Gradle실행 없음.
+
+- 2026-10-16 [프론트 통합 API 안내](../contracts/FRONTEND-INTEGRATED-API-GUIDE-2026-10-16.md) 작성: Identity/LC 현지 Controller·DTO와 Billing60d5f6c 기준 사용자API 목록·결제/시험/문의흐름·종합판정·LC오류 정리. 앱용Billing 미연결과 서버용주소 연결완료를 분리하고, Identity/LC 실배포·flag 미검증 명시. 상대저장소 읽기만/외부게시·설정변경 없음. 문서작업으로 Gradle미실행.
+
+- 2026-10-16 승인된 workload ALB/DNS 연결 완료: Billing HTTPS8443 target group healthy, service running1/pending0/COMPLETED. ALB SG만8443 허용, host+NAT /32+POST+LC6경로 allowlist 및 나머지404, 기존규칙보존. 가비아 서버용CNAME1개 저장(24→25). 외부POST404/TLS검증성공. 동일네트워크 무비밀probe2 STOPPED/exit0: 기본4경로401·OFF2경로404·비허용4경로404·GET404. task3 업무flag/LC·Identity배포 불변. 앱주소/판매·환불·삭제 미활성화, signed LC E2E 미완료.
+
+- 2026-10-16 승인된 테스트 기본DB·HTTPS 기동 완료: Atlas Billing DB 부재 확인 뒤 target host/database guard를 넣은 task3 배포. 기본15개collection 및 FREE_EXAM_ONCE 정의1개 생성 확인. task c003b0b394b74ae59f495b4262f89175 RUNNING/HEALTHY, service running1/pending0/rollout COMPLETED. health는8082 DBhealth·검증TLS8443 unsigned401·8082 workload404를 모두 검사한다. LC receiver만ON/test→SANDBOX, scope tosunsaeng-billing-test. ALB미연결/SG변경없음·Identity/결제/환불/삭제·LC발신 미활성화. 전체1749개 통과. 다음은 제한된 ALB/DNS 연결과 LC 서명 E2E(미완료).
+
+- 2026-10-16 TLS 일회성 AWS 검증 완료: preflight task2798e512fc6342e48696a2e23be90174 STOPPED/exit0, Secret 주입·Java PKCS12·지문·hostname 검증 HTTPS 성공. 스크립트 추가, 로컬 정상/손상keystore/잘못된hostname 회귀 및 전체1749개(실패/오류/skip0) 통과. 실제 Billing service/ALB/DB/flag 불변. Identity test44의 scope tosunsaeng-billing-test 확인. 다음은 테스트DB schema4/기본정의 설치 및 LC receiver/TLS8443 기동 범위 승인·대상DB 점검이다. Spring/ALB/LC E2E 완료 아님.
+
+- 2026-10-16 사용자 승인 후 Billing test execution role에 별도 inline policy billing-test-workload-tls-read 추가·get-role-policy 재조회 완료. workload-tls-tgOfqJ 정확1개 GetSecretValue만 허용, 기존 minimal policy 미수정/LC private key 권한 미부여. 실제 TLS 주입·handshake/ALB/업무ON은 아직 미완료.
+
+- 2026-10-16 Billing 내부 TLS 생성 완료 확인: workload-tls-tgOfqJ/AWSCURRENT, 인증서 SHA256 082cd179b0666b891d27f8697c37caa81bca7a78e0f72e9f8f5e3a3b0aa677c6, 만료2027-10-16 19:31 KST. 비밀값 미조회. 현재 execution role은 Mongo Secret만 읽을 수 있어 TLS Secret1개 읽기 권한 추가 직전 사용자 확인 대기. 네트워크/배포/업무flag 불변.
+
+- 2026-10-16 LC 키 생성 성공 확인: Secret billing-workload-jwt-mRtG3m에 AWSCURRENT 존재, 공개 JWK kid lc-test-billing-20261016-r1/RSA3072만 확인·임시 보관. 개인키 미조회. 다음 사용자 실행용 Billing 내부 TLS PKCS12 생성 명령을 CloudShell에 미실행 상태로 준비했다(전용 Secret workload-tls, 자체서명RSA3072/365일). 외부 ACM과 별도이며 ALB target TLS는 인증서 신뢰 검증이 아닌 구간 암호화, 호출자 인증은 JWT·네트워크 제한. ALB 연결/역할 권한 확대/배포·flag 변경 없음.
+
+- 2026-10-16 LC 테스트 키 미준비를 사용자 확인. CloudShell에 LC 전용 RSA3072 JWT 키를 Secrets Manager `tosunsaeng/test/learning-core/billing-workload-jwt`의 PRIVATE_JWK로 생성·저장하고 공개 JWK set만 출력하는 명령을 미실행 상태로 준비, 사용자가 직접 실행하도록 인계. 기존 동일 Secret 발견 시 중단/덮어쓰기 없음. Billing TLS PKCS12 파일 주입·scope·transaction/index 기동 조건이 남아 있으며 ALB/LC 배포·수신ON은 미변경.
+
+- 2026-10-16 사용자 적용 직전 승인 후 가비아 검증 CNAME2개 저장 완료(기존22→24개). ACM certificate13f095e9-1b68-47b1-a215-d1acc8383b06은 ISSUED, billing-test/billing-workload-test 두 이름 모두 ValidationStatus SUCCESS 확인. 트래픽용 DNS/ALB 연결·LC 인증·업무flag는 아직 변경하지 않았다.
+
+- 2026-10-16 Billing 테스트 도메인 두 개 사용자 수락. ACM 서울 certificate `13f095e9-1b68-47b1-a215-d1acc8383b06` 요청 완료, DNS 검증 대기. 가비아 기존22개 레코드 확인 후 검증 CNAME2개를 미저장 초안으로 준비했다. 인증서 발급/갱신 권한 검증용 DNS 저장 직전 확인 대기이며 ALB 연결·트래픽 CNAME·외부 공개·LC 인증 변경은 없다.
+
+- 2026-10-16 보안 패치 후 테스트 task revision2 교체 완료: running1/pending0/rollout COMPLETED, 새 task RUNNING/HEALTHY 및 patched digest 일치 확인. ECR HIGH/CRITICAL 없음, MEDIUM2/UNDEFINED4 잔존. 전체 회귀1749개 성공(실패/오류/skip0). DNS는 가비아이며 Billing 인증서·도메인·LC JWT/TLS 준비가 남는다. ALB 미연결·업무flag OFF 유지. 상세는 테스트 초기 배포 runbook의 후속 절 참조.
+
+- 2026-10-16 [테스트 초기 배포](../runbooks/BILLING-TEST-BOOTSTRAP-2026-10-16.md): ECR 이미지60d5f6c 업로드/해시 확인, 테스트 ECS service1대 RUNNING/HEALTHY·rollout COMPLETED·실행digest 일치 확인. 전용 Secret 참조만, 실제 값 미조회. private/no-public-IP/ALB미연결/업무flag OFF·schema미설치이며 LC/App 연동 완료 아님. Atlas 기존 테스트 NAT /32 허용 확인(변경 없음). ECR HIGH2(OpenSSL 동일CVE 패키지2개)/MEDIUM8/LOW4/UNDEFINED4는 외부 공개 전 보완 검토 필요. 로그14일, 배포파일/기록 미커밋 유지.
+
+- 2026-10-16 사용자 승인으로 tosunsaeng-billing-test-sg 생성/규칙 재조회 완료. ALB SG에서 TCP8082만 수신, 전체 IPv4 대상으로 TCP443/27017만 송신하며 기본 all-egress 제거. 아직 어떤 ECS task에도 연결하지 않았고 기존 SG·listener/DNS·Atlas allowlist 불변. 다음은 이미지 push/테스트 task 구성·DB health 확인. 서버 배포/업무 활성화 완료가 아니다.
+
+- 2026-10-16 테스트 ECS execution role 적용 확인: 사용자 승인한 전용 ECR pull·전용 log stream 쓰기·테스트 Mongo Secret 1개 읽기 inline policy만 존재, attached managed policy 없음. ECR 로그인 토큰의 Resource=*는 API 제약이며 저장소 pull은 테스트 저장소로 제한. 기존 테스트 사설 subnet 두 개의 NAT 경로 및 ALB SG 확인. 다음은 Billing 전용 SG(ALB에서8082만 수신, HTTPS443/Mongo27017 송신) 적용 전 사용자 확인이다. 외부 listener/DNS/Atlas allowlist·ECS 실행·DB 연결·업무 flag 활성화는 미수행. 제품 코드/테스트 변경 없음.
+
+- 2026-10-16 AWS Secret tosunsaeng/test/billing/mongodb 저장 성공 UI와 describe-secret 메타데이터 확인. 비밀값 미조회이므로 URI 내용/실접속 검증은 아님. Billing IAM role 목록은 비어 있어 전용 실행역할 생성 및 해당 Secret/ECR/log 최소권한 적용 직전 확인이 필요하다. 실제 역할·보안그룹·ECS 배포는 아직 미수행.
+
+- 2026-10-16 올바른 tosunsaeng-test 프로젝트에서 Billing 사용자/readWrite@to-teacher-billing-test 생성 확인. 해당 Cluster0 Connect→Drivers의 호스트를 확인했고 비밀번호 없는 URI 틀만 안내한다. AWS secret 실제 저장·서버 연결은 사용자 입력 뒤 확인 필요. 이전 Project 0 불필요 계정은 미정리 상태다.
+
+- 2026-10-16 Atlas 대상 정정: 사용자 지적으로 올바른 프로젝트는 `tosunsaeng-test`임을 UI 확인. 이전 계정은 다른 `Project 0`에서 생성됐으며 테스트 연결에 사용하지 않는다. 양쪽 클러스터 이름이 Cluster0이므로 이름만으로 환경 판정 금지. 테스트 프로젝트에는 Billing 사용자가 없었고 새 양식에 readWrite@to-teacher-billing-test만 준비, 최종 생성은 사용자에게 인계. 이전 잘못 만든 계정 정리는 미수행/별도 확인 필요. AWS URI 저장·서버 연결은 아직 하지 않음.
+
+- 2026-10-16 Atlas 사용자 생성 확인: tosunsaeng-billing-test의 readWrite@to-teacher-billing-test가 목록에 표시됨(Atlas 적용 중 배너). amd64 로컬 이미지 빌드 성공 확인. AWS Secrets Manager 새 Secret 양식에 키 MONGODB_URI만 입력했고 값/저장은 사용자에게 인계한다. 권장 Secret명 tosunsaeng/test/billing/mongodb, ECS/권한/네트워크 배포는 아직 미수행.
+
+- 2026-10-16 Atlas 생성 양식에 Specific Privileges `readWrite`/DB `to-teacher-billing-test`만 지정, collection은 빈 값이며 다른 role0 확인. 비밀번호/사용자명 변경 및 Add User 제출 없음. 사용자가 최종 생성해야 한다. 직전 배포준비에서 테스트 ECR 생성 및 bootJar 성공, Docker 이미지 빌드는 시작했으나 이번 턴 완료 여부 미확인. 실제 ECS 배포는 아직 미수행.
+
+- 2026-10-16 AWS 열린 Chrome/CloudShell 읽기 조회 성공: 서울 리전 기존 공용 ECS 클러스터와 internet-facing ALB가 있으며 운영/test 서비스가 혼재한다. 전체 서비스·ECR repository·task family 목록에는 Billing이 없다. 로컬 CLI 인증 부재와 달리 브라우저 조회는 가능하나 재배포가 아닌 최초 인프라 생성이 필요하다. 테스트 전용 서비스/ECR/설정·최소권한/target group 구성 범위 확인 전 AWS 변경·배포는 하지 않았다.
+
+- 2026-10-16 병합 완료: 구현 commit744de3b push, [PR28](https://github.com/Too-Much-I/app-back-end-billing/pull/28) develop merge60d5f6c 확인. 원격 required check 실행 내역은 없으며 직전 로컬1749통과와 구분한다. 테스트 서버는 미배포: AWS CLI 인증/region/profile 및 저장소 배포 정의가 없고 실제 인프라는 미조회다. AWS 접근과 테스트 대상 확인이 필요하며 새 인프라/운영 활성화는 하지 않았다. 이 결과 기록은 병합 이후 로컬 문서 변경이다.
+
 - 2026-10-16 사용자 요청으로 TMI221/217 누적 변경의 commit/push/develop PR 병합을 준비한다. origin/develop=17edd0d, GitHub Actions workflow 0개 및 저장소 Dockerfile/배포 정의 부재 확인. AWS CLI credential/profile/region이 없어 테스트 인프라 조회·배포는 차단 상태다. 기존 전체 테스트 XML 1749/실패0/오류0/skip0를 재확인했으며 이번 제품 변경·테스트 재실행은 없다. 기능 기본OFF/실provider ON 거절 유지, 신규 인프라·운영환경 변경 없음. 병합 결과는 후속 기록한다.
 
 - 2026-10-16 남은 작업 재정리: Billing 삭제 수신은 구현/로컬1749회귀 완료. 최신 LC 진행을 이번에 재조회하지 않았으므로 LC sender/204저장/TTL 연결은 완료 여부 확인 및 공동검증 대상으로 유지한다. Billing의 실제 환불 provider adapter·금융case 재조회/해결은 남음. 이후 Store sandbox/공동경합·운영schema/키/Slack/배포·판매승인, 별도최종purge 순서다. 기존221 안내의 삭제writer 미구현 문구는217 후속구현 이전 기록이다. 상태설명만, 새테스트/제품/외부변경 없음.

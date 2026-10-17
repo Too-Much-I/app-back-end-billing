@@ -87,6 +87,13 @@ class PaymentSyncControllerTest {
         when(service.sync(eq(USER), any(), any())).thenThrow(new PaymentException(409, "PURCHASE_ACCOUNT_REQUIRED"));
         mvc.perform(request()).andExpect(status().isConflict()).andExpect(jsonPath("code").value("PURCHASE_ACCOUNT_REQUIRED"));
     }
+    @Test void longLivedPurchaseTokenCannotReachSyncWriter() throws Exception {
+        when(identityUserJwtDecoder.decode("member")).thenReturn(Jwt.withTokenValue("fake").header("alg", "RS256")
+                .subject(USER).claim("account_type", "MEMBER").claim("scope", "billing:purchase")
+                .issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(1801)).build());
+        mvc.perform(request()).andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("UNAUTHENTICATED"));
+        verifyNoInteractions(service, limiter);
+    }
     static Jwt token(String type, String scope) { return Jwt.withTokenValue("fake").header("alg", "RS256").subject(USER).claim("account_type", type)
             .claim("scope", scope).issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(60)).build(); }
 }

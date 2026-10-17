@@ -10,7 +10,7 @@ import web.tosunsaeng.billing.domain.payment.recovery.PaymentRecoveryFence;
 import static web.tosunsaeng.billing.domain.payment.cleanup.CleanupEvidence.*;
 import static web.tosunsaeng.billing.domain.payment.exception.PaymentException.require;
 
-/** OFF-only core. No bean or HTTP entry point. Real evidence/drain capability is deliberately not wired. */
+/** Conditional runtime capability. No HTTP entry point; default OFF. */
 final class CleanupPurger {
     enum Result { PURGED, ALREADY_ABSENT, NOT_READY, RECHECK, BLOCKED }
     /** Local, bounded policy check only: no network in a Mongo transaction. Unknown must return false. */

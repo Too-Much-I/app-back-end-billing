@@ -129,6 +129,15 @@ class CleanupIntegrationTest {
         assertThat(db.getCollection("purchase_account_refs").countDocuments()).isZero();
         assertThat(db.getCollection("payment_purchase_cases").find().first().getBoolean("counted")).isFalse();
     }
+    @Test void expiredPreWithdrawalAuthorizationCannotRecreatePurgedAccount() {
+        String id = ready(true);
+        assertThat(purger().tryPurge(id)).isEqualTo(CleanupPurger.Result.PURGED);
+        assertThatThrownBy(() -> new PaymentAccountService(store, props, clock).getOrCreate(USER, NOW))
+                .hasMessage("UNAUTHENTICATED");
+        assertThat(db.getCollection("payment_accounts").countDocuments()).isZero();
+        assertThat(db.getCollection("payment_account_lifecycles").countDocuments()).isZero();
+        assertThat(db.getCollection("purchase_account_refs").countDocuments()).isZero();
+    }
     @Test void purgeClaimPreservesProofAndExcludesOtherDeletionAndVerification() {
         String id = ready(true); var original = new Document(cleanup().get("proof", Document.class));
         var purge = purger(); var lease = purge.claim(id);
@@ -580,12 +589,25 @@ class CleanupIntegrationTest {
         worker.tick(); assertThat(job().getString("state")).isEqualTo("VERIFYING");
         clock.now = NOW.plusSeconds(30); worker.tick(); assertThat(job().getString("state")).isEqualTo("BLOCKED");
     }
-    @Test void defaultRuntimeWiringCannotUseTestAbsenceProof() {
+    @Test void reconciliationOnlyRecordsApprovedPolicyWithoutDeleting() {
         seed(false, NOW.minus(Duration.ofDays(15))); absent();
-        var worker = new CleanupConfiguration().cleanupWorker(store, props, clock, new SimpleMeterRegistry());
+        var runtime = org.mockito.Mockito.mock(web.tosunsaeng.billing.domain.payment.worker.PaymentProviderWorkerRuntime.class);
+        org.mockito.Mockito.when(runtime.cleanupReader()).thenReturn((s, deadline) -> remote);
+        var worker = new CleanupConfiguration().cleanupWorker(store, props, clock, new SimpleMeterRegistry(), runtime);
         worker.tick();
-        assertThat(cleanup().getString("reason")).isEqualTo("LOCAL_EVIDENCE_UNAVAILABLE");
-        assertThat(job().getString("state")).isEqualTo("BLOCKED");
+        assertThat(job().getString("state")).isEqualTo("READY");
+        assertThat(cleanup().get("proof", Document.class).getString("coverageVersion")).isEqualTo(CleanupDeletionPolicy.VERSION);
+        assertThat(db.getCollection("payment_account_lifecycles").countDocuments()).isEqualTo(1);
+    }
+    @Test void enabledRuntimeDeletesOnlyAfterRealLocalReadAndCompleteProviderObservation() {
+        seed(true, NOW.minus(Duration.ofDays(15))); purchaseCore();
+        clock.now = NOW.plusSeconds(1920);
+        props.getCleanup().setReconciliationEnabled(true); props.getCleanup().setPurgeEnabled(true);
+        var runtime = org.mockito.Mockito.mock(web.tosunsaeng.billing.domain.payment.worker.PaymentProviderWorkerRuntime.class);
+        org.mockito.Mockito.when(runtime.cleanupReader()).thenReturn((s, deadline) -> new Provider(Observation.ABSENT_OBSERVED, true, null));
+        new CleanupConfiguration().cleanupWorker(store, props, clock, new SimpleMeterRegistry(), runtime).tick();
+        assertThat(db.getCollection("payment_accounts").countDocuments()).isZero();
+        assertThat(db.getCollection(CleanupSchema.COLLECTION).countDocuments()).isZero();
     }
     @Test void providerDeadlineAndExceptionNeverProduceReady() {
         String id = seed(false, NOW.minus(Duration.ofDays(15))); absent();

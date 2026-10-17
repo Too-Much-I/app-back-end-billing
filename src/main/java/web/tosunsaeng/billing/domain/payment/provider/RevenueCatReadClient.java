@@ -8,7 +8,10 @@ import java.util.*;
 
 /** Explicitly constructed read-only adapter. No retry, Spring runtime registration or provider writes. */
 public final class RevenueCatReadClient {
-    public interface Transport { Response get(URI uri, String bearer); }
+    public interface Transport {
+        Response get(URI uri, String bearer);
+        default Response get(URI uri, String bearer, Duration timeout) { return get(uri, bearer); }
+    }
     public record Response(int status, Map<String, List<String>> headers, byte[] body) {
         public Response { headers = Map.copyOf(headers); body = body.clone(); }
         @Override public byte[] body() { return body.clone(); }
@@ -31,11 +34,16 @@ public final class RevenueCatReadClient {
         this.transport = Objects.requireNonNull(transport); this.decoder = Objects.requireNonNull(decoder); this.clock = Objects.requireNonNull(clock);
     }
     public Page purchases(String reference, String cursor) {
+        return purchases(reference, cursor, Duration.ofSeconds(5));
+    }
+    public Page purchases(String reference, String cursor, Duration timeout) {
+        if (timeout.isNegative() || timeout.isZero() || timeout.compareTo(Duration.ofSeconds(5)) > 0)
+            throw RevenueCatFailure.contract();
         RevenueCatPurchaseDecoder.owner(reference); if (cursor != null) RevenueCatPurchaseDecoder.text(cursor);
         String path = customerPath(reference);
         URI uri = URI.create("https://api.revenuecat.com" + path + "?environment=" + environment + "&limit=100"
                 + (cursor == null ? "" : "&starting_after=" + encode(cursor)));
-        var page = decoder.page(response(uri), reference);
+        var page = decoder.page(response(uri, timeout), reference);
         String next = nextCursor(page.nextPage(), path);
         if (next != null && next.equals(cursor)) throw RevenueCatFailure.contract();
         return new Page(page.items(), next);
@@ -46,8 +54,11 @@ public final class RevenueCatReadClient {
         if (!purchaseId.equals(item.reference())) throw RevenueCatFailure.contract(); return item;
     }
     private byte[] response(URI uri) {
+        return response(uri, Duration.ofSeconds(5));
+    }
+    private byte[] response(URI uri, Duration timeout) {
         Response r;
-        try { r = transport.get(uri, secret); }
+        try { r = transport.get(uri, secret, timeout); }
         catch (RevenueCatFailure e) { throw e; }
         catch (RuntimeException e) { throw new RevenueCatFailure(RevenueCatFailure.Kind.RETRY, null); }
         int s = r.status();

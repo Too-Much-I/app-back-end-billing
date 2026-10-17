@@ -1,5 +1,7 @@
 # TMI-205 cleanup-r1 — 미구매 탈퇴 계정 정리 기술 규격
 
+> 현재 기준: 2026-10-17 사용자 승인 [관측 기반 삭제 R1](TMI-205-OBSERVED-ABSENCE-R1.md). 과거 미관측 Store 거래 부재 증명/무조건 purge 거절 설명은 이 범위에서 대체한다. 실제 활성화는 별도다.
+
 > 2026-10-13 단순화 목표 승인: adapterVersion/coverageVersion/drainPolicyVersion 세 항목은 cleanupPolicyVersion 하나로 통합한다. 일반 앱 배포가 아니라 삭제 증거 판단 규칙이 바뀔 때 증가시킨다. 외부 조회 완전성·진행 중 입력 확인·최종 CAS/lease/epoch·proof 유효기간은 유지한다. 아래 세 필드와 현재 r1/r2 schema/코드는 변경 전 구현 기록이다. 새 validator revision·호환 reader·명시 이관 후 신규 writer를 적용하며 기존 세 버전 증거를 임의로 새 버전에 대응시키지 않고 재확인한다. 실행 중인 lease와 공존하는 증거 변경은 금지하며 구 writer 격리/회수 후 이관한다. 이번은 문서 승인 반영이며 schema 변경·실삭제 활성화가 아니다.
 
 > 2026-10-13 PR2 구현 보충: READY 증거보존 삭제claim/PURGE fence/최종bounded삭제·직후실행/tick회수 코어를 추가했다. 실제 구성은 여전히 UNKNOWN-only/purge ON 거절이다. r1 manifest를 보존하고 r2 exact validator로 명시 이관한다. 상세 구현·검증 범위는 [PR2 안내](../runbooks/TMI-205-pr2-purge-core.md). 아래 PR0/PR1 시점의 미구현 표현은 역사적 범위이며 이 보충과 구분한다.

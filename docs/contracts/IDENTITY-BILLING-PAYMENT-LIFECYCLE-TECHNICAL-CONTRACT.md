@@ -1,5 +1,7 @@
 # Identity–Billing 공동 기술 계약: 구매 권한·탈퇴 capture·복구·재개
 
+> 2026-10-17 Billing 사용자 승인: [관측 기반 삭제 R1](TMI-205-OBSERVED-ABSENCE-R1.md)은 Billing 삭제 판단에서 미관측 Store 거래 부재 증명 요구를 대체한다. 탈퇴15일·정상 전체조회·로컬 미해결 없음·요청 만료 및 최종 경합 보호를 유지하고 지연 거래 수동 검토 위험을 수용한다. Identity token 최대30분·탈퇴 발급/refresh 차단·userId 재사용 금지 계약은 변경하지 않는다. Identity 측 회신/설정 확인이나 공동 운영 활성화를 완료했다는 뜻은 아니다.
+
 > 2026-10-13 승인 갱신: Identity–Billing 네 이벤트/네 복구 POST는 workload JWT 단일 인증으로 구현한다. 해당 SigV4 signer·선택설정·IAM 수신 통과 경로를 제거하며, 구 recovery.authentication 설정은 OFF에서도 기동 오류다. 수신 OFF는 해당 네 이벤트를 차단한다. LC/user 인증·body/복구 계약과 과거 검증 기록은 유지한다. 실제 전환은 양측 활성 사용처/키/네트워크 확인 후 별도 승인한다.
 
 > 2026-10-12 인증 보완: 사용자 승인에 따라 Identity–Billing 통신은 ALB/전용 workload JWT로 전환한다. [workload-auth-r1](WORKLOAD-JWT-AUTH-R1.md)은 Billing OFF 구현의 정확한 경계이며 Identity 공동수락/구현 완료를 뜻하지 않는다. 아래 SigV4-only 문구는 승인된 Identity–Billing 전환 범위에서 대체하고 기존 LC/user 인증·event body/hash·복구 보존 의미는 유지한다.

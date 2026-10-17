@@ -16,10 +16,13 @@ import web.tosunsaeng.billing.domain.payment.recovery.*;
 public class CleanupConfiguration {
     @Bean
     @ConditionalOnProperty(prefix = "billing.payment.cleanup", name = "reconciliation-enabled", havingValue = "true")
-    CleanupWorker cleanupWorker(PaymentStore store, PaymentProperties properties, Clock clock, MeterRegistry metrics) {
-        // Deliberate PR1 wiring: no autowired fake/provider that could prove absence in production.
-        var processor = new CleanupProcessor(store, properties, clock, CleanupEvidence.unavailableLocal(),
-                CleanupEvidence.unavailableProvider(), CleanupEvidence.unavailableCoverage());
+    CleanupWorker cleanupWorker(PaymentStore store, PaymentProperties properties, Clock clock, MeterRegistry metrics,
+            web.tosunsaeng.billing.domain.payment.worker.PaymentProviderWorkerRuntime runtime) {
+        validateFlags(properties);
+        var local = new CleanupLocalReader(store);
+        var policy = new CleanupDeletionPolicy(properties.getEnvironment());
+        var purger = properties.getCleanup().isPurgeEnabled() ? new CleanupPurger(store, properties, clock, local, policy) : null;
+        var processor = new CleanupProcessor(store, properties, clock, local, runtime.cleanupReader(), policy, purger);
         var alerts = new CleanupAlerts(store, properties.getEnvironment(), clock, summary -> false, metrics);
         return new CleanupWorker(processor, alerts, clock, metrics);
     }
@@ -39,8 +42,10 @@ public class CleanupConfiguration {
         return event -> worker.ifAvailable(CleanupWorker::start);
     }
     public static void validateFlags(PaymentProperties properties) {
-        if (properties.getCleanup().isPurgeEnabled() || properties.getCleanup().isAlertsEnabled())
-            throw new IllegalStateException("Production cleanup does not support purge or external alert delivery yet");
+        if (properties.getCleanup().isPurgeEnabled() && !properties.getCleanup().isReconciliationEnabled())
+            throw new IllegalStateException("Cleanup purge requires reconciliation");
+        if (properties.getCleanup().isAlertsEnabled())
+            throw new IllegalStateException("Cleanup alerts require an implemented delivery sink");
         if (properties.getCleanup().isReconciliationEnabled() && (!properties.getRecovery().isFenceRequired()
                 || !java.util.Set.of("SANDBOX", "PRODUCTION").contains(properties.getEnvironment())))
             throw new IllegalStateException("Cleanup requires an isolated environment and recovery fence");

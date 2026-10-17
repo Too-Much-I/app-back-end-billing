@@ -1,0 +1,4 @@
+**
+!build/
+!build/libs/
+!build/libs/app-back-end-billing-0.0.1-SNAPSHOT.jar
