@@ -6823,3 +6823,151 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - 사용자 이번 변경 commit/push·Billing prod OFF 배포 예외 승인 수신. 기존 검증 image digest를 고정한 prod:1/service 생성(1task 요청), 모든 업무flag 기본OFF/자동DDL OFF/transaction 요구ON. 외부 listener와 DNS는 아직 연결하지 않음. 실제 startup/health 확인 중이며 앱 연결·결제 준비 완료가 아니다.
 - 변경파일은 운영 bootstrap 및 기반 runbook/CURRENT_STATE/WORKLOG. runtime API/body·JWT·보존/삭제 계약 불변, 기존 cleanup Slack 등 dirty 보존. 직전 clean test1806통과/실패0/skip0 이후 제품코드 무변경이라 Gradle 재실행 없음. 실환경 검증은 위 schema installer/verify이며 구매·환불·탈퇴E2E를 대신하지 않는다. 다음은 health 확인·이번 범위 Git 전달, DNS/ALB·상대 공개키·RC·backup/capacity 준비 후 별도 활성화다.
 - 후속 기동 확인: prod:1 task a61012db80ab46d7bdf13981fb501b2c RUNNING/HEALTHY, 실행1·대기0. healthcheck는 localhost HTTP8082 /actuator/health200을 요구. Tomcat/앱 Started, 최근100로그 Exception class 없음. 외부 ALB/TLS·앱E2E 미검증. 이번 운영 도구/기록4파일만 stage하며 기존 cleanup Slack/테스트 도구 등은 변경 없이 보존했다. 예상 밖 제품 변경 없음.
+
+## 2026-10-17 prod 업무 ON 요청의 필수 설정 점검
+
+- 사용자 신규 Billing 전체 활성화 요청에 따라 CloudShell에서 Secret metadata만 조회. prod revenuecat/identity-workload-public-jwks/learning-core-workload-public-jwks에 AWSCURRENT 버전이 모두 없음. prod:1 task definition은 MONGODB_URI만 참조하고 enabled=true flag 없음. 비밀값 조회·출력 없음.
+- 설정 미준비 상태에서 flag만 바꾸거나 테스트 신뢰키로 대체하지 않았다. 외부 호출 부재와 무관하게 worker가 자발 실행됨을 안내. 운영 RC/상대 공개키·DNS/ALB 연결, 기존 운영 gate 검증을 선행해야 한다. 제품/DB/배포/기능 변경 없음, 문서2개 기록만 추가. read-only 점검이므로 Gradle 미실행. 기존 dirty 보존, 새 commit/push 없음. 앞선 운영 준비 commit6ebb94e push는 완료됐다.
+
+## 2026-10-17 운영 LC 공개키 등록·Identity 인계·RC 준비
+
+- 사용자 '어 해줘'와 exact LC 공개키 등록 승인에 따라 신규 운영 LC Secret을 점검했다. PRIVATE_JWK 내부에서 공개필드만 추출, RSA3072 및 서명/검증 성공. 기존 Billing 대상 Secret이 빈 것을 확인하고 BILLING_WORKLOAD_LEARNING_CORE_PUBLIC_JWK_SET으로 등록·재조회 일치 확인. private필드 복사 없음/기존LC Secret·역할·서비스 변경 없음/수신OFF 유지. 공개키 fingerprint 33d8c4cfe945f66bbd72920c0b551a8c06b53da9f50bd60dd3268715640c6102. 확인 화면 /private/tmp/billing-prod-lc-public-key-20261017.png.
+- 사용자 기존RevenueCat 프로젝트·앱 사용 및 Identity 인계문서 작성 선택. docs/contracts/Identity-billing-production-key-readiness-2026-10-17.md 작성, 외부 메시지 발송 없음. Identity 운영 전용 Billing키는 현재 inventory에서 미발견. 사용자 로그인/LC용 키 재사용하지 않음.
+- RC 로그인 화면 확인. test task에서 프로젝트70a245ef·budget DB to-teacher-revenuecat-budget 확인. Secret의 URI는 프로세스 내부에서 hostname 동등성만 비교해 test/prod 클러스터가 다름을 확인했다. 코드 PaymentProviderWorkerConfiguration은 동일 MongoClient로 budget DB에 연결하므로 DB명만 복사하면 공동 budget이 아니다. 별도 공유 연결/최소권한 보완 또는 프로젝트 분리 검토 없이 worker ON 금지. 사용자 선택은 기존 프로젝트 유지이며 임의 프로젝트 분리/limit완화는 하지 않는다.
+- CURRENT_STATE/WORKLOG와 Identity 인계문서만 로컬 변경. 제품 API/코드/DB/배포/활성화/commit/push 없음, 기존 dirty 보존. 실제 암호학·Secret 저장재조회 확인이며 공동HTTP/E2E 아님. 제품코드 무변경으로 Gradle 미실행, diff 검사 수행. 다음은 RC 로그인·운영키 준비와 shared budget 연결 보완, Identity 공개키 수령이다.
+
+## 2026-10-17 저빈도 테스트 budget 예외·운영 RevenueCat 키 폼
+
+- 사용자 로그인 완료 및 테스트 저빈도 위험수용 응답. 기존 프로젝트·앱 유지, 초기 환경별 budget 분리 예외를 별도 runbook에 명시했다. 합산rate/공유차단 보장 없음, 기존429/Retry-After/검증·대기 정책 불변. 무제한/무료fallback/키재사용/테스트서버 변경 없음.
+- 기존 IAB 로그인 탭과 별개로 새 로그인된 탭2에서 프로젝트70a245ef 확인. API키 생성 폼에 billing-production-read/V2/Purchases Read only, 기타No access 준비. Generate/키생성/Secret 저장은 미실행이며 사용자 직접 제출 대기. 결제조회 코드의 /v2/projects/.../customers/.../purchases 및 /purchases/... 사용을 확인했다. 실제 권한/API 검증은 키 저장후 수행한다.
+- 변경파일은 예외 runbook/CURRENT_STATE/WORKLOG, 제품코드·DB·배포·업무ON·commit/push 없음. 문서·UI 준비만으로 Gradle 미실행, diff 검사. 기존 dirty 보존. 다음은 사용자 키 생성→숨김입력으로 운영 Secret 저장→API/상품/budget 준비 확인이다.
+
+## 2026-10-17 운영 RC 키 숨김 입력 인계
+
+- 사용자 키 생성 완료 보고에 따라 Billing CloudShell terminal1에서 getpass 명령을 시작했다. TTY/숨김입력 보장, 대상 tosunsaeng/prod/billing/revenuecat의 version0 선행 조건, key형식 검사, BILLING_PAYMENT_PROVIDER_API_KEY 필드 저장 및 값 비출력 재조회 일치 검사를 준비했다. 사용자가 직접 붙여넣고 Enter해야 저장된다. RC 화면의 실제 키는 읽거나 복사하지 않았다.
+- 현재는 입력 대기이며 저장/RC API 권한 검증/업무활성화 완료가 아니다. 오류는 예외class만 출력한다. 변경은 작업기록2파일, 제품코드·DB·배포·commit/push 없음. Gradle은 문서/입력준비 작업으로 미실행. 기존 dirty 보존. 다음은 저장 성공 확인 후 RC 읽기권한·운영상품/budget/Secret 추가항목 검증이다.
+
+## 2026-10-17 운영 RC 키 저장 성공·읽기 경로 점검
+
+- 사용자 입력 후 CloudShell BILLING_PROD_RC_KEY_SAVED_AND_VERIFIED 확인. 운영 Secret에서 키를 프로세스 내부에서 읽어 공식 api.revenuecat.com/v2/projects/70a245ef/customers/{새 임의UUID}/purchases?environment=production&limit=1로 GET1회 수행. redirect 금지/timeout10초, 키·응답원문·고객정보 미출력. 404 JSON resource_missing 확인(401/403 아님). 존재하지 않는 자료의 읽기 경로 점검이며 정상구매200/권한전체/원장반영 성공을 주장하지 않는다.
+- 신규고객 생성·실구매/환불·제품코드·DB·배포·ON·commit/push 없음. CURRENT_STATE/WORKLOG만 추가, 기존 dirty 보존. 운영 API점검으로 Gradle 미실행, diff 검사. 다음은 환경별 budget 준비·상품매핑·lookup/reference/webhook Secret 추가항목 및 Identity 공개키/DNS/ALB다.
+
+
+## 2026-10-17 — Identity 운영키 인계서 상태 정합성 수정
+
+- 브랜치: codex/billing-test-deployment. 목표: 결론2와 위험 항목의 발신키 준비 상태 충돌 해소.
+- 변경: Identity-billing-production-key-readiness-2026-10-17.md, CURRENT_STATE, WORKLOG.
+- 근거: 기존 prod 키 저장·검증 완료 기록. Identity→Billing 이벤트 검증 공개키와 Billing→Identity 복구 발신키를 구분하고 과거 미발견 표현 수정.
+- 검증: 수정 문구 확인 및 대상 문서 diff 검사. 문서만 변경하여 제품 테스트 미실행.
+- 유지/위험: workload-auth-r1 계약 및 기능 OFF/ALL_BLOCKED 유지. AWS 현재 상태 재조회 없음. Identity 공개키 전달/상대 등록·실연동 확인은 후속. 코드/Secret/설정/배포/외부 메시지 변경 없음, 기존 작업 보존.
+
+## 2026-10-17 운영 RevenueCat 상품 매핑·budget 권한 사전 확인
+
+- 브랜치 codex/billing-test-deployment. test ECS 설정에서 APP_STORE/PLAY_STORE 각각 premium1d/3d/7d/14d/28d 확인. 운영 catalog 설치 또는 RC 상품 상태 검증을 대신하지 않는다.
+- RevenueCatBudgetSchema는 별도 DB의 revenuecat_read_budgets strict validator 및 _id_ 단일 index를 검증한다. 신규 생성만 지원하며 불일치 수정/collMod는 하지 않는다. PaymentCatalogService의 환경·기간·가격·중복 매핑 검사는 유지한다.
+- Atlas Project 0 화면에서 운영 Billing 계정의 기존 readWrite@to-teacher-billing-prod만 확인. 별도 budget DB 접근 추가는 보안 권한 확장이므로 사용자 action-time 승인 요청 후 진행한다. 아직 권한/DB/Secret/배포/활성화 변경 없음.
+- 작업기록2파일만 변경, 기존 dirty 보존. 제품 로직 미변경으로 Gradle 미실행; 정적 코드 확인 및 ECS/Atlas 읽기 점검. 다음: budget DB 한정 권한 승인·빈 DB schema 설치/검증, catalog 대조, 운영 Secret 보완. 사용자/거래 자료 및 비밀값 미출력.
+
+## 2026-10-17 운영 RevenueCat budget DB 설치 완료
+
+- 브랜치 codex/billing-test-deployment. 사용자 직전 권한 추가 승인에 따라 Atlas Project 0의 tosunsaeng-billing-prod에 readWrite@to-teacher-revenuecat-budget만 추가. 기존 readWrite@to-teacher-billing-prod/비밀번호/다른 사용자 유지. Atlas 배포 배너 해소와 실제 connectionStatus 역할2개 확인.
+- CloudShell 독립 임시 venv의 pymongo4.10.1 사용. 초기 --user 설치는 기존 venv 정책으로 실패하여 별도 /tmp 환경으로 분리했으며 서버 런타임 의존성은 변경하지 않았다. URI는 Secrets Manager에서 메모리로만 읽고 host 확인. 실제 budget collection0 및 PRODUCTION/billing ALL_BLOCKED를 사전 확인했다.
+- RevenueCatBudgetSchema r1의 validator를 원문 패턴·BSON long minimum 포함 대응시켜 revenuecat_read_budgets 신규 설치. strict/error options 전체 일치, _id_ index1개, 문서0 재조회 확인(PROD_RC_BUDGET_INSTALLED_VERIFIED). 기존 데이터 삭제/collMod/업무 barrier 해제/서비스 설정·배포 변경 없음. 승인된 환경별 budget 분리 예외 유지.
+- 변경 파일은 CURRENT_STATE/WORKLOG만. 제품 로직 미변경으로 Gradle 미실행, DB 구조 실검증 및 diff 검사. Java verify 기동·상품catalog·추가 Secret·DNS/ALB·E2E는 남음. 이번 결과는 결제 활성화 완료가 아니다. 기존 dirty 보존, commit/push 없음.
+
+## 2026-10-17 운영 상품 catalog 등록
+
+- 브랜치 codex/billing-test-deployment. 사용자 상품 매핑 확인·운영 등록 요청 수행. RevenueCat 프로젝트70a245ef Products 및 premium Offering UI에서 APP_STORE app3987acee69/PLAY_STORE appc95ad9b387의 premium1d/3d/7d/14d/28d 상품·패키지 연결 확인. Test Store 상품 제외, RevenueCat 설정 변경 없음.
+- 운영 payment_products 기존0건 확인. 기존 unique index3개와 PRODUCTION/billing ALL_BLOCKED를 확인한 단일 Mongo transaction(majority write concern)으로 catalogVersion1 총10행 삽입. offer 기간86400/259200/604800/1209600/2419200초·기준가격9000/19000/29000/49000/69000KRW는 PaymentOffer 구현 유지. BSON long 숫자, saleEnabled=true 상품 매핑을 준비했지만 ECS API/worker flag 및 barrier는 변경하지 않았다.
+- rcProductId(1/3/7/14/28일 순): Apple prod2b3350ec70/prod0c6f7c904a/prodb754238599/prod2bb863a58c/prodc1485631a1; Google prod61b23b6254/prod5b51dba40d/prodd55bc1da76/prod83987f38b4/prod903d4e96c7. packageId는 각 storeProductId와 동일.
+- PROD_CATALOG_REGISTERED_VERIFIED rows10/offers5/stores2/catalogVersion1 확인, _id 제외 전필드 재조회 일치. RC 화면의 Google Published/Apple Ready to Submit은 관측 상태이며 Apple 심사/판매승인이나 Store 실구매 검증을 의미하지 않는다.
+- 변경 파일은 기록2개, 제품 코드 미변경으로 Gradle 미실행. 실제 DB transaction·재조회 및 diff 검사. 삭제/덮어쓰기/가격변경/실구매/배포/LC·Identity 변경/commit·push 없음, 기존 dirty 보존. 다음은 추가 운영 Secret·DNS/ALB·상대 공개키 및 정상 기동/public API/E2E 검증이다.
+
+## 2026-10-17 운영 Secret 보완 명령 인계·네트워크 읽기 점검
+
+- 브랜치 codex/billing-test-deployment. 운영 RC Secret 필드명만 출력해 API_KEY만 확인. 기존 ALB Billing 규칙은 test 대상, 두 prod 호스트 DNS unresolved, ACM 목록에 해당 prod SAN 인증서 없음. 기존 인증서·경로·역할 무변경.
+- CloudShell terminal1에 사용자 실행용 명령 준비(Enter 미실행). 정확히 API_KEY만 있는 Secret일 때만 기존값 보존하고 독립32byte lookup/reference키, webhook Authorization/signing값 및 prod-v1 버전/ID 추가. 저장 직전 VersionId 확인·저장후 전필드 일치 검사, 비밀값 비출력. 실제 키 생성/저장은 사용자 직접 실행 후 확인한다.
+- 기존 provider 요구 형식 확인, webhook 실제 송신측 서명 호환/등록 완료를 주장하지 않으며 ingress OFF 유지. DNS/인증서/ALB 공개는 후속, 서버/제품코드/DB/commit·push 무변경. Gradle은 설정 점검·인계 작업이므로 미실행, 문서 diff 검사. 기존 dirty 보존.
+
+## 2026-10-17 운영 Secret 저장 독립 확인·ACM 신청 인계
+
+- 브랜치 codex/billing-test-deployment. 사용자 실행 보고 후 terminal에는 AssertionError가 있었으나 읽기 조회에서7필드/버전2개 존재 확인. lookup/reference는 각32byte, prod-v1 ID, Authorization/signing 형식 정상. AWSPREVIOUS와 비교해 API키 동일, 신규4값 독립 확인. 오류 발생 assertion 위치는 출력되지 않았으므로 특정 실행 경위를 확정하지 않으며 이미 저장된 구성의 재실행 거절과 부합한다. 재생성/덮어쓰기하지 않았다.
+- 가비아 로그인 유지 확인. billing-prod.to-teacher.com 및 billing-workload-prod.to-teacher.com exact SAN의 AWS ACM RSA2048/DNS 검증 신청 명령을 준비했다. 동일 pending/issued 인증서 재사용 및 idempotency token 적용. 사용자 Enter 실행 전이며 기존 인증서/listener/DNS/서버/업무ON 변경 없음.
+- 비밀값 비출력. 변경 기록2파일, 코드 미변경으로 Gradle 미실행, 실제 Secret 형식·원값 보존 읽기 검사 및 diff 검사. 기존 dirty 보존. 다음은 인증서 신청 결과·DNS 검증 레코드와 ALB 연결이며 신규 공개 범위를 확인 후 적용한다.
+
+## 2026-10-17 운영 앱 DNS·HTTPS·ALB 연결
+
+- 브랜치 codex/billing-test-deployment. 사용자 exact 승인 범위: 인증서 DNS2개, 앱 hostname CNAME, 네 API의 exact path/method, 그 외404; workload는 인증서만 준비. Gabia 저장 후3개 레코드 재조회 확인, ACM ISSUED, 기존 listener 인증서는 추가 전후 보존 검증.
+- ALB110~113 forward/114 deny404를 추가하고 기존 규칙 불변 확인. 최신 서비스 prod:2를 재조회하고 environment/secret/image 보존, public connector8083/port mapping만 추가해 prod:3 및 public TG 연결 배포 시작. 변경 직전 taskDefinition 일치 검사. LC/Identity·DB·키값·기능ON은 변경하지 않음.
+- 초기 target initial 및 TLS hostname mismatch 관측; 검증 우회 없이 전파/배포 완료 확인 진행. 제품 코드 미변경으로 Gradle 미실행. 현재 로컬 DNS 조회 미해결도 관측. 기록3파일 외 기존 dirty 보존, 이번 commit/push 없음. 최종 실행 결과는 아래 후속 기록으로 남긴다.
+
+- 후속 검증: prod:3 실행1/대기0, TG8083 healthy, 이전 배포 DRAINING/새 배포 IN_PROGRESS. 공개 DNS resolver NOERROR 및 정확한 CNAME/TTL600 확인; CloudShell/local negative cache 잔존. DNS 전파와 분리한 curl --connect-to(운영 hostname/SNI·CA검증 유지, -k 미사용) 앱4경로·internal POST·루트·DELETE 총7건 exit0/404 확인. 최초 TLS mismatch는 이후 같은 hostname 검증 성공으로 해소. 업무OFF 예상404이며 인증된 구매/E2E가 아니다. 일반 DNS와 배포 COMPLETED 확인이 남는다. diff --check 통과.
+
+- 최종 ECS 재조회 PRIMARY COMPLETED/실행1/대기0, 이전 deployment 제거 확인. 일반 CloudShell DNS curl exit6은 잔존하므로 전환경 DNS 전파 완료로 보고하지 않는다. 증거 화면 /private/tmp/billing-prod-public-connection-20261017.png. 현재 완료 범위는 DNS 저장·공개 resolver 반영·인증서·ALB·OFF 배포이며 업무 활성화/실구매 검증은 별도다.
+
+## 2026-10-17 운영 결제 활성화 준비 후속 점검
+
+- 브랜치 codex/billing-test-deployment, 목표 DNS 후속 검증과 활성화 의존성 식별. CloudShell 일반 DNS HTTPS products exit0/404 확인, prod:3 COMPLETED/실행1/대기0. local resolver 미해결은 남지만 외부 접속 성공을 확인했다.
+- metadata 조회에서 Identity/LC 공개키·RC Secret AWSCURRENT 모두 존재. 현재 태스크의 Secret 이름은 MONGODB_URI/BILLING_WORKLOAD_IDENTITY_PUBLIC_JWK_SET/BILLING_WORKLOAD_PRIVATE_JWK3개. 비밀값 미조회/비출력. Identity 공개키 미준비라는 이전 인계는 현재 metadata상 갱신됐으며 실제 키 검증은 별도.
+- PublicSecurityConfig/PaymentProviderWorkerConfiguration 기준 앱 활성화는 사용자 JWT issuer/JWKS, limiter, schema 검증, scope/attribution, recovery fence, provider worker/API·lookup·reference키, catalog/app/budget 매핑을 요구한다. 현재 구성은 connector만 ON이며 단순 flag 변경만으로 결제 준비 완료가 아니다.
+- 코드/서버/DB/키/외부 메시지 변경 없음, 기록2파일만 갱신·기존 dirty 보존. 분석/읽기 작업이라 Gradle 미실행. 다음은 운영 설정 연결 및 검증 후 별도 범위 승인으로 업무 활성화; 자동삭제/실제 Store 환불/LC·Identity 변경은 포함하지 않는다.
+
+## 2026-10-17 앱 결제 활성화 승인 후 Identity 선행조건 확인
+
+- 사용자 앱 결제 설정 연결/검증 후 ON 승인, 자동삭제/Store 환불 실행/타서버 변경 제외. 브랜치 codex/billing-test-deployment. 최신 ECS/Secret metadata/운영 DB 최소 count 및 control/공개JWKS 읽기 검사 수행. 운영 변경 전 선행조건 불충족을 발견해 ON 미수행.
+- Identity prod:13에 구매 control/fence/scope 세 환경변수 없음, 관련 Secret 이름 없음, envFiles/command/SPRING_APPLICATION_JSON override 없음. 로컬 application.yml 기본false·JwtAccessTokenIssuer purchaseFence 조건 확인. 실제 사용자 토큰을 발급/열람하지 않았다. 운영 JWKS TLS검증 포함200/public1개/비밀필드 없음. 기존 staging 표기 issuer 불변.
+- Billing prod:3은 여전히 OFF, control PRODUCTION/billing ALL_BLOCKED/schema1/version1. 상품10개와 budget collection 존재 확인. 조회한 accounts/purchases/trial/links 컬렉션 count0은 전체 사용자/운영 데이터 부재 증명으로 사용하지 않는다. 별도 Secret 실제 값은 Mongo 접속을 위해 메모리에서만 사용하고 비출력.
+- Identity 인계서 §7 보완, CURRENT_STATE/WORKLOG 갱신. 제품 코드/서버/DB write/Secret/commit/push/외부 메시지 없음, 기존 dirty 보존. Gradle은 코드변경 없어 미실행, diff 검사. 다음은 Identity 구매 권한 준비와 탈퇴 연동 회신, Billing 설정/스키마 검증 및 승인된 ON 작업 재개다. 타서버 변경에는 별도 사용자 지시가 필요하다.
+
+## 2026-10-17 LC 운영 인증·TLS 연결 인계 응답
+
+- 브랜치 codex/billing-test-deployment. LC 요청문 읽기 후 운영 refund 공개키 및 LC 등록키 SPKI 대조. 공개7필드만 tmp 파일에 저장하고 Node crypto RSA3072·지문 일치 검증. private JWK는 AWS 프로세스 메모리에서 공개부분 비교에만 사용, 비밀필드 출력/저장 없음. 저장 public set과도 일치 확인.
+- 운영 scope 기준 tosunsaeng-billing-prod는 Identity 실설정과 Billing scope source 코드로 대조했으나 Billing 태스크 미주입임을 명시. workload 예정 origin과 미연결 상태 구분: prod:3 ports8082/8083, receiverOFF/LC키 미주입, workload host rule0/DNS미해결. Secret 등록만으로 runtime 완료를 주장하지 않는다.
+- PaymentRefundConfiguration이 test/SANDBOX로 제한해 운영 ON에는 별도 보완 필요 발견·인계. 코드/gate 우회 없음. 회신 문서 신규 및 상태/작업기록 갱신, 실제 공개키는 Git 아닌 tmp 파일. Gradle 미실행(문서/읽기 작업), Node 검증/diff 검사. 서버/DB/Secret/LC 저장소/외부 메시지/commit/push 무변경. 기존 dirty 보존. 다음은 담당별 TLS/태스크 설정 준비와 운영 gate 보완·공동검증.
+
+## 2026-10-17 TMI-220 환불 운영 기동 조건 보완
+
+- 브랜치 codex/billing-test-deployment. 사용자 운영지원 코드 보완 승인, 실제 활성화/배포 제외. Jira TMI-220을 읽어 두flag/기본OFF·원장·불변outbox·Session보호·exact204·배포 별도 기준 확인, Jira write 없음.
+- PaymentRefundConfiguration에 prod/production/PRODUCTION/실제 *-billing-prod DB(길이63 이하)/fence의 정확 조합만 추가. 기존 test 조합 보존, 혼합환경 거절. 별도 승인/팬아웃flag 추가 없음. 실제 Store DB 이름을 사용하며 OFF에서 Store/키를 요구하지 않는다. RefundRuntimeConfiguration 주석 정합화. 기존 schema·transaction·provider·publisher 인증·알림 의존성은 수정하지 않았다.
+- PaymentRefundProductionActivationTest 신규32개: 정상 두조합/잘못된profile·environment·DB·길이·fence, OFF 기본/무의존, 실제 Store DB 및 runtime 의존성 누락 거절. 코드2파일·테스트1파일·신규runbook·LC회신 후속표시·상태/작업기록만 이번 변경. 기존 cleanup Slack 등 dirty는 그대로 보존, 예상 밖 편집 없음.
+- 첫 ./gradlew clean test는1838개 중1실패(RefundEvidenceTest의 기존 pipeline incomplete 메시지 기대). 기존 접두사를 보존하도록 오류문구 수정 후 전체 clean test 재실행 중. 최초 sandbox는 Gradle cache lock 접근 제약으로 시작 전 실패해 승인된 실행으로 진행했다. 테스트는 fake/local이며 실제 AWS/Store/Identity/LC 호출 추가 없음.
+- 외부 wire/body/hash/보존/금액·자동환불 실행·권리정책 변경 없음. 운영 prod:3에는 미배포이며 runtime 전체기동/LC E2E는 미확인. 후속은 TLS/키/scope·schema/증거/알림/Identity구매 준비 확인 및 별도 승인 배포·공동검증. commit/push 없음.
+
+- 2026-10-18 KST 최종 검증 완료: 수정본 ./gradlew clean test BUILD SUCCESSFUL, 3분59초. XML 전체1838개/실패0/오류0/skip0, 신규 PaymentRefundProductionActivationTest32개 포함. 최초 실패1건은 기존 메시지 접두사 보완 후 전체 재실행으로 해소. diff --check 통과. 실제 운영 환경에서 application context 전체 기동 또는 LC 공동E2E를 실행한 결과는 아니다.
+
+## 2026-10-18 Billing–LC 운영 연결 준비 정의
+
+- 브랜치 codex/billing-test-deployment. 사용자 다음 연결 준비 요청. LC 최신 인계 §7~9를 읽고 수신ON에 sealed runtime/구앱 전환 조건이 남음을 확인, 범위를 미배포 Billing 설정 준비로 제한하고 사용자에게 설명했다.
+- AWS 최신 Billing서비스prod:3·LCprod:8(미배포9), 각TG/역할/Secret 참조를 읽었다. 기존 exact Secret read 허용과 AWSCURRENT 확인 후 Billingprod:4만 등록. LC공개키/환불signer/TLS3필드 총5참조와 workloadproduction/port8443/scope 추가, receiver/refund/deletion 명시OFF. 기존 image/ports/entrypoint/역할/env/secret 보존. 중복등록 전 latest==service 확인, 등록 전 서비스revision 재대조, 등록 후 정렬 기반 전체필드 일치 및 서비스 revision/LB 불변 확인.
+- prod:4는 구성 보관용: TLS파일 materialization 시작명령·8443mapping/TG/DNS/ALB/LCorigin·운영코드 이미지 반영 미완료. 실제 연결 성공으로 보고하지 않는다. 실행prod:3 running1/pending0 유지. API/wire/원장/키값/IAM/DB/LC코드·서비스 변경 및 배포·ON·외부 메시지 없음.
+- 신규 runbook/상태/작업기록 갱신, 증거 /private/tmp/billing-prod-task4-prepared-20261018.png. 제품코드 미변경이라 Gradle 미실행, 문서diff 검사. 기존 dirty 보존/예상밖 편집 없음/commit·push 없음. 다음은 LC 전환 조건·origin 확정 후 명시 연결 변경 승인 및 최종 설정 합치기.
+
+## 2026-10-18 운영 앱 설정 OFF 연결·배포 시도
+
+- 브랜치 codex/billing-test-deployment. 사용자 3번 설정 사전 연결 승인에 따라 RC/user JWT/limiter를 연결하되 업무OFF·DB ALL_BLOCKED 유지. prod:4 기반 prod:5 전체필드 검증 후 배포했다. 참조8개 추가, 실제 Identity issuer 보존, 상품10개/budget DB/키형식 사전 확인. Secret값·권한·네트워크·외부계약 변경 없음.
+- prod:5 Secret 주입·Started/컨테이너 HEALTHY는 확인했지만 ALB health checks 실패로 태스크가 종료됐다. 기존prod:3은 healthy, 외부4API404·내부404 유지. 서비스prod:3 원복 요청, 실패prod:5 정의 보존. 배포 성공/구매 활성화로 보고하지 않는다.
+- 두 subnet/SG/ALB AZ/NACL/routes 읽기 점검에서 명백한 차단 근거 없음. health grace0이지만 앱 기동 후에도 실패했으므로 단일 원인 확정하지 않음. DB control singleton PRODUCTION/ALL_BLOCKED/version1 확인. 제품코드·LC/Identity·DB 수정 없음.
+- 신규 docs/runbooks/billing-prod-app-config-2026-10-18.md 및 CURRENT_STATE/WORKLOG만 이번 로컬 변경. 기존 cleanup/환불 dirty 보존. 코드 미변경으로 Gradle 미실행, 문서diff 검사. commit/push/Jira/외부메시지 없음. 다음은 원복 안정화·ALB 원인 진단 후 OFF 재배포이며 Identity 구매 준비와 LC 전환은 별도다.
+- 원복 새prod:3에서도 unhealthy 발생. 기동 경합 가설 확인용 health grace300을 잠시 적용했으나 정상복귀 미확인으로 원래0 복원. 진행 배포에 stop_service_deployment(ROLLBACK)을 요청해 마지막 성공 배포로 복귀하도록 했다. ALB 건강 판정/인증/네트워크는 완화하지 않았다.
+- 직전 기록 정정: stop/grace0 코드는 실행 전 IN_PROGRESS assertion에서 중단돼 실제 적용되지 않았다. 재조회에서 prod:3 SUCCESSFUL/COMPLETED·실행1/대기0·신규target healthy 확인. grace300 유지. 기동 유예 후 안정화 관측을 근거로 prod:5 업무OFF 재배포를 진행했다. ALB 건강 판정·인증·네트워크 변경 없음.
+- 최종 prod:5 재배포 COMPLETED/실행1/대기0, 신규태스크 HEALTHY/Started·ALB healthy 확인. 이전targets draining. HTTPS4API+내부1경로404, DB ALL_BLOCKED v1 재확인. grace300 유지 외 서비스네트워크/검사기준/IAM/Secret값/DB 불변. RC/user JWT/limiter 설정 주입·OFF 기동만 완료이며 구매/RC실호출/정상JWT/E2E 미검증. 증거 /private/tmp/billing-prod-app-config-20261018.png. runbook/상태 최종 갱신·diff검사, 기존 dirty 보존/commit·push 없음.
+
+## 2026-10-18 LC 운영 전환 준비 여부 확인
+
+- 브랜치 codex/billing-test-deployment. 사용자 준비 여부 질문에 LC_PRODUCTION_CUTOVER_RUNBOOK_2026-10-18.md 전체와 Billing 연결 준비/현재 상태를 대조했다. 실행안 작성과 실제 전환 준비를 구분한다.
+- Billing prod:5 OFF 기동은 직전 확인 완료. 운영 환불 지원 이미지·TLS 시작명령/port/네트워크·공동 리허설과 Identity 구매 준비, LC 봉인/배출/생성제한·검증계정은 남음. LC 문서의 prod:3/4는 최신 실행상태가 아니다. LC 파일은 수정하지 않았다.
+- CURRENT_STATE/WORKLOG만 기록. 코드/서버/DB/계약 변경 및 AWS 재조회 없음. 분석 작업이라 Gradle 미실행, diff 검사. 기존 dirty 보존. 다음은 생성제한 전에 Billing 검증 이미지·workload TLS/네트워크 변경안부터 준비하는 것.
+
+## 2026-10-18 Billing 운영 전환 로컬 후보 준비
+
+- 브랜치 codex/billing-test-deployment. 사용자 준비 요청에 기존 Dockerfile/시작스크립트·수신filter 및 LC 실행안/인계를 대조했다. Dockerfile.workload·전용dockerignore·network-none smoke script·전환 준비 runbook 추가, CURRENT_STATE/WORKLOG 갱신. 기존 제품코드/dirty 보존.
+- 로컬 linux/amd64 후보 빌드 성공. 기존 TLS 스크립트를 image에 포함해 비root 기동, PKCS12/DB/fingerprint 검사를 연결한다. 정상/DB불일치/지문불일치3case 통과. 가짜 자료·Java launch stub이며 실제 JVM전체기동/운영TLS 인증 검증 아님. 기본 Dockerfile 불변.
+- HEAD6ebb94e+기존 미커밋 환불/cleanup/Slack 포함 후보임을 명시. image/JAR hash는 runbook에 기록. 운영 후보를 HEAD 단독 출시본으로 오인하지 않는다. 전체 clean test bootJar 실행 중, shell구문/diff 검사 통과.
+- exact LC POST 경로/8443 TG·host·기존앱8083보존/실제origin·출구대역 미확정 및 공동전환 조건 문서화. 업무API/원장/보존/인증계약 변경 없음. AWS 재조회/등록/배포/네트워크/DB/LC·Identity/commit·push 없음. 다음은 테스트완료·Git기준고정·명시이미지전달과 상대origin/대역 확인, 승인된 실제 연결·리허설.
+- 최종 clean test bootJar BUILD SUCCESSFUL 4분7초. XML1838개 실패0/오류0/skip0. 이미지smoke3개/shell구문/diff통과. 현재 후보의 로컬 검증만 완료, 실제 운영 TLS·정상JWT·환불/삭제 E2E 미실행. 예상밖 변경 없음.
+
+## 2026-10-18 운영 후보 커밋·전달 착수
+
+- 브랜치 codex/billing-test-deployment. 사용자 이번 변경 커밋/이미지전달 및 LC주소·대역 확정 승인. 후보에 포함된 기존 환불/cleanup/Slack 변경과 관련 기록을 보존해 함께 고정한다. 코드 추가수정 없음.
+- 직전1838개 Java 및 이미지3case 통과 유지, 이번 Node maintenance8개 통과·diff검사·준비문서 민감값패턴 검사 통과. 로컬 후보와 Git기준을 연결한 뒤 원격 digest를 확인할 계획이며 아직 push/이미지전달 성공을 주장하지 않는다.
+- AWS CLI 자격증명없음 및 기존 콘솔로그아웃 확인. 사용자 재로그인 요청, 실제운영 origin/NAT 대역은 이전 추정값으로 확정하지 않는다. 서버/DB/활성화/LC 저장소 변경 없음.

@@ -1,5 +1,7 @@
 # TMI-209 — cleanup PR1 구현·검증 및 OFF 배포 안내
 
+> 2026-10-17: 실제 provider 조회·조건부 purge 연결 이후 cleanup Slack도 구현했다. 현재 설정/활성화 구분은 [최신 안내](cleanup-alerts-and-recovery-readiness-2026-10-17.md)를 따른다. 아래 무조건 ON 거절 표현은 과거 PR1 기록이다.
+
 > 후속 PR2는 [삭제 코어 안내](TMI-205-pr2-purge-core.md)를 따른다. 아래 r1과 테스트 수치는 PR1 당시 기록이다. 현재 runtime schema 검증은 r2를 요구하며 실제 purge ON 거절은 유지한다.
 
 - 날짜: 2026-10-13 / 최종 작업 브랜치: feat/TMI-209-billing-cleanup-foundation

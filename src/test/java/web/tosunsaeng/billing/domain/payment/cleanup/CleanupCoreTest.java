@@ -55,6 +55,8 @@ class CleanupCoreTest {
         assertThatThrownBy(() -> CleanupConfiguration.validateFlags(props)).isInstanceOf(IllegalStateException.class);
         props.getCleanup().setReconciliationEnabled(true);
         props.getCleanup().setPurgeEnabled(false); props.getCleanup().setAlertsEnabled(true);
+        assertThatCode(() -> CleanupConfiguration.validateFlags(props)).doesNotThrowAnyException();
+        props.getCleanup().setReconciliationEnabled(false);
         assertThatThrownBy(() -> CleanupConfiguration.validateFlags(props)).isInstanceOf(IllegalStateException.class);
     }
     @Test void policyVersionsRejectControlCharactersAndRecordsAreRedacted() {

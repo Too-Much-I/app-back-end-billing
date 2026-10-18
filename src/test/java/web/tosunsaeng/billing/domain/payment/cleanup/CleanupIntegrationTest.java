@@ -593,7 +593,8 @@ class CleanupIntegrationTest {
         seed(false, NOW.minus(Duration.ofDays(15))); absent();
         var runtime = org.mockito.Mockito.mock(web.tosunsaeng.billing.domain.payment.worker.PaymentProviderWorkerRuntime.class);
         org.mockito.Mockito.when(runtime.cleanupReader()).thenReturn((s, deadline) -> remote);
-        var worker = new CleanupConfiguration().cleanupWorker(store, props, clock, new SimpleMeterRegistry(), runtime);
+        var worker = new CleanupConfiguration().cleanupWorker(store, props, clock, new SimpleMeterRegistry(), runtime,
+                new org.springframework.beans.factory.support.StaticListableBeanFactory().getBeanProvider(web.tosunsaeng.billing.domain.payment.worker.PaymentSlackSink.class));
         worker.tick();
         assertThat(job().getString("state")).isEqualTo("READY");
         assertThat(cleanup().get("proof", Document.class).getString("coverageVersion")).isEqualTo(CleanupDeletionPolicy.VERSION);
@@ -605,7 +606,8 @@ class CleanupIntegrationTest {
         props.getCleanup().setReconciliationEnabled(true); props.getCleanup().setPurgeEnabled(true);
         var runtime = org.mockito.Mockito.mock(web.tosunsaeng.billing.domain.payment.worker.PaymentProviderWorkerRuntime.class);
         org.mockito.Mockito.when(runtime.cleanupReader()).thenReturn((s, deadline) -> new Provider(Observation.ABSENT_OBSERVED, true, null));
-        new CleanupConfiguration().cleanupWorker(store, props, clock, new SimpleMeterRegistry(), runtime).tick();
+        new CleanupConfiguration().cleanupWorker(store, props, clock, new SimpleMeterRegistry(), runtime,
+                new org.springframework.beans.factory.support.StaticListableBeanFactory().getBeanProvider(web.tosunsaeng.billing.domain.payment.worker.PaymentSlackSink.class)).tick();
         assertThat(db.getCollection("payment_accounts").countDocuments()).isZero();
         assertThat(db.getCollection(CleanupSchema.COLLECTION).countDocuments()).isZero();
     }

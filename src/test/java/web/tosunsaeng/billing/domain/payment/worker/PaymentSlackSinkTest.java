@@ -15,6 +15,28 @@ import static org.assertj.core.api.Assertions.*;
 class PaymentSlackSinkTest {
     static final String URL = "https://hooks.slack.com/services/TFAKE/BFAKE/FAKESECRET";
     static final Instant NOW = Instant.parse("2026-10-14T00:00:00Z");
+    @Test void cleanupSummaryUsesExistingSafeTransportAndHonorsBackoff() throws Exception {
+        Fake fake = new Fake(); Time time = new Time();
+        var sink = new PaymentSlackSink(URL, time, fake);
+        for (var kind : web.tosunsaeng.billing.domain.payment.cleanup.CleanupAlerts.Kind.values()) {
+            var summary = new web.tosunsaeng.billing.domain.payment.cleanup.CleanupAlerts.Summary("SANDBOX", kind,
+                    web.tosunsaeng.billing.domain.payment.cleanup.CleanupAlerts.Cause.REVIEW, NOW, 2, 3, 1, "TMI-209");
+            assertThat(sink.sendCleanup(summary)).isTrue();
+            var body = new ObjectMapper().readTree(fake.payload);
+            assertThat(body.get("text").asText()).contains("자동삭제", "TMI-209").doesNotContain("FAKESECRET", "userId", "accountId");
+            assertThat(body.get("mrkdwn").asBoolean()).isFalse();
+        }
+        assertThat(sink.sendCleanup(null)).isFalse();
+        fake.response = new PaymentSlackSink.Response(429, "limited", List.of("7200"));
+        var summary = new web.tosunsaeng.billing.domain.payment.cleanup.CleanupAlerts.Summary("SANDBOX",
+                web.tosunsaeng.billing.domain.payment.cleanup.CleanupAlerts.Kind.INCIDENT,
+                web.tosunsaeng.billing.domain.payment.cleanup.CleanupAlerts.Cause.WORKER_FAILURE, NOW, 0, 0, 0, "TMI-209");
+        assertThat(sink.sendCleanup(summary)).isFalse(); int calls = fake.calls;
+        time.now = NOW.plusSeconds(3600);
+        assertThat(sink.sendCleanup(summary)).isFalse(); assertThat(fake.calls).isEqualTo(calls);
+        time.now = NOW.plusSeconds(7200); fake.response = new PaymentSlackSink.Response(200, "ok", List.of());
+        assertThat(sink.sendCleanup(summary)).isTrue();
+    }
     static class Time extends Clock {
         Instant now = NOW;
         public ZoneId getZone() { return ZoneOffset.UTC; }

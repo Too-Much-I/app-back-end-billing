@@ -1,5 +1,7 @@
 # Billing prod 기반 구성 — 2026-10-17
 
+> 2026-10-17 앱 연결 후속: 승인된 DNS CNAME3개 저장·ACM 발급·기존443 listener 인증서 추가 완료. billing-prod host의 GET products/entitlements, POST purchase-account/sync만 public8083 TG로 전달하고 나머지는404. prod:2의 최신 설정/Secret/image를 보존해 connector만 추가한 prod:3 배포 진행. 모든 업무 기능 OFF, workload host는 인증서만 준비했다. 아래 prod:1·외부 미연결 내용은 이전 시점 기록이며 최종 검증은 후속 기록 참조.
+
 ## 1. 5줄 결론
 
 > 최종 기동 확인: prod:1의 task `a61012db80ab46d7bdf13981fb501b2c` RUNNING/HEALTHY, 실행1·대기0. 컨테이너 health check는 localhost:8082 `/actuator/health`의 HTTP200을 요구한다. Tomcat/애플리케이션 Started 확인, 검사한 최근100로그에서 Exception class 없음. 외부 ALB health/TLS/E2E 통과라는 의미는 아니다.

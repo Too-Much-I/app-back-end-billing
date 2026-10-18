@@ -17,6 +17,7 @@ public final class CleanupWorker {
     private CleanupProcessor.Due recoveryCursor;
     private int processed;
     private boolean round;
+    private boolean tickFailed;
     public CleanupWorker(CleanupProcessor processor, CleanupAlerts alerts, Clock clock, MeterRegistry metrics) {
         this.processor = processor; this.alerts = alerts; this.clock = clock; this.metrics = metrics;
     }
@@ -32,6 +33,7 @@ public final class CleanupWorker {
         catch (RuntimeException ignored) { alerts.failure(); }
     }
     public synchronized void tick() {
+        tickFailed = false;
         metrics.counter("billing_cleanup_heartbeat").increment();
         if (!round && !clock.instant().isBefore(nextDiscovery)) {
             round = true; processed = 0;
@@ -59,6 +61,7 @@ public final class CleanupWorker {
         }
         if (processed >= 100) round = false;
         alerts.daily();
+        if (tickProcessed > 0 && !tickFailed) alerts.recovered();
     }
     private void process(CleanupProcessor.Due row) {
         try {
@@ -66,7 +69,7 @@ public final class CleanupWorker {
             var state = result.state();
             if (state != null) metrics.counter("billing_cleanup_result", "state", state.name()).increment();
             if (result.purge() != null) metrics.counter("billing_cleanup_purge_result", "result", result.purge().name()).increment();
-        } catch (RuntimeException ignored) { alerts.failure(); }
+        } catch (RuntimeException ignored) { tickFailed = true; alerts.failure(); }
     }
     @PreDestroy public synchronized void stop() {
         if (executor != null) { executor.shutdownNow(); executor = null; }

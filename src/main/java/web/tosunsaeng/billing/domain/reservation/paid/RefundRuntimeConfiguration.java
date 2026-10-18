@@ -12,7 +12,7 @@ import web.tosunsaeng.billing.domain.payment.worker.PaymentProviderAlerts;
 import web.tosunsaeng.billing.domain.eligibility.trial.config.TrialEligibilityProperties;
 import web.tosunsaeng.billing.global.config.security.WorkloadJwtProperties;
 
-/** Wiring for validated refund evidence; activation is restricted to isolated test by PaymentRefundConfiguration. */
+/** Wiring for validated refund evidence; environment isolation is checked by PaymentRefundConfiguration. */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(prefix = "billing.payment.refund", name = "processing-enabled", havingValue = "true")
 public class RefundRuntimeConfiguration {
