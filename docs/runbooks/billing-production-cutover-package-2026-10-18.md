@@ -3,10 +3,10 @@
 ## 1. 5줄 결론
 
 1. 기본 Dockerfile을 바꾸지 않고 별도 `Dockerfile.workload`에 기존 TLS materialization 시작 스크립트를 포함했다.
-2. 후보는 현재 작업트리의 운영 환불 지원 및 기존 미커밋 cleanup/Slack 변경을 함께 포함한다. HEAD만의 재현 가능한 출시 이미지가 아니다.
+2. 후보에 포함했던 운영 환불 지원·cleanup/Slack·TLS 변경을 commit `57d66398ba3bf63a4fc2750ec8fd8cc4fdbdf11c`로 고정했다. 아래 빌드 당시 dirty 기록은 이 커밋 전의 이력이다.
 3. 실제 운영의 최신 확인본은 prod:5이며 앱 설정 OFF 배포만 완료했다. 이번 준비로 서비스·DB·키·ALB를 변경하지 않는다.
-4. LC 환불 HTTPS origin·운영 발신 대역·양측 활성화 순서는 아직 확인 필요다. 예정 주소를 동작하는 연결로 간주하지 않는다.
-5. 로컬 검증 이후에도 commit/review·레지스트리 전달·원격 digest 확정·실환경 TLS/공동 리허설이 남는다.
+4. LC 환불 origin은 `https://api-prod.to-teacher.com`, 양측 발신 대역은 `13.124.57.130/32`로 확인했다. 전용8444 전달·활성화는 미완료이며 동작하는 환불 연결로 간주하지 않는다.
+5. 커밋·로컬 검증 이후 레지스트리 전달 결과는 아래 후속 기록을 따른다. 실환경 전용 TLS/공동 리허설과 서비스 배포는 별도다.
 
 ## 2. 반드시 읽을 내용
 
@@ -16,9 +16,19 @@
 
 ## 3. 적용 전에 확정할 항목
 
-- LC 담당: 실제 운영 환불 HTTPS origin, exact 수신 route, 운영 발신 NAT/출구 대역, TLS·키·scope 및 readiness/봉인 조건 확인.
+- LC 담당: 아래 확인된 origin·route·출구 대역으로 전용 TLS·키·scope 및 readiness/봉인 조건 확인.
 - 사용자: 신규 생성 제한 수단/응답·시간대·최대 허용시간·검증 계정. 코드 전달 및 운영 변경은 별도 실행 범위로 승인.
-- Billing: 후보에 포함된 기존 dirty 변경을 검토하고 commit 기준을 고정한 뒤 이미지 재생성. 현재 로컬 후보를 HEAD commit 이미지로 표시하거나 임의 push하지 않는다.
+- Billing: 후보 내용은 commit57d6639로 고정했다. 원격 이미지 digest와 연결해 전달하고 Git push·서비스 배포는 별도로 수행한다.
+
+## 2026-10-18 실제 주소·발신 대역 확인
+
+- 수신: `POST https://api-prod.to-teacher.com/internal/v1/entitlements/access/events`.
+- Billing origin 설정값: `BILLING_PAYMENT_REFUND_LEARNING_CORE_ORIGIN=https://api-prod.to-teacher.com` (경로는 publisher가 추가). 이번에는 설정 미변경.
+- LC→Billing 및 Billing→LC 공인 발신 CIDR: `13.124.57.130/32`. 공유 NAT라 IP만으로 서비스 신원을 구분하지 않는다. 전용 JWT 검증을 유지한다.
+- AWS ap-northeast-2, cluster `tosunsaeng-staging-cluster`의 LC prod:8/Billing prod:5가 사용하는 두 private subnet `subnet-0fa638ca8effafa81`, `subnet-0dc3e0343bb98e3e3`의 기본 경로가 available NAT `nat-0a11238673df5ef5d`로 연결됨을 읽기 확인. public IP 할당은 DISABLED. subnet/NAT 변경 시 다시 확인한다.
+- api-prod DNS는 기존 ALB로 연결되고 공개443 TLS 인증서 SAN/시스템 trust 검증을 통과했다. 기존 host rule80은 LC8080 TG, rule70은 별도 evaluation 경로다. 전용8444 검증 성공을 뜻하지 않는다.
+- 후속 변경안: exact host+POST+위 경로+source CIDR → `lc-prod-access-events-8444` TG. 그 외 동일 내부 경로가 기존8080으로 fallback하지 않도록 차단 규칙도 함께 검토한다. 기존 앱/evaluation rule은 보존한다. 이번에 listener·TG·서비스·SG·IAM·DB·기능 flag 변경 없음.
+- LC receiver/readiness·기존 시험 봉인·양측 구 writer 배출·정상서명 공동검증 후 별도 승인으로 연결한다. LC 저장소는 수정하지 않았다.
 
 ## 4. 네트워크 변경안 — 미적용
 
@@ -67,3 +77,13 @@ ALB의 동적 경로 wildcard는 앱의 strict matcher를 대신하지 않는다
 - `docker run --rm --platform linux/amd64 --network none --entrypoint sh -v "$PWD/scripts/ops/billing-workload-image-smoke.sh:/smoke.sh:ro" billing-workload-candidate:20261018 /smoke.sh <case>`: valid/wrong-db/wrong-cert 모두 통과. 실제 운영 Secret·API·DB 사용 없음.
 - shell 구문·git diff 공백 검사 통과. AWS 재조회·등록·배포·네트워크 변경 없음.
 - `./gradlew clean test bootJar`: 4분7초 BUILD SUCCESSFUL. XML 집계1838개/실패0/오류0/skip0. 로컬 전체 회귀이며 운영 공동 E2E는 아니다.
+
+### 커밋·ECR 전달 결과 (2026-10-18)
+
+- 소스 커밋: `57d66398ba3bf63a4fc2750ec8fd8cc4fdbdf11c`. Git push/merge는 이번에 수행하지 않았다.
+- 전달 태그: `889384901776.dkr.ecr.ap-northeast-2.amazonaws.com/tosunsaeng-billing-test:prod-workload-57d6639`. 이름은 test지만 기존 prod도 사용하는 저장소이며 기존 태그를 덮어쓰지 않았다.
+- 원격 digest: `sha256:e5666d537391eebc7cffe91896a756f93b93d8acef2d480030e1b56e9e7597f9`.
+- 배포 후보 URI: `889384901776.dkr.ecr.ap-northeast-2.amazonaws.com/tosunsaeng-billing-test@sha256:e5666d537391eebc7cffe91896a756f93b93d8acef2d480030e1b56e9e7597f9`.
+- TAR SHA256 `fe7e5dcd5a8e6376f603a1cf7ce345453f4cdba9aad1fdcbb2be3b00facb8d0b` 대조 후 load/tag/push. 원격 manifest config digest는 로컬 `sha256:c3375dd7da2dd92cc4980e7e088c626c734bf795f6ae63fcd907b0adc5dd1d09`와 대조한다. Docker load/push 후 원격 manifest digest가 로컬 index digest와 다른 점을 구분한다.
+- 최초 로컬 push는403, 최초 CloudShell 업로드는 홈 용량 부족으로 실패했다. 불완전 파일을 사용하지 않고 재업로드 해시 일치 후 전달했다. 사용자 승인으로 실패 부분파일만 삭제했고 임시 이동한 기존 배포 아카이브는 복원했다. 정상 TAR는 로컬 및 CloudShell `/tmp/billing-image-transfer-57d6639/billing-workload-57d6639.tar`에 남는다.
+- 이미지 전달은 ECS 배포가 아니다. prod:5 서비스·기능OFF·DB·키·ALB·LC/Identity는 이번에 변경하지 않았다. 이번 문서 갱신으로 Java 재실행은 생략하고 기존1838개·smoke3·Node8 통과와 diff 검사를 기록한다.

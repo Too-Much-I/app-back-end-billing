@@ -1,5 +1,7 @@
 # Billing Service 현재 상태
 
+- 2026-10-18 운영 후보 소스57d6639 커밋·ECR `prod-workload-57d6639` 전달 완료. 원격digest `sha256:e5666d537391eebc7cffe91896a756f93b93d8acef2d480030e1b56e9e7597f9`. LC 환불 수신 주소 `https://api-prod.to-teacher.com/internal/v1/entitlements/access/events`, 양측 출구 `13.124.57.130/32`를 실제 ECS/NAT/DNS/공개TLS 조회로 연결 기준에 확정. 전용8444 전달/receiver 활성화/공동 E2E는 미완료. [전달·관측 기록](../runbooks/billing-production-cutover-package-2026-10-18.md). Git push/merge·ECS배포·네트워크/DB/LC 변경 없음. 실패한 부분업로드만 승인 삭제, 기존 아카이브 보존·복원.
+
 - 2026-10-18 사용자 커밋·이미지전달/LC주소·발신대역 확정 요청: 후보에 포함된 환불 운영지원·cleanup/Slack·TLS 이미지/검증도구 및 관련 준비기록을 함께 커밋 대상으로 고정. 직전 Java1838/smoke3 통과, 이번 maintenance Node8 통과·diff/민감값패턴 검사. AWS CLI 인증없음·콘솔로그아웃으로 원격 이미지전달/주소·대역 재조회는 로그인 대기. 배포/ON/LC 변경 없음.
 
 - 2026-10-18 후보 최종 검증: clean test bootJar 4분7초 성공,1838개/실패0/오류0/skip0. 이미지 smoke3개·shell/diff 검사도 통과. 운영 전환 로컬 후보 준비 완료, 실제 이미지 전달/네트워크 연결/상대확정/공동검증은 남음.

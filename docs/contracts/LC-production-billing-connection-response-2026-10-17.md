@@ -1,5 +1,7 @@
 # Billing → LC 운영 인증·TLS 준비 회신
 
+> 2026-10-18 주소·대역 후속 확인: LC 환불 수신은 `POST https://api-prod.to-teacher.com/internal/v1/entitlements/access/events`, LC/Billing 양측 공인 발신은 `13.124.57.130/32`다. 실제 ECS private subnet→NAT와 공개443 DNS/TLS를 읽기 확인했다. 전용8444 전달 규칙·receiver 활성화·공동 E2E 완료는 아니며, 아래 10월17일 태스크 관측은 과거 기록이다. 커밋/후보 이미지 및 네트워크 미적용 범위는 [운영 전환 준비 묶음](../runbooks/billing-production-cutover-package-2026-10-18.md)을 따른다.
+
 > 후속 로컬 구현: [환불 운영 실행 조건 보완](../runbooks/refund-production-runtime-readiness-2026-10-17.md)에서 prod/production/PRODUCTION/운영 Billing DB/fence 조합을 허용했다. 아래 test-only 관측은 배포된 prod:3 기준으로 여전히 유효하며 새 코드 배포/기능ON/LC 공동검증 완료가 아니다.
 
 ## 1. 5줄 결론

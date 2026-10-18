@@ -6971,3 +6971,11 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - 브랜치 codex/billing-test-deployment. 사용자 이번 변경 커밋/이미지전달 및 LC주소·대역 확정 승인. 후보에 포함된 기존 환불/cleanup/Slack 변경과 관련 기록을 보존해 함께 고정한다. 코드 추가수정 없음.
 - 직전1838개 Java 및 이미지3case 통과 유지, 이번 Node maintenance8개 통과·diff검사·준비문서 민감값패턴 검사 통과. 로컬 후보와 Git기준을 연결한 뒤 원격 digest를 확인할 계획이며 아직 push/이미지전달 성공을 주장하지 않는다.
 - AWS CLI 자격증명없음 및 기존 콘솔로그아웃 확인. 사용자 재로그인 요청, 실제운영 origin/NAT 대역은 이전 추정값으로 확정하지 않는다. 서버/DB/활성화/LC 저장소 변경 없음.
+
+## 2026-10-18 운영 후보 이미지 전달·LC 주소/대역 확인 완료
+
+- codex/billing-test-deployment, 소스57d6639 커밋 완료. AWS 재로그인 뒤 기존 ECR에 새 prod-workload-57d6639 태그 전달, 원격digest e5666d537391eebc7cffe91896a756f93b93d8acef2d480030e1b56e9e7597f9 확인. 배포/기능 활성화가 아니다.
+- LC prod:8/Billing prod:5의 private subnet 두 개→동일 NAT와 공인13.124.57.130 확인. LC origin api-prod.to-teacher.com의 DNS/공개443 인증서 검증 및 기존host rule8080 확인. exact 환불POST/8444 전달은 미적용, 공유NAT이므로 JWT 필수. 구앱 경로 변경 없음.
+- runbook/LC 회신/CURRENT_STATE/WORKLOG만 후속 갱신. 코드/외부계약 불변, LC/Identity 저장소 무변경. 이전 Java1838/smoke3/Node8 통과 유지, 이번 TAR hash/config/원격manifest 대조 및 diff 검사. 문서만 변경하므로 Gradle 재실행 없음.
+- CloudShell 홈 용량 부족으로 최초 업로드 실패. 불완전파일은 실행하지 않음. 사용자 승인으로 실패 부분파일만 삭제, 공간 확보를 위해 임시이동한 기존 아카이브는 복원. 비밀 인증값은 출력/저장소에 기록하지 않음.
+- 예상밖 제품 변경 없음. Git push/merge·서비스배포·DB·ALB/SG/IAM 변경 없음. 다음은 별도 승인된 전용TLS/경로 연결, LC readiness/봉인·구 writer 배출과 공동 검증이다.
