@@ -1,0 +1,132 @@
+{
+  "fixtureVersion": 1,
+  "subset": "identity-withdrawal-v1-proposed",
+  "productionInitializer": false,
+  "indexes": [
+    {
+      "collection": "withdrawal_stream",
+      "name": "ux_withdrawal_stream",
+      "keys": {
+        "environment": 1,
+        "streamId": 1
+      },
+      "unique": true
+    },
+    {
+      "collection": "withdrawal_stream",
+      "name": "ux_withdrawal_active_stream",
+      "keys": {
+        "environment": 1
+      },
+      "unique": true,
+      "partialFilterExpression": {
+        "status": "ACTIVE"
+      }
+    },
+    {
+      "collection": "withdrawal_journal",
+      "name": "ux_withdrawal_sequence",
+      "keys": {
+        "streamId": 1,
+        "sequence": 1
+      },
+      "unique": true
+    },
+    {
+      "collection": "withdrawal_journal",
+      "name": "ux_withdrawal_event",
+      "keys": {
+        "eventId": 1
+      },
+      "unique": true
+    },
+    {
+      "collection": "withdrawal_journal",
+      "name": "ix_withdrawal_capture_expiry",
+      "keys": {
+        "capturedAt": 1,
+        "_id": 1
+      },
+      "unique": false
+    },
+    {
+      "collection": "withdrawal_deliveries",
+      "name": "ux_withdrawal_destination",
+      "keys": {
+        "eventId": 1,
+        "destination": 1
+      },
+      "unique": true
+    },
+    {
+      "collection": "withdrawal_deliveries",
+      "name": "ix_withdrawal_due",
+      "keys": {
+        "destination": 1,
+        "status": 1,
+        "nextAttemptAt": 1,
+        "_id": 1
+      },
+      "unique": false
+    },
+    {
+      "collection": "withdrawal_snapshot_runs",
+      "name": "ux_withdrawal_snapshot_operation",
+      "keys": {
+        "environment": 1,
+        "consumer": 1,
+        "consumerRecoveryGeneration": 1,
+        "requestOperationId": 1
+      },
+      "unique": true
+    },
+    {
+      "collection": "withdrawal_snapshot_runs",
+      "name": "ux_withdrawal_snapshot",
+      "keys": {
+        "snapshotId": 1
+      },
+      "unique": true
+    },
+    {
+      "collection": "withdrawal_snapshot_rows",
+      "name": "ux_withdrawal_snapshot_user",
+      "keys": {
+        "snapshotId": 1,
+        "userId": 1
+      },
+      "unique": true
+    },
+    {
+      "collection": "withdrawal_consumer_checkpoints",
+      "name": "ux_withdrawal_consumer_checkpoint",
+      "keys": {
+        "streamId": 1,
+        "consumer": 1,
+        "consumerRecoveryGeneration": 1
+      },
+      "unique": true
+    },
+    {
+      "collection": "withdrawal_consumer_recovery_controls",
+      "name": "ux_withdrawal_recovery_control",
+      "keys": {
+        "environment": 1,
+        "streamId": 1,
+        "consumer": 1
+      },
+      "unique": true
+    },
+    {
+      "collection": "withdrawal_recovery_operations",
+      "name": "ux_withdrawal_recovery_operation",
+      "keys": {
+        "environment": 1,
+        "consumer": 1,
+        "streamId": 1,
+        "operationId": 1
+      },
+      "unique": true
+    }
+  ]
+}

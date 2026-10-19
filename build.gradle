@@ -7,6 +7,25 @@ plugins {
 group = 'web.tosunsaeng'
 version = '0.0.1-SNAPSHOT'
 
+springBoot { mainClass = 'web.tosunsaeng.billing.BillingApplication' }
+
+// Explicit operator process; never executed by build, boot, scheduler or HTTP.
+tasks.register('refundOperator', JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'web.tosunsaeng.billing.domain.reservation.paid.RefundOperationsCli'
+}
+
+tasks.register('paymentReviewOperator', JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'web.tosunsaeng.billing.domain.payment.worker.PaymentReviewOperatorCli'
+}
+
+// Explicit offline operator process; never executed during boot/build/test or via HTTP.
+tasks.register('recoveryOperator', JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'web.tosunsaeng.billing.domain.payment.recovery.RecoveryOperatorCli'
+}
+
 java {
 	toolchain {
 		languageVersion = JavaLanguageVersion.of(21)
@@ -24,6 +43,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'io.micrometer:micrometer-tracing-bridge-otel'
 
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
@@ -32,6 +52,7 @@ dependencies {
 	testImplementation 'org.springframework.security:spring-security-test'
 	testImplementation 'org.testcontainers:junit-jupiter'
 	testImplementation 'org.testcontainers:mongodb'
+	testImplementation 'com.networknt:json-schema-validator:1.5.6'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

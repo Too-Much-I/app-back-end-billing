@@ -1,0 +1,146 @@
+openapi: 3.0.3
+info:
+  title: Billing free entitlements
+  version: 1.0.0
+  description: PLAN-007. Free benefits only; no payment or purchase API. Reserve is the final authorization.
+paths:
+  /api/v1/entitlements:
+    get:
+      operationId: getMyFreeEntitlements
+      description: >-
+        Requires Identity RS256 user JWT, audience tosunsaeng-billing and exact billing:read scope.
+        Actor is verified sub only. Guest and MEMBER may read. No query parameters or request body accepted.
+        Every response has Cache-Control no-store and X-Trace-Id. PENDING means unknown, not a running job.
+      security:
+        - IdentityUserToken: []
+      responses:
+        '200':
+          description: Billing local snapshot. PENDING is still HTTP 200, with Retry-After 5.
+          headers:
+            Cache-Control:
+              schema: {type: string, enum: [no-store]}
+            X-Trace-Id:
+              schema: {type: string, pattern: '^[0-9a-f]{32}$'}
+            Retry-After:
+              description: Present for PENDING; not an estimated completion time.
+              schema: {type: string, enum: ['5']}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Success'}
+        '400':
+          description: INVALID_REQUEST. Unsupported query or body.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        '401':
+          description: UNAUTHENTICATED. Bearer challenge; invalid or absent user JWT.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        '403':
+          description: FORBIDDEN. Bearer insufficient_scope; billing:read required.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        '404':
+          description: NOT_FOUND. Reader disabled or wrong ingress/path.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        '405':
+          description: METHOD_NOT_ALLOWED. Allow GET.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        '429':
+          description: RATE_LIMITED. Task-local subject token bucket; Retry-After 5.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        '503':
+          description: ENTITLEMENT_QUERY_UNAVAILABLE or AUTHENTICATION_TEMPORARILY_UNAVAILABLE. Retry-After 5. Never a partial success.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+components:
+  securitySchemes:
+    IdentityUserToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Success:
+      type: object
+      additionalProperties: false
+      required: [isSuccess, code, message, result]
+      properties:
+        isSuccess: {type: boolean, enum: [true]}
+        code: {type: string, enum: [SUCCESS]}
+        message: {type: string, enum: ['요청에 성공했습니다.']}
+        result: {$ref: '#/components/schemas/Entitlements'}
+    Error:
+      type: object
+      additionalProperties: false
+      required: [isSuccess, code, message, result]
+      properties:
+        isSuccess: {type: boolean, enum: [false]}
+        code:
+          type: string
+          enum: [INVALID_REQUEST, UNAUTHENTICATED, FORBIDDEN, NOT_FOUND, METHOD_NOT_ALLOWED, RATE_LIMITED, AUTHENTICATION_TEMPORARILY_UNAVAILABLE, ENTITLEMENT_QUERY_UNAVAILABLE]
+        message: {type: string}
+        result: {nullable: true, enum: [null]}
+    Entitlements:
+      type: object
+      additionalProperties: false
+      required: [asOf, consistency, status, benefits]
+      properties:
+        asOf: {type: string, format: date-time}
+        consistency: {type: string, enum: [LOCAL_PROJECTION]}
+        status: {type: string, enum: [READY, PENDING]}
+        benefits:
+          type: array
+          maxItems: 20
+          description: Sorted by benefitCode. Currently only FREE_EXAM_ONCE is registered. No cross-unit total.
+          items: {$ref: '#/components/schemas/Benefit'}
+    Benefit:
+      type: object
+      additionalProperties: false
+      required: [benefitCode, displayName, unit, availableQuantity, eligibility, usageState, newAttempt, hasInProgress, retake, reasonCodes, attemptGroups]
+      properties:
+        benefitCode: {type: string, example: FREE_EXAM_ONCE}
+        displayName: {type: string, example: '무료 모의고사 응시권'}
+        unit: {type: string, enum: [EXAM_ATTEMPT]}
+        availableQuantity: {type: integer, minimum: 0, nullable: true}
+        eligibility: {type: string, enum: [VERIFIED, NOT_ELIGIBLE, UNKNOWN]}
+        usageState: {type: string, enum: [NOT_STARTED, INCOMPLETE, COMPLETED, MIXED, UNKNOWN]}
+        newAttempt: {$ref: '#/components/schemas/Action'}
+        hasInProgress: {type: boolean, nullable: true}
+        retake: {$ref: '#/components/schemas/Action'}
+        reasonCodes:
+          type: array
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/Reason'}
+        attemptGroups:
+          type: array
+          maxItems: 100
+          description: Current-owned groups only, sorted by attemptGroupId. No source sessions or history returned.
+          items: {$ref: '#/components/schemas/Group'}
+    Group:
+      type: object
+      additionalProperties: false
+      required: [attemptGroupId, state, hasInProgress, retake, reasonCodes]
+      properties:
+        attemptGroupId: {type: string, format: uuid}
+        state: {type: string, enum: [OPEN, GRADING, RETAKE_AVAILABLE, COMPLETED]}
+        hasInProgress: {type: boolean, nullable: true}
+        retake: {$ref: '#/components/schemas/Action'}
+        reasonCodes:
+          type: array
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/Reason'}
+    Action:
+      type: string
+      enum: [ALLOWED, BLOCKED, PENDING]
+    Reason:
+      type: string
+      enum: [ELIGIBILITY_UNKNOWN, PHONE_NOT_ELIGIBLE, OWNER_LINK_UNRESOLVED, RESERVATION_PENDING, RESERVATION_EXPIRY_PENDING, COMMAND_PENDING, ATTEMPT_IN_PROGRESS, GRADING_IN_PROGRESS, RETAKE_AVAILABLE, REJOIN_RESTART_AVAILABLE, BENEFIT_COMPLETED, NO_NEW_UNITS, RECONCILIATION_PENDING, AMBIGUOUS_ATTEMPT_CONTEXT]

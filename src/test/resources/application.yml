@@ -9,6 +9,8 @@ spring:
 billing:
   internal-ingress:
     mode: disabled
+  attempt-group-events:
+    enabled: false
   mongodb:
     initialize-indexes: false
     require-transactions: false

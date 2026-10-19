@@ -1,0 +1,12 @@
+{
+  "fixtureVersion": 1,
+  "synthetic": true,
+  "canonicalRows": [
+    {"userId":"11111111-1111-4111-8111-111111111111","withdrawnAt":"2026-10-07T00:00:00Z"},
+    {"userId":"22222222-2222-4222-8222-222222222222","withdrawnAt":"2026-10-07T00:00:00.123Z"},
+    {"userId":"33333333-3333-4333-8333-333333333333","withdrawnAt":"2026-10-07T00:00:00.123456Z"},
+    {"userId":"44444444-4444-4444-8444-444444444444","withdrawnAt":"2026-10-07T00:00:00.123456789Z"}
+  ],
+  "expectedDigest": "06947a9dc00d1b9a24cb5cfa7656ecfcb8dae0b2d98e9d9413ae71cd2428ec88",
+  "expectedEmptyDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

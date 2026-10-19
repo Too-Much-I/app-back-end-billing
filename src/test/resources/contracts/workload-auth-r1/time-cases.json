@@ -1,0 +1,15 @@
+[
+  {"name":"ttl-zero","iatOffset":0,"expOffset":0,"nbfOffset":null,"valid":false},
+  {"name":"ttl-one","iatOffset":0,"expOffset":1,"nbfOffset":null,"valid":true},
+  {"name":"ttl-sixty","iatOffset":0,"expOffset":60,"nbfOffset":null,"valid":true},
+  {"name":"ttl-over","iatOffset":0,"expOffset":61,"nbfOffset":null,"valid":false},
+  {"name":"future-iat-edge","iatOffset":30,"expOffset":90,"nbfOffset":null,"valid":true},
+  {"name":"future-iat-over","iatOffset":31,"expOffset":91,"nbfOffset":null,"valid":false},
+  {"name":"expired-edge","iatOffset":-90,"expOffset":-30,"nbfOffset":null,"valid":false},
+  {"name":"expired-before-edge","iatOffset":-89,"expOffset":-29,"nbfOffset":null,"valid":true},
+  {"name":"nbf-before-iat","iatOffset":0,"expOffset":60,"nbfOffset":-1,"valid":false},
+  {"name":"nbf-equals-iat","iatOffset":0,"expOffset":60,"nbfOffset":0,"valid":true},
+  {"name":"nbf-edge","iatOffset":0,"expOffset":60,"nbfOffset":30,"valid":true},
+  {"name":"nbf-over","iatOffset":0,"expOffset":60,"nbfOffset":31,"valid":false},
+  {"name":"nbf-equals-exp","iatOffset":0,"expOffset":60,"nbfOffset":60,"valid":false}
+]

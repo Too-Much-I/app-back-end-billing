@@ -1,0 +1,16 @@
+{
+  "revision": "recovery-r1",
+  "amendment": "scalar-end-1",
+  "supersedesSchemaSha256": "9f5bbf6d7b9a7429ba2cfba1eb41dcd4df317670b85bde3f4e4c351fa3561863",
+  "algorithm": "SHA-256",
+  "files": {
+    "errors.json": "2453dde9751b955be77a5b88de82751ada9adeb2449a9afeb4d86098df49c1d9",
+    "identity-indexes.json": "da3cc38f660ddc54df3b69864eda8504c5bf50dac3dbce73c883c6425c575a98",
+    "range-cases.json": "57972d7734345b038368ea6e122adbddd1fe2e6e7322743d24fadfb63b1bf4db",
+    "request-cases.json": "b0530f0902ae9051a5f932e9aff5eb5a0733775bda4aed0f60deb666bb3e38b8",
+    "response-cases.json": "07e81cdde4aca92c76c193af79442267c84f86b46c9e06fa02b83906e0664c6a",
+    "snapshot-state-cases.json": "3841d9401484e85b978550f33cc858f6605877be956bba0c8d176e9796eee947",
+    "wire.schema.json": "4602a059c8b05fbbee88175faac5d734e74040a8bfe1a9c4564f45f0544cd953",
+    "scalar-cases.json": "ad146b15daf6e7bb430c21ddb6707da18fbc6b8a7c23ef5d43584b14a94bf827"
+  }
+}

@@ -1,0 +1,201 @@
+{
+  "fixtureVersion": 1,
+  "synthetic": true,
+  "cases": [
+    {
+      "kind": "SEQUENCE",
+      "value": "0",
+      "accepted": false
+    },
+    {
+      "kind": "SEQUENCE",
+      "value": "1",
+      "accepted": true
+    },
+    {
+      "kind": "SEQUENCE",
+      "value": "9223372036854775807",
+      "accepted": true
+    },
+    {
+      "kind": "SEQUENCE",
+      "value": "9223372036854775808",
+      "accepted": false
+    },
+    {
+      "kind": "SEQUENCE",
+      "value": "-1",
+      "accepted": false
+    },
+    {
+      "kind": "SEQUENCE",
+      "value": "+1",
+      "accepted": false
+    },
+    {
+      "kind": "SEQUENCE",
+      "value": "01",
+      "accepted": false
+    },
+    {
+      "kind": "SEQUENCE",
+      "value": "1.0",
+      "accepted": false
+    },
+    {
+      "kind": "SEQUENCE",
+      "value": "1e2",
+      "accepted": false
+    },
+    {
+      "kind": "SEQUENCE",
+      "value": " 1",
+      "accepted": false
+    },
+    {
+      "kind": "SEQUENCE",
+      "value": 1,
+      "accepted": false
+    },
+    {
+      "kind": "SEQUENCE",
+      "value": null,
+      "accepted": false
+    },
+    {
+      "kind": "SEQUENCE",
+      "value": true,
+      "accepted": false
+    },
+    {
+      "kind": "COUNTER",
+      "value": "0",
+      "accepted": true
+    },
+    {
+      "kind": "COUNTER",
+      "value": "1",
+      "accepted": true
+    },
+    {
+      "kind": "COUNTER",
+      "value": "9223372036854775807",
+      "accepted": true
+    },
+    {
+      "kind": "COUNTER",
+      "value": "9223372036854775808",
+      "accepted": false
+    },
+    {
+      "kind": "COUNTER",
+      "value": "-1",
+      "accepted": false
+    },
+    {
+      "kind": "COUNTER",
+      "value": "+1",
+      "accepted": false
+    },
+    {
+      "kind": "COUNTER",
+      "value": "01",
+      "accepted": false
+    },
+    {
+      "kind": "COUNTER",
+      "value": "1.0",
+      "accepted": false
+    },
+    {
+      "kind": "COUNTER",
+      "value": "1e2",
+      "accepted": false
+    },
+    {
+      "kind": "COUNTER",
+      "value": " 1",
+      "accepted": false
+    },
+    {
+      "kind": "COUNTER",
+      "value": 1,
+      "accepted": false
+    },
+    {
+      "kind": "COUNTER",
+      "value": null,
+      "accepted": false
+    },
+    {
+      "kind": "COUNTER",
+      "value": true,
+      "accepted": false
+    },
+    {
+      "kind": "TIMESTAMP_PART",
+      "value": "0",
+      "accepted": true
+    },
+    {
+      "kind": "TIMESTAMP_PART",
+      "value": "1",
+      "accepted": true
+    },
+    {
+      "kind": "TIMESTAMP_PART",
+      "value": "4294967295",
+      "accepted": true
+    },
+    {
+      "kind": "TIMESTAMP_PART",
+      "value": "4294967296",
+      "accepted": false
+    },
+    {
+      "kind": "TIMESTAMP_PART",
+      "value": "-1",
+      "accepted": false
+    },
+    {
+      "kind": "TIMESTAMP_PART",
+      "value": "+1",
+      "accepted": false
+    },
+    {
+      "kind": "TIMESTAMP_PART",
+      "value": "01",
+      "accepted": false
+    },
+    {
+      "kind": "TIMESTAMP_PART",
+      "value": "1.0",
+      "accepted": false
+    },
+    {
+      "kind": "TIMESTAMP_PART",
+      "value": "1e2",
+      "accepted": false
+    },
+    {
+      "kind": "TIMESTAMP_PART",
+      "value": " 1",
+      "accepted": false
+    },
+    {
+      "kind": "TIMESTAMP_PART",
+      "value": 1,
+      "accepted": false
+    },
+    {
+      "kind": "TIMESTAMP_PART",
+      "value": null,
+      "accepted": false
+    },
+    {
+      "kind": "TIMESTAMP_PART",
+      "value": true,
+      "accepted": false
+    }
+  ]
+}

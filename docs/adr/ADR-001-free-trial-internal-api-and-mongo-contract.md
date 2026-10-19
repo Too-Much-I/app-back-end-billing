@@ -1,5 +1,7 @@
 # ADR-001: 무료 모의고사 내부 API와 MongoDB 계약
 
+> 2026-10-13 인증 목표 동기화: LC→Billing 여섯 POST의 Lattice/SigV4-only 인증 전제는 [ADR-002 §20](ADR-002-vpc-lattice-ecs-sigv4-and-environment-migration.md#20-lcbilling-workload-jwt-전환--2026-10-13-문서-동기화)와 A 확정 workload JWT 계약으로 대체한다. 이는 B 계획/문서 기준이며 코드/배포 완료가 아니다. 본 ADR의 DTO·업무 userId·멱등성·Transaction/원장·복구 규칙은 유지한다.
+
 - 상태: 승인된 제품 계약을 구현하기 위한 기술 기준
 - 작성일: 2026-08-26
 - 대상 릴리스: 결제 제외 `FREE_EXAM_ONCE` MVP
@@ -36,7 +38,7 @@
 | `subjectRefId` | Billing | lowercase UUID v4 | 삭제 가능한 user mapping과 immutable audit core 사이의 간접 참조 |
 | `eventId` | event producer | lowercase UUID v4 | at-least-once event 멱등성 |
 
-`userId`는 public client가 Billing에 보내는 값이 아니다. Billing은 Lattice에서 인증된 Learning Core route에서만 Learning Core가 JWT `sub`로 확정한 `userId`를 받는다. Identity event의 `userId`는 인증된 Identity route에서만 받는다. 다른 principal, public path, query parameter 또는 임의 identity header의 `userId`는 신뢰하지 않는다.
+`userId`는 public client가 Billing에 보내는 값이 아니다. Billing은 승인된 workload 인증을 통과한 Learning Core route에서만 Learning Core가 사용자 JWT `sub`로 확정한 `userId`를 받는다. 서비스 JWT sub는 `learning-core-service`이며 사용자 ID가 아니다. Identity event의 `userId`는 인증된 Identity route에서만 받는다. 다른 principal, public path, query parameter 또는 임의 identity header의 `userId`는 신뢰하지 않는다.
 
 모든 시각은 RFC 3339 UTC `Z`와 millisecond precision으로 주고받고 DB에는 BSON Date/`Instant`로 저장한다. JSON duplicate field, 숫자 coercion과 잘못된 UUID casing은 validation 단계에서 거절한다.
 
@@ -88,8 +90,10 @@ Idempotency-Key: 018f6f36-2f42-4bf5-8c17-0be35de4872c
 | 409 | `IDEMPOTENCY_KEY_CONFLICT` | 같은 command key를 다른 canonical payload에 재사용 | 아니오 |
 | 409 | `RESERVATION_STATE_CONFLICT` | confirm/cancel의 허용되지 않은 상태 전이 | 상태 조회 후 판단 |
 | 409 | `EVENT_ID_CONFLICT` | 같은 eventId의 canonical payload가 다름 | 아니오; 격리 |
+| 409 | `EVENT_TARGET_CONFLICT` | 존재하는 group/session/subject 관계가 event와 충돌 | 아니오; 격리·조사 |
 | 422 | `UNSUPPORTED_CONTRACT` | 알 수 없는 schema/event/enum version | 아니오; reader 배포 |
 | 429 | `RATE_LIMITED` | rate limit | 예 |
+| 503 | `ATTEMPT_PROJECTION_NOT_READY` | 정상 순서상 group/session projection이 아직 보이지 않음 | 예; `Retry-After: 5` |
 | 503 | `BILLING_TEMPORARILY_UNAVAILABLE` | DB/Transaction/의존 인프라 일시 장애 | 예 |
 
 409 processing, 429와 503은 정수 초 단위 `Retry-After` header를 준다. 오류에는 balance, candidate, keyVersion, reservation/payment identifier, provider 원문과 stack trace를 넣지 않는다.
@@ -342,10 +346,25 @@ POST /internal/v1/attempt-group-events
 허용 target은 `GRADING`, `COMPLETED`, `RETAKE_AVAILABLE`이다.
 
 - `COMPLETED`는 evidence boolean 세 개가 모두 true여야 한다.
-- `RETAKE_AVAILABLE`에는 evidence 대신 저 cardinality `failureCode`를 허용한다. exception message와 AI/provider 원문은 금지한다.
+- `RETAKE_AVAILABLE`에는 evidence 대신 `REQUIRED_RESULTS_UNAVAILABLE`, `SUMMARY_UNAVAILABLE`, `GRADING_DEADLINE_EXCEEDED`, `RESULT_INTEGRITY_VIOLATION` 중 하나의 `failureCode`만 허용한다. exception message, AI/provider 이름·code·원문과 자유 문자열은 금지한다.
 - Identity의 `bindingRevision`에 해당하는 sequence가 없는 at-least-once event이므로 eventId/digest뿐 아니라 현재 group 상태와 허용 transition을 함께 검사한다.
 - same eventId/same digest는 204 no-op, different digest는 409다.
 - abandoned/stale Session event는 현재 active session fencing에 실패하면 204 stale no-op로 기록한다.
+- event `sessionId`는 group `activeSessionId`, AttemptSession의 group·subject와 `ACTIVE` state를 모두 만족해야 한다. RETAKE_AVAILABLE에서 해당 Session을 FAILED terminal로 닫고 REPLACEMENT confirm이 새 Session을 ACTIVE로 만들기 전까지 이전 Session event는 stale다.
+- `OPEN→GRADING/COMPLETED/RETAKE_AVAILABLE`, `GRADING→COMPLETED/RETAKE_AVAILABLE`만 전진으로 허용한다. 동일 target은 no-op이고 COMPLETED 이후와 terminal Session의 역행 event는 stale다.
+- Learning Core는 같은 active Session에 COMPLETED와 RETAKE_AVAILABLE을 모두 생성하지 않는다. local terminal 결과와 outbox event는 같은 Mongo Transaction/CAS에 저장하고 Session당 terminal event 하나를 unique하게 강제한다.
+- 정상 생성 순서상 group/session projection이 아직 없으면 503 `ATTEMPT_PROJECTION_NOT_READY`와 `Retry-After: 5`, old/abandoned Session이면 204 stale, 존재하는 관계가 다르면 409 `EVENT_TARGET_CONFLICT`다. consumer는 missing target을 생성하거나 임의 연결하지 않는다.
+
+### 6.1 outbox delivery와 trace
+
+- Learning Core retryable PENDING outbox는 TTL로 삭제하지 않는다. network/408/425/429/5xx는 `5초→15초→1분→5분→15분` 뒤 최대 15분+jitter로 재시도한다.
+- 400/409/422는 DEAD_LETTER, 401/403은 publish 정지와 긴급 경보다. DELIVERED는 30일, DEAD_LETTER는 90일 보존하고 장기 PENDING을 경보한다.
+- retry와 수동 replay는 같은 eventId와 canonical payload를 유지한다. 새 eventId로 우회하거나 consumer state를 직접 수정하지 않는다.
+- 서비스 간 추적은 event JSON이 아닌 W3C `traceparent` header를 사용한다. Learning Core outbox는 `baggage` 없이 필요한 trace context만 보존해 publish span을 continue/link하고 Billing은 수신 trace를 잇는다.
+- AttemptGroup publish/consume 구조화 로그의 공통 field는 `service`, `operation`, `outcome`, `traceId`, `eventId`, `durationMs`다. `service`는 `learning-core`/`billing` allowlist, `operation`은 `attempt_group_outbox_publish`/`attempt_group_event_consume` 같은 고정값, `durationMs`는 monotonic clock으로 잰 해당 단계 처리 시간의 non-negative integer다.
+- Billing consume log에는 `eventAgeMs=max(0, consumeNow-occurredAt)`도 기록해 outbox 대기·network·retry를 포함한 전달 지연을 구분한다. 음수 원시 값은 0으로 정규화하되 clock-skew counter와 low-cardinality outcome으로 관측한다.
+- 플랫폼 log timestamp는 UTC로 유지한다. `durationMs`와 `eventAgeMs`는 log field와 histogram 값으로 사용할 수 있지만 metric label로 사용하지 않는다. `service`, `operation`, `outcome`만 승인된 low-cardinality label로 사용할 수 있다.
+- traceId/eventId는 metric label, canonical digest, idempotency key나 domain aggregate field가 아니다. userId, sessionId, attemptGroupId, candidate와 provider 원문은 일반 log/trace attribute에 기록하지 않는다.
 
 TrialClaim retention expiry로 subject link가 제거된 group은 더 이상 새 replacement authorization의 근거가 되지 않는다. 기존 Learning Core Session·결과는 삭제하지 않으며 늦은 terminal event는 익명 audit projection만 닫을 수 있다.
 
@@ -380,6 +399,10 @@ INITIAL confirm → OPEN → GRADING → COMPLETED
 
 ## 8. MongoDB collection 계약
 
+현재 greenfield Billing schema version은 `v3`다. `v2`의 `benefitType`·`grantType`
+field와 index가 존재하는 DB는 application startup에서 자동 변경하지 않고 별도 migration
+또는 비운영 DB 재생성 후 v3를 활성화한다.
+
 ### 8.1 `inbound_event_inbox`
 
 event payload 자체를 복제하지 않고 멱등성에 필요한 digest와 최소 metadata만 저장한다.
@@ -406,24 +429,36 @@ candidates[{keyVersion, value}], verifiedAt?, revokedAt?, updatedAt
 - verified event는 candidates 전체 교체다.
 - revoked는 candidates를 제거하지만 revision high-water tombstone을 유지한다.
 
-### 8.3 `trial_claims`
+### 8.3 `benefit_definitions`
 
 ```text
-trialClaimId, benefitType, subjectRefId?, sourceEventId?,
+_id=benefitCode, displayName, entitlementModel, unitType,
+defaultGrantUnits, policyVersion, active, createdAt
+```
+
+- 최초 seed는 `FREE_EXAM_ONCE`, `UNIT`, `EXAM_ATTEMPT`, 1 unit, policy v1, active다.
+- `_id`의 stable `benefitCode`만 Claim·alias·Grant authorization reference로 사용한다.
+- seed가 없으면 insert하고, 기존 document의 승인 policy가 다르면 덮어쓰지 않고 startup을 실패시킨다.
+- catalog seed는 user, candidate, TrialClaim 또는 Grant를 생성하지 않는다.
+
+### 8.4 `trial_claims`
+
+```text
+trialClaimId, benefitCode, subjectRefId?, sourceEventId?,
 claimedAt, retentionExpiresAt, state, anonymizedAt?
 ```
 
-- `benefitType`: v1에서 `FREE_EXAM_ONCE`
+- `benefitCode`: 현재 `FREE_EXAM_ONCE`
 - `state`: `ACTIVE`, `ANONYMIZED`
 - `claimedAt`과 `retentionExpiresAt`은 갱신하지 않는다.
 - anonymize 시 subject/source 연결을 unset하고 비식별 tombstone만 남긴다.
 
-### 8.4 `trial_candidate_aliases`
+### 8.5 `trial_candidate_aliases`
 
 한 Claim의 key rotation candidate마다 한 문서를 둔다.
 
 ```text
-aliasId, benefitType, keyVersion, candidate,
+aliasId, benefitCode, keyVersion, candidate,
 trialClaimId, active, createdAt, retentionExpiresAt
 ```
 
@@ -432,7 +467,7 @@ trialClaimId, active, createdAt, retentionExpiresAt
 - 한 binding의 candidate가 서로 다른 active Claim에 연결되면 security invariant 위반으로 fail-closed하고 경보한다.
 - expired alias가 아직 물리 삭제되지 않았으면 reserve Transaction이 먼저 `active=false`로 fencing한 뒤 새 Claim을 만들 수 있다.
 
-### 8.5 `billing_subject_links`
+### 8.6 `billing_subject_links`
 
 ```text
 subjectRefId, trialClaimId, consumerScopeId, userId,
@@ -441,19 +476,19 @@ active, createdAt, retentionExpiresAt
 
 ledger·Reservation·AttemptGroup은 가능한 한 `userId` 대신 `subjectRefId`를 참조한다. 3년 purge에서 이 mapping을 삭제하면 audit core는 유지하면서 개인 연결을 끊을 수 있다.
 
-### 8.6 `entitlement_grants`
+### 8.7 `entitlement_grants`
 
 ```text
-grantId, grantType, sourceType, sourceId,
+grantId, benefitCode, sourceType, sourceId,
 subjectRefId, totalUnits, availableUnits, heldUnits, consumedUnits,
 state, createdAt, updatedAt, version
 ```
 
-- 무료 MVP는 `grantType=FREE_EXAM_ONCE`, `totalUnits=1`이다.
+- 무료 MVP는 `benefitCode=FREE_EXAM_ONCE`, `totalUnits=1`이다.
 - mutable 수량은 projection이며 truth source는 ledger다.
 - 모든 수량은 음수가 아닌 정수이고 합은 `totalUnits`와 같아야 한다.
 
-### 8.7 `entitlement_ledger`
+### 8.8 `entitlement_ledger`
 
 ```text
 ledgerEventId, aggregateType, aggregateId, sequence,
@@ -467,7 +502,7 @@ occurredAt, metadataVersion
 - 민감 payload, candidate, userId와 provider 원문을 넣지 않는다.
 - subject link 삭제 뒤에는 subjectRefId가 개인으로 resolve되지 않아야 한다.
 
-### 8.8 `reservations`
+### 8.9 `reservations`
 
 ```text
 reservationId, callerService, subjectRefId, operationId,
@@ -481,7 +516,7 @@ createdAt, expiresAt, terminalAt?, version, activeGuard
 - `activeGuard=true`는 RESERVED에만 존재하고 terminal transition에서 unset한다.
 - audit 문서에 TTL index를 두지 않는다.
 
-### 8.9 `reservation_allocations`
+### 8.10 `reservation_allocations`
 
 ```text
 allocationId, reservationId, grantId, units,
@@ -492,7 +527,7 @@ status, createdAt, terminalAt?, version
 - cancel/expiry는 정확히 원래 grant로 복원한다.
 - REPLACEMENT Reservation은 allocation이 없다.
 
-### 8.10 `idempotency_commands`
+### 8.11 `idempotency_commands`
 
 ```text
 commandId, callerService, userId, operationId, commandType,
@@ -506,7 +541,7 @@ createdAt, terminalAt?, purgeAt?, active
 - PROCESSING에는 `purgeAt`을 두지 않는다.
 - response snapshot에는 candidate, balance와 provider 원문을 넣지 않는다.
 
-### 8.11 `attempt_groups`
+### 8.12 `attempt_groups`
 
 ```text
 attemptGroupId, subjectRefId, trialClaimId, consumptionLedgerEventId,
@@ -518,7 +553,7 @@ createdAt, updatedAt, completedAt?, version
 - non-terminal일 때만 `openGuard=true`이고 COMPLETED에서 unset한다.
 - Learning Core 학습 데이터를 복제하지 않는 entitlement authorization projection이다.
 
-### 8.12 `attempt_sessions`
+### 8.13 `attempt_sessions`
 
 ```text
 sessionId, attemptGroupId, subjectRefId, operationId,
@@ -540,14 +575,15 @@ index 이름을 명시적으로 고정하고 production에서 `spring.data.mongo
 | `inbound_event_inbox` | `{purgeAt: 1}` | TTL `expireAfterSeconds: 0` | `ttl_inbox_purge_at` |
 | `trial_eligibility` | `{consumerScopeId: 1, userId: 1}` | unique | `ux_trial_scope_user` |
 | `trial_eligibility` | `{consumerScopeId: 1, "candidates.keyVersion": 1}` | non-unique | `ix_trial_key_version` |
+| `benefit_definitions` | `{_id: 1}` | built-in unique | `_id_` |
 | `trial_claims` | `{retentionExpiresAt: 1, state: 1}` | non-unique | `ix_claim_retention_state` |
-| `trial_candidate_aliases` | `{benefitType: 1, keyVersion: 1, candidate: 1}` | unique partial `{active: true}` | `ux_active_trial_candidate` |
+| `trial_candidate_aliases` | `{benefitCode: 1, keyVersion: 1, candidate: 1}` | unique partial `{active: true}` | `ux_active_trial_candidate` |
 | `trial_candidate_aliases` | `{active: 1, retentionExpiresAt: 1}` | non-unique | `ix_alias_active_expiry` |
 | `trial_candidate_aliases` | `{trialClaimId: 1}` | non-unique | `ix_alias_claim` |
 | `billing_subject_links` | `{trialClaimId: 1}` | unique | `ux_subject_link_claim` |
 | `billing_subject_links` | `{userId: 1, active: 1}` | non-unique | `ix_subject_link_user_active` |
 | `billing_subject_links` | `{active: 1, retentionExpiresAt: 1}` | non-unique | `ix_subject_link_expiry` |
-| `entitlement_grants` | `{sourceType: 1, sourceId: 1, grantType: 1}` | unique | `ux_grant_source_type` |
+| `entitlement_grants` | `{sourceType: 1, sourceId: 1, benefitCode: 1}` | unique | `ux_grant_source_type` |
 | `entitlement_ledger` | `{dedupeKey: 1}` | unique | `ux_ledger_dedupe` |
 | `entitlement_ledger` | `{aggregateType: 1, aggregateId: 1, sequence: 1}` | unique | `ux_ledger_aggregate_sequence` |
 | `reservations` | `{subjectRefId: 1, operationId: 1}` | unique | `ux_reservation_subject_operation` |
@@ -581,7 +617,8 @@ MongoDB는 replica set과 Transaction을 필수로 사용한다. `TransientTrans
 1. idempotency command claim/payload hash 확인
 2. current verified binding과 revision 확인
 3. expired alias fencing 및 active alias 교집합 확인
-4. 필요한 경우 TrialClaim, subject link, 모든 candidate alias, free grant와 `GRANTED` ledger 생성
+4. FREE_EXAM_ONCE BenefitDefinition의 active·policy v1을 확인하고 필요한 경우 TrialClaim,
+   subject link, 모든 candidate alias, definition 기반 free grant와 `GRANTED` ledger 생성
 5. 기존 non-terminal AttemptGroup 판정
 6. INITIAL grant allocation hold 또는 REPLACEMENT authorization
 7. Reservation, proposed attempt session과 `RESERVED` ledger 생성

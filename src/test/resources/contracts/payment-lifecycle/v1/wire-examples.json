@@ -1,0 +1,45 @@
+{
+  "fixtureVersion": 1,
+  "synthetic": true,
+  "generationHeader": {"X-Consumer-Recovery-Generation":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"},
+  "snapshotManifest": {
+    "snapshotId":"55555555-5555-4555-8555-555555555555",
+    "streamId":"66666666-6666-4666-8666-666666666666",
+    "consumerRecoveryGeneration":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "T":{"seconds":"1791331200","increment":"1"},
+    "H":"100",
+    "itemCount":"4",
+    "pageCount":"2",
+    "contentDigest":"06947a9dc00d1b9a24cb5cfa7656ecfcb8dae0b2d98e9d9413ae71cd2428ec88",
+    "legacyCoverage":"UNKNOWN",
+    "knownGaps":[],
+    "expiresAt":"2026-10-14T00:00:00Z"
+  },
+  "baselineAck": {
+    "streamId":"66666666-6666-4666-8666-666666666666",
+    "mode":"BASELINE",
+    "throughSequence":"100",
+    "snapshotId":"55555555-5555-4555-8555-555555555555",
+    "contentDigest":"06947a9dc00d1b9a24cb5cfa7656ecfcb8dae0b2d98e9d9413ae71cd2428ec88",
+    "expectedCheckpointVersion":null
+  },
+  "feedFirstRequest": {
+    "streamId":"66666666-6666-4666-8666-666666666666",
+    "afterSequence":"100",
+    "scanCursor":null
+  },
+  "feedCompletedResponse": {
+    "items":[],
+    "scanCursor":"synthetic-opaque-not-a-valid-signed-cursor",
+    "targetThroughSequence":"100",
+    "nextAfterSequence":"100",
+    "scannedThrough":"100",
+    "done":true
+  },
+  "billingErrorExample": {
+    "code":"RECOVERY_GENERATION_MISMATCH",
+    "message":"The recovery generation does not match.",
+    "retryable":false,
+    "correlationId":"77777777-7777-4777-8777-777777777777"
+  }
+}

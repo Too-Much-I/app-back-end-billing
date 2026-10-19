@@ -1,0 +1,18 @@
+[
+  {"name":"normal","now":1000,"iat":1000,"exp":1060,"accepted":true},
+  {"name":"ttl-one","now":1000,"iat":1000,"exp":1001,"accepted":true},
+  {"name":"ttl-zero","now":1000,"iat":1000,"exp":1000,"accepted":false},
+  {"name":"ttl-over","now":1000,"iat":1000,"exp":1061,"accepted":false},
+  {"name":"future-boundary","now":1000,"iat":1030,"exp":1060,"accepted":true},
+  {"name":"future-over","now":1000,"iat":1031,"exp":1060,"accepted":false},
+  {"name":"expiry-before","now":1089,"iat":1000,"exp":1060,"accepted":true},
+  {"name":"expiry-boundary","now":1090,"iat":1000,"exp":1060,"accepted":false},
+  {"name":"nbf-boundary","now":1000,"iat":1000,"exp":1060,"nbf":1030,"accepted":true},
+  {"name":"nbf-future","now":1000,"iat":1000,"exp":1060,"nbf":1031,"accepted":false},
+  {"name":"nbf-before-iat","now":1000,"iat":1000,"exp":1060,"nbf":999,"accepted":false},
+  {"name":"nbf-equal-exp","now":1000,"iat":1000,"exp":1060,"nbf":1060,"accepted":false},
+  {"name":"nbf-null","now":1000,"iat":1000,"exp":1060,"nbf":null,"accepted":false},
+  {"name":"float","now":1000,"iat":1000.0,"exp":1060,"accepted":false},
+  {"name":"string","now":1000,"iat":"1000","exp":1060,"accepted":false},
+  {"name":"overflow","now":1000,"iat":9223372036854775808,"exp":1060,"accepted":false}
+]

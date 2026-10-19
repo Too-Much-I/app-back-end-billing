@@ -1,0 +1,107 @@
+[
+  {
+    "id": "V06-http-on",
+    "enabled": true,
+    "port": "workload",
+    "method": "POST",
+    "path": "/internal/v1/entitlements/access/events",
+    "authorization": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImZha2UtY3VycmVudCJ9.eyJpc3MiOiJ1cm46dG9zdW5zYWVuZzp3b3JrbG9hZDpiaWxsaW5nOnRlc3QiLCJzdWIiOiJiaWxsaW5nLXNlcnZpY2UiLCJhdWQiOiJ0b3N1bnNhZW5nLWxlYXJuaW5nLWNvcmU6ZW50aXRsZW1lbnQtYWNjZXNzLWV2ZW50czp0ZXN0IiwiaWF0IjoxNzkxOTM2MDAwLCJleHAiOjE3OTE5MzYwNjAsImp0aSI6IjAwMDAwMDA0LTExMTEtNDExMS04MTExLTExMTExMTExMTExMSJ9.B3CdUFoAEuk7Kr9twbjluGvaTPHF3J11pp1zWaHvqLuxts7FsoMk7xJC6qOdkrKNbaBSiA03XzR3rjQA39KEc2wU_VZifqJMlddLgVBgwAGoGUwBEKmQ0ZhEWKve02ZDmgnif5-2hL2wJqZOqC98UN7K7M4DKJT3Plw2LAfo2rdWqSV-eHRE1YpW6ZW42XmuPHPVrHLT8uEdtqqrPa7lqum10L-QQEOadGVsanR5oU_LOLD5RlKIamGO5dhSutBeiBEOebIlaetadrv6Y6soqfykQpFHLT1segh5LI1bpBUvYubHGMWEw91-afKzZzYzl2avDkwi7orFCLUOccwKOA",
+    "query": null,
+    "expectedStatus": 204
+  },
+  {
+    "id": "V06-bearer-0",
+    "enabled": true,
+    "port": "workload",
+    "method": "POST",
+    "path": "/internal/v1/entitlements/access/events",
+    "authorization": "bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImZha2UtY3VycmVudCJ9.eyJpc3MiOiJ1cm46dG9zdW5zYWVuZzp3b3JrbG9hZDpiaWxsaW5nOnRlc3QiLCJzdWIiOiJiaWxsaW5nLXNlcnZpY2UiLCJhdWQiOiJ0b3N1bnNhZW5nLWxlYXJuaW5nLWNvcmU6ZW50aXRsZW1lbnQtYWNjZXNzLWV2ZW50czp0ZXN0IiwiaWF0IjoxNzkxOTM2MDAwLCJleHAiOjE3OTE5MzYwNjAsImp0aSI6IjAwMDAwMDA0LTExMTEtNDExMS04MTExLTExMTExMTExMTExMSJ9.B3CdUFoAEuk7Kr9twbjluGvaTPHF3J11pp1zWaHvqLuxts7FsoMk7xJC6qOdkrKNbaBSiA03XzR3rjQA39KEc2wU_VZifqJMlddLgVBgwAGoGUwBEKmQ0ZhEWKve02ZDmgnif5-2hL2wJqZOqC98UN7K7M4DKJT3Plw2LAfo2rdWqSV-eHRE1YpW6ZW42XmuPHPVrHLT8uEdtqqrPa7lqum10L-QQEOadGVsanR5oU_LOLD5RlKIamGO5dhSutBeiBEOebIlaetadrv6Y6soqfykQpFHLT1segh5LI1bpBUvYubHGMWEw91-afKzZzYzl2avDkwi7orFCLUOccwKOA",
+    "query": null,
+    "expectedStatus": 401
+  },
+  {
+    "id": "V06-bearer-1",
+    "enabled": true,
+    "port": "workload",
+    "method": "POST",
+    "path": "/internal/v1/entitlements/access/events",
+    "authorization": "Bearer  eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImZha2UtY3VycmVudCJ9.eyJpc3MiOiJ1cm46dG9zdW5zYWVuZzp3b3JrbG9hZDpiaWxsaW5nOnRlc3QiLCJzdWIiOiJiaWxsaW5nLXNlcnZpY2UiLCJhdWQiOiJ0b3N1bnNhZW5nLWxlYXJuaW5nLWNvcmU6ZW50aXRsZW1lbnQtYWNjZXNzLWV2ZW50czp0ZXN0IiwiaWF0IjoxNzkxOTM2MDAwLCJleHAiOjE3OTE5MzYwNjAsImp0aSI6IjAwMDAwMDA0LTExMTEtNDExMS04MTExLTExMTExMTExMTExMSJ9.B3CdUFoAEuk7Kr9twbjluGvaTPHF3J11pp1zWaHvqLuxts7FsoMk7xJC6qOdkrKNbaBSiA03XzR3rjQA39KEc2wU_VZifqJMlddLgVBgwAGoGUwBEKmQ0ZhEWKve02ZDmgnif5-2hL2wJqZOqC98UN7K7M4DKJT3Plw2LAfo2rdWqSV-eHRE1YpW6ZW42XmuPHPVrHLT8uEdtqqrPa7lqum10L-QQEOadGVsanR5oU_LOLD5RlKIamGO5dhSutBeiBEOebIlaetadrv6Y6soqfykQpFHLT1segh5LI1bpBUvYubHGMWEw91-afKzZzYzl2avDkwi7orFCLUOccwKOA",
+    "query": null,
+    "expectedStatus": 401
+  },
+  {
+    "id": "V06-bearer-2",
+    "enabled": true,
+    "port": "workload",
+    "method": "POST",
+    "path": "/internal/v1/entitlements/access/events",
+    "authorization": " Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImZha2UtY3VycmVudCJ9.eyJpc3MiOiJ1cm46dG9zdW5zYWVuZzp3b3JrbG9hZDpiaWxsaW5nOnRlc3QiLCJzdWIiOiJiaWxsaW5nLXNlcnZpY2UiLCJhdWQiOiJ0b3N1bnNhZW5nLWxlYXJuaW5nLWNvcmU6ZW50aXRsZW1lbnQtYWNjZXNzLWV2ZW50czp0ZXN0IiwiaWF0IjoxNzkxOTM2MDAwLCJleHAiOjE3OTE5MzYwNjAsImp0aSI6IjAwMDAwMDA0LTExMTEtNDExMS04MTExLTExMTExMTExMTExMSJ9.B3CdUFoAEuk7Kr9twbjluGvaTPHF3J11pp1zWaHvqLuxts7FsoMk7xJC6qOdkrKNbaBSiA03XzR3rjQA39KEc2wU_VZifqJMlddLgVBgwAGoGUwBEKmQ0ZhEWKve02ZDmgnif5-2hL2wJqZOqC98UN7K7M4DKJT3Plw2LAfo2rdWqSV-eHRE1YpW6ZW42XmuPHPVrHLT8uEdtqqrPa7lqum10L-QQEOadGVsanR5oU_LOLD5RlKIamGO5dhSutBeiBEOebIlaetadrv6Y6soqfykQpFHLT1segh5LI1bpBUvYubHGMWEw91-afKzZzYzl2avDkwi7orFCLUOccwKOA",
+    "query": null,
+    "expectedStatus": 401
+  },
+  {
+    "id": "V06-bearer-3",
+    "enabled": true,
+    "port": "workload",
+    "method": "POST",
+    "path": "/internal/v1/entitlements/access/events",
+    "authorization": "Bearer\teyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImZha2UtY3VycmVudCJ9.eyJpc3MiOiJ1cm46dG9zdW5zYWVuZzp3b3JrbG9hZDpiaWxsaW5nOnRlc3QiLCJzdWIiOiJiaWxsaW5nLXNlcnZpY2UiLCJhdWQiOiJ0b3N1bnNhZW5nLWxlYXJuaW5nLWNvcmU6ZW50aXRsZW1lbnQtYWNjZXNzLWV2ZW50czp0ZXN0IiwiaWF0IjoxNzkxOTM2MDAwLCJleHAiOjE3OTE5MzYwNjAsImp0aSI6IjAwMDAwMDA0LTExMTEtNDExMS04MTExLTExMTExMTExMTExMSJ9.B3CdUFoAEuk7Kr9twbjluGvaTPHF3J11pp1zWaHvqLuxts7FsoMk7xJC6qOdkrKNbaBSiA03XzR3rjQA39KEc2wU_VZifqJMlddLgVBgwAGoGUwBEKmQ0ZhEWKve02ZDmgnif5-2hL2wJqZOqC98UN7K7M4DKJT3Plw2LAfo2rdWqSV-eHRE1YpW6ZW42XmuPHPVrHLT8uEdtqqrPa7lqum10L-QQEOadGVsanR5oU_LOLD5RlKIamGO5dhSutBeiBEOebIlaetadrv6Y6soqfykQpFHLT1segh5LI1bpBUvYubHGMWEw91-afKzZzYzl2avDkwi7orFCLUOccwKOA",
+    "query": null,
+    "expectedStatus": 401
+  },
+  {
+    "id": "V06-off-0",
+    "enabled": false,
+    "port": "workload",
+    "authorization": null,
+    "query": null,
+    "expectedStatus": 404
+  },
+  {
+    "id": "V06-off-1",
+    "enabled": false,
+    "port": "workload",
+    "authorization": null,
+    "query": "",
+    "expectedStatus": 404
+  },
+  {
+    "id": "V06-query-empty",
+    "enabled": true,
+    "port": "workload",
+    "method": "POST",
+    "path": "/internal/v1/entitlements/access/events",
+    "authorization": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImZha2UtY3VycmVudCJ9.eyJpc3MiOiJ1cm46dG9zdW5zYWVuZzp3b3JrbG9hZDpiaWxsaW5nOnRlc3QiLCJzdWIiOiJiaWxsaW5nLXNlcnZpY2UiLCJhdWQiOiJ0b3N1bnNhZW5nLWxlYXJuaW5nLWNvcmU6ZW50aXRsZW1lbnQtYWNjZXNzLWV2ZW50czp0ZXN0IiwiaWF0IjoxNzkxOTM2MDAwLCJleHAiOjE3OTE5MzYwNjAsImp0aSI6IjAwMDAwMDA0LTExMTEtNDExMS04MTExLTExMTExMTExMTExMSJ9.B3CdUFoAEuk7Kr9twbjluGvaTPHF3J11pp1zWaHvqLuxts7FsoMk7xJC6qOdkrKNbaBSiA03XzR3rjQA39KEc2wU_VZifqJMlddLgVBgwAGoGUwBEKmQ0ZhEWKve02ZDmgnif5-2hL2wJqZOqC98UN7K7M4DKJT3Plw2LAfo2rdWqSV-eHRE1YpW6ZW42XmuPHPVrHLT8uEdtqqrPa7lqum10L-QQEOadGVsanR5oU_LOLD5RlKIamGO5dhSutBeiBEOebIlaetadrv6Y6soqfykQpFHLT1segh5LI1bpBUvYubHGMWEw91-afKzZzYzl2avDkwi7orFCLUOccwKOA",
+    "query": "",
+    "expectedStatus": 401
+  },
+  {
+    "id": "V06-method",
+    "enabled": true,
+    "port": "workload",
+    "method": "GET",
+    "path": "/internal/v1/entitlements/access/events",
+    "authorization": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImZha2UtY3VycmVudCJ9.eyJpc3MiOiJ1cm46dG9zdW5zYWVuZzp3b3JrbG9hZDpiaWxsaW5nOnRlc3QiLCJzdWIiOiJiaWxsaW5nLXNlcnZpY2UiLCJhdWQiOiJ0b3N1bnNhZW5nLWxlYXJuaW5nLWNvcmU6ZW50aXRsZW1lbnQtYWNjZXNzLWV2ZW50czp0ZXN0IiwiaWF0IjoxNzkxOTM2MDAwLCJleHAiOjE3OTE5MzYwNjAsImp0aSI6IjAwMDAwMDA0LTExMTEtNDExMS04MTExLTExMTExMTExMTExMSJ9.B3CdUFoAEuk7Kr9twbjluGvaTPHF3J11pp1zWaHvqLuxts7FsoMk7xJC6qOdkrKNbaBSiA03XzR3rjQA39KEc2wU_VZifqJMlddLgVBgwAGoGUwBEKmQ0ZhEWKve02ZDmgnif5-2hL2wJqZOqC98UN7K7M4DKJT3Plw2LAfo2rdWqSV-eHRE1YpW6ZW42XmuPHPVrHLT8uEdtqqrPa7lqum10L-QQEOadGVsanR5oU_LOLD5RlKIamGO5dhSutBeiBEOebIlaetadrv6Y6soqfykQpFHLT1segh5LI1bpBUvYubHGMWEw91-afKzZzYzl2avDkwi7orFCLUOccwKOA",
+    "query": null,
+    "expectedStatus": 403
+  },
+  {
+    "id": "V06-wrong-port",
+    "enabled": true,
+    "port": "public",
+    "expectedStatus": 404
+  },
+  {
+    "id": "V06-no-listener",
+    "enabled": true,
+    "port": "unbound",
+    "expectedTransport": "CONNECTION_FAILURE"
+  },
+  {
+    "id": "V06-other-chain",
+    "enabled": true,
+    "port": "workload",
+    "path": "/internal/v1/identity/events",
+    "expectedDispatch": "NOT_OWNED_BY_REVOKE_CHAIN"
+  }
+]
