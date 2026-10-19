@@ -1,5 +1,7 @@
 # Billing Service 현재 상태
 
+- 2026-10-19 GitHub Actions 자동배포 준비: main→prod/develop→test workflow 추가, 현재 ECS 설정에서 image digest만 교체·테스트/build/smoke·stale 배포 거절·상태 확인 포함. GitHub 저장소 역할변수/Secret/environment 목록은 비어 있음. AWS_TEST_ROLE_ARN/AWS_PROD_ROLE_ARN의 Billing 전용 OIDC 권한 연결·최초 실행은 미완료로, main 반영/자동배포 완료가 아니다. YAML·6개 shell구문/Node8테스트 통과, 제품 코드 무변경. 운영 서버/DB/IAM 변경 없음.
+
 - 2026-10-19 develop 병합 요청: 사용자 승인으로 [PR31](https://github.com/Too-Much-I/app-back-end-billing/pull/31) 생성, base develop/head codex/billing-test-deployment 확인. 최초 head6447a80에서 MERGEABLE/CLEAN·CodeRabbit SUCCESS 확인, 기존 전체1,878개/도구15개 통과 유지. 이 기록은 병합 직전 문서이며 최종 merged 여부·SHA는 PR 기록을 따른다. 새 서버 배포·DB 변경은 제외한다.
 
 - 2026-10-19 배포 변경 Git/Jira 현행화: 사용자 이번 commit/push 승인으로 prod17 배포 후 미커밋 SANDBOX/sync/권리 보호·review 해결/schema 도구/운영 기록을 정리. 재컴파일 main480 class가 보관 배포JAR와 byte 일치, `./gradlew test --rerun-tasks` 성공(4m32s), 종결 도구15테스트 통과. Jira TMI-212/220/217/205=검토 중, TMI-204/221/137=진행 중으로 갱신·각 근거와 잔여 검증 댓글 등록. 운영 재배포/DB변경/PR병합은 이번 범위가 아니다.
