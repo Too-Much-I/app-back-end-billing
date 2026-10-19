@@ -7301,3 +7301,10 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - 후속 결과: 04:58:51 UTC Actions39199919048 attempt2 SUCCESS, test15 이미지/ECS/ALB/HTTPS401 검증 통과. PR33 MERGEABLE/CLEAN·deploy/CodeRabbit SUCCESS 확인 후 draft 해제·exact head0d7a131 일반 merge. 04:59:09 UTC main merge70dac8e 완료. 운영 자동배포 결과 확인 중이며 DB/schema/기능설정 변경 없음.
 - prod18 배포 후 Actions39202204049 마지막 상태검사가 즉시 실패. 별도 AWS에서 desired/running1·pending0·단일 COMPLETED, 예상 digest23fe350e...175d2e2 일치, 8083/8443 healthy와 이전 target draining 확인. prod17 대비 image/등록metadata 외 전체 task definition 동일, 로컬 HTTPS401. 실제 서비스 배포는 정상이며 workflow SUCCESS와 구분한다.
 - ECS stability waiter는 rolloutState COMPLETED 이전 반환 가능하므로 최종 검사 최대18회/10초 재확인 및 이미지 불일치 명시 오류 추가. 검사 조건/rollback 검출은 유지한다. YAML·전체 shell bash -n 및 모의 지연 성공/18회 timeout 각 통과. 제품/DB/기능스위치 변경 없으며 workflow 후속 배포 검증은 계속한다.
+
+## 2026-10-19 test/prod 자동배포 최종 완료
+
+- PR34 develop merge edbb558682487f277d65eac733310e3b48528c29. 테스트 실행39203646982는 05:31:35 UTC SUCCESS. 테스트 완료 전 PR35 승격은 안전검사에서 보류되어 우회하지 않고 성공을 기다렸다. 이후 PR35 main merge d8076de45886808b1678b4a6f227495b8da5e855 완료.
+- 운영 실행39205063261은 05:50:14 UTC SUCCESS. 양측 전체 test/bootJar, Python15·Node8, OIDC, workload image valid/wrong-db/wrong-cert smoke, 배포 및 최종 예상image/ECS/ALB/HTTPS401 검사가 모두 통과했다. 첫 운영 실행39202204049 실패 기록은 보존하며 재실행 성공으로 구분한다.
+- main에 최신 제품코드와 배포 workflow를 반영했고, 앞으로 develop push는 test, main push는 prod다. Secret/기능스위치/기존설정 유지, 자동 schema 이관 없음. Identity/LC 역할·서비스·데이터 무변경, 예상 밖 변경 없음. 기존 앱 구매/환불 E2E·별도 후속 항목은 자동배포 성공으로 완료 처리하지 않는다.
+- 변경파일 CURRENT_STATE/WORKLOG/github-actions-deployment.md는 결과문서만이므로 diff 확인 후 [skip ci] 커밋·PR로 develop/main에 정리한다. 이번 결과기록을 위한 추가 제품 테스트는 하지 않으며 위 실제 두 실행을 근거로 한다.

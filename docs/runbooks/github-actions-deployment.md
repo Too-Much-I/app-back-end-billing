@@ -1,5 +1,7 @@
 # Billing 브랜치별 자동 배포
 
+**2026-10-19 완료:** [test 자동배포](https://github.com/Too-Much-I/app-back-end-billing/actions/runs/39203646982), [prod 자동배포](https://github.com/Too-Much-I/app-back-end-billing/actions/runs/39205063261) 모두 SUCCESS. main에 최신 제품코드도 반영했다. 아래 첫 실행 실패/준비 기록은 이 결과 이전의 이력이다.
+
 - main push → tosunsaeng-billing-prod-service, develop push → tosunsaeng-billing-test-service. 수동 실행도 두 브랜치만 허용한다.
 - 테스트/bootJar/workload image smoke 후 현재 ECS task definition의 이미지만 digest로 교체한다. Secret 참조, 환경변수, 역할, 포트, health, 기능 스위치를 보존한다. schema 설치/DB 변경/기능 ON은 자동 실행하지 않는다.
 - ECR은 기존 prod도 사용하는 tosunsaeng-billing-test 저장소를 유지한다. 태그는 환경·commit·run·attempt 조합이며 latest를 사용하지 않는다.
@@ -28,6 +30,7 @@ Secret 원문 읽기·DB·IAM 변경·타 서비스 UpdateService는 필요하�
 - 재실행 attempt2는 04:58:51 UTC SUCCESS: test15 배포·digest 일치·ECS/ALB healthy·HTTPS 무인증401까지 통과했다. DB 변경 없이 기동 검사도 통과했다.
 - PR33을 04:59:09 UTC main에 일반 merge 완료(`70dac8efb26e1518b7dbc943f394f34a7e0883cf`). 이로써 main도 최신 배포 코드와 workflow를 포함하며 운영 자동배포 최종 결과는 후속 확인한다.
 - [첫 prod 실행](https://github.com/Too-Much-I/app-back-end-billing/actions/runs/39202204049)은 최종 즉시 상태검사 실패. 실제 prod18은 단일 COMPLETED/running1/pending0·예상 이미지 일치·8083/8443 healthy·HTTPS401, image 외 task설정 동일을 별도 확인했다. ECS waiter와 rolloutState 반영 시점 차이에 대응해 최종 검사에 최대180초 제한 재확인을 추가했다. 이미지 불일치/rollback은 여전히 실패한다. 후속 실행 결과는 별도 확인한다.
+- PR34 develop merge edbb558의 test 실행39203646982 최종 SUCCESS 후 PR35 main merge d8076de. prod 실행39205063261도 최종 SUCCESS(05:50:14 UTC). 최종 검사까지 자동 통과했으며 DB·기능스위치 변경 없이 완료했다.
 
 ## 다음 변경 시 사용법
 

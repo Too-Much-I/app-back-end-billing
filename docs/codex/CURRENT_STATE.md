@@ -1,5 +1,7 @@
 # Billing Service 현재 상태
 
+- 2026-10-19 브랜치별 자동배포 완료: PR34→develop edbb558, PR35→main d8076de 병합. [test39203646982](https://github.com/Too-Much-I/app-back-end-billing/actions/runs/39203646982) 및 [prod39205063261](https://github.com/Too-Much-I/app-back-end-billing/actions/runs/39205063261) 모두 SUCCESS. 양측 clean test/bootJar·Python15·Node8·이미지smoke·OIDC·ECS배포·digest/ALB/HTTPS401 검증 통과. main 최신 제품코드 포함, 이후 develop push=test/main push=prod. 첫 prod 즉시상태검사 실패는 제한재확인으로 보완 후 재실행 통과. DB/기능스위치/Identity/LC 무변경. 결과문서만 후속 [skip ci]로 정리하며 앱 E2E는 별도다.
+
 - 2026-10-19 prod18 실제 배포 정상: main Actions39202204049은 마지막 즉시 상태검사에서 실패했으나 별도 AWS 조회로 desired/running1·pending0·단일 COMPLETED·예상 digest 일치·8083/8443 healthy·이미지 외 task설정 동일·HTTPS401 확인. 첫 prod 실행은 SUCCESS로 기록하지 않는다. ECS waiter와 rolloutState 반영 지연 대응으로 최종 검사를 최대180초 재확인하도록 보완, YAML/모든 shell 문법 및 지연성공·타임아웃 모의검사 통과. 후속 자동배포 재검증 예정.
 
 - 2026-10-19 test 자동배포 SUCCESS: Actions39199919048 attempt2·test15·ECS/ALB healthy·HTTPS 무인증401 확인. PR33 main 병합70dac8e 완료, main도 최신 제품 코드/workflow 포함. 운영 자동배포 시작·결과 확인 중이며 prod 완료는 별도 기록한다. DB/기능설정 변경 없음.
