@@ -7276,3 +7276,10 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - Jira 원문/완료조건과 상태 전환 목록을 확인했다. TMI-212/220/217/205는 구현/운영 적용 근거와 남은 검증을 기록해 검토 중, TMI-204/221/137은 진행 중으로 갱신했다. 실제 E2E 미검증을 완료로 닫지 않았다. Rovo 통합 검색403 후 알려진 이슈 직접 API는 정상 동작했다.
 - 사용자 결정: 시험 삭제 검증은 앱 기능 제공 전으로 유예, 통합 RC budget 개발은 현재 후속에서 제외. 해당 문서와 Jira에 기록하고 기존 설정/서버별 제한 유지. 금융5년 연결정보 정리는 장기유예이며 관련 파일명의 TMI-212와 실제 RevenueCat 이슈 제목을 혼동하지 않는다.
 - 변경파일: 기존 배포 변경 전체와 CURRENT_STATE/WORKLOG, 삭제 검증 절차·RC budget 예외 문서. 타저장소 무변경. 이번 작업은 최근 Billing 범위 정리이며 전체 프로젝트 Jira 감사나 모든 이슈 완료를 뜻하지 않는다.
+
+## 2026-10-19 develop PR 병합 진행
+
+- 사용자 요청으로 원격 최신 fetch, clean 작업트리와 develop 대비 기존4commit 확인. [PR31](https://github.com/Too-Much-I/app-back-end-billing/pull/31)을 develop 대상으로 생성·이 채팅에 연결했다.
+- 최초 head6447a80에서 GitHub MERGEABLE/CLEAN 및 CodeRabbit SUCCESS 확인. GitHub workflow 파일 없음. 직전 전체1,878개/실패·오류·skip0 및 종결도구15개 통과, 이번 문서만 변경하여 전체 테스트 재실행 없음.
+- 로컬 merge-tree는 sandbox Git쓰기 제한으로 미실행이며 충돌 없음 판단은 GitHub 결과를 근거로 한다. 이 문서 commit 이후 최종 head와 검사 상태를 확인하여 일반 merge를 실행한다. admin 우회·force push·브랜치 삭제·서버 재배포·운영 DB 작업은 하지 않는다.
+- 변경파일 CURRENT_STATE/WORKLOG. API·인증·원장·보존 계약 불변. 최종 merged 시각/merge SHA는 PR 감사 기록과 최종 응답을 기준으로 한다. 미완료 E2E와 snapshot/feed 준비는 이번 병합으로 완료되지 않는다.

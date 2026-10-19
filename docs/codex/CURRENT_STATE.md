@@ -1,5 +1,7 @@
 # Billing Service 현재 상태
 
+- 2026-10-19 develop 병합 요청: 사용자 승인으로 [PR31](https://github.com/Too-Much-I/app-back-end-billing/pull/31) 생성, base develop/head codex/billing-test-deployment 확인. 최초 head6447a80에서 MERGEABLE/CLEAN·CodeRabbit SUCCESS 확인, 기존 전체1,878개/도구15개 통과 유지. 이 기록은 병합 직전 문서이며 최종 merged 여부·SHA는 PR 기록을 따른다. 새 서버 배포·DB 변경은 제외한다.
+
 - 2026-10-19 배포 변경 Git/Jira 현행화: 사용자 이번 commit/push 승인으로 prod17 배포 후 미커밋 SANDBOX/sync/권리 보호·review 해결/schema 도구/운영 기록을 정리. 재컴파일 main480 class가 보관 배포JAR와 byte 일치, `./gradlew test --rerun-tasks` 성공(4m32s), 종결 도구15테스트 통과. Jira TMI-212/220/217/205=검토 중, TMI-204/221/137=진행 중으로 갱신·각 근거와 잔여 검증 댓글 등록. 운영 재배포/DB변경/PR병합은 이번 범위가 아니다.
 - 2026-10-19 후속 범위 결정: 시험 삭제 E2E는 앱 기능 제공 전으로 유예(코드·설정 유지), 테스트/운영 통합 호출량 budget 개발은 현재 후속에서 제외(서버별 제한·429 재시도 유지). snapshot/feed 운영 준비·환불/자동삭제 실사례·신규review 자동해결 검증 및 금융5년 만료 연결정보 정리 장기 계획은 남는다.
 
