@@ -40,12 +40,26 @@ public final class RevenueCatReadClient {
         if (timeout.isNegative() || timeout.isZero() || timeout.compareTo(Duration.ofSeconds(5)) > 0)
             throw RevenueCatFailure.contract();
         RevenueCatPurchaseDecoder.owner(reference); if (cursor != null) RevenueCatPurchaseDecoder.text(cursor);
+        String requestedEnvironment = environment;
+        if (decoder.includesSandbox() && cursor != null && cursor.startsWith("S:")) {
+            requestedEnvironment = "sandbox";
+            cursor = cursor.substring(2);
+            if (cursor.isEmpty()) cursor = null;
+        } else if (decoder.includesSandbox() && cursor != null) {
+            if (!cursor.startsWith("P:")) throw RevenueCatFailure.contract();
+            cursor = cursor.substring(2); RevenueCatPurchaseDecoder.text(cursor);
+        }
         String path = customerPath(reference);
-        URI uri = URI.create("https://api.revenuecat.com" + path + "?environment=" + environment + "&limit=100"
+        URI uri = URI.create("https://api.revenuecat.com" + path + "?environment=" + requestedEnvironment + "&limit=100"
                 + (cursor == null ? "" : "&starting_after=" + encode(cursor)));
         var page = decoder.page(response(uri, timeout), reference);
-        String next = nextCursor(page.nextPage(), path);
+        String next = nextCursor(page.nextPage(), path, requestedEnvironment);
         if (next != null && next.equals(cursor)) throw RevenueCatFailure.contract();
+        if (decoder.includesSandbox()) {
+            next = next == null ? ("production".equals(requestedEnvironment) ? "S:" : null)
+                    : ("production".equals(requestedEnvironment) ? "P:" : "S:") + next;
+            if (next != null) RevenueCatPurchaseDecoder.text(next);
+        }
         return new Page(page.items(), next);
     }
     public RevenueCatPurchaseDecoder.Item purchase(String reference, String purchaseId) {
@@ -85,7 +99,7 @@ public final class RevenueCatReadClient {
         return headers.entrySet().stream().filter(e -> name.equalsIgnoreCase(e.getKey())).flatMap(e -> e.getValue().stream()).toList();
     }
     private String customerPath(String reference) { return "/v2/projects/" + encode(project) + "/customers/" + encode(reference) + "/purchases"; }
-    private String nextCursor(String next, String path) {
+    private String nextCursor(String next, String path, String requestedEnvironment) {
         if (next == null) return null;
         try {
             URI u = URI.create(next);
@@ -98,7 +112,7 @@ public final class RevenueCatReadClient {
                 String k = URLDecoder.decode(kv[0], StandardCharsets.UTF_8), v = URLDecoder.decode(kv[1], StandardCharsets.UTF_8);
                 if (!Set.of("starting_after", "environment", "limit").contains(k) || params.put(k, v) != null) throw RevenueCatFailure.contract();
             }
-            if (params.containsKey("environment") && !environment.equals(params.get("environment"))
+            if (params.containsKey("environment") && !requestedEnvironment.equals(params.get("environment"))
                     || params.containsKey("limit") && !"100".equals(params.get("limit"))) throw RevenueCatFailure.contract();
             String cursor = params.get("starting_after"); RevenueCatPurchaseDecoder.text(cursor); return cursor;
         } catch (RuntimeException invalid) { throw RevenueCatFailure.contract(); }

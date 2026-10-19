@@ -21,12 +21,15 @@ public class PaymentSyncService {
     private final Map<PurchaseObservation.Store, String> apps;
     private final PurchaseLookupKey lookup;
     private final Clock clock;
+    private final StoreEnvironmentPolicy environments;
     public PaymentSyncService(PaymentStore store, PaymentProperties p, Clock clock,
                               PurchaseLookupKey lookup, Map<PurchaseObservation.Store, String> apps) {
         require(p.getRecovery().isFenceRequired() && Set.of("SANDBOX", "PRODUCTION").contains(p.getEnvironment()));
         this.store = store; fence = new PaymentRecoveryFence(store, p); environment = p.getEnvironment();
         this.clock = clock; this.lookup = lookup; this.apps = Map.copyOf(apps); require(!apps.isEmpty());
+        environments = new StoreEnvironmentPolicy(environment, p.isSandboxPurchasesEnabled());
         PurchaseCoreSchema.verify(store.database()); PaymentSyncSchema.verify(store.database());
+        if (environments.sandboxPurchasesEnabled()) PaymentSyncSchema.verifyMixed(store.database());
         for (String name : List.of("purchases", PaymentSyncSchema.COLLECTION))
             require(c(name).find(new Document("environment", environment).append("lookupKeyVersion", new Document("$ne", lookup.version()))).first() == null);
         for (String name : List.of("payment_provider_inbox", "payment_purchase_cases"))
@@ -60,6 +63,16 @@ public class PaymentSyncService {
             if (old != null) {
                 if (!digest.equals(old.getString("payloadDigest"))) throw new PaymentException(409, "IDEMPOTENCY_KEY_CONFLICT");
                 require(account.getString("_id").equals(old.getString("accountId")) && life.getString("_id").equals(old.getString("lifecycleId")));
+                // The same public request can enrich an unbound pre-activation hint; no source/payload is replaced.
+                if (environments.sandboxPurchasesEnabled() && "PENDING".equals(old.getString("state"))
+                        && old.getString("sourceObservationKey") == null && !old.containsKey("sandboxTransactionKey")) {
+                    update(s, old, new Document("sandboxTransactionKey", lookup.transaction("SANDBOX", request.store().name(), app, request.transactionId())));
+                    old = commands().find(s, key).first(); require(old != null);
+                }
+                if ("PENDING".equals(old.getString("state")) && old.getString("sourceObservationKey") == null
+                        && completeVerifiedPurchase(s, old)) {
+                    old = commands().find(s, key).first(); require(old != null);
+                }
                 authorized(authorizationDeadline);
                 return result(s, old);
             }
@@ -69,6 +82,8 @@ public class PaymentSyncService {
                     .append("state", "PENDING").append("counted", true).append("version", 1L).append("attempts", 0L)
                     .append("purchaseId", null).append("errorCode", null).append("sourceObservationKey", null)
                     .append("createdAt", Date.from(clock.instant())).append("updatedAt", Date.from(clock.instant()));
+            if (environments.sandboxPurchasesEnabled()) row.append("sandboxTransactionKey",
+                    lookup.transaction("SANDBOX", request.store().name(), app, request.transactionId()));
             Document purchase = purchase(s, row);
             if (purchase != null && !row.getString("accountId").equals(purchase.getString("accountId")))
                 throw new PaymentException(409, "PURCHASE_BINDING_CONFLICT");
@@ -156,18 +171,23 @@ public class PaymentSyncService {
             Document row = command(s, commandId);
             if ("APPLIED".equals(row.getString("state"))) { require(!row.getBoolean("counted")); return true; }
             require(row.getLong("version") == expectedVersion && "PENDING".equals(row.getString("state")) && row.getBoolean("counted"));
-            Document p = purchase(s, row);
-            if (p == null || !Objects.equals(p.getString("accountId"), row.getString("accountId"))
-                    || !"VERIFIED".equals(p.getString("purchaseState")) || !"READY".equals(p.getString("processingStatus"))) return false;
-            Document account = c("payment_accounts").find(s, new Document("_id", row.getString("accountId"))
-                    .append("environment", environment).append("userId", row.getString("userId"))).first();
-            require(account != null);
-            Document cases = new Document("environment", environment);
-            for (String field : List.of("store", "appId", "transactionKey")) cases.append("normalizedObservation." + field, row.get(field));
-            if (c("payment_purchase_cases").find(s, cases).limit(1).first() != null || !settled(s, p, row)) return false;
-            update(s, row, new Document("state", "APPLIED").append("counted", false).append("purchaseId", p.getString("_id")));
-            touch(s, row, -1); return true;
+            return completeVerifiedPurchase(s, row);
         });
+    }
+    private boolean completeVerifiedPurchase(ClientSession s, Document row) {
+        require("PENDING".equals(row.getString("state")) && row.getBoolean("counted"));
+        Document p = purchase(s, row);
+        if (p == null || !Objects.equals(p.getString("accountId"), row.getString("accountId"))
+                || !"VERIFIED".equals(p.getString("purchaseState")) || !"READY".equals(p.getString("processingStatus"))) return false;
+        Document account = c("payment_accounts").find(s, new Document("_id", row.getString("accountId"))
+                .append("environment", environment).append("userId", row.getString("userId"))).first();
+        require(account != null);
+        Document cases = new Document("environment", environment);
+        for (String field : List.of("store", "appId")) cases.append("normalizedObservation." + field, row.get(field));
+        cases.append("normalizedObservation.transactionKey", SyncTransactionKeys.query(row));
+        if (c("payment_purchase_cases").find(s, cases).limit(1).first() != null || !settled(s, p, row)) return false;
+        update(s, row, new Document("state", "APPLIED").append("counted", false).append("purchaseId", p.getString("_id")));
+        touch(s, row, -1); return true;
     }
     public static Instant retryStartedAt(Document row) {
         Date date = row.getDate("retryStartedAt");
@@ -191,7 +211,7 @@ public class PaymentSyncService {
         require(lookup.version().equals(p.getString("lookupKeyVersion")));
         if (c("payment_purchase_cases").find(s, new Document("environment", environment)
                 .append("normalizedObservation.store", row.getString("store")).append("normalizedObservation.appId", row.getString("appId"))
-                .append("normalizedObservation.transactionKey", row.getString("transactionKey"))
+                .append("normalizedObservation.transactionKey", SyncTransactionKeys.query(row))
                 .append("normalizedObservation.kind", new Document("$in", List.of("REFUND", "REVOKE")))).first() != null) return false;
         if (Set.of("REFUNDED", "REVOKED").contains(p.getString("purchaseState"))) return "REVOKED".equals(p.getString("accessState"));
         if (!"VERIFIED".equals(p.getString("purchaseState")) || !"ALLOWED".equals(p.getString("accessState"))) return false;
@@ -211,11 +231,16 @@ public class PaymentSyncService {
         require(Objects.equals(row.getString("accountId"), source.getString("accountId"))
                 && Objects.equals(row.getString("lifecycleId"), source.getString("lifecycleId")));
         Document o = source.get("normalizedObservation", Document.class); require(o != null);
-        for (String k : List.of("environment", "store", "appId", "transactionKey", "lookupKeyVersion")) require(Objects.equals(row.get(k), o.get(k)));
+        require(environments.accepts(o.getString("environment")) && SyncTransactionKeys.matches(row, o.get("transactionKey")));
+        for (String k : List.of("store", "appId", "lookupKeyVersion")) require(Objects.equals(row.get(k), o.get(k)));
     }
     private Document purchase(ClientSession s, Document row) {
-        return c("purchases").find(s, new Document("environment", environment).append("store", row.getString("store"))
-                .append("appId", row.getString("appId")).append("transactionKey", row.getString("transactionKey"))).first();
+        Document query = new Document("environment", environment).append("store", row.getString("store"))
+                .append("appId", row.getString("appId")).append("transactionKey", SyncTransactionKeys.query(row));
+        if (row.getString("purchaseId") != null) query.append("_id", row.getString("purchaseId"));
+        var found = c("purchases").find(s, query).limit(2).into(new ArrayList<>());
+        if (found.size() > 1) throw new PaymentException(409, "PURCHASE_BINDING_CONFLICT");
+        return found.isEmpty() ? null : found.getFirst();
     }
     private Document command(ClientSession s, String id) {
         Document d = commands().find(s, new Document("_id", id).append("environment", environment)).first(); require(d != null); return d;

@@ -1,0 +1,42 @@
+{
+  "status": "APPLIED_PROD_9_COMPLETED_OPEN_V3",
+  "executionRecord": "billing-prod-business-activation-2026-10-18.md",
+  "observedTaskDefinition": "tosunsaeng-billing-prod:7",
+  "environmentOverridesAfterGates": {
+    "BILLING_PAID_EXAM_FOUNDATION_ENABLED": "true",
+    "BILLING_PAYMENT_PURCHASE_ACCOUNT_ENABLED": "true",
+    "BILLING_PAYMENT_MEMBER_EVIDENCE_ENABLED": "true",
+    "BILLING_PAID_EXAM_RECOVERY_ENABLED": "true",
+    "BILLING_ENTITLEMENT_QUERY_ENABLED": "true",
+    "BILLING_LEGACY_ATTRIBUTION_VERIFIED": "true",
+    "BILLING_PAYMENT_ENTITLEMENT_QUERY_ENABLED": "true",
+    "BILLING_ATTEMPT_GROUP_EVENTS_ENABLED": "true",
+    "BILLING_PAID_ADMISSION_ENABLED": "true",
+    "BILLING_OWNER_REBIND_ENABLED": "true",
+    "BILLING_RESERVATION_EXPIRY_ENABLED": "true",
+    "BILLING_EXAM_DELETION_ENABLED": "true"
+  },
+  "preserveFromLive": ["image", "roles", "secrets", "network", "ports", "health", "Identity receiver and withdrawal settings", "LC receiver and TLS settings"],
+  "barrierTransition": {
+    "observedFrom": "PURCHASE_BLOCKED",
+    "target": "OPEN",
+    "mustReRead": true,
+    "matchFields": ["_id", "environment", "consumer", "schemaVersion", "epoch", "version", "barrier"],
+    "preserveEpoch": true,
+    "incrementVersion": 1,
+    "executeApproved": true
+  },
+  "gates": [
+    "Identity purchase scope and withdrawal delivery readiness",
+    "Fresh Billing attribution inventory and exact schema verification",
+    "LC cutover remains separate; do not fabricate its seal, storage or delivery verification",
+    "Deletion route POST and source-IP allowlist approval",
+    "Business activation approved; real deletion 204 and LC ACKED verification is post-deployment"
+  ],
+  "additionalUserApprovedOverrides": {
+    "BILLING_PAYMENT_CATALOG_ENABLED": "true",
+    "BILLING_PAYMENT_SYNC_ENABLED": "true",
+    "BILLING_PAYMENT_PROVIDER_WORKER_ENABLED": "true"
+  },
+  "excludedActivation": ["provider ingress", "reconciliation", "refund processing and publisher", "cleanup and purge", "snapshot and feed"]
+}

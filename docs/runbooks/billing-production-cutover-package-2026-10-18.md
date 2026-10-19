@@ -22,6 +22,13 @@
 
 ## 2026-10-18 실제 주소·발신 대역 확인
 
+### LC 8444 적용 요청 후 선행조건 재점검
+
+- LC의 `LC_PROD_8444_RULE_PREPARATION_2026-10-18.md`를 읽고 AWS를 재조회했다. LC prod:8 running1/pending0, 서비스 TG/port mapping8080만,8444 TG targets=[]이며 priority78/79는 여전히 비어 있다. BILLING_CREATION_SAGA_ENABLED=false.
+- LC `AccessEventRolloutGate`는 receiver ON에서 `PaidExamTestActivation.requireReady()`를 요구한다. production 승인 및 paid/saga/signer/receiver/owner ON, production 환경·sealed legacy runtime·index가 모두 필요하다. port mapping/TG 추가만으로 connector가 열리지 않는다.
+- 전환 실행안에서 생성 제한 수단/시간·운영 검증 계정·최종 목록 봉인 및 writer 배출이 아직 확정되지 않았다. 이번 요청을 기존 시험 생성 중단·DB 봉인·복수 업무 기능 일괄ON 승인으로 확대하지 않았다.
+- 78 전달을 먼저 설치하면 빈/미기동8444로 전달된다. 따라서 이번에는79만 일부 설치하는 것도 포함해 모든 ALB/서비스/DB 변경을 보류했다. 다음은 LC 전환 선행조건을 확정하고 실제 접근 확대 직전에 exact 변경 승인을 받아 진행한다. 정상JWT/공동 검증 미실행.
+
 - 수신: `POST https://api-prod.to-teacher.com/internal/v1/entitlements/access/events`.
 - Billing origin 설정값: `BILLING_PAYMENT_REFUND_LEARNING_CORE_ORIGIN=https://api-prod.to-teacher.com` (경로는 publisher가 추가). 이번에는 설정 미변경.
 - LC→Billing 및 Billing→LC 공인 발신 CIDR: `13.124.57.130/32`. 공유 NAT라 IP만으로 서비스 신원을 구분하지 않는다. 전용 JWT 검증을 유지한다.

@@ -13,6 +13,9 @@ public class PaymentProperties {
     private boolean withdrawalEnabled;
     private boolean syncEnabled;
     private boolean entitlementQueryEnabled;
+    private boolean sandboxPurchasesEnabled;
+    private boolean reviewResolutionEnabled;
+
     private Recovery recovery = new Recovery();
     private Cleanup cleanup = new Cleanup();
     private Refund refund = new Refund();

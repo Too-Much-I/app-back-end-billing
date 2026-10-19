@@ -19,6 +19,21 @@ import web.tosunsaeng.billing.global.config.security.RevenueCatWebhookConfigurat
 import static org.assertj.core.api.Assertions.*;
 
 class RevenueCatWebhookTest {
+    @Test void productionMixedIngressKeepsActualEnvironmentAndDoesNotAcceptUnknownApps() {
+        var mixed = new RevenueCatWebhookDecoder("PRODUCTION", "fake-project",
+                Map.of("fake-app", new RevenueCatWebhookDecoder.App(PurchaseObservation.Store.PLAY_STORE, Set.of("PREMIUM_1D"))), lookup, CLOCK, true);
+        var sandbox = mixed.decode(body(event()));
+        var production = mixed.decode(body(event().put("environment", "PRODUCTION")));
+        assertThat(sandbox.environment()).isEqualTo("SANDBOX");
+        assertThat(sandbox.observation().environment()).isEqualTo("SANDBOX");
+        assertThat(sandbox.eventKey()).isNotEqualTo(production.eventKey());
+        assertThat(sandbox.observation().transactionKey()).isNotEqualTo(production.observation().transactionKey());
+        assertThat(mixed.decode(body(event().put("type", "CANCELLATION"))).environment()).isEqualTo("SANDBOX");
+        assertThatThrownBy(() -> mixed.decode(body(event().put("app_id", "unknown")))).isInstanceOf(PaymentException.class);
+        var strict = new RevenueCatWebhookDecoder("PRODUCTION", "fake-project",
+                Map.of("fake-app", new RevenueCatWebhookDecoder.App(PurchaseObservation.Store.PLAY_STORE, Set.of("PREMIUM_1D"))), lookup, CLOCK);
+        assertThatThrownBy(() -> strict.decode(body(event()))).isInstanceOf(PaymentException.class);
+    }
     static final Instant NOW = Instant.parse("2026-10-13T00:00:00Z");
     static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
     static final String AUTH = "Bearer fake-webhook-authorization", SECRET = "fake-webhook-signing-secret-32-bytes";
@@ -34,6 +49,24 @@ class RevenueCatWebhookTest {
                 .put("transaction_id", "fake-order").put("product_id", "PREMIUM_1D").put("quantity", 1).put("is_family_share", false)
                 .put("app_user_id", REF).put("original_app_user_id", REF).put("purchased_at_ms", NOW.minusSeconds(60).toEpochMilli())
                 .put("event_timestamp_ms", NOW.minusSeconds(20).toEpochMilli());
+    }
+    @Test void incompletePurchaseHasMatchingHintButNoGrantEvidence() {
+        var e = event(); e.remove("quantity"); e.putArray("aliases").add("$RCAnonymousID:fake");
+        var receipt = decoder.decode(body(e));
+        assertThat(receipt.reason()).isEqualTo("OWNER_UNRESOLVED");
+        assertThat(receipt.observation()).isNull();
+        assertThat(receipt.reviewCandidate()).isNotNull();
+        assertThat(receipt.reviewCandidate().transactionKey()).isEqualTo(lookup.transaction("SANDBOX", "PLAY_STORE", "fake-app", "fake-order"));
+        assertThat(receipt.reviewCandidate().body().toJson()).doesNotContain("fake-order", "$RCAnonymousID");
+    }
+    @Test void conflictingOwnerReversalAndUnsupportedQuantityNeverGetResolutionHints() {
+        var owner = event().put("original_app_user_id", "22222222-2222-4222-8222-222222222222");
+        assertThat(decoder.decode(body(owner)).reviewCandidate()).isNull();
+        assertThat(decoder.decode(body(event().put("type", "CANCELLATION"))).reviewCandidate()).isNull();
+        var quantity = event().put("quantity", 2); quantity.putArray("aliases").add("other");
+        assertThat(decoder.decode(body(quantity)).reviewCandidate()).isNull();
+        var family = event().put("is_family_share", true); family.remove("quantity");
+        assertThat(decoder.decode(body(family)).reviewCandidate()).isNull();
     }
     byte[] body(ObjectNode e) { return JSON.createObjectNode().put("api_version", "1.0").set("event", e).toString().getBytes(StandardCharsets.UTF_8); }
     static String sign(byte[] body, long time) throws Exception {
@@ -90,6 +123,15 @@ class RevenueCatWebhookTest {
     @ParameterizedTest @ValueSource(strings = {"app_user_id", "original_app_user_id", "quantity", "is_family_share", "purchased_at_ms", "event_timestamp_ms", "transaction_id", "environment", "app_id"})
     void missingEvidenceNeverGrants(String field) {
         var e = event(); e.remove(field); assertThat(decoder.decode(body(e)).disposition()).isEqualTo(WebhookReceipt.Disposition.REVIEW);
+    }
+    @Test void missingQuantityRequiresLookupButExplicitMultipleQuantityRemainsUnsupported() {
+        var missing = event(); missing.remove("quantity");
+        var receipt = decoder.decode(body(missing));
+        assertThat(receipt.reason()).isEqualTo("QUANTITY_REQUIRES_LOOKUP");
+        assertThat(receipt.observation()).isNull();
+        assertThat(receipt.disposition()).isEqualTo(WebhookReceipt.Disposition.REVIEW);
+        assertThat(decoder.decode(body(event().putNull("quantity"))).reason()).isEqualTo("QUANTITY_REQUIRES_LOOKUP");
+        assertThat(decoder.decode(body(event().put("quantity", 2))).reason()).isEqualTo("QUANTITY_UNSUPPORTED");
     }
     @Test void aliasesFamilyUnknownProductAndMoneyDoNotGrant() {
         List<ObjectNode> bad = List.of(event().put("original_app_user_id", "other"), event().put("quantity", 2), event().put("is_family_share", true),

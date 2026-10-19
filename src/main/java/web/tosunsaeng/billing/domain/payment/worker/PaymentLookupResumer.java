@@ -63,7 +63,8 @@ public final class PaymentLookupResumer {
                 if (lifecycleId == null) lifecycleId = command.getString("lifecycleId");
                 require(Objects.equals(lifecycleId, command.getString("lifecycleId")));
                 Document cases = new Document("environment", environment);
-                for (String field : List.of("store", "appId", "transactionKey")) cases.append("normalizedObservation." + field, command.get(field));
+                for (String field : List.of("store", "appId")) cases.append("normalizedObservation." + field, command.get(field));
+                cases.append("normalizedObservation.transactionKey", web.tosunsaeng.billing.domain.payment.sync.SyncTransactionKeys.query(command));
                 require(store.database().getCollection("payment_purchase_cases").find(s, cases).limit(1).first() == null);
                 long version = next(command, "version", 1), attempts = next(command, "attempts", 0);
                 if (apply) require(sync.updateOne(s, new Document("_id", command.get("_id")).append("version", item.getValue()), new Document("$set",

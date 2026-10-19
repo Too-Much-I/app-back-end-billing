@@ -65,7 +65,7 @@ public class RevenueCatWebhookConfiguration {
             apps.put(id, new RevenueCatWebhookDecoder.App(app.getStore(), app.getProducts()));
         });
         var auth = new RevenueCatWebhookAuthentication(p.getAuthorization(), p.getSigningSecret(), clock);
-        var decoder = new RevenueCatWebhookDecoder(payments.getEnvironment(), p.getProject(), apps, lookup, clock);
+        var decoder = new RevenueCatWebhookDecoder(payments.getEnvironment(), p.getProject(), apps, lookup, clock, payments.isSandboxPurchasesEnabled());
         var core = new PurchaseCore(store, payments, clock, coreApps, lookup.version());
         return new RevenueCatWebhookFilter(auth, decoder, core::receiveWebhook);
     }

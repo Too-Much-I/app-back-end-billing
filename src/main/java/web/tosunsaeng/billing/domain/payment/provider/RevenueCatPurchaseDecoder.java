@@ -17,6 +17,7 @@ public final class RevenueCatPurchaseDecoder {
     private final PurchaseLookupKey lookup;
     private final Map<String, Product> products;
     private final Clock clock;
+    private final StoreEnvironmentPolicy environments;
     public record Product(String appId, PurchaseObservation.Store store, String storeProductId) {
         public Product { text(appId); text(storeProductId); Objects.requireNonNull(store); }
     }
@@ -28,9 +29,14 @@ public final class RevenueCatPurchaseDecoder {
         @Override public String toString() { return "RevenueCatPage[REDACTED]"; }
     }
     public RevenueCatPurchaseDecoder(String project, String environment, PurchaseLookupKey lookup, Map<String, Product> products, Clock clock) {
+        this(project, environment, lookup, products, clock, false);
+    }
+    public RevenueCatPurchaseDecoder(String project, String environment, PurchaseLookupKey lookup, Map<String, Product> products, Clock clock,
+                                     boolean sandboxPurchasesEnabled) {
         text(project); if (!Set.of("SANDBOX", "PRODUCTION").contains(environment)) throw RevenueCatFailure.contract();
         this.project = project; this.environment = environment; this.lookup = Objects.requireNonNull(lookup);
         this.products = Map.copyOf(products); this.products.keySet().forEach(RevenueCatPurchaseDecoder::text); this.clock = Objects.requireNonNull(clock);
+        environments = new StoreEnvironmentPolicy(environment, sandboxPurchasesEnabled);
     }
     public Page page(byte[] bytes, String ownerRef) {
         owner(ownerRef); JsonNode root = json(bytes);
@@ -44,6 +50,7 @@ public final class RevenueCatPurchaseDecoder {
         return new Page(items, next);
     }
     boolean matches(String project, String environment) { return this.project.equals(project) && this.environment.equals(environment); }
+    boolean includesSandbox() { return environments.sandboxPurchasesEnabled(); }
     public Item purchase(byte[] bytes, String ownerRef) { owner(ownerRef); return item(json(bytes), ownerRef); }
     private Item item(JsonNode row, String ownerRef) {
         if (!row.isObject() || !"purchase".equals(string(row, "object"))) throw RevenueCatFailure.contract();
@@ -53,7 +60,8 @@ public final class RevenueCatPurchaseDecoder {
         long quantity = integer(row, "quantity"), millis = integer(row, "purchased_at");
         if (millis < 0) throw RevenueCatFailure.contract();
         Instant purchased = Instant.ofEpochMilli(millis);
-        if (!environment.toLowerCase(Locale.ROOT).equals(env)) return review(id, "ENVIRONMENT_MISMATCH");
+        String storeEnvironment = switch (env) { case "production" -> "PRODUCTION"; case "sandbox" -> "SANDBOX"; default -> ""; };
+        if (!environments.accepts(storeEnvironment)) return review(id, "ENVIRONMENT_MISMATCH");
         if (!ownerRef.equals(customer) || !ownerRef.equals(original)) return review(id, "OWNER_UNRESOLVED");
         if (!"purchased".equals(ownership)) return review(id, "OWNERSHIP_UNSUPPORTED");
         if (quantity != 1) return review(id, "QUANTITY_UNSUPPORTED");
@@ -68,11 +76,11 @@ public final class RevenueCatPurchaseDecoder {
         };
         if (kind == null) return review(id, "STATUS_UNSUPPORTED");
         // API revenue_in_usd is not original store paid currency; leave money unknown.
-        String tx = lookup.transaction(environment, p.store().name(), p.appId(), storeId);
-        String facts = fingerprint(List.of("api-purchase-r1", environment, p.store().name(), p.appId(), tx, customer, original,
+        String tx = lookup.transaction(storeEnvironment, p.store().name(), p.appId(), storeId);
+        String facts = fingerprint(List.of("api-purchase-r1", storeEnvironment, p.store().name(), p.appId(), tx, customer, original,
                 productId, p.storeProductId(), Long.toString(millis), "1", ownership, status));
-        return new Item(id, new PurchaseObservation(environment, p.store(), p.appId(), tx, lookup.version(),
-                lookup.apiObservation(environment, project, id, facts), kind, ownerRef, p.storeProductId(), purchased, null), null);
+        return new Item(id, new PurchaseObservation(storeEnvironment, p.store(), p.appId(), tx, lookup.version(),
+                lookup.apiObservation(storeEnvironment, project, id, facts), kind, ownerRef, p.storeProductId(), purchased, null), null);
     }
     private static Item review(String id, String reason) { return new Item(id, null, reason); }
     private JsonNode json(byte[] bytes) {

@@ -27,6 +27,100 @@ import static org.assertj.core.api.Assertions.*;
 
 @Testcontainers(disabledWithoutDocker = false)
 class PaymentSyncIntegrationTest {
+    // Re-scope this disposable, purchase-empty fixture only; production migration never rewrites account scopes.
+    void mixedProduction() {
+        barrier("ALL_BLOCKED");
+        RefundCoreSchema.upgradeUnderMaintenance(db, true);
+        assertThatThrownBy(() -> MixedStorePurchaseSchema.upgradeUnderMaintenance(db, false)).isInstanceOf(IllegalStateException.class);
+        MixedStorePurchaseSchema.upgradeUnderMaintenance(db, true);
+        PaymentSyncSchema.upgradeMixedUnderMaintenance(db, true);
+        MixedStorePurchaseSchema.upgradeUnderMaintenance(db, true);
+        PaymentSyncSchema.upgradeMixedUnderMaintenance(db, true);
+        for (String collection : List.of(PaymentRecoveryFence.COLLECTION, "payment_accounts", "payment_account_lifecycles",
+                "purchase_account_refs", "payment_products", "payment_reconcile_cursors"))
+            db.getCollection(collection).updateMany(new Document("environment", "SANDBOX"), new Document("$set", new Document("environment", "PRODUCTION")));
+        props.setEnvironment("PRODUCTION"); props.setSandboxPurchasesEnabled(true);
+        props.getRefund().setProcessingEnabled(true);
+        barrier("OPEN");
+        core = new PurchaseCore(store, props, Clock.fixed(NOW, ZoneOffset.UTC), Map.of(PurchaseObservation.Store.PLAY_STORE, "fake.app"), lookup.version());
+        sync = new PaymentSyncService(store, props, Clock.fixed(NOW, ZoneOffset.UTC), lookup, Map.of(PurchaseObservation.Store.PLAY_STORE, "fake.app"));
+        var factory = new SimpleMongoClientDatabaseFactory(client, db.getName());
+        reader = new PaidEntitlementReader(new MongoTemplate(factory), props); snapshots = new EntitlementSnapshotExecutor(factory);
+    }
+    PurchaseObservation mixedObservation(String env, String event, String tx, boolean refund) {
+        return new PurchaseObservation(env, PurchaseObservation.Store.PLAY_STORE, "fake.app",
+                lookup.transaction(env, "PLAY_STORE", "fake.app", tx), lookup.version(), lookup.event(env, "fake-project", event),
+                refund ? PurchaseObservation.Kind.REFUND : PurchaseObservation.Kind.PURCHASE, ref, PaymentOffer.PREMIUM_1D.name(), NOW,
+                new PurchaseObservation.Money(java.math.BigDecimal.valueOf(100), "KRW"),
+                refund ? new RefundEvidence(RefundEvidence.Source.REVENUECAT_API, "a".repeat(64), NOW, java.math.BigDecimal.valueOf(100), "KRW") : null);
+    }
+    void receiveApply(PurchaseObservation observation) {
+        core.receive(observation); assertThat(core.apply(observation.providerEventKey())).isEqualTo(PurchaseCore.Outcome.APPLIED);
+    }
+    @Test void mixedStorePurchasesShareTimelineButRefundAndDuplicateStayPurchaseScoped() {
+        mixedProduction();
+        var real = mixedObservation("PRODUCTION", "same-event", "same-id", false);
+        var sandbox = mixedObservation("SANDBOX", "same-event", "same-id", false);
+        receiveApply(real); receiveApply(sandbox); receiveApply(sandbox);
+        assertThat(db.getCollection("purchases").countDocuments()).isEqualTo(2);
+        assertThat(db.getCollection("payment_timelines").countDocuments()).isEqualTo(1);
+        assertThat(first("payment_timelines").getDate("timelineEnd").toInstant()).isEqualTo(NOW.plus(Duration.ofDays(2)));
+        assertThat(read(NOW).continuousAccessEndsAt()).isEqualTo(NOW.plus(Duration.ofDays(2)));
+        var testPurchase = db.getCollection("purchases").find(new Document("storeEnvironment", "SANDBOX")).first();
+        assertThat(testPurchase.getString("environment")).isEqualTo("PRODUCTION");
+        receiveApply(mixedObservation("SANDBOX", "refund-test", "same-id", true));
+        assertThat(db.getCollection("purchases").find(new Document("transactionKey", real.transactionKey())).first().getString("accessState")).isEqualTo("ALLOWED");
+        assertThat(db.getCollection("purchases").find(new Document("transactionKey", sandbox.transactionKey())).first().getString("accessState")).isEqualTo("REVOKED");
+        assertThat(first("payment_timelines").getDate("timelineEnd").toInstant()).isEqualTo(NOW.plus(Duration.ofDays(1)));
+        assertThat(read(NOW).active()).isTrue();
+        assertThat(read(NOW).continuousAccessEndsAt()).isEqualTo(NOW.plus(Duration.ofDays(1)));
+    }
+    @Test void mixedSandboxSourceCompletesProductionSyncWithoutChangingPublicHint() {
+        mixedProduction(); var request = request("sandbox-order");
+        assertThat(submit(request).status()).isEqualTo(PaymentSyncResult.Status.PENDING);
+        var observation = mixedObservation("SANDBOX", "sandbox-source", "sandbox-order", false);
+        core.receive(observation);
+        var worker = new PaymentSourceWorker(store, props, core, sync, Clock.fixed(NOW, ZoneOffset.UTC), () -> 0.0);
+        assertThat(worker.tick(10).failed()).isZero();
+        assertThat(submit(request).status()).isEqualTo(PaymentSyncResult.Status.APPLIED);
+        assertThat(pending()).isZero();
+        assertThat(db.getCollection("purchases").countDocuments()).isEqualTo(1);
+    }
+    @Test void mixedSyncDoesNotGuessWhenSameStoreIdExistsInBothEnvironments() {
+        mixedProduction();
+        receiveApply(mixedObservation("PRODUCTION", "real", "collision", false));
+        receiveApply(mixedObservation("SANDBOX", "test", "collision", false));
+        assertThatThrownBy(() -> submit(request("collision"))).isInstanceOfSatisfying(PaymentException.class,
+                e -> assertThat(e.code()).isEqualTo("PURCHASE_BINDING_CONFLICT"));
+        assertThat(db.getCollection("purchases").countDocuments()).isEqualTo(2);
+        assertThat(pending()).isZero();
+    }
+    @Test void revokedHistoricalSlotDoesNotBreakRemainingEntitlementReaderInSingleEnvironment() {
+        barrier("ALL_BLOCKED"); RefundCoreSchema.upgradeUnderMaintenance(db, true); barrier("OPEN");
+        props.getRefund().setProcessingEnabled(true);
+        core = new PurchaseCore(store, props, Clock.fixed(NOW, ZoneOffset.UTC), Map.of(PurchaseObservation.Store.PLAY_STORE, "fake.app"), lookup.version());
+        receiveApply(mixedObservation("SANDBOX", "first", "first", false));
+        receiveApply(mixedObservation("SANDBOX", "second", "second", false));
+        receiveApply(mixedObservation("SANDBOX", "refund", "second", true));
+        assertThat(read(NOW).active()).isTrue();
+        assertThat(read(NOW).continuousAccessEndsAt()).isEqualTo(NOW.plus(Duration.ofDays(1)));
+    }
+    @Test void mixedActivationReplayEnrichesOnlyUnboundHintAndKeepsOriginalRequest() {
+        mixedProduction(); props.setSandboxPurchasesEnabled(false);
+        sync = new PaymentSyncService(store, props, Clock.fixed(NOW, ZoneOffset.UTC), lookup, Map.of(PurchaseObservation.Store.PLAY_STORE, "fake.app"));
+        var request = request("legacy-pending"); submit(request); var original = first(PaymentSyncSchema.COLLECTION);
+        assertThat(original).doesNotContainKey("sandboxTransactionKey");
+        props.setSandboxPurchasesEnabled(true);
+        sync = new PaymentSyncService(store, props, Clock.fixed(NOW, ZoneOffset.UTC), lookup, Map.of(PurchaseObservation.Store.PLAY_STORE, "fake.app"));
+        submit(request); var current = first(PaymentSyncSchema.COLLECTION);
+        assertThat(current.get("payloadDigest")).isEqualTo(original.get("payloadDigest"));
+        assertThat(current.get("createdAt")).isEqualTo(original.get("createdAt"));
+        assertThat(current.get("attempts")).isEqualTo(original.get("attempts"));
+        assertThat(pending()).isEqualTo(1);
+        core.receive(mixedObservation("SANDBOX", "legacy-verified", "legacy-pending", false));
+        assertThat(worker(Clock.fixed(NOW, ZoneOffset.UTC)).tick(10).failed()).isZero();
+        assertThat(submit(request).status()).isEqualTo(PaymentSyncResult.Status.APPLIED);
+    }
     @Container static final MongoDBContainer MONGO = new MongoDBContainer(DockerImageName.parse("mongo:7.0.14"))
             .withCommand("--replSet", "docker-rs", "--bind_ip_all");
     static final Instant NOW = Instant.parse("2026-10-13T00:00:00Z");
@@ -82,9 +176,9 @@ class PaymentSyncIntegrationTest {
     PaymentSourceWorker worker(Clock clock) { return new PaymentSourceWorker(store, props, core, sync, clock, () -> 0.5); }
     PaymentAccountLookupWork lookupWork(Clock clock) { return new PaymentAccountLookupWork(store, props, clock, "fake-project", lookup, new PurchaseReferenceCipher("test-key", new byte[32])); }
     PaymentAccountLookupWorker lookupWorker(Clock clock, RevenueCatReadClient.Transport transport) {
-        var decoder = new RevenueCatPurchaseDecoder("fake-project", "SANDBOX", lookup, Map.of("rc-day",
-                new RevenueCatPurchaseDecoder.Product("fake.app", PurchaseObservation.Store.PLAY_STORE, "PREMIUM_1D")), clock);
-        var reader = new RevenueCatReadClient("fake-project", "SANDBOX", "fake-secret",
+        var decoder = new RevenueCatPurchaseDecoder("fake-project", props.getEnvironment(), lookup, Map.of("rc-day",
+                new RevenueCatPurchaseDecoder.Product("fake.app", PurchaseObservation.Store.PLAY_STORE, "PREMIUM_1D")), clock, props.isSandboxPurchasesEnabled());
+        var reader = new RevenueCatReadClient("fake-project", props.getEnvironment(), "fake-secret",
                 new RevenueCatBudgetedTransport(new RevenueCatProjectBudget(store, "fake-project", clock), transport), decoder, clock);
         return new PaymentAccountLookupWorker(store, props, clock, "fake-project", lookup, new PurchaseReferenceCipher("test-key", new byte[32]), core, sync, reader, () -> 0);
     }
@@ -106,6 +200,19 @@ class PaymentSyncIntegrationTest {
         assertThat(calls.get()).isEqualTo(1); assertThat(pending()).isZero();
         assertThat(db.getCollection("subscription_entitlements").countDocuments()).isEqualTo(2);
         assertThat(worker.tick(100).claimed()).isZero(); assertThat(calls.get()).isEqualTo(1);
+    }
+    @Test void mixedLookupUsesBothStorePagesAndRemembersSandboxReference() {
+        mixedProduction(); var request = request("test-order"); submit(request);
+        var clock = new WorkerClock(); var calls = new java.util.concurrent.atomic.AtomicInteger();
+        var worker = lookupWorker(clock, (uri, key) -> {
+            calls.incrementAndGet();
+            return page(uri.getQuery().contains("environment=sandbox") ? List.of(apiPurchase("test-order")) : List.of(), null);
+        });
+        worker.tick(10); clock.now = NOW.plusSeconds(2); worker.tick(10);
+        assertThat(calls.get()).isEqualTo(2);
+        assertThat(submit(request).status()).isEqualTo(PaymentSyncResult.Status.APPLIED);
+        assertThat(pending()).isZero();
+        assertThat(db.getCollection("payment_purchase_references").countDocuments()).isEqualTo(1);
     }
     PaymentRetentionWorker retention(Clock clock, boolean delete) {
         var agedCore = new PurchaseCore(store, props, clock, Map.of(PurchaseObservation.Store.PLAY_STORE, "fake.app"), lookup.version());
@@ -1115,6 +1222,32 @@ class PaymentSyncIntegrationTest {
     @Test void existingVerifiedOwnPurchaseReturnsAppliedWithoutPending() {
         apply(purchase("event", "tx")); assertThat(submit(request("tx")).status()).isEqualTo(PaymentSyncResult.Status.APPLIED); assertThat(pending()).isZero();
     }
+    @Test void replaySettlesVerifiedPurchaseOnceWithoutWorkerOrAnotherGrant() throws Exception {
+        var r = request("tx"); submit(r); var before = first("payment_sync_commands");
+        apply(purchase("event", "tx"));
+        long ledgerCount = db.getCollection("payment_ledger").countDocuments();
+        assertThat(pending()).isOne();
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var a = pool.submit(() -> submit(r)); var b = pool.submit(() -> submit(r));
+            assertThat(a.get(10, TimeUnit.SECONDS).status()).isEqualTo(PaymentSyncResult.Status.APPLIED);
+            assertThat(b.get(10, TimeUnit.SECONDS).status()).isEqualTo(PaymentSyncResult.Status.APPLIED);
+        }
+        assertThat(pending()).isZero();
+        assertThat(first("payment_sync_commands").get("createdAt")).isEqualTo(before.get("createdAt"));
+        assertThat(first("payment_sync_commands").get("payloadDigest")).isEqualTo(before.get("payloadDigest"));
+        assertThat(db.getCollection("subscription_entitlements").countDocuments()).isOne();
+        assertThat(db.getCollection("payment_ledger").countDocuments()).isEqualTo(ledgerCount);
+    }
+    @Test void replayDoesNotBypassBoundReviewOrUnverifiedPurchase() {
+        var r = request("tx"); submit(r);
+        assertThat(submit(r).status()).isEqualTo(PaymentSyncResult.Status.PENDING);
+        var o = purchase("event", "tx"); core.receive(o);
+        var row = first("payment_sync_commands");
+        sync.bindObservation(row.getString("_id"), row.getLong("version"), o.providerEventKey(), sync.capture());
+        apply(o);
+        assertThat(submit(r).status()).isEqualTo(PaymentSyncResult.Status.PENDING);
+        assertThat(pending()).isOne();
+    }
     @Test void foreignPurchaseCannotBeClaimed() {
         apply(purchase("event", "tx")); String other = "22222222-2222-4222-8222-222222222222";
         new PaymentAccountService(store, props, Clock.fixed(NOW, ZoneOffset.UTC)).getOrCreate(other, NOW.plusSeconds(60));
@@ -1191,6 +1324,139 @@ class PaymentSyncIntegrationTest {
         assertThat(first("payment_purchase_cases")).isEqualTo(before);
         assertThat(db.getCollection("payment_provider_inbox").find(new Document("accountId", null)).into(new ArrayList<>())).isEqualTo(inbox);
         assertThat(db.getCollection("purchases").countDocuments()).isOne();
+    }
+    @ParameterizedTest @org.junit.jupiter.params.provider.ValueSource(strings = {"QUANTITY_UNSUPPORTED", "QUANTITY_REQUIRES_LOOKUP", "OWNER_UNRESOLVED", "OWNERSHIP_UNSUPPORTED"})
+    void unverifiedReviewPreservesExistingRightsButNeverGrantsOrDropsEvidence(String reason) {
+        core.receiveWebhook(new WebhookReceipt("SANDBOX", lookup.event("SANDBOX", "fake-project", "quantity"),
+                "a".repeat(64), lookup.version(), null, ref, WebhookReceipt.Disposition.REVIEW, reason));
+        var review = first("payment_purchase_cases");
+        assertThat(read(NOW).status()).isEqualTo(PaidQueryResponse.Status.PENDING);
+        assertThat(db.getCollection("purchases").countDocuments()).isZero();
+        apply(purchase("owned", "owned"));
+        assertThat(read(NOW).status()).isEqualTo(PaidQueryResponse.Status.READY);
+        assertThat(read(NOW).active()).isTrue();
+        assertThat(first("payment_purchase_cases")).isEqualTo(review);
+        assertThat(pending()).isOne();
+        assertThat(read(NOW.plusSeconds(86401)).status()).isEqualTo(PaidQueryResponse.Status.PENDING);
+        core.receive(observation("refund", "owned", PaymentOffer.PREMIUM_1D, PurchaseObservation.Kind.REFUND));
+        assertThat(read(NOW).status()).isEqualTo(PaidQueryResponse.Status.PENDING);
+    }
+    @Test void quantityLookupCaseUsesStrictRestEvidenceWithoutDroppingReview() {
+        core.receiveWebhook(new WebhookReceipt("SANDBOX", lookup.event("SANDBOX", "fake-project", "quantity"),
+                "a".repeat(64), lookup.version(), null, ref, WebhookReceipt.Disposition.REVIEW, "QUANTITY_REQUIRES_LOOKUP"));
+        var request = request("tx"); submit(request);
+        assertThat(read(NOW).status()).isEqualTo(PaidQueryResponse.Status.PENDING);
+        assertThat(lookupWorker(new WorkerClock(), (u, k) -> page(List.of(apiPurchase("tx")), null)).tick(10).failed()).isZero();
+        assertThat(submit(request).status()).isEqualTo(PaymentSyncResult.Status.APPLIED);
+        assertThat(read(NOW).active()).isTrue();
+        assertThat(db.getCollection("purchases").countDocuments()).isOne();
+        assertThat(db.getCollection("payment_purchase_cases").countDocuments()).isOne();
+        assertThat(pending()).isOne(); // Unknown webhook identity is not silently marked resolved.
+    }
+    @ParameterizedTest @org.junit.jupiter.params.provider.ValueSource(strings = {"EVENT_REQUIRES_LOOKUP", "IMMUTABLE_FACT_CONFLICT", "TRANSACTION_REVERSAL_UNRESOLVED"})
+    void otherAccountReviewsContinueToBlock(String reason) {
+        apply(purchase("owned", "owned"));
+        core.receiveWebhook(new WebhookReceipt("SANDBOX", lookup.event("SANDBOX", "fake-project", "review"),
+                "a".repeat(64), lookup.version(), null, ref, WebhookReceipt.Disposition.REVIEW, reason));
+        assertThat(read(NOW).status()).isEqualTo(PaidQueryResponse.Status.PENDING);
+    }
+    @ParameterizedTest @org.junit.jupiter.params.provider.ValueSource(strings = {"OWNER_UNRESOLVED", "OWNERSHIP_UNSUPPORTED"})
+    void normalizedOwnershipReviewStillBlocksExistingRights(String reason) {
+        apply(purchase("owned", "owned"));
+        var observation = purchase("conflict", "conflict");
+        core.receiveWebhook(new WebhookReceipt("SANDBOX", observation.providerEventKey(),
+                "a".repeat(64), lookup.version(), null, ref, WebhookReceipt.Disposition.REVIEW, reason));
+        db.getCollection("payment_purchase_cases").updateOne(new Document("providerEventKey", observation.providerEventKey()),
+                new Document("$set", new Document("normalizedObservation", first("payment_provider_inbox").get("normalizedObservation"))));
+        assertThat(read(NOW).status()).isEqualTo(PaidQueryResponse.Status.PENDING);
+        assertThat(db.getCollection("purchases").countDocuments()).isOne();
+    }
+    private void enableReviewResolution() {
+        db.getCollection(PaymentRecoveryFence.COLLECTION).updateOne(new Document(), new Document("$set", new Document("barrier", "ALL_BLOCKED")));
+        RefundCoreSchema.upgradeUnderMaintenance(db, true);
+        MixedStorePurchaseSchema.upgradeUnderMaintenance(db, true);
+        PurchaseReviewResolutionSchema.upgradeUnderMaintenance(db, true);
+        db.getCollection(PaymentRecoveryFence.COLLECTION).updateOne(new Document(), new Document("$set", new Document("barrier", "OPEN")));
+        props.setReviewResolutionEnabled(true);
+        core = new PurchaseCore(store, props, Clock.fixed(NOW, ZoneOffset.UTC), Map.of(PurchaseObservation.Store.PLAY_STORE, "fake.app"), lookup.version());
+    }
+    private WebhookReceipt matchableReview(String event, String tx) {
+        var p = purchase(event, tx);
+        return new WebhookReceipt("SANDBOX", p.providerEventKey(), "a".repeat(64), lookup.version(), null, ref,
+                WebhookReceipt.Disposition.REVIEW, "OWNER_UNRESOLVED",
+                new ReviewPurchaseCandidate(p.environment(), p.store(), p.appId(), p.transactionKey(), p.lookupKeyVersion(),
+                        p.ownerRefId(), p.storeProductId(), p.purchasedAt()));
+    }
+    @ParameterizedTest @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void exactVerifiedPurchaseResolvesReviewInEitherOrderWithoutRegrant(boolean purchaseFirst) {
+        enableReviewResolution();
+        var receipt = matchableReview("review", "tx");
+        if (purchaseFirst) apply(purchase("verified", "tx"));
+        core.receiveWebhook(receipt);
+        if (!purchaseFirst) {
+            assertThat(pending()).isOne();
+            assertThat(first("payment_purchase_cases").getString("reviewState")).isNull();
+            apply(purchase("verified", "tx"));
+        }
+        var resolved = first("payment_purchase_cases");
+        assertThat(resolved.getString("reviewState")).isEqualTo("RESOLVED");
+        assertThat(resolved.getString("resolvedObservationKey")).isNotBlank();
+        assertThat(resolved.getString("purchaseId")).isEqualTo(first("purchases").getString("_id"));
+        assertThat(resolved.getBoolean("counted")).isFalse();
+        assertThat(pending()).isZero();
+        core.receiveWebhook(receipt); apply(purchase("verified", "tx"));
+        assertThat(first("payment_purchase_cases")).isEqualTo(resolved);
+        assertThat(db.getCollection("subscription_entitlements").countDocuments()).isOne();
+        assertThat(pending()).isZero();
+        assertThat(read(NOW.plusSeconds(86401)).status()).isEqualTo(PaidQueryResponse.Status.READY);
+    }
+    @Test void unrelatedVerifiedPurchaseDoesNotResolveReview() {
+        enableReviewResolution();
+        core.receiveWebhook(matchableReview("review", "unverified"));
+        apply(purchase("verified", "other"));
+        assertThat(first("payment_purchase_cases").getString("resolvedObservationKey")).isNull();
+        assertThat(pending()).isOne();
+        assertThat(read(NOW).active()).isTrue();
+    }
+    @Test void legacyReviewRequiresSameDigestAuthenticatedReplayToRecoverHint() {
+        var receipt = matchableReview("review", "tx");
+        core.receiveWebhook(receipt); // old writer does not persist hints
+        apply(purchase("verified", "tx"));
+        enableReviewResolution();
+        assertThat(first("payment_purchase_cases").getString("resolvedObservationKey")).isNull();
+        core.receiveWebhook(receipt);
+        assertThat(first("payment_purchase_cases").getString("reviewState")).isEqualTo("RESOLVED");
+        assertThat(pending()).isZero();
+    }
+    @Test void reviewResolutionRequiresExplicitSchemaPreparation() {
+        props.setReviewResolutionEnabled(true);
+        assertThatThrownBy(() -> new PurchaseCore(store, props, Clock.fixed(NOW, ZoneOffset.UTC),
+                Map.of(PurchaseObservation.Store.PLAY_STORE, "fake.app"), lookup.version())).isInstanceOf(RuntimeException.class);
+    }
+    @ParameterizedTest @org.junit.jupiter.params.provider.ValueSource(strings = {"environment", "store", "appId", "transactionKey", "lookupKeyVersion", "ownerRefId", "storeProductId", "purchasedAt"})
+    void everyCandidateIdentityFieldMustMatchBeforeResolution(String field) {
+        enableReviewResolution(); core.receiveWebhook(matchableReview("review", "tx"));
+        Object different = switch (field) {
+            case "environment" -> "PRODUCTION";
+            case "store" -> "APP_STORE";
+            case "transactionKey" -> "f".repeat(64);
+            case "ownerRefId" -> "22222222-2222-4222-8222-222222222222";
+            case "purchasedAt" -> Date.from(NOW.minusSeconds(1));
+            default -> "different";
+        };
+        db.getCollection("payment_purchase_cases").updateOne(new Document(), new Document("$set", new Document("reviewCandidate." + field, different)));
+        apply(purchase("verified", "tx"));
+        assertThat(first("payment_purchase_cases").getString("reviewState")).isNull();
+        assertThat(pending()).isOne();
+    }
+    @Test void legacyReplayDigestConflictNeverBackfillsOrResolves() {
+        var receipt = matchableReview("review", "tx"); core.receiveWebhook(receipt);
+        apply(purchase("verified", "tx")); enableReviewResolution();
+        var changed = new WebhookReceipt(receipt.environment(), receipt.eventKey(), "b".repeat(64), receipt.lookupKeyVersion(),
+                null, ref, receipt.disposition(), receipt.reason(), receipt.reviewCandidate());
+        assertThatThrownBy(() -> core.receiveWebhook(changed)).isInstanceOf(PaymentException.class);
+        assertThat(first("payment_purchase_cases").get("reviewCandidate")).isNull();
+        assertThat(pending()).isOne();
     }
     @Test void sameSnapshotDoesNotMixConcurrentPaymentCommit() throws Exception {
         reader.prepare();

@@ -17,6 +17,51 @@ import web.tosunsaeng.billing.domain.payment.purchase.*;
 import static org.assertj.core.api.Assertions.*;
 
 class RevenueCatAdapterTest {
+    @Test void mixedProductionDecoderKeepsStoreEnvironmentAndDistinctTransactionIdentity() {
+        var mixed = new RevenueCatPurchaseDecoder("project", "PRODUCTION", lookup,
+                Map.of("prod", new RevenueCatPurchaseDecoder.Product("app", PurchaseObservation.Store.PLAY_STORE, "premium_1d")), CLOCK, true);
+        var sandbox = mixed.purchase(bytes(purchase()), REF).observation();
+        var production = mixed.purchase(bytes(purchase().put("environment", "production")), REF).observation();
+        assertThat(sandbox.environment()).isEqualTo("SANDBOX");
+        assertThat(production.environment()).isEqualTo("PRODUCTION");
+        assertThat(sandbox.transactionKey()).isNotEqualTo(production.transactionKey());
+        assertThat(sandbox.providerEventKey()).isNotEqualTo(production.providerEventKey());
+        assertThat(mixed.purchase(bytes(purchase().put("environment", "unknown")), REF).reviewReason()).isEqualTo("ENVIRONMENT_MISMATCH");
+        assertThatThrownBy(() -> new StoreEnvironmentPolicy("SANDBOX", true)).isInstanceOf(IllegalArgumentException.class);
+    }
+    @Test void mixedReadScansProductionThenSandboxWithoutCombiningHttpPages() {
+        var mixed = new RevenueCatPurchaseDecoder("project", "PRODUCTION", lookup,
+                Map.of("prod", new RevenueCatPurchaseDecoder.Product("app", PurchaseObservation.Store.PLAY_STORE, "premium_1d")), CLOCK, true);
+        List<String> queries = new ArrayList<>();
+        var reader = new RevenueCatReadClient("project", "PRODUCTION", "fake", (uri, key) -> {
+            queries.add(uri.getQuery());
+            var root = JSON.createObjectNode().put("object", "list"); root.putNull("next_page");
+            var items = root.putArray("items");
+            if (uri.getQuery().contains("environment=sandbox")) items.add(purchase());
+            return response(200, Map.of("Content-Type", List.of("application/json")), bytes(root));
+        }, mixed, CLOCK);
+        var first = reader.purchases(REF, null);
+        assertThat(first.items()).isEmpty(); assertThat(first.nextCursor()).isEqualTo("S:");
+        var second = reader.purchases(REF, first.nextCursor());
+        assertThat(second.items()).hasSize(1); assertThat(second.nextCursor()).isNull();
+        assertThat(queries).containsExactly("environment=production&limit=100", "environment=sandbox&limit=100");
+    }
+    @Test void mixedCleanupCannotDeclareAbsentAfterOnlyProductionWasEmpty() {
+        var mixed = new RevenueCatPurchaseDecoder("project", "PRODUCTION", lookup,
+                Map.of("prod", new RevenueCatPurchaseDecoder.Product("app", PurchaseObservation.Store.PLAY_STORE, "premium_1d")), CLOCK, true);
+        var reader = new RevenueCatReadClient("project", "PRODUCTION", "fake", (uri, key) -> {
+            if (uri.getQuery().contains("environment=sandbox"))
+                return response(503, Map.of(), new byte[0]);
+            var root = JSON.createObjectNode().put("object", "list"); root.putArray("items"); root.putNull("next_page");
+            return response(200, Map.of("Content-Type", List.of("application/json")), bytes(root));
+        }, mixed, CLOCK);
+        var cleanup = new web.tosunsaeng.billing.domain.payment.cleanup.CleanupProviderReader(reader, CLOCK, "PRODUCTION");
+        var subject = new web.tosunsaeng.billing.domain.payment.cleanup.CleanupEvidence.Subject(
+                "PRODUCTION", "user", "life", 1, "account", 1L, List.of(REF), NOW, 0, NOW, "epoch");
+        assertThat(cleanup.read(subject, NOW.plusSeconds(5)).observation())
+                .isEqualTo(web.tosunsaeng.billing.domain.payment.cleanup.CleanupEvidence.Observation.UNKNOWN);
+        assertThatThrownBy(() -> reader.purchases(REF, "legacy-cursor")).isInstanceOf(RevenueCatFailure.class);
+    }
     static final Instant NOW = Instant.parse("2026-10-13T00:00:00Z");
     static final String REF = "11111111-1111-4111-8111-111111111111";
     static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);

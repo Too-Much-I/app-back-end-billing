@@ -66,7 +66,9 @@ public final class PaymentSourceWorker {
         require(observation != null && Set.of("APPLIED", "QUARANTINED").contains(row.getString("state")));
         Document query = new Document("environment", environment).append("state", "PENDING").append("accountId", row.get("accountId"))
                 .append("lifecycleId", row.get("lifecycleId"));
-        for (String f : List.of("store", "appId", "transactionKey", "lookupKeyVersion")) query.put(f, observation.get(f));
+        for (String f : List.of("store", "appId", "lookupKeyVersion")) query.put(f, observation.get(f));
+        query.put("$and", List.of(new Document("$or", List.of(new Document("transactionKey", observation.get("transactionKey")),
+                new Document("sandboxTransactionKey", observation.get("transactionKey"))))));
         // Do not steal a command already bound to a different durable observation.
         query.put("$or", List.of(new Document("sourceObservationKey", null), new Document("sourceObservationKey", lease.eventKey())));
         List<Document> commands = store.database().getCollection(PaymentSyncSchema.COLLECTION).find(query)

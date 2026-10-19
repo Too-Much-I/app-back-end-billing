@@ -12,7 +12,7 @@ import web.tosunsaeng.billing.domain.payment.worker.PaymentAccountLookupSchema;
 import web.tosunsaeng.billing.domain.reservation.paid.*;
 import web.tosunsaeng.billing.domain.examdeletion.DeletionSchema;
 
-/** Explicit first-install only. No application startup hook, repair, activation, or deletion. */
+/** Explicit first-install or read-only verification. No startup hook, repair, activation, or deletion. */
 public final class BillingProdSchemaBootstrap {
     public static void main(String[] args) {
         try { run(args); }
@@ -30,8 +30,28 @@ public final class BillingProdSchemaBootstrap {
     static void require(boolean value) {
         if (!value) throw new IllegalStateException("Explicit production precondition failed");
     }
+    static String expectedBarrier(String mode, String configured) {
+        String expected = configured == null ? "ALL_BLOCKED" : configured;
+        require(Set.of("ALL_BLOCKED", "PURCHASE_BLOCKED", "OPEN").contains(expected));
+        require("verify".equals(mode) || "ALL_BLOCKED".equals(expected));
+        return expected;
+    }
+    static Document validateControl(List<Document> controls, String expected) {
+        require(controls.size() == 1);
+        Document control = controls.getFirst();
+        require("PRODUCTION".equals(control.getString("environment"))
+                && "billing".equals(control.getString("consumer"))
+                && expected.equals(control.getString("barrier"))
+                && control.get("_id") instanceof String id && !id.isBlank()
+                && control.get("schemaVersion") instanceof Long schema && schema == 1L
+                && control.get("version") instanceof Long version && version > 0
+                && control.get("epoch") instanceof String epoch
+                && epoch.matches("[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"));
+        return control;
+    }
     static void run(String[] args) {
         require(args.length == 1 && Set.of("inspect", "install-empty", "verify").contains(args[0]));
+        String expected = expectedBarrier(args[0], System.getenv("BILLING_EXPECTED_RECOVERY_BARRIER"));
         String database = System.getenv("BILLING_EXPECTED_DATABASE");
         String host = System.getenv("BILLING_EXPECTED_MONGO_HOST");
         require(database != null && database.endsWith("-billing-prod"));
@@ -44,6 +64,8 @@ public final class BillingProdSchemaBootstrap {
             var names = db.listCollectionNames().into(new ArrayList<>());
             System.out.println("COLLECTION_COUNT " + names.size());
             if (args[0].equals("inspect")) return;
+            Document before = args[0].equals("verify") ? validateControl(db.getCollection(PaymentRecoveryFence.COLLECTION)
+                    .find().into(new ArrayList<>()), expected) : null;
             if (args[0].equals("install-empty")) {
                 require("true".equals(System.getenv("BILLING_WRITERS_STOPPED")));
                 require(database.equals(System.getenv("BILLING_PROD_SCHEMA_APPROVED_DATABASE")));
@@ -75,11 +97,9 @@ public final class BillingProdSchemaBootstrap {
             PaymentSyncSchema.verify(db); DeletionSchema.verify(db); PaymentSnapshotSchema.verify(db);
             PaymentAccountLookupSchema.verify(db); PurchaseReferenceSchema.verify(db); CleanupSchema.verify(db);
             var controls = db.getCollection(PaymentRecoveryFence.COLLECTION).find().into(new ArrayList<>());
-            require(controls.size() == 1);
-            Document control = controls.getFirst();
-            require("PRODUCTION".equals(control.getString("environment")) && "billing".equals(control.getString("consumer"))
-                    && "ALL_BLOCKED".equals(control.getString("barrier")));
-            System.out.println("BILLING_PROD_SCHEMA_OK " + args[0] + " barrier=ALL_BLOCKED");
+            Document control = validateControl(controls, expected);
+            require(before == null || before.equals(control));
+            System.out.println("BILLING_PROD_SCHEMA_OK " + args[0] + " barrier=" + expected);
         }
     }
 }

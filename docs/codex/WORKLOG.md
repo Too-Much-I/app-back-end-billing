@@ -6979,3 +6979,300 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - runbook/LC 회신/CURRENT_STATE/WORKLOG만 후속 갱신. 코드/외부계약 불변, LC/Identity 저장소 무변경. 이전 Java1838/smoke3/Node8 통과 유지, 이번 TAR hash/config/원격manifest 대조 및 diff 검사. 문서만 변경하므로 Gradle 재실행 없음.
 - CloudShell 홈 용량 부족으로 최초 업로드 실패. 불완전파일은 실행하지 않음. 사용자 승인으로 실패 부분파일만 삭제, 공간 확보를 위해 임시이동한 기존 아카이브는 복원. 비밀 인증값은 출력/저장소에 기록하지 않음.
 - 예상밖 제품 변경 없음. Git push/merge·서비스배포·DB·ALB/SG/IAM 변경 없음. 다음은 별도 승인된 전용TLS/경로 연결, LC readiness/봉인·구 writer 배출과 공동 검증이다.
+
+## 2026-10-18 LC 8444 실제 적용 전 조건 대조
+
+- 사용자 연결 진행 요청. codex/billing-test-deployment에서 LC 규칙 준비안/전환 실행안/AccessEventRolloutGate/PaidExamTestActivation을 읽고 AWS ECS·task·listener·TG를 재조회했다. LC prod8 실행1/대기0,8080만,8444 대상0,78/79 빈자리,creation-saga=false 확인.
+- receiver 단독ON 불가 및 기존시험 sealed runtime/index·공통flag 필요. 생성제한 수단/일정·계정·봉인 승인은 미확정이므로 빈 TG 전달이나 gate 우회 없이 적용을 보류한다. 규칙79만의 부분적용도 하지 않았다.
+- 변경은 Billing runbook/CURRENT_STATE/WORKLOG만. 코드·외부계약·LC/Identity·AWS·DB·commit/push 변경 없음. AWS 읽기 및 코드 대조·diff 검사, 제품코드 무변경으로 Gradle 미실행. 예상밖 변경 없음. 다음은 LC 준비 완료 확인 및 생성제한/최종봉인 범위 확정 후 승인된 전환이다.
+
+## 2026-10-18 Billing 운영 LC receiver·8443 연결
+
+- 사용자 이번 Billing 한정 배포/네트워크·LC receiver ON 및 기본 FREE_EXAM_ONCE 정의1건 최초생성 승인. LC 수신 단독ON 불가와 Billing receiver를 구분했다. 브랜치 codex/billing-test-deployment, 기존미커밋 문서 보존.
+- prod5→6 명시이미지 e5666d5…·LC receiver/index check·운영DB guard·8443 mapping 추가, 전체정렬대조 차이0. 초기배열비교 실패는 env 순서차이로 독립확인했다. 기존앱8083·역할·Secret·SG·health300·업무OFF 불변.
+- 운영 스키마 verify15a19359… exit0/41collection/ALL_BLOCKED. 가비아 재로그인 후 workload-prod CNAME1개추가·기존29개보존, ALB129차단→120/121/122 exactPOST+NAT13.124.57.130/32 전달 적용·기존rules 불변readback. ECS service에8443 TG추가 배포.
+- 새task37ae7ab9… bootstrap TLS_OK/Tomcat8443/컨테이너·양TG healthy. NAT probe2164e7e3…8개401/404 기대값·exit0, 로컬 허용외404. 일반TLS/DNS 사용, CloudShell 일부negative DNS 관측은 별도 기록. 정상서명 업무E2E는 미실행.
+- 제품코드 변경없음·Gradle 미실행, 문서diff검사. runbook/CURRENT_STATE/WORKLOG만 추가갱신. LC/Identity·Jira·Git commit/push 변경없음. 배포후DB/구task종료 최종확인 중이며 구매·유료시험·환불·삭제 활성화와 혼동하지 않는다.
+- 후속 prod6 PRIMARY COMPLETED/실행1/대기0 확인. 배포후 verify03665110… STOPPED/exit0/41collection/ALL_BLOCKED. 구매·자동삭제 활성화 없음, 정상서명 공동업무 검증 미실행.
+- 최종8083/8443 모두 신규target healthy만 남고 구prod5 STOPPED(exit143) 확인. DNS/운영완료 화면 저장, 문서diff검사 통과. 사용자 요청 Billing 수신·연결 범위 완료, 업무ON·공동E2E는 별도.
+
+## 2026-10-18 LC 통합 전환 조건부 Billing 회신
+
+- 브랜치 codex/billing-test-deployment. LC 최신 통합 전환 문서의 삭제6개ON/집계OFF 및 회신 요청을 읽고 Billing 기동 의존성·ACCOUNT fence·삭제 route·환불 publisher 조건을 대조했다. 관련 TMI-217/TMI-220, Jira 변경 없음.
+- Billing-LC-combined-cutover-readiness-response-2026-10-18.md 신규 작성, CURRENT_STATE/WORKLOG 갱신. 조건부 flag 표·ALL_BLOCKED→OPEN 전제·삭제POST 제한·정상서명 A~F 검증 순서를 기록했다. PURCHASE_BLOCKED는 ACCOUNT writer를 허용하지 않으며 ALL_BLOCKED도 전체 무료 writer의 maintenance 대체가 아님을 명시했다.
+- wire/원장/멱등성/보존/인증 계약 불변. LC storage/전달 준비를 선언으로 충족하지 않고 Identity·coverage·유입제한/검증계정/영향범위 확정 후 실행한다. 환불 publisher는 LC8444 실제 준비 전OFF 유지.
+- 환경변수명·상대링크·diff 정적검사 수행. 문서만 변경해 Gradle 미실행; LC 시작명령8개 통과는 상대 보고이며 이번 실행 결과 아님. AWS 재조회·코드·서버·DB·LC/Identity·외부전송·commit/push 없음. 기존 dirty 문서는 보존했고 예상 밖 제품 변경 없음.
+- 다음: LC 저장소/삭제 전달 사전검증 근거와 Identity/무료 attribution 준비를 맞추고, 생성·구매계정 제한 방식/시간·검증자료·OPEN/업무ON/삭제route 실행 범위를 확정한다. 지금 중단·봉인하지 않는다.
+
+## 2026-10-18 통합 전환 선행조건 후속 대조
+
+- codex/billing-test-deployment. 사용자 후속 진행 요청으로 Identity 최신 capture/연결 문서와 LC combined readiness·BillingDeletionConfiguration/Sender, Billing DeletionService 및 reader rollout을 읽었다. TMI-217/TMI-220 관련, Jira 변경 없음.
+- Identity 작업이 Billing prod7 배포 요청/ALB123/PURCHASE_BLOCKED version2를 기록했음을 발견했다. 상대 보고와 AWS 실측을 구분하고 구 prod6/ALL_BLOCKED 덮어쓰기 금지를 회신 §7 및 CURRENT_STATE에 반영했다. 이번 변경 파일은 해당 회신/CURRENT_STATE/WORKLOG뿐이며 기존 dirty 보존.
+- 삭제 사전검증은 exact target 한정 일회성 도구 제안으로 구체화. 현재 LC tick은 전체PENDING 선택이므로 운영 그대로 실행 불가, fake ID는 Billing204 근거가 될 수 없음. LC 구현/수락·검증자료·storage/coverage/Identity scope 근거 확보가 다음 단계다.
+- 외부 계약/제품 코드 불변, 운영 DB/서버/AWS/LC·Identity 파일/외부전송/commit·push 무변경. 문서 정적 diff 검사, 코드 변경 없어 Gradle 미실행. 예상 밖 제품 변경 없음. 실행을 막는 미확인 조건을 기록했으며 중단/OPEN/삭제를 수행하지 않았다.
+
+## 2026-10-18 Billing 업무 준비 운영 읽기 확인
+
+- codex/billing-test-deployment, 사용자 Identity·기존 권리/유료시험·삭제/OPEN 준비 요청. CloudShell Billing terminal1 재연결 후 ECS·target health 및 DB snapshot 읽기 수행. prod7 완료/8083·8443 healthy, Identity prod15 정상·scope/탈퇴/phone발신OFF 확인. DB 단일control PURCHASE_BLOCKED/version2/schema1, 기존 구매/권리/예약/시험/소유 연결0·상품10, 읽기exit0. 실제 키/URI/개인자료 비출력.
+- billing-prod-business-readiness-2026-10-18.md 및 조건부 activation.draft.json 추가, 통합회신/CURRENT_STATE/WORKLOG 갱신. 12flag·live보존·exactCAS/epoch보존·승인/선행조건을 준비했으며 등록 가능한 task나 실행명령이 아님. 기존 schema verify의 ALL_BLOCKED 요구를 발견, DB를 되돌리지 않고 후속 읽기검증 구성 필요로 기록.
+- JSON파싱/12env 매핑/diff검사 통과, 제품코드 변경 없어 Gradle 미실행. wire/인증/원장/보존 불변. 서버/DB/ALB/Secret/권한/LC·Identity 변경·commit/push/Jira 없음, 기존 dirty 보존·예상 밖 제품 변경 없음.
+- 다음: Identity scope/발신 및 LC 지정대상 삭제검증 준비, 현재barrier 호환 schema 읽기검증, 유입제한/OPEN/업무ON 적용 승인. 빈 Billing자료를 LC기존 사용자 권리부재 또는 phone 준비완료로 해석하지 않는다.
+
+## 2026-10-18 현재 barrier 보존 스키마 검증 도구 보완
+
+- codex/billing-test-deployment. 사용자 후속 진행 요청으로 scripts/ops/BillingProdSchemaBootstrap.java의 verify에 explicit expected barrier를 추가했다. 기본 ALL_BLOCKED 및 install-empty의 ALL_BLOCKED 제한 유지, 기존 설치/업무/API 계약 불변. 검증 전후 단일control·환경/consumer·Long schema1/version·epoch 및 전체문서 동일성 확인. DB update/repair/ON 기능을 추가하지 않았다.
+- BillingProdSchemaBootstrapTest.java 신규 독립 회귀21개 컴파일·실행 통과. 초기 JAR 압축해제 디렉터리 실행권한 부재로 컴파일 실패했으나 지정 임시 디렉터리 접근권한 보완 후 성공. 실제 AWS/DB 호출 없는 합성자료 테스트다.
+- 전체 clean test 최초 sandbox 캐시권한 실패 후 승인 실행했으나 턴중단으로 완료/결과XML 부재. 재실행 중이며 완료 전 통과로 기록하지 않는다. 문서/CURRENT_STATE/WORKLOG 갱신 및 diff검사.
+- CloudShell Billing terminal1 재연결 후 Java21·기존JAR 위치만 읽기 확인. 배포본 hash 대조/보완도구 전달·운영 schema 검증은 미실행. 서버/DB/ALB/권한/LC·Identity/commit·push/Jira 변경 없음. 기존 dirty 보존, 예상밖 제품 변경 없음. 다음은 전체테스트 완료와 exact 배포 클래스패스로 read-only verify, Identity/LC 준비 회신이다.
+- 중단 이후 브라우저 연결 갱신으로 기존 탭이 다른 작업 세션 소유임을 확인, 해당 작업을 침범하지 않고 운영 실행 보류. 새 런타임에서 시도한 hash 명령은 변수 부재로 실행되지 않았으며 원격 변경 없음. Billing 전용 세션 확보가 필요하다.
+- 최종 전체 clean test BUILD SUCCESSFUL 4분10초, XML1838개 실패0/오류0/skip0. 독립 검증도구21개도 통과, diff검사 통과. 로컬 검증 완료이며 실제 운영 schema 재검증/기능ON은 완료로 표시하지 않는다.
+
+## 2026-10-18 삭제 전달 검증 절차만 확정
+
+- codex/billing-test-deployment. 사용자가 Billing 수신→204→LC 확인 저장 절차만 요청해 운영검증 작업은 중단하고 문서 범위로 한정. TMI-217 신규 절차 문서/CURRENT_STATE/WORKLOG만 변경, 이전 dirty 코드/문서 보존.
+- 양측 controller/service/client/sender/delivery/worker 정적 근거로 지정대상·최초event/body·empty204 framing·fact/receipt1건·영속ACKED·전체대상 대기·중복불변 조건을 명시. 운영 정상/중복과 격리 장애주입을 분리, 일반tick·가짜ID·gate선행true·ACK수동수정 금지. 외부계약 불변이며 LC 수락/도구 구현/공동실행은 미완료.
+- 문서링크/diff검사, 코드 무변경으로 Gradle 미실행. 이번 AWS/DB/서버/LC·Identity/외부전송/commit·push 없음. 예상밖 변경 없음. 다음은 LC 절차수락 및 지정대상 한정 실행 수단 확인; 운영 활성화는 이 요청에 포함하지 않음.
+
+## 2026-10-18 운영 유료 시험·삭제 및 후속 상품판매·sync 활성화
+
+- codex/billing-test-deployment. 사용자 `켜줘` 및 삭제 경로1개 승인으로 Billing만 운영 변경. 실제204/LC ACKED E2E는 배포후 프론트 검증·서버readback으로 분리하며 사전 전용도구 개발은 요구하지 않음. LC gate/봉인/전달완료 증거를 위조하지 않고 LC·Identity 코드/배포는 무변경.
+- AWS 독립조회 Identity prod16·Billing prod7 COMPLETED/1/0. ALB125 exact workload host/POST deletion/source NAT /32→HTTPS8443 추가 후 기존 모든 규칙 동일 확인. 기존 app8083/인증/SG 보존.
+- 운영DB snapshot 읽기: PURCHASE_BLOCKED/v2, 실제 purchases/payment_accounts/subscription_entitlements/reservations/attempt_groups/attempt_sessions/billing_subject_links/entitlement_grants/trial_claims0. 첫 읽기 명령의 Python 문자열 문법 오류는 DB접속 전 실패, 수정 후 성공. purchase 컬렉션 오기 payment_purchases는 실제 purchases로 정정 후 재확인했다.
+- prod7 복제·지정12env만 ON으로 prod8 등록/배포, 같은 이미지·역할·Secret·포트·나머지환경 보존. Started1/errors0 및 신규양포트healthy 확인. running1/pending0 이후 다음 등록 직전 단일COMPLETED 확인. 단일control exact7필드 CAS majority+j로 OPEN/v3, epoch 보존 및 readback 성공(exit0). 사용자 구매·시험·삭제 데이터를 생성/삭제하지 않음.
+- 사용자 후속 상품판매·sync 요청: 제품10개 saleEnabled10·공유budget collection/index 조회 성공·RC Secret참조 준비 확인. prod8 기반 catalog/sync/provider-worker3개만ON prod9 등록/배포 요청. 주기재조회/webhook/환불처리·발신/자동삭제/보존정리/snapshot/feed는 OFF 유지.
+- 적용 runbook 신규, activation JSON·통합회신·삭제검증절차·CURRENT_STATE/WORKLOG 갱신. 제품코드 무변경, 직전 전체1838/도구21 테스트기록 유지·이번 Gradle 미실행. diff검사 통과. 기존 dirty 보존·예상밖 제품파일 변경 없음. commit/push/Jira 없음. 다음은 prod9 기동안정화와 실제 프론트 정상로그인/Store구매/sync/시험·삭제검증이다.
+- 최종15:03 KST prod9 단일COMPLETED/running1/pending0·신규8083/8443healthy. 구target draining 잔여는 유지, 강제종료 없음. 신규Started1/errors0/failure0. 요청15flagtrue, 제외webhook/재조회/환불/자동삭제false readback. HTTPS app4API 무인증401/app host 내부삭제404. 실제 정상서명204/LC ACKED·Store검증은 미실행. 증거 `/private/tmp/billing-prod9-enabled-20261018.png`, JSON파싱·최종diff검사 통과.
+
+## 2026-10-18 — 운영 환불·재조회 후속 활성화
+
+- 브랜치 codex/billing-test-deployment. 사용자 요청에서 snapshot/feed를 제외하고 백그라운드 기능 준비를 점검했다. LC prod10 환불 receiver ON 및 Billing signing key_ops/sign·LC 공개키 일치를 독립 읽기 확인했다. 비밀키/URI는 출력하지 않았다.
+- 운영 control schemaVersion1/version3/OPEN, cleanup0건. 자동삭제는 schema4 명시이관이 필요하여 OFF 유지. webhook host 미설정, 실제 발신·HMAC·전용경로 정합성 미확인으로 OFF 유지.
+- 첫 배포 시도는 안전 검토가 실행 전 보류했다. 정확한 운영 기능3개와 LC origin을 사용자에게 제시하고 재승인받았다. prod9를 복제해 refund-processing/refund-publisher/provider-reconciliation true·LC origin만 추가한 prod10을 등록하고 서비스 배포 요청했다. 나머지 설정/이미지/Secret/역할/네트워크 보존.
+- background activation runbook·CURRENT_STATE·WORKLOG만 이번 로컬 변경. 제품코드/LC·Identity/DB쓰기/commit/push/Jira/실제Store환불 변경 없음. 코드 무변경으로 Gradle 미실행. 실제 환불·정상서명 전달 E2E는 별도이며 새 서버 기동 결과는 후속 기록한다. 기존 dirty 보존, 예상밖 제품파일 변경 없음.
+- prod10 기동은 SPRING_PROFILES_ACTIVE 누락으로 환불 운영격리 검사에서 실패. 기존prod9 HEALTHY 유지, 검사/인증 완화 없이 prod profile을 명시한 prod11 배포 요청. 저장소 profile 참조/추가 설정 없음 대조 완료. diff검사 통과.
+- prod11은 refundAlerts의 필수 PaymentProviderAlerts.Sink 부재로 기동실패. 운영 Slack flag/Secret 참조 없음 확인, no-op 대체/검사우회 없음. 기존 정상prod9 기반 재조회만ON·prod profile을 명시한 prod12 등록/배포요청. 환불처리/발신·자동삭제·웹훅·snapshot/feed OFF 유지. 실제 업무 E2E는 미실행.
+- prod12 RUNNING/HEALTHY·실행1/대기0·새8083/8443healthy. 초기ALB unhealthy는 기동 후 healthy5회/30초 조건을 거쳐 해소됐으며 네트워크변경 없음. 공개상품/이용권 무인증401. 재조회true·환불2flag/cleanup/webhookfalse readback. 이전targetdraining 및 ECS IN_PROGRESS 잔여, 전체COMPLETED는 아직 미확인. 실제 환불/사용자 데이터 테스트 없음.
+- 후속최종 prod12 단일COMPLETED/1/0 확인. 새ALB2개healthy, 구targetdraining 보존. 재조회ON/환불2flag·cleanup·webhookOFF 재확인. 최종기록/정적diff검사 통과. 이번 목표 중 환불은 운영Slack 연결, 자동삭제는 명시DB이관, webhook은 실제발신정합성/경로 연결이 남으며 모두ON 완료로 보고하지 않는다.
+
+## 2026-10-18 — 운영 Slack 채널 준비
+
+- 웹훅 최종: 새 HMAC키 반영 후에도RC401 지속. RC Authorization을 AWS 저장 기존값으로 재등록한 뒤 공식TEST422(인증통과 후 SANDBOX/Test Store 거절), 새키 직접서명 PRODUCTION TEST200. prod14 단일COMPLETED/1/0·HEALTHY·양포트healthy 확인. 모든 요청flagON 유지·snapshot/feedOFF. 실제Store구매/환불/자동삭제E2E 미실행. 키만 원인으로 단정한 설명은 이 기록으로 정정. 제품코드/Gradle/commit/push 없음, diff검사 및 기존dirty보존.
+
+- 후속 사용자 Rotate 완료: 실제 RC 새 키 표시창 확인 후 해당값을 getpass로 운영 Secret signing secret 필드에만 전달/저장 성공, 기타필드 보존. prod14 동일 task definition forceNewDeployment 요청, HMAC ON 확인. Secret 출력/테스트키/다른서버/제품코드 변경 없음. 새 task 전환 뒤 RC 공식 TEST 인증 재확인 예정.
+
+- prod14 최종 단일COMPLETED/1/0·HEALTHY·양포트healthy, startup1/failed0/errors0 확인. 요청flag ON/control4 OPENv5/cleanup0·snapshot/feedOFF readback. RC 공식 TEST401, AWS저장값 직접서명한 PRODUCTION TEST200(ignored inbox, 구매/환불 없음). RC값 불일치 미해결로 signing secret 사용자 Rotate·창유지 요청. 기본 RC TEST는 SANDBOX/Test Store라 후속422 예상, 인증/환경 검사 완화 없음. 이번 제품코드/Gradle/commit/push 변경 없음. 전체 RC연동/E2E완료로 기록하지 않음.
+
+- 통합후속: 사용자 signing secret 직접저장 성공 및 RC HMAC ON/Production only 확인. 승인된 prod13 desired0 후 약6분 drain·실제 모든 task STOPPED 확인. exact validator/index/control/cleanup0 재검증 후 control1 OPENv3→ALL_BLOCKEDv4→schema4 OPENv5 CAS/epoch보존 성공. collMod/추가DB권한/구매자료삭제 없음. prod14 cleanup3flag+webhookON/host지정, desired1 재기동 요청. 최종기동/TEST는 확인 중. 기존dirty보존·제품코드변경없음.
+
+- 통합 적용 승인 후 ALB109 exact 운영 host/POST/webhook path→8083 추가, 기존규칙 불변 확인. RC 운영 전용 웹훅 whintgrd6cb7cb418 등록·기존 AWS Authorization 비표시 연결, 사용자가 HMAC ON. Save 비활성/키 미표시 확인, 키 보관 또는 직접 Rotate 요청. CloudShell getpass로 signing secret 필드만 기존 version 일치 검사 후 저장하도록 준비. 비밀값 출력 없음. prod13 최종COMPLETED/1/0·HEALTHY·양포트healthy 확인. 자동삭제 control 이관 및 ingress ON은 새 키 입력 후 통합 배포로 남음. 서버중지/DB쓰기/자동삭제 미실행.
+
+- 후속 설치 확인 완료. 사용자 exact 승인으로 slack-alerts Secret 저장 및 prod execution-role에 해당 Secret만 읽기 허용. Slack probe 성공 후 prod13에 Slack/provider alerts/환불처리/LC발신 ON 배포 요청. URL/개인키/URI 출력 없음. 사용자 추가 요청으로 자동삭제·웹훅 최종 통합 적용 준비: 운영 DB validator·인덱스 exact match, cleanup0/control1 OPENv3 확인(collMod 불필요). RevenueCat 공식 HMAC 규격 일치 확인, Production only 양식 미등록 상태 준비. DB쓰기/공개경로/RC등록은 아직 없음. 제품코드 변경 없어 Gradle 미실행, 기존 dirty 보존.
+
+- 브랜치 codex/billing-test-deployment. 사용자 운영Slack 보완 및 환불·자동삭제·웹훅 전체 진행 요청. 비공개 billing-alerts-prod 채널을 명시승인받아 생성, 본인1명 확인. 기존 테스트채널/앱 권한은 변경하지 않았다.
+- Billing Alerts Prod 앱 생성양식에서 incoming-webhook1개·event0개만 준비하고 Create and Install 단계는 새credential/권한설치로 사용자에게 인계. 사용자의 완료회신 후 최신화면/스크린샷이 여전히 설치전임을 확인했다. 중복생성/권한승인/비밀값출력 없음.
+- 이번 AWS/DB/서버/제품코드 변경 없음. 환불OFF/prod12 유지. WORKLOG/CURRENT_STATE만갱신, 코드무변경으로Gradle미실행. 다음은 해당화면의 직접설치완료 확인·운영Webhook Secret 안전저장/최소읽기권한·환불ON, 이후 승인된 자동삭제DB이관/웹훅정합성이다. snapshot/feed·실제Store환불 제외, 기존dirty보존.
+
+## 2026-10-18 — 운영 주소 SANDBOX 구매 지원 영향 검토
+
+- 브랜치 codex/billing-test-deployment. 목표: 실제 과금 없이 운영 주소에서 테스트 구매 지원. Jira 미지정.
+- 변경: PLAN-production-sandbox-purchase-support.md 신규, CURRENT_STATE와 본 기록. 구매 core/조회/예약/provider runtime의 단일 환경 의존성과 workload 매핑을 정적 확인했다.
+- 결론: 웹훅 환경 허용만으로 완료 불가. 전용 테스트·심사 계정과 구매 전 환경 선택 규칙을 먼저 명시한다. 승인된 환경분리 계약의 제한 확장 영향 및 단계적 구현·이관 확인 항목을 보고했다.
+- 제품코드·운영설정·DB·외부서비스·LC/Identity·commit/push 무변경. 기존 dirty 보존. 실제 거래 환경 덮어쓰기·인증완화·전체사용자 허용 없음.
+- 검증: 소스 정적 확인 및 git diff --check. 코드 변경이 없어 Gradle 미실행, 실제 구매 E2E 미실행. 다음: 전용 계정 범위 확인 후 ADR·환경 선택/저장된 source 유지 설계와 OFF 구현. 신규 지원 완료·활성화로 기록하지 않는다.
+
+## 2026-10-18 — 운영 SANDBOX 구매 통합 구현
+
+- 브랜치: codex/billing-test-deployment. Jira 미지정. 사용자 최신 승인: 테스트도 실제 구매처럼 동일 계정/이용권에 합산하고 환경 표시는 거래 식별용으로만 유지한다. 앞선 allowlist/계정별 모드 제안은 폐기했다.
+- 변경 파일: PaymentProperties/StoreEnvironmentPolicy/application.yml, provider decoder2/ReadClient/ReferenceStore/WebhookConfiguration, PurchaseCore/RefundCoreSchema/MixedStorePurchaseSchema/PaidEntitlementReader, PaymentSyncService/Schema/SyncTransactionKeys, AccountLookupWorker/LookupResumer/ProviderWorkerConfiguration/SourceWorker, provider 테스트2/PaymentSyncIntegrationTest/PaidReservationIntegrationTest. ADR-004·최초계획 상단·신규 billing-production-sandbox-purchases 안내·CURRENT_STATE/본기록 동기화. 상세 파일 그룹은 안내서 §6.
+- 동작: 기본OFF인 PRODUCTION 전용 sandbox-purchases-enabled. 운영 account/workload scope 불변, 검증된 Store 환경별 HMAC으로 거래/event 식별, 공통 timeline 합산 및 기존 유료 예약/confirm 재사용. 별도 계정 관리/테스트 entitlement/관리화면·의존성 추가 없음. 신규 구매 필드 storeEnvironment는 실제 다른 Store 환경만 기록하며 legacy는 기존 environment로 읽는다.
+- sync 원문/외부 wire 불변, 내부 SANDBOX 후보 HMAC만 추가. 같은 문자열의 두 환경 구매가 있으면 임의 선택하지 않고 기존409 PURCHASE_BINDING_CONFLICT. 기존 미귀속 PENDING의 동일 요청 재호출은 payloadDigest/생성시각/시도수 보존하며 후보 보완. 실제·테스트 거래가 별도로 지급돼도 중복 observation으로 재지급하지 않는다.
+- REST 조회는 기존 tick/page budget으로 production→sandbox 순차 처리. cleanup 부재 확인도 양쪽 완료 필요, 한쪽실패는UNKNOWN. 구 cursor drain/명시 검토 없이 새 모드로 전환하지 않는다. mixed cursor 접두사 포함255자 한도 유지(초과시보류). 구매·탈퇴·원장 보존/인증/lease/CAS 유지.
+- 스키마: purchases r8 optional storeEnvironment, sync optional sandboxTransactionKey 명시 maintenance 함수. exact old/target schema와 데이터 검증·ALL_BLOCKED/격리 필수. 인덱스/TTL/기존자료 backfill 없음, runtime 자동DDL 없음. 실제DB 이관 미실행.
+- 예상 범위 내 추가 보완: 혼합 환불 회귀가 기존 PaidEntitlementReader의 취소 slot/timelineEnd 검증 오류를 드러냈다. audit slot은 보존하고 유효 slot만 현재 timelineEnd와 대조하도록 변경, 단일 환경 환불 회귀 추가. 무관한 파일 변경 없음; 기존 운영준비 문서/ops bootstrap dirty는 수정하지 않고 보존.
+- 검증: 최초 전체1843에서 새 테스트1 실패(구매시각 기준 기대값), 수정 후 선택101에서 환불후 reader 오류1 확인·제품수정 및 선택101통과. 최종 `./gradlew clean test` **1849 tests, 실패0, 오류0, skip0**, 4분8초. git diff --check 통과. 로컬 Testcontainers 사용, 실제 AWS/Store/RevenueCat/Atlas/LC/Identity 호출 없음.
+- 운영 설정·배포·외부 메시지·Jira·commit/push·LC/Identity 코드 변경 없음. 새flag OFF 유지, 실제 Store E2E는 미실행. 다음: 별도승인 후 구lookup cursor drain·두validator 이관·RevenueCat 실제app 양환경 수신·ON배포 및 프론트 테스트. 실제 Store 환불 실행·snapshot/feed 범위는 확장하지 않는다.
+
+## 2026-10-18 — 운영 SANDBOX 지원 배포·스키마 이관
+
+- 브랜치 codex/billing-test-deployment, Jira 미지정. 사용자 운영 적용 및 두 컬렉션 한정 collMod·중지·이관·회수 승인에 따라 진행. LC/Identity·기존 dirty 보존, commit/push 없음.
+- 변경 파일: billing-production-sandbox-purchases 안내 §7·CURRENT_STATE·본 WORKLOG. 제품 소스 추가 변경 없음. 검증된 JAR·이미지와 임시 컴파일 migration runner로 기존 두 명시 migration 함수만 실행했다.
+- 사전 prod14 COMPLETED/1/0, control schema4 OPENv106, cursor3/중간cursor0, collMod없음. 임시 billing-prod-mixed-store-maintenance는 운영 purchases/payment_sync_commands의 collMod만 부여하고 기존 readWrite 유지. 서버 desired0과 실제 STOPPED 확인 전에는 이관하지 않았다. ALB300초 종료 대기 중 사전 검사 두 번 중단, DB 변경 없음.
+- 최종 중지 후 control OPEN142→ALL_BLOCKED143 CAS·epoch보존, MixedStorePurchaseSchema/PaymentSyncSchema migration 및 verify 성공. 인덱스·TTL·기존 구매 원문/원장 변경 없음. 임시 역할 연결 회수 저장 후 실제 connectionStatus에서 collMod없음 재확인, OPEN144 CAS 복원.
+- bootJar 성공, workload 이미지 valid/wrong-db/wrong-cert smoke3 성공, diff 검사 통과. 이전 전체1849 통과 결과 유지(이번 제품 변경 없음, 전체 재실행 없음). JAR/TAR 양측 hash 일치 및 ECR digest는 안내 §7에 기록.
+- prod15는 기존 prod14 설정·Secret·권한·network를 보존하고 이미지와 BILLING_PAYMENT_SANDBOX_PURCHASES_ENABLED=true만 변경. 새 task RUNNING/HEALTHY·8083/8443 target healthy, products 무인증 HTTPS401. 배포 중 구 정의 task가 잠시 재생성됐으나 실행 task는 prod15만 남음; 구 target draining 완료는 최종 확인 중.
+- RevenueCat billing-production을 Both Production and Sandbox로 저장, HMAC/Authorization/앱 제한 유지. 테스트 webhook/LC/Identity/실제 Store 환불 실행/snapshot-feed 변경 없음. 거래 환경별 HMAC·원장/환불 분리·공통 timeline 합산 계약 유지. 별도 데이터 삭제 없음, CloudShell 임시 이동 아카이브 원위치 복원.
+- 위험/미확인: 실제 Store SANDBOX 구매→sync→이용권→시험 생성 및 환불 E2E는 프론트 후속. 설정 성공을 구매 검증 성공으로 기록하지 않는다. mixed 자료 생성 후 구버전 rollback 금지. 다음은 ECS COMPLETED 확인 및 프론트 Store 테스트다.
+
+### 같은 작업 최종 확인
+
+- prod15 단일 PRIMARY/COMPLETED·desired1/running1/pending0·HEALTHY, 8083/8443 각각 healthy1·구 target 없음 확인. SANDBOX flag true 및 배포 image digest 대조 완료. 무인증 webhook401 추가 확인.
+- 운영 적용 완료. 기존 데이터 삭제·보존기간/인덱스 변경 없음, 미연결 임시 역할 정의는 보존하고 사용자 collMod 권한은 회수됨. RevenueCat 양환경 설정 저장 증빙 확보. 다음은 프론트 실제 Store 구매/환불 E2E이며 이번에는 실제 구매·환불을 실행하지 않았다.
+
+## 2026-10-18 — 결제 직후 sync 이상 읽기 진단
+
+- 브랜치 codex/billing-test-deployment, Jira 미지정. 사용자 방금 운영 결제 후 sync/조회 이상 보고. 읽기만 수행, 코드·DB·서버·RevenueCat 설정·Jira·commit/push 변경 없음.
+- 변경 문서는 billing-prod-sync-diagnosis-2026-10-18.md/CURRENT_STATE/본기록. 최근 sync·계정별 구매·entitlement·case·source·cursor를 비식별로 대조했다.
+- 최신17:07 iOS sync PENDING/source미귀속, 과거16:39 구매는 VERIFIED/READY와1일권 존재하지만 최신거래와 다름. 동일계정 quantity review가 기존유효권 조회까지 unknown으로 만드는 코드 확인. 이전 동일거래 sync도 PENDING이며 old replay는 candidate 보완 후 settled 재대조 없이 반환. 계정 lookup attempts9/17:33:11 예정.
+- Android17:04 sync APPLIED·SANDBOX1일권 확인, quantity case도 있어 sync/조회 성공 구분. 실제 quantity 필드 값/누락은 원문 미조회로 확정하지 않음.
+- 보완 제안: 불완전 구매증거의 REST 수렴과 기존권리 차단 범위 분리, 기존 PENDING의 검증구매 수렴, 새sync 처리기회와 과거backoff 분리(요청한도/Retry-After 보호). 구현/배포/기존자료 복구는 미수행. 추가결제·강제지급·case삭제 없음.
+- Gradle 미실행(진단·문서만), 기존 dirty 보존. 다음은 승인된 범위의 보완 구현·회귀·배포 및 실제거래 기반 재확인이다.
+
+## 2026-10-18 — 수량 검토·기존권리 조회·sync replay 로컬 수정
+
+- 브랜치 codex/billing-test-deployment, Jira 미지정. 사용자 「일단 수정해줘」에 따른 Billing 로컬 수정. 기존 dirty 전부 보존, 이번 범위 밖 추가 수정 없음.
+- 변경 파일: RevenueCatWebhookDecoder.java, PaidEntitlementReader.java, PaymentSyncService.java, RevenueCatWebhookTest.java, PaymentSyncIntegrationTest.java 및 진단 runbook/CURRENT_STATE/본기록.
+- quantity 누락/null은 QUANTITY_REQUIRES_LOOKUP으로 구분하고 명시적 1 이외 수량은 QUANTITY_UNSUPPORTED 유지. 둘 다 직접 지급 없음, 기존 REST 재조회 검증 유지. 새 worker/별도 상태 저장소·schema/의존성 없음.
+- null observation의 수량 case만 기존 검증된 ACTIVE 권리를 가리지 않게 변경. 권리 없음은 PENDING, 환불·소유권 불명·다른 case 차단 유지. 과거 case와 pendingEvidence/삭제보호는 보존.
+- unbound PENDING same-key replay는 기존 worker 검증구매 완료 함수를 같은 Tx에서 재사용. payload/거래환경/계정/원장/READY/관련검토 확인, command만 APPLIED·pending 1회 감소. bound/review 자동재개·재지급·기간연장 없음.
+- 검증: 최초 targeted 169건 중168통과/1실패는 신규 테스트가 기존 원장 2건을1건으로 가정한 기대값 오류. 지급 전후 건수 불변 검사로 보완했으며 최종 전체 clean test 실행 중. 누락/명시2 구분, concurrent replay, bound command 보존, 정상권리/환불 차단, 엄격한 REST 수렴 회귀 추가. diff 검사 통과.
+- public API·인증·기간권·환불·원장·멱등성 계약 유지. 운영/실제 거래/Secret/DB·LC/Identity·Jira·commit/push 변경 없음.
+- 위험·다음: 미검증 새거래의 기존 계정 backoff 지연은 그대로다. 기존 수량 case를 자동종결하지 않는다. 배포 전 전체 회귀 결과 확인, 배포 후 기존 key 재요청·실제 최신거래 적용 확인 필요. 이 코드 수정은 운영 구매 성공/E2E 완료가 아니다.
+
+### 최종 회귀 결과
+
+- `./gradlew clean test` BUILD SUCCESSFUL, XML 합계1,858건/통과1,858/실패0/오류0/skip0. 실행4분4초. 신규9건 포함, 최초 테스트 기대값 오류 해소. `git diff --check` 통과.
+- 기존 dirty와 이번 변경 범위 대조 완료, 예상 밖 추가 변경 없음. 운영 배포·기존자료 강제 변경 없음. 다음은 별도 운영 적용과 프론트의 같은 key 재요청/최신 결제 확인이다.
+
+## 2026-10-18 — sync 보완 운영 배포
+
+- 브랜치 codex/billing-test-deployment, Jira 미지정. 사용자 「어 배포해줘」 승인으로 Billing 운영 이미지 교체만 수행. 변경 기록: 진단 runbook/CURRENT_STATE/본기록. 제품 코드 추가 변경·commit/push 없음, 기존 dirty 보존.
+- 이전 prod15 정상 확인 → bootJar·이미지 smoke3 성공 → TAR 양측 hash 일치 → ECR sync-fix-20261018 전달 → 컨테이너 image 외 동일 대조 → prod16 rolling 배포. digest/hash는 진단 runbook §6 참조.
+- prod16 단일PRIMARY/COMPLETED·desired1/running1/pending0·RUNNING/HEALTHY, 실행digest 일치·신규양포트healthy. 기동표본38건 Started/ERROR0. 기존target draining은 AWS의 연결정리 잔여이며 ECS 완료와 구분했다. 첫검사 assertion은 draining잔여 조건에서 발생, 재대조 정상.
+- HTTPS 상품/이용권/sync 무인증401 확인. 직전 전체1858/실패0/오류0/skip0 결과 유지, 이번 제품코드 무변경으로 전체 재실행 없음. diff 검사 통과.
+- Secret/기능flag/네트워크/DB·schema/control·LC/Identity·RevenueCat 설정 변경 없음. 구매·case·sync 강제변경/추가결제 없음. CloudShell 공간 확보용 기존아카이브 임시이동 후 원위치 복원, 삭제 없음.
+- public sync 응답형식·인증·원장/환불/멱등성 유지. 예상 밖 변경 없음. 남은 확인: 프론트의 기존 same-key sync 재요청·실제 최신거래 검증 및 이용권 조회. 미검증 거래의 기존backoff는 그대로이며 배포성공을 구매E2E 성공으로 기록하지 않는다.
+
+## 2026-10-18 — 운영 SANDBOX 결제 실제자료 읽기 확인
+
+- 브랜치 codex/billing-test-deployment, Jira 미지정. 사용자 정상반영 확인 및 SANDBOX 지원/결제 점검 요청. 변경 파일은 진단runbook/CURRENT_STATE/본기록뿐, 기존 dirty 보존·예상 밖 수정 없음.
+- prod16 COMPLETED/running1/pending0, 양포트healthy1·구draining 제거 확인. 운영PRODUCTION/SANDBOX허용·sync·구매계정ON, control4/OPEN.
+- 최근sync6건(iOS3/Android3) APPLIED, SANDBOX VERIFIED/ALLOWED/READY 구매와 exact거래/앱/계정·purchaseId 일치. 구매별 entitlement1·PURCHASE_VERIFIED 원장1. 관련3계정 active1/pendingSync0·scheduled1/2/0, 겹침/공백0. 이전17:07 iOS는17:33완료, 신규17:35 Android는약5초완료 관측.
+- quantity case는보존. rawIDs/Secret/거래원문 출력·기록없음. CloudShell 재기동 후 /tmp 임시pymongo 준비만 수행, 제품·설정·DB·배포·commit/push 변경없음.
+- 기존 public API/인증/원장/환경구분 계약 유지. 문서diff검사 통과, Gradle 미실행(읽기확인/문서만). 신규Store결제·정상로그인API·시험생성·실PRODUCTION거래/환불E2E는 이번 검증 밖. 다음은 프론트 시험생성 확인이며 추가구매를 요구하지 않음.
+
+## 2026-10-18 — 방금 iPhone 구매 적용 여부 읽기 확인
+
+- 브랜치 codex/billing-test-deployment, Jira 미지정. 18:09 KST 운영DB 읽기만 수행. 최근 APP_STORE sync4건의 거래후보와 exact앱/계정 구매 및 entitlement를 대조했다.
+- 최신18:05:16 구매는 sync18:05:19.683 접수/18:05:25.100 APPLIED, 18:05:40 구매는 sync18:05:43.557 접수/18:05:49.177 APPLIED. 두 구매 VERIFIED/ALLOWED/READY, 오류없음. 신규1일/3일은 기존권리 뒤10/21~10/22/10/22~10/25 16:39:50 KST로 저장돼 반영 대기가 아니다.
+- 변경파일 CURRENT_STATE/본기록만. 실제 사용자·거래ID/Secret/원문 미기록. 제품코드·DB·설정·배포·commit/push 무변경, 기존 dirty 보존·예상 밖 수정없음. 문서 diff검사 통과, Gradle 미실행(읽기 진단만). 계약 불변, 앱 화면/인증된API응답은 직접 확인하지 않았으므로 표시문제 여부는 별도다.
+
+## 2026-10-18 — 이용권 GET 로그 읽기 진단
+
+- 18:14 KST 직전1시간 운영 CloudWatch 조회: 전체133 이벤트 중 entitlement_query68건 모두 READY. 마지막18:11:30 KST. 최근 표본 reason NONE. 코드상 정상200 경로이며 READY는 무료 benefit 집계로 paid ACTIVE를 증명하지 않는다.
+- 응답body/paid.status/canTakeExam은 로그에 없고 ALB access log OFF. 특정 앱/계정 연결 및 인증 이전 거절을 이 로그로 확정할 수 없다. 프론트 상태코드·응답JSON·X-Trace-Id 대조 필요; 토큰 요청하지 않음.
+- CURRENT_STATE/본기록만 변경. 제품·DB·설정·배포·Git 이력 무변경, Gradle 미실행(읽기 진단). 기존 변경 보존.
+
+## 2026-10-18 — 사용자별 API 요청 제한 설명
+
+- PaymentRateLimiter 및 세 controller 확인: 환경/route/사용자/고정 분 bucket. sync12, entitlement60, products60, purchase-account10이며 서로 횟수 공유 없음. 같은 사용자 기기·토큰은 공유, sync 멱등성 처리 전 제한하므로 same-key도 포함. 429에는 다음 분까지 Retry-After 제공.
+- 문서2개만 갱신, 제품·서버·DB·Git 이력 무변경. 정적 확인으로 Gradle 미실행; 실제 앱의429 원인은 이 확인으로 확정하지 않음.
+
+## 2026-10-18 — 최신 iOS canTakeExam null 읽기 진단
+
+- 18:43 KST 최신 APP_STORE sync 계정에서 OWNER_UNRESOLVED case5 확인. 계정ACTIVE/회원증거있음/활성권리1 VERIFIED·ALLOWED·READY지만 reader의 unresolved 분기가 paid PENDING을 반환하여 admission RECONCILIATION_PENDING/null로 연결된다. 수량case2는 기존 예외 범위이며 이 원인과 구분.
+- 예약guard 없음/WAITING_MEMBER_EVIDENCE0/대기환불inbox0. 운영 admission/memberEvidence/entitlementQuery 모두true. 최신sync18:42:53은 조회 당시PENDING. 실제 앱 trace 연결 및 provider owner/alias 불일치 상세는 미확인. 인증완화·case삭제·권리지급·설정변경 없음.
+- CloudShell 재개 후 임시 pymongo 도구 복원, 읽기만 수행. 문서2개만 수정, 제품·DB·배포·Git 이력 무변경. Gradle 미실행(진단), 개인정보·비밀값 미출력.
+
+## 2026-10-18 — 소유자 확인 대기 생성시각 확인
+
+- 앞서 확인한18:42:53.976 APP_STORE sync로 계정을 고정하고 OWNER_UNRESOLVED5건 createdAt만 대조. KST18:05:19.198/18:05:43.066/18:10:20.281/18:11:13.650/18:42:53.605, 모두 REVIEW_REQUIRED. 해당 case 구매시각은 없어 실제 결제시각으로 해석하지 않음.
+- 문서2개만 변경, 제품·DB·설정·배포·Git 이력 변경없음. Gradle 미실행(읽기 조회), 기존 변경 보존.
+
+## 2026-10-18 — 소유자case 잔존 코드 원인
+
+- PurchaseCore.receiveWebhook/complete, PaymentAccountLookupWorker.source, PaidEntitlementReader 대조. REVIEW 별도case 보존 후 다른 정상관측 완료가 기존case를 해소하지 않음. 정규화 없는case는 lookup의 거래키 매칭에서 제외되지만 reader의 계정단위 PENDING에는 포함됨. 정상구매와5건 exact 연결 및 provider별 최초 소유불일치 원인은 미확인으로 유지.
+- 문서만 변경, 제품/DB/설정/배포 무변경, 정적조회로 테스트 미실행.
+
+## 2026-10-18 — 정상권리 보호·구매 대기 exact 해결 구현 및 배포 준비
+
+- 브랜치 codex/billing-test-deployment. 사용자 요청으로 PaidEntitlementReader/PurchaseCore/WebhookReceipt/RevenueCatWebhookDecoder/PaymentProperties/PaymentProviderAlerts 및 관련 테스트·application.yml 수정, ReviewPurchaseCandidate/PurchaseReviewResolutionSchema/offline manifest exporter와 runbook 추가. 기존 다른 변경은 보존.
+- 독립 검증된 ACTIVE 권리는 정규화 없는 수량/소유case로 숨기지 않음. 권리 없음·만료·정규화 충돌·환불·회원/예약 보호 유지. 신규 후보는 검증 증거가 아니며 전체 거래 식별자 일치와 VERIFIED/ALLOWED/READY 구매·원장 확인 후 같은Tx로 해결. 원장·case 삭제/재지급 없음. 인증된 same-digest 재전달만 legacy 후보 보완 허용.
+- 최종 ./gradlew clean test bootJar: 1,878개 통과, 실패/오류/skip0. linux/amd64 이미지 빌드 및 정상/잘못된 DB/인증서 smoke 통과. API 응답·인증·rate limit 계약 유지.
+- 사용자 승인: 운영 payment_purchase_cases 한 컬렉션 임시 collMod·서비스 일시중지·선택필드 r9 이관·회수·재배포. 신규 한정 역할은 생성됐으나 아직 미할당, 운영 서버·DB는 변경 전. CloudShell 홈 용량 부족으로 업로드 실패; 기존 아카이브2개와 실패 업로드를 /tmp/billing-upload-space-20261018로 이동 보존하여 재업로드 진행. 이전 아카이브는 작업 후 영속 경로 복원 필요.
+- 기존 OWNER_UNRESOLVED5건의 exact 연결은 미확인, 삭제/임의해결하지 않음. 다음은 이미지 해시/ECR 전달·schema 이관·권한회수·배포 안정화. 프론트 인증 응답/E2E는 미검증, commit/push 없음.
+
+## 2026-10-18 — r9 이관·prod17 기동 오류와 타입 보정
+
+- 이미지/manifest 수신 해시 검증·ECR 전달 완료. digest 5ee01e8371b646f6942c6c8b5dd39074316adb75c796603b00643cec7d42d9bd. 한 컬렉션 collMod 역할만 임시 연결, 서비스0/ALL_BLOCKED 확인 후 이관, case10·index 불변, 권한회수/OPEN 복원 및 prod17 배포.
+- 최초 기동은 schema mismatch로 종료. exporter relaxed JSON이 case validator의 digestVersion/revision/version 숫자6곳의 BSON Long 타입을 int32로 손실했고 Python 동등비교가 숫자값만 비교해 놓쳤음. 잘못된 검증완료 주장을 교정하며 상세 장애를 사용자에게 알림. 기존 구매·case는 무변경.
+- exporter Extended JSON/Java round-trip 검증 추가·컴파일/실행 성공; canonical manifest 해시 b9a9c9ad88f061b7bd76ee46239999fbc59fc3cc8b529e22f2cf4bec4e8dc76b. 동일 승인 컬렉션·권한 범위에서 서비스 중지/ALL_BLOCKED CAS 후 타입 보정, 6개 schema canonical 타입 일치·case10/index 불변 확인. 임시 권한 재회수 확인·OPEN CAS 복원, 동일 prod17 재기동 요청. 제품이미지 변경 없음.
+- 이전 CloudShell 아카이브2개 원위치 복원·로컬과 해시 일치, 새 이미지 원본 로컬/ECR 보존. 파일 영구삭제 없음. 영향 계정 read-only: VERIFIED 활성권리1, 미정규화case7, 다른 차단case0, 환불inbox0, 최신sync APPLIED. 실제 사용자 응답은 미검증.
+
+## 2026-10-18 — prod17 기동·양포트 health 복구 확인
+
+- 타입 보정 뒤 동일 prod17 RUNNING/HEALTHY, Started=true/기동실패false/새로그 ERROR0. ALB 8083/8443 각각 healthy1 확인(기존30초/연속5회 health 설정 유지). 앱 HTTPS 무인증401, CloudShell의 workload 요청404는 발신IP 제한 경계로 정상서명 검증과 구분.
+- task definition은 기존 대비 image+review-resolution=true만 변경. control OPEN·임시 collMod effective 권한 없음, 기존 readWrite2개만 유지. schema6개 타입 포함 exact, case10/index 보존. 기존5건은 원문 인증 재전달 없이는 추측 해결하지 않음.
+- 제품코드 최종 전체테스트1,878통과 유지, 이후 변경은 exporter·문서이며 exporter 컴파일/Java round-trip 검증 성공. git diff --check 통과, 기존 사용자 변경 보존, commit/push·LC/Identity 변경 없음. 다음은 프론트 entitlement 재조회/시험 생성 및 향후 exact 거래case 자동해결 관측.
+
+- 최종 ECS 상태 prod17 PRIMARY/COMPLETED·desired1/running1/pending0, 실행 태스크HEALTHY·양포트healthy1. 이전 deployment 제거 확인으로 배포 완료. 로컬 증거 `/private/tmp/billing-review-prod17-health-20261018.png`, 권한회수 `/private/tmp/billing-review-role-revoked-20261018.png`. 사용자 인증 응답·실제 자동해결 E2E는 미검증으로 유지.
+
+## 2026-10-19 — 자동해결 실운영 확인 착수·로그인 대기
+
+- 사용자 프론트 정상 동작 및 iPhone 반영 정상 확인을 접수. 구매 반영과 기존case RESOLVED는 별개이며, 요청한 자동해결 실운영 사례를 읽기 확인하려 함.
+- 운영 AWS 탭이 로그아웃 상태라 재로그인 화면까지만 연결. 새 DB·로그 조회를 아직 수행하지 못했으며 자동해결 성공/실패를 추정하지 않음. 다음은 로그인 후 해결case·exact 거래·검증구매/원장 및 잔존case 집계 조회. 재전송·실구매·DB수정은 이번 확인에서 수행하지 않음.
+- 변경파일 CURRENT_STATE/WORKLOG만, 기존 dirty 보존. 제품·설정·DB·배포·Git 이력 변경없음. Gradle 미실행(읽기 진단/문서만), 계약불변·예상 밖 변경없음.
+
+## 2026-10-19 — 자동해결 운영 자료 읽기 확인
+
+- 사용자 로그인 완료 후 AWS CloudShell 재연결, 임시 pymongo 도구 복원. 운영DB read-only 집계와 현재 task 설정 조회; 실제 사용자/거래 식별자·Secret·원문 미출력.
+- prod17 COMPLETED/running1, REVIEW_RESOLUTION flag=true. payment_purchase_cases10건: QUANTITY_REQUIRES_LOOKUP2, QUANTITY_UNSUPPORTED3, OWNER_UNRESOLVED5. resolvedObservationKey0/reviewCandidate0, 모두 배포완료(2026-10-18 19:28 KST) 전 자료. 이후 신규case0·구매0·sync0.
+- 따라서 실제 자동해결 성공 사례는 아직 없고 처리할 신규후보도 관측되지 않음. 단위/통합테스트 통과·기능ON과 운영E2E 완료를 구분. 기존5건은 과거 기록으로 남으며 사용자 확인의 iPhone 정상반영과 모순되지 않음. 추가구매/웹훅 재전달/DB수정 없이 확인 완료; 원본 인증 webhook 재전달은 별도 요청 시 수행.
+- 변경파일 CURRENT_STATE/WORKLOG, 제품·서버설정·DB·배포·commit/push 무변경. Gradle 미실행(읽기 조회·문서만), git diff --check 통과. 기존 dirty 보존·예상 밖 변경없음.
+
+## 2026-10-19 — 기존 RevenueCat webhook 재전달 경로 확인
+
+- 브랜치 codex/billing-test-deployment. 사용자 승인에 따라 새 구매 없이 기존 운영 webhook 재전달로 자동해결 검증을 시도.
+- billing-production 설정의 전송 이력과 해당 고객 Event Details의 운영 integration을 확인. 10/18 18:42 KST APP_STORE/SANDBOX NON_RENEWING_PURCHASE는 Sent, 최초 응답 HTTP200. 두 상세 화면에 원본 재전달 버튼이 확인되지 않아 실제 replay는 실행하지 못함. 화면의 Send test event를 원본 재전달로 대체하지 않고 인증/서명 우회·수동 DB해결도 하지 않음.
+- 실제 자동해결/중복지급 방지 E2E는 미검증으로 유지. 다음은 공급자 지원 원본 재전달 방법 확인 또는 향후 정상 거래에서 검증된 구매와 대상 case의 exact 연결 관측. 이번 조사로 기존 case가 해결됐다고 기록하지 않음.
+- 변경파일 CURRENT_STATE/WORKLOG만. 제품·서버·DB·설정·배포·commit/push 무변경, 기존 dirty 보존. Gradle 미실행(브라우저 읽기 조사와 문서만); 계약불변·이번 작업의 예상 밖 변경 없음.
+
+## 2026-10-19 — 기존10건 RevenueCat 원본과 검증 구매 읽기 대조
+
+- 브랜치 codex/billing-test-deployment. 사용자 요청은 과거case의 원본 연결 가능성 확인; CloudShell에 거래/구매계정 식별자를 비표시 입력으로 전달하는 읽기 대조를 추가 승인받음. 원본은 메모리에만 유지, DB쓰기/HTTP replay/신규구매 없음.
+- RevenueCat billing-production 기존10개 NON_RENEWING_PURCHASE의 화면 원본을 확인. 운영 lookup key를 출력 없이 사용해 event HMAC으로 case10건, transaction HMAC으로 검증 purchase10건 연결. 모두 VERIFIED/ALLOWED/READY, 각 구매의 PURCHASE_VERIFIED ledger1. ownerRefId·상품·구매시각·Store환경·accountId 일치. current ACTIVE account/lifecycle과 case lifecycle 일치10/10 확인.
+- 초기 점검의 purchase.lifecycleId 비교는 제품 코드의 비교 대상이 아니었음. PurchaseCore는 account.userId로 현재 lifecycle을 조회하므로 이 기준으로 재검증해10/10 확인. 초기 false를 실제 귀속 충돌로 해석하지 않음.
+- dashboard 원본은 quantity누락·family false·current/original owner동일. case 사유는 소유5·수량누락2·구 수량미지원3. dashboard 재직렬화 SHA256은 저장 receptionDigest와 불일치하여 인증 same-digest replay로 사용할 수 없음. 표시/숫자 직렬화 등 원인 미확정이며 원문 변조나 실제 거래 충돌로 단정하지 않음.
+- 비표시 입력4096자 제한으로 첫 입력 JSON 파싱 실패 후 압축 비표시 입력으로 성공. 연결 일시 단절은 페이지 새로고침 후 복구. 원문·키·계정/거래ID는 문서와 결과에 미기록.
+- 결론: 검증 구매와 연결 가능10건, 현재 자동해결 재전달 근거는 미완료. 현재 승인한 읽기 범위에서 RESOLVED/카운터 변경 없음. 후속은 과거10건 한정 종결 및 감사근거 처리 설계/구현; 정상 구매/기간은 변경하지 않으며 구 QUANTITY_UNSUPPORTED를 일반 자동허용으로 확대하지 않음.
+- 변경파일 CURRENT_STATE/WORKLOG만. 제품·DB·배포·commit/push 변경없음. Gradle 미실행(읽기 점검), 기존 dirty 보존. 신규 제품 동작/계약 변경 없음.
+
+## 2026-10-19 — 과거 검토10건 한정 종결 도구 구현
+
+- 브랜치 codex/billing-test-deployment. 사용자 구현 요청/이어서 진행에 따라 scripts/ops/resolve_legacy_purchase_reviews.py와 test_resolve_legacy_purchase_reviews.py 및 운영안내 추가. CURRENT_STATE/WORKLOG 갱신.
+- 기본dry-run, exact10개 고유 hash manifest·사유5/2/3·cutoff·현재 ACTIVE계정/lifecycle·VERIFIED/ALLOWED/READY구매·구매원장·fingerprint·기존case해시 검사. 운영apply는 명시 manifest SHA256/중지확인/ALL_BLOCKED 필요. 모든case 확인 후 하나의 majority/snapshot Tx에서 RESOLVED 감사필드/version·counted/pendingEvidence만 변경, 같은 감사 재실행 NOOP.
+- dashboard hash 불일치에 대한 제한을 문서화: 기존 receptionDigest는 CAS전제이고 인증 replay 증명이 아니다. 원문/candidate 조작 없음, 구 수량미지원의 일반 자동허용 없음. 승인manifest를 실제 원본 대조 없이 생성하지 않는다.
+- 로컬15 unittest 통과, git diff --check 통과. 최초 테스트 배치 추가 중 테스트변수 위치 오류1건 수정 후 재실행 통과. batch는 메모리 대역이며 실제 Mongo 트랜잭션 rollback/unknown commit 검증은 미완료. Java제품 코드 변경없어 Gradle 미실행.
+- 운영manifest 생성·dry-run·실DB 적용은 미실행. 운영중지/DB쓰기/권한/schema/배포/commit/push 없음. 기존 dirty 변경은 보존, 이번 예상 밖 제품 변경 없음. 다음은 승인 대상 manifest와 실Mongo 검증 후 별도 운영 적용.
+
+## 2026-10-19 — 종결 manifest/dry-run 착수·CloudShell 충돌 보류
+
+- 브랜치 codex/billing-test-deployment. 사용자 후속 요청으로 실제 목록/운영dry-run 준비. 로컬15 unittest 재통과, git diff --check 통과.
+- 기존 AWS CloudShell 탭 접근이 다른 작업의 브라우저 세션 귀속으로 거절됨. 해당 터미널의 명령/작업을 중단하거나 변경하지 않았으며 사용자에게 AWS 작업 종료 여부 확인 요청. 별도 탭도 동일 CloudShell 터미널에 연결될 수 있어 기존 터미널 임의 조작은 피함.
+- 실제 manifest 생성·운영dry-run·DB쓰기·서버중지 미실행. 문서2개만 갱신, 제품/계약/배포/commit/push 변경없음. 기존 dirty 보존. 다음은 충돌 없는 Billing 전용 터미널에서10건 manifest 생성 및 읽기 전용 점검; 종결 적용은 별도.
+
+## 2026-10-19 — 재시작 후 실제10건 manifest·운영 dry-run 완료
+
+- 브랜치 codex/billing-test-deployment. 사용자의 재시작 후 재시도 요청으로 브라우저 연결 복구. Billing전용 CloudShell terminal 선택·환경 재기동 및 임시 pymongo 복원 후 진행. 다른 서비스 터미널/설정 변경 없음.
+- RevenueCat 운영 webhook10개 원본 재조회, 비표시 압축 입력으로 메모리 대조. event/transaction HMAC과 owner/시각/상품/Store환경/계정 exact 재검사. 실제 도구 source를 메모리 실행하여 snapshot/majority 읽기Tx에서 run(apply=False) 수행: matched10/wouldResolve10.
+- CloudShell `/home/cloudshell-user/billing-review-closure-20261019-cal5zt4e` 생성, manifest.json/manifest.sha256/dry-run.json 보존. dir0700/file0600 지정, 원문·Secret·개인/거래ID는 미저장. actorDigest는 실제 실행 AWS principal ARN의 SHA256. 승인manifest를 임의 새 case로 확대하지 않음.
+- DB쓰기0, prod17/running1 출력 확인. 실Mongo 읽기Tx는 통과했으나 쓰기Tx rollback/unknown commit·실제종결은 미실행. 운영중지/control/schema/배포/commit/push 없음.
+- 변경파일 CURRENT_STATE/WORKLOG/종결runbook, 제품 무변경·기존 dirty 보존. diff 검사 수행. Gradle 미실행(읽기 점검/문서). 증거 screenshot `/private/tmp/billing-review-dryrun-20261019.png`. 다음은 별도 운영 적용 승인 후 writer중지·ALL_BLOCKED·동일manifest 종결 및 불변 검증.
+
+## 2026-10-19 승인된 과거 구매 검토 10건 운영 종결·복구 완료
+
+- 사용자 재시도 요청과 앞선 운영 적용 승인 범위로 실행. Billing prod17만 desired0, 기존 task STOPPED 확인 후 exact manifest 재검사 및 control OPEN→ALL_BLOCKED CAS 수행.
+- 실Mongo snapshot/majority 쓰기Tx abort 후 wouldResolve10 유지 확인, 이어서 10건을 한 Tx로 RESOLVED commit. 같은 apply 재실행 resolved0 검증.
+- purchases/subscription_entitlements/payment_ledger 전체 건수·digest 불변. case state/reason/receptionDigest 보존 및 counted=false, lifecycle.pendingEvidence 정확 감소 검증. 새 지급/기간 변경/삭제/schema 변경 없음.
+- control OPEN 복원 후 같은 prod17 desired1 재시작. 최종 desired1/running1/pending0·COMPLETED, ALB8083/8443 healthy, 앱 HTTPS 무인증401 확인. Identity/LC 및 다른 CloudShell 터미널 변경 없음.
+- 접근 제한된 기존 CloudShell 폴더에 apply-baseline/apply-result 기록. 원문·비밀값·거래/사용자ID는 출력/저장소에 기록하지 않음. 자동해결 신규 E2E나 원본 webhook replay가 아닌 독립 검증 기반 운영자 종결.
+- 로컬15테스트 재통과 및 git diff --check 통과. 제품 코드 변경/Gradle 재실행/commit/push/새 이미지 배포 없음. 기존 dirty 변경 보존.
+
+## 2026-10-19 운영 배포 변경 Git 반영·Jira 현행화
+
+- 브랜치 codex/billing-test-deployment. 사용자가 최근 코드 commit/push와 Jira 정리를 명시 승인했다. 이번 범위에서 Git 직접 작업 예외를 적용하며 PR생성/병합·재배포·운영 DB 변경은 하지 않는다.
+- 기존 미커밋 SANDBOX Store환경 지원·sync 수렴·정상권리 보호·review 해결/schema 및 운영 도구·배포/종결 기록을 보존하여 반영한다. 신규 제품 로직 수정은 하지 않았다. 원격 미전달 기존 commit 57d6639/3ca7d52도 포함한다.
+- 다시 컴파일한 main class480개가 보관 배포 JAR의 해당 class와 전부 byte 일치. JAR SHA256 fd5e6080e3fee09409abc3f96612594cf6cbda0132b64aa5f8dbc74ecba9e2c0. 운영 이미지 digest 기록과 구분하며 새 이미지 빌드/배포 없음.
+- `./gradlew test --rerun-tasks` BUILD SUCCESSFUL(4m32s), 별도 종결 도구15테스트 통과. diff 검사 및 변경48파일 자격증명 주요 패턴 검사에서 발견0(완전한 비밀정보 부재 증명은 아님).
+- Jira 원문/완료조건과 상태 전환 목록을 확인했다. TMI-212/220/217/205는 구현/운영 적용 근거와 남은 검증을 기록해 검토 중, TMI-204/221/137은 진행 중으로 갱신했다. 실제 E2E 미검증을 완료로 닫지 않았다. Rovo 통합 검색403 후 알려진 이슈 직접 API는 정상 동작했다.
+- 사용자 결정: 시험 삭제 검증은 앱 기능 제공 전으로 유예, 통합 RC budget 개발은 현재 후속에서 제외. 해당 문서와 Jira에 기록하고 기존 설정/서버별 제한 유지. 금융5년 연결정보 정리는 장기유예이며 관련 파일명의 TMI-212와 실제 RevenueCat 이슈 제목을 혼동하지 않는다.
+- 변경파일: 기존 배포 변경 전체와 CURRENT_STATE/WORKLOG, 삭제 검증 절차·RC budget 예외 문서. 타저장소 무변경. 이번 작업은 최근 Billing 범위 정리이며 전체 프로젝트 Jira 감사나 모든 이슈 완료를 뜻하지 않는다.
