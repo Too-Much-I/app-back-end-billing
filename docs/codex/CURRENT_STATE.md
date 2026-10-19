@@ -1,5 +1,11 @@
 # Billing Service 현재 상태
 
+- 2026-10-19 prod18 실제 배포 정상: main Actions39202204049은 마지막 즉시 상태검사에서 실패했으나 별도 AWS 조회로 desired/running1·pending0·단일 COMPLETED·예상 digest 일치·8083/8443 healthy·이미지 외 task설정 동일·HTTPS401 확인. 첫 prod 실행은 SUCCESS로 기록하지 않는다. ECS waiter와 rolloutState 반영 지연 대응으로 최종 검사를 최대180초 재확인하도록 보완, YAML/모든 shell 문법 및 지연성공·타임아웃 모의검사 통과. 후속 자동배포 재검증 예정.
+
+- 2026-10-19 test 자동배포 SUCCESS: Actions39199919048 attempt2·test15·ECS/ALB healthy·HTTPS 무인증401 확인. PR33 main 병합70dac8e 완료, main도 최신 제품 코드/workflow 포함. 운영 자동배포 시작·결과 확인 중이며 prod 완료는 별도 기록한다. DB/기능설정 변경 없음.
+
+- 2026-10-19 자동배포 AWS 연결: Billing test/prod 전용 OIDC 역할·GitHub 변수 등록, PR32 develop 병합0d7a131. 첫 Actions39199919048은 테스트/build 성공 후 immutable subject 불일치로 AWS 인증 실패(ECS 변경 없음). 동일 저장소/브랜치의 고유ID 포함 trust로 양쪽 교정·재실행 중. main PR33은 draft 유지, 최초 test/prod 자동배포 완료는 아직 아니다. DB/Identity/LC 무변경.
+
 - 2026-10-19 GitHub Actions 자동배포 준비: main→prod/develop→test workflow 추가, 현재 ECS 설정에서 image digest만 교체·테스트/build/smoke·stale 배포 거절·상태 확인 포함. GitHub 저장소 역할변수/Secret/environment 목록은 비어 있음. AWS_TEST_ROLE_ARN/AWS_PROD_ROLE_ARN의 Billing 전용 OIDC 권한 연결·최초 실행은 미완료로, main 반영/자동배포 완료가 아니다. YAML·6개 shell구문/Node8테스트 통과, 제품 코드 무변경. 운영 서버/DB/IAM 변경 없음.
 
 - 2026-10-19 develop 병합 요청: 사용자 승인으로 [PR31](https://github.com/Too-Much-I/app-back-end-billing/pull/31) 생성, base develop/head codex/billing-test-deployment 확인. 최초 head6447a80에서 MERGEABLE/CLEAN·CodeRabbit SUCCESS 확인, 기존 전체1,878개/도구15개 통과 유지. 이 기록은 병합 직전 문서이며 최종 merged 여부·SHA는 PR 기록을 따른다. 새 서버 배포·DB 변경은 제외한다.
