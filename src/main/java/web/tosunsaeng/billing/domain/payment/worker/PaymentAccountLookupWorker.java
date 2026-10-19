@@ -23,12 +23,14 @@ public final class PaymentAccountLookupWorker {
     private final Clock clock;
     private final DoubleSupplier jitter;
     private final String environment;
+    private final web.tosunsaeng.billing.domain.payment.purchase.StoreEnvironmentPolicy environments;
     private final PurchaseReferenceStore references;
     public PaymentAccountLookupWorker(PaymentStore store, PaymentProperties p, Clock clock, String project,
             PurchaseLookupKey lookup, PurchaseReferenceCipher cipher, PurchaseCore core, PaymentSyncService sync,
             RevenueCatReadClient reader, DoubleSupplier jitter) {
         this.store = store; this.clock = clock; this.core = core; this.sync = sync; this.reader = reader;
         this.environment = p.getEnvironment(); this.jitter = jitter;
+        environments = new web.tosunsaeng.billing.domain.payment.purchase.StoreEnvironmentPolicy(environment, p.isSandboxPurchasesEnabled());
         work = new PaymentAccountLookupWork(store, p, clock, project, lookup, cipher); PaymentSyncSchema.verify(store.database());
         references = new PurchaseReferenceStore(store, p, clock, project, cipher);
     }
@@ -89,7 +91,7 @@ public final class PaymentAccountLookupWorker {
         for (var item : page.items()) {
             if (item.observation() == null) { review = true; continue; }
             var observation = item.observation();
-            require(environment.equals(observation.environment()) && l.reference().equals(observation.ownerRefId()));
+            require(environments.accepts(observation.environment()) && l.reference().equals(observation.ownerRefId()));
             work.renew(l);
             core.receive(observation, l.ticket(), s -> work.guard(s, l));
             var outcome = core.apply(observation.providerEventKey(), l.ticket(), s -> work.guard(s, l));
@@ -122,7 +124,8 @@ public final class PaymentAccountLookupWorker {
         Document q = new Document("environment", environment).append("accountId", command.get("accountId")).append("lifecycleId", command.get("lifecycleId"));
         String bound = command.getString("sourceObservationKey");
         if (bound != null) q.append("providerEventKey", bound);
-        for (String field : List.of("environment", "store", "appId", "transactionKey", "lookupKeyVersion")) q.append("normalizedObservation." + field, command.get(field));
+        for (String field : List.of("store", "appId", "lookupKeyVersion")) q.append("normalizedObservation." + field, command.get(field));
+        q.append("normalizedObservation.transactionKey", SyncTransactionKeys.query(command));
         Document result = store.database().getCollection("payment_purchase_cases").find(q).first();
         if (result == null) result = store.database().getCollection("payment_provider_inbox").find(q).sort(new Document("receivedAt", 1).append("_id", 1)).first();
         return result;

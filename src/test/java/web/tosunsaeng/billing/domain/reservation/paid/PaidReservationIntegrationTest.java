@@ -25,6 +25,30 @@ import static org.assertj.core.api.Assertions.*;
 
 @Testcontainers(disabledWithoutDocker = false)
 class PaidReservationIntegrationTest extends PaidReservationTestSupport {
+    @Test void productionAdmissionUsesSandboxPurchaseInSameAccountScope() {
+        purchase();
+        // Construct the same r8 purchase shape produced by the mixed-input integration test, in this disposable fixture only.
+        db.getCollection(PaymentRecoveryFence.COLLECTION).updateOne(new Document(), new Document("$set", new Document("barrier", "ALL_BLOCKED")));
+        web.tosunsaeng.billing.domain.payment.purchase.RefundCoreSchema.upgradeUnderMaintenance(db, true);
+        web.tosunsaeng.billing.domain.payment.purchase.MixedStorePurchaseSchema.upgradeUnderMaintenance(db, true);
+        for (String name : List.of(PaymentRecoveryFence.COLLECTION, "payment_accounts", "payment_account_lifecycles", "purchase_account_refs",
+                "payment_products", "payment_timelines", "purchases", "payment_provider_inbox"))
+            db.getCollection(name).updateMany(new Document("environment", "SANDBOX"), new Document("$set", new Document("environment", "PRODUCTION")));
+        db.getCollection("purchases").updateMany(new Document(), new Document("$set", new Document("storeEnvironment", "SANDBOX")));
+        db.getCollection(PaymentRecoveryFence.COLLECTION).updateOne(new Document(), new Document("$set", new Document("barrier", "OPEN")));
+        properties.setEnvironment("PRODUCTION"); properties.setSandboxPurchasesEnabled(true);
+        var jwt = Jwt.withTokenValue("fake-not-stored").header("alg", "RS256").subject(USER).issuer(ISSUER)
+                .claim("account_type", "MEMBER").claim("scope", "billing:purchase").audience(List.of("tosunsaeng-billing"))
+                .issuedAt(NOW.minusSeconds(10)).expiresAt(NOW.plusSeconds(60)).build();
+        new PaymentAccountService(payment, properties, clock).getOrCreate(
+                VerifiedMemberEvidence.fromAuthenticated(jwt, ISSUER, "PRODUCTION", Duration.ofSeconds(60), NOW));
+        var recovery = new MemberOperationRecovery(tx, payment, properties, "production", ISSUER, clock);
+        var runtime = new PaidReservationService(tx, recovery, payment, properties, "production", "scope", clock);
+        var command = command(); var result = runtime.reserve(command);
+        assertThat(result.source().getString("type")).isEqualTo("SUBSCRIPTION");
+        assertThat(runtime.confirm(confirm(command, result)).snapshot().reservationStatus()).isEqualTo(Reservation.Status.CONFIRMED);
+        assertThat(db.getCollection("entitlement_grants").countDocuments()).isZero();
+    }
     @Test void unattributedCaseDoesNotBlockPaidReserveOrConfirm() {
         purchase();
         var lookup = new web.tosunsaeng.billing.domain.payment.purchase.PurchaseLookupKey(new byte[32], "fake-v1");

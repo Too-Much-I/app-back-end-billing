@@ -42,7 +42,17 @@ public final class PaidEntitlementReader {
         if (account == null) return !"OPEN".equals(control.getString("barrier")) ? PaidQueryResponse.unknown(false) : PaidQueryResponse.empty(false);
         require("ACTIVE".equals(account.getString("state")));
         require(one("purchase_account_refs", env().append("_id", account.getString("activeRefId")).append("accountId", id).append("active", true)) != null);
-        boolean unresolved = exists("payment_purchase_cases", env().append("accountId", id))
+        // Unverified input cannot revoke an independently verified entitlement. This narrow exception
+        // requires absent normalized evidence; verified ownership conflicts and reversals still block.
+        // Keep the cases and their cleanup responsibility until evidence-based resolution.
+        List<String> unverifiedReasons = List.of("QUANTITY_REQUIRES_LOOKUP", "QUANTITY_UNSUPPORTED",
+                "OWNER_UNRESOLVED", "OWNERSHIP_UNSUPPORTED");
+        boolean unverifiedPending = exists("payment_purchase_cases", env().append("accountId", id)
+                .append("resolvedObservationKey", new Document("$exists", false))
+                .append("normalizedObservation", null).append("reason", new Document("$in", unverifiedReasons)));
+        boolean unresolved = exists("payment_purchase_cases", env().append("accountId", id)
+                .append("resolvedObservationKey", new Document("$exists", false))
+                .append("$nor", List.of(new Document("normalizedObservation", null).append("reason", new Document("$in", unverifiedReasons)))))
                 || exists("payment_provider_inbox", env().append("accountId", id).append("state", "RECEIVED")
                         .append("normalizedObservation.kind", new Document("$in", List.of("REFUND", "REVOKE"))));
         if (unresolved) return PaidQueryResponse.unknown(pending);
@@ -51,7 +61,7 @@ public final class PaidEntitlementReader {
         if (slots.isEmpty()) {
             // A future timeline without its slots is missing data, not an empty entitlement.
             require(timeline == null || timeline.getDate("timelineEnd") != null && !timeline.getDate("timelineEnd").toInstant().isAfter(now));
-            return PaidQueryResponse.empty(pending);
+            return unverifiedPending ? PaidQueryResponse.unknown(pending) : PaidQueryResponse.empty(pending);
         }
         require(timeline != null && environment.equals(timeline.getString("environment")) && id.equals(timeline.getString("accountId")));
         var ids = slots.stream().map(s -> s.getString("purchaseId")).toList();
@@ -65,11 +75,13 @@ public final class PaidEntitlementReader {
                     && slot.get("durationSeconds") instanceof Long && slot.getLong("durationSeconds") > 0
                     && slot.getDate("startsAt") != null && slot.getDate("endsAt") != null && slot.getDate("startsAt").before(slot.getDate("endsAt")));
             require(timeline.get("nextSequence") instanceof Long && timeline.getLong("nextSequence") > slot.getLong("sequence")
-                    && timeline.getDate("timelineEnd") != null && !timeline.getDate("timelineEnd").before(slot.getDate("endsAt")));
+                    && timeline.getDate("timelineEnd") != null);
             Document purchase = byId.get(slot.getString("purchaseId")); require(purchase != null);
             String state = purchase.getString("purchaseState"), access = purchase.getString("accessState");
             require(Set.of("VERIFIED", "REFUNDED", "REVOKED").contains(state) && Set.of("ALLOWED", "NOT_GRANTED", "REVOKED").contains(access));
             if (!"VERIFIED".equals(state) || "REVOKED".equals(access) || slot.getDate("revokedAt") != null) continue;
+            // Reflow shortens the live timeline; a revoked slot keeps its historical end for audit.
+            require(!timeline.getDate("timelineEnd").before(slot.getDate("endsAt")));
             require("ALLOWED".equals(access));
             if (!"READY".equals(purchase.getString("processingStatus"))) return PaidQueryResponse.unknown(pending);
             Document product = purchase.get("productSnapshot", Document.class); require(product != null);
@@ -88,7 +100,8 @@ public final class PaidEntitlementReader {
                 if (continuous != null && continuous.equals(start)) continuous = end;
             }
         }
-        if (active == null) return new PaidQueryResponse(PaidQueryResponse.Status.READY, false, null, null, null, next, pending);
+        if (active == null) return unverifiedPending ? PaidQueryResponse.unknown(pending)
+                : new PaidQueryResponse(PaidQueryResponse.Status.READY, false, null, null, null, next, pending);
         String offer = byId.get(active.getString("purchaseId")).get("productSnapshot", Document.class).getString("offerCode");
         return new PaidQueryResponse(PaidQueryResponse.Status.READY, true, offer, active.getDate("endsAt").toInstant(), continuous, next, pending);
     }

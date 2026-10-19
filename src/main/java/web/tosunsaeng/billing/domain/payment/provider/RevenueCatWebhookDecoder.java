@@ -29,10 +29,16 @@ public final class RevenueCatWebhookDecoder {
     private final Map<String, App> apps;
     private final PurchaseLookupKey lookup;
     private final Clock clock;
+    private final StoreEnvironmentPolicy environments;
     public RevenueCatWebhookDecoder(String environment, String project, Map<String, App> apps, PurchaseLookupKey lookup, Clock clock) {
+        this(environment, project, apps, lookup, clock, false);
+    }
+    public RevenueCatWebhookDecoder(String environment, String project, Map<String, App> apps, PurchaseLookupKey lookup, Clock clock,
+                                    boolean sandboxPurchasesEnabled) {
         if (!Set.of("SANDBOX", "PRODUCTION").contains(environment) || apps.isEmpty()) throw new IllegalArgumentException("Invalid webhook mapping");
         RevenueCatPurchaseDecoder.text(project); apps.keySet().forEach(RevenueCatPurchaseDecoder::text);
         this.environment = environment; this.project = project; this.apps = Map.copyOf(apps); this.lookup = lookup; this.clock = clock;
+        environments = new StoreEnvironmentPolicy(environment, sandboxPurchasesEnabled);
     }
     public WebhookReceipt decode(byte[] bytes) {
         JsonNode root = json(bytes);
@@ -40,14 +46,15 @@ public final class RevenueCatWebhookDecoder {
         JsonNode event = root.get("event"); if (event == null || !event.isObject()) throw malformed();
         String id = text(event, "id", true), type = text(event, "type", true);
         String env = text(event, "environment", false), appId = text(event, "app_id", false);
-        if (env != null && !environment.equals(env) || appId != null && !apps.containsKey(appId)) throw unsupported();
-        String key = lookup.event(environment, project, id), digest = digest(event);
+        if (env != null && !environments.accepts(env) || appId != null && !apps.containsKey(appId)) throw unsupported();
+        String receiptEnvironment = env == null ? environment : env;
+        String key = lookup.event(receiptEnvironment, project, id), digest = digest(event);
         if ("TEST".equals(type) || !"NON_RENEWING_PURCHASE".equals(type) && !REVIEW_TYPES.contains(type))
-            return receipt(key, digest, null, null, WebhookReceipt.Disposition.IGNORED, "IGNORED_UNSUPPORTED");
+            return new WebhookReceipt(receiptEnvironment, key, digest, lookup.version(), null, null, WebhookReceipt.Disposition.IGNORED, "IGNORED_UNSUPPORTED");
         String current = text(event, "app_user_id", false), original = text(event, "original_app_user_id", false);
         String owner = canonicalOwner(current) && Objects.equals(current, original) ? current : null;
         if (!"NON_RENEWING_PURCHASE".equals(type))
-            return receipt(key, digest, null, owner, WebhookReceipt.Disposition.REVIEW, "EVENT_REQUIRES_LOOKUP");
+            return receipt(receiptEnvironment, key, digest, null, owner, WebhookReceipt.Disposition.REVIEW, "EVENT_REQUIRES_LOOKUP");
         String store = text(event, "store", false), product = text(event, "product_id", false), tx = text(event, "transaction_id", false);
         Long purchased = number(event, "purchased_at_ms"), eventTime = number(event, "event_timestamp_ms"), quantity = number(event, "quantity");
         JsonNode family = event.get("is_family_share");
@@ -61,28 +68,42 @@ public final class RevenueCatWebhookDecoder {
         String reason = owner == null || !aliasSafe ? "OWNER_UNRESOLVED"
                 : app == null || env == null || store == null || product == null || tx == null || purchased == null || eventTime == null ? "PURCHASE_FACTS_INCOMPLETE"
                 : !app.store().name().equals(store) || !app.products().contains(product) ? "PRODUCT_UNMAPPED"
-                : quantity == null || quantity != 1L ? "QUANTITY_UNSUPPORTED"
+                : quantity == null ? "QUANTITY_REQUIRES_LOOKUP"
+                : quantity != 1L ? "QUANTITY_UNSUPPORTED"
                 : family == null || !family.isBoolean() || family.booleanValue() ? "OWNERSHIP_UNSUPPORTED"
                 : purchased < 0 || eventTime < 0 || Instant.ofEpochMilli(purchased).isAfter(clock.instant())
                     || Instant.ofEpochMilli(eventTime).isAfter(clock.instant()) ? "PURCHASE_TIME_INVALID" : null;
-        if (reason != null) return receipt(key, digest, null, owner, WebhookReceipt.Disposition.REVIEW, reason);
+        if (reason != null) {
+            // Only incomplete purchase evidence is matchable; explicit unsupported quantity/family sharing,
+            // owner mismatch, reversal/transfer events and missing facts remain manual review.
+            ReviewPurchaseCandidate candidate = null;
+            if (Set.of("QUANTITY_REQUIRES_LOOKUP", "OWNER_UNRESOLVED").contains(reason)
+                    && owner != null && app != null && env != null && app.store().name().equals(store)
+                    && product != null && app.products().contains(product) && tx != null && purchased != null && purchased >= 0
+                    && !Instant.ofEpochMilli(purchased).isAfter(clock.instant()) && (quantity == null || quantity == 1L)
+                    && family != null && family.isBoolean() && !family.booleanValue())
+                candidate = new ReviewPurchaseCandidate(env, app.store(), appId,
+                        lookup.transaction(env, store, appId, tx), lookup.version(), owner, product, Instant.ofEpochMilli(purchased));
+            return new WebhookReceipt(receiptEnvironment, key, digest, lookup.version(), null, owner,
+                    WebhookReceipt.Disposition.REVIEW, reason, candidate);
+        }
         PurchaseObservation.Money money = null;
         JsonNode amount = event.get("price_in_purchased_currency"), currency = event.get("currency");
         boolean hasAmount = amount != null && !amount.isNull(), hasCurrency = currency != null && !currency.isNull();
         if (hasCurrency && (!currency.isTextual() || !currency.textValue().matches("[A-Z]{3}")))
-            return receipt(key, digest, null, owner, WebhookReceipt.Disposition.REVIEW, "MONEY_UNRESOLVED");
+            return receipt(receiptEnvironment, key, digest, null, owner, WebhookReceipt.Disposition.REVIEW, "MONEY_UNRESOLVED");
         if (hasAmount) {
             if (!hasCurrency || !amount.isNumber())
-                return receipt(key, digest, null, owner, WebhookReceipt.Disposition.REVIEW, "MONEY_UNRESOLVED");
+                return receipt(receiptEnvironment, key, digest, null, owner, WebhookReceipt.Disposition.REVIEW, "MONEY_UNRESOLVED");
             try { money = new PurchaseObservation.Money(amount.decimalValue(), currency.textValue()); }
-            catch (IllegalArgumentException invalid) { return receipt(key, digest, null, owner, WebhookReceipt.Disposition.REVIEW, "MONEY_UNRESOLVED"); }
+            catch (IllegalArgumentException invalid) { return receipt(receiptEnvironment, key, digest, null, owner, WebhookReceipt.Disposition.REVIEW, "MONEY_UNRESOLVED"); }
         }
-        var observation = new PurchaseObservation(environment, app.store(), appId, lookup.transaction(environment, store, appId, tx),
+        var observation = new PurchaseObservation(receiptEnvironment, app.store(), appId, lookup.transaction(receiptEnvironment, store, appId, tx),
                 lookup.version(), key, PurchaseObservation.Kind.PURCHASE, owner, product, Instant.ofEpochMilli(purchased), money);
-        return receipt(key, digest, observation, owner, WebhookReceipt.Disposition.PURCHASE, "VERIFIED_CANDIDATE");
+        return receipt(receiptEnvironment, key, digest, observation, owner, WebhookReceipt.Disposition.PURCHASE, "VERIFIED_CANDIDATE");
     }
-    private WebhookReceipt receipt(String key, String digest, PurchaseObservation o, String owner, WebhookReceipt.Disposition d, String reason) {
-        return new WebhookReceipt(environment, key, digest, lookup.version(), o, owner, d, reason);
+    private WebhookReceipt receipt(String storeEnvironment, String key, String digest, PurchaseObservation o, String owner, WebhookReceipt.Disposition d, String reason) {
+        return new WebhookReceipt(storeEnvironment, key, digest, lookup.version(), o, owner, d, reason);
     }
     private JsonNode json(byte[] bytes) {
         if (bytes == null || bytes.length == 0) throw malformed();

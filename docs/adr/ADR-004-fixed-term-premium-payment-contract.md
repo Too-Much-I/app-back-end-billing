@@ -1,5 +1,9 @@
 # ADR-004: RevenueCat 기반 fixed-term premium 결제 계약
 
+> 2026-10-18 정상 권리 보호·대기 해결 승인: 정규화 증거 없는 수량/소유 확인 case만으로 별도 검증된 ACTIVE 이용권을 숨기지 않는다. 검증된 충돌·환불/취소·회원증거·예약경합 차단은 유지한다. 신규 권리 부여는 여전히 검증된 구매만 허용한다. 미확인 NON_RENEWING_PURCHASE의 최소 거래해시 후보를 별도 저장하고 환경/Store/app/거래해시/키버전/owner/product/구매시각과 계정/lifecycle가 검증된 구매에 일치할 때만 case를 RESOLVED 처리한다. 원문·기존case 삭제 및 계정단위 일괄해결 금지. 기존 후보 없는case는 같은 digest의 인증된 webhook 재전달 외 임의 역추정 금지. r9 명시 이관·활성화 필요, API 응답 형식 불변.
+
+> 2026-10-18 사용자 승인 — 운영 SANDBOX 구매 통합: 테스트 계정 allowlist·별도 이용권 없이 운영 purchaseAccountRefId로 검증된 SANDBOX/PRODUCTION 구매를 받고 같은 timeline에 합산한다. 서버/account/workload 환경은 유지하고 Store 환경은 observation 및 구매의 storeEnvironment(없으면 기존 environment)에 보존한다. 거래·event HMAC은 실제 Store 환경을 포함해 교차 환경 ID 충돌을 분리한다. 구매별 환불·인증·멱등성·무료/탈퇴 보호 유지. 기존 SANDBOX→test/staging 전용 규칙을 이 범위에서 대체한다. [구현·명시 이관 안내](../runbooks/billing-production-sandbox-purchases.md). 기본 OFF이며 운영 DB/RevenueCat/배포 변경 및 실제 Store E2E 완료가 아니다.
+
 > 2026-10-17 사용자 승인: [TMI-205 관측 기반 삭제 R1](../contracts/TMI-205-OBSERVED-ABSENCE-R1.md). 미구매 탈퇴 계정은 15일·로컬 미처리 없음·전체 ref RC 정상 조회·기존 요청 만료·최종 CAS로 정리하고, 아직 전달되지 않은 Store 거래의 수동 검토/연결 확인 어려움 위험을 수용한다. 과거 RC 밖 미관측 거래까지 부재 증명 요구를 이 범위에서 대체한다. 금융·무료 보존과 늦은 거래 격리 불변, 실제 활성화 별도.
 
 > 2026-10-14 사용자 승인 보완: [TMI-220 기접수 작업 경계](../contracts/TMI-220-REFUND-PROTECTED-SESSION-CLARIFICATION.md). 단일 confirmedSessionId를 유지하며 환불 전 confirm·재시작 전 영속 접수된 과거 Session 작업만 마무리한다. 신규 제출·새 녹음·새 Session 및 일부 문항만으로 전체 완료/Summary 허용은 금지한다. 삭제·탈퇴·확정 종료 우선, Billing late event는 해당 Session/이용 증거에만 반영하고 현재 group·Session·새 guard 불변이다. 아래 exact Session만 완료 표현은 이 좁은 경계로 보완한다. 문서 승인이지 구현·공동 E2E·배포 완료가 아니다.

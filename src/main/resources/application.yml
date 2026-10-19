@@ -53,6 +53,7 @@ billing:
         reference-key: ${BILLING_PAYMENT_PROVIDER_REFERENCE_KEY:}
         reference-key-id: ${BILLING_PAYMENT_PROVIDER_REFERENCE_KEY_ID:}
     entitlement-query-enabled: ${BILLING_PAYMENT_ENTITLEMENT_QUERY_ENABLED:false}
+    review-resolution-enabled: ${BILLING_PAYMENT_REVIEW_RESOLUTION_ENABLED:false}
     catalog-enabled: ${BILLING_PAYMENT_CATALOG_ENABLED:false}
     member-evidence-enabled: ${BILLING_PAYMENT_MEMBER_EVIDENCE_ENABLED:false}
     purchase-account-enabled: ${BILLING_PAYMENT_PURCHASE_ACCOUNT_ENABLED:false}
@@ -72,6 +73,7 @@ billing:
       identity-allowed-host: ${BILLING_PAYMENT_RECOVERY_IDENTITY_ALLOWED_HOST:}
       identity-environment: ${BILLING_PAYMENT_RECOVERY_IDENTITY_ENVIRONMENT:}
     environment: ${BILLING_PAYMENT_ENVIRONMENT:}
+    sandbox-purchases-enabled: ${BILLING_PAYMENT_SANDBOX_PURCHASES_ENABLED:false}
     catalog-version: ${BILLING_PAYMENT_CATALOG_VERSION:1}
     limiter-key: ${BILLING_PAYMENT_LIMITER_KEY:}
   entitlement-query:

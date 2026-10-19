@@ -63,14 +63,37 @@ public final class PaymentSlackSink implements PaymentProviderAlerts.Sink, AutoC
                     + (summary.kind().name().startsWith("REFUND_") ? " / LC 미전송: " : " / 구매 검토 기록: ") + summary.cases()
                     + "\n가장 오래된 대기: " + summary.oldestPendingHours() + "시간 / 7일 이상 검토: " + summary.overdueReview()
                     + "\n운영 안내: " + summary.runbookKey() + " (각 건수는 중복될 수 있음)";
-            byte[] json = new ObjectMapper().writeValueAsBytes(Map.of("text", text, "mrkdwn", false));
-            Response response = transport.post(target, json);
-            if (Set.of(401, 403, 404, 410).contains(response.status())) blocked = true;
-            if (response.status() == 429 || response.status() == 503) retryAt = retryAfter(response.retryAfter());
-            return response.status() == 200 && "ok".equals(response.body().strip());
+            return postText(text);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt(); return false;
         } catch (Exception ignored) { return false; }
+    }
+    public synchronized boolean sendCleanup(web.tosunsaeng.billing.domain.payment.cleanup.CleanupAlerts.Summary summary) {
+        if (closed || blocked || clock.instant().isBefore(retryAt)) return false;
+        try {
+            if (summary == null || summary.kind() == null || summary.reason() == null || summary.asOf() == null
+                    || !Set.of("SANDBOX", "PRODUCTION").contains(summary.environment())
+                    || !"TMI-209".equals(summary.runbookKey()) || summary.count() < 0
+                    || summary.oldestAgeHours() < 0 || summary.overdueCount() < 0) return false;
+            String title = switch (summary.kind()) {
+                case DAILY_SUMMARY -> "Billing 자동삭제 검토 요약";
+                case INCIDENT -> "Billing 자동삭제 작업 장애";
+                case RECOVERY -> "Billing 자동삭제 작업 복구";
+            };
+            return postText("[" + summary.environment() + "] " + title + "\n기준 시각: " + summary.asOf()
+                    + "\n사유: " + summary.reason().name() + " / 검토 보류: " + summary.count()
+                    + "\n가장 오래된 보류: " + summary.oldestAgeHours() + "시간 / 검토 기한 초과: " + summary.overdueCount()
+                    + "\n운영 안내: TMI-209 (삭제 승인 또는 삭제 성공 통지가 아닙니다)");
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt(); return false;
+        } catch (Exception ignored) { return false; }
+    }
+    private boolean postText(String text) throws Exception {
+        byte[] json = new ObjectMapper().writeValueAsBytes(Map.of("text", text, "mrkdwn", false));
+        Response response = transport.post(target, json);
+        if (Set.of(401, 403, 404, 410).contains(response.status())) blocked = true;
+        if (response.status() == 429 || response.status() == 503) retryAt = retryAfter(response.retryAfter());
+        return response.status() == 200 && "ok".equals(response.body().strip());
     }
     private Instant retryAfter(List<String> values) {
         Instant fallback = clock.instant().plusSeconds(3600);

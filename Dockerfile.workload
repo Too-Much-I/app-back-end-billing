@@ -1,0 +1,12 @@
+# Explicit workload candidate; does not replace the default application image.
+# Build with ./gradlew clean test bootJar before docker build.
+FROM eclipse-temurin:21-jre-jammy
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends --only-upgrade openssl libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY --chown=10001:10001 build/libs/app-back-end-billing-0.0.1-SNAPSHOT.jar /app/billing.jar
+COPY --chown=10001:10001 --chmod=0555 scripts/ops/billing-workload-entrypoint.sh /app/workload-entrypoint.sh
+USER 10001:10001
+EXPOSE 8082 8083 8443
+ENTRYPOINT ["/app/workload-entrypoint.sh"]

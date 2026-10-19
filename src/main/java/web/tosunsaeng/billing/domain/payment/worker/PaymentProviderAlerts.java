@@ -43,7 +43,8 @@ public final class PaymentProviderAlerts {
         Document pending = new Document(base).append("state", "PENDING");
         Document review = new Document(base).append("state", new Document("$in", List.of("REVIEW_REQUIRED", "BLOCKED_AUTH")));
         Document first = sync.find(pending).sort(new Document("createdAt", 1)).limit(1).first();
-        long pendingCount = sync.countDocuments(pending), reviewCount = sync.countDocuments(review), caseCount = cases.countDocuments(base);
+        long pendingCount = sync.countDocuments(pending), reviewCount = sync.countDocuments(review),
+                caseCount = cases.countDocuments(new Document(base).append("resolvedObservationKey", new Document("$exists", false)));
         long overdue = sync.countDocuments(new Document(review).append("updatedAt", new Document("$lte", Date.from(now.minus(Duration.ofDays(7))))));
         long age = first == null ? 0 : Math.max(0, Duration.between(first.getDate("createdAt").toInstant(), now).toHours());
         boolean blocked = authBlocked.getAsBoolean();

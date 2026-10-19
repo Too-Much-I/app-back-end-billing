@@ -13,6 +13,12 @@ public final class PaymentSyncSchema {
     public static Document validator() {
         return validator(true);
     }
+    public static Document mixedValidator() {
+        Document result = validator();
+        result.get("$jsonSchema", Document.class).get("properties", Document.class).put("sandboxTransactionKey",
+                new Document("bsonType", "string").append("pattern", "^[a-f0-9]{64}(?![\\s\\S])"));
+        return result;
+    }
     private static Document validator(boolean resumable) {
         Document p = new Document();
         for (String f : List.of("_id", "environment", "userId", "operationId", "store", "appId", "transactionKey", "lookupKeyVersion",
@@ -56,7 +62,17 @@ public final class PaymentSyncSchema {
         verify(db);
     }
     public static void verify(MongoDatabase db) {
-        verify(db, validator());
+        try { verify(db, validator()); }
+        catch (IllegalStateException next) { verifyMixed(db); }
+    }
+    public static void verifyMixed(MongoDatabase db) { verify(db, mixedValidator()); }
+    public static void upgradeMixedUnderMaintenance(MongoDatabase db, boolean isolated) {
+        var controls = db.getCollection(PaymentRecoveryFence.COLLECTION).find().into(new ArrayList<>());
+        if (!isolated || controls.isEmpty() || controls.stream().anyMatch(c -> !"ALL_BLOCKED".equals(c.getString("barrier")))) throw mismatch();
+        try { verifyMixed(db); return; } catch (IllegalStateException prior) { verify(db, validator()); }
+        if (db.getCollection(COLLECTION).find(new Document("$nor", List.of(mixedValidator()))).limit(1).first() != null) throw mismatch();
+        db.runCommand(new Document("collMod", COLLECTION).append("validator", mixedValidator()).append("validationLevel", "strict").append("validationAction", "error"));
+        verifyMixed(db);
     }
     /** Explicit r1 -> r2; no data backfill, index changes or automatic downgrade. */
     public static void upgradeResumeUnderMaintenance(MongoDatabase db, boolean isolated) {

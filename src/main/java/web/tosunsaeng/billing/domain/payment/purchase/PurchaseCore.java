@@ -20,12 +20,15 @@ public final class PurchaseCore {
     private final String environment, keyVersion;
     private final Map<PurchaseObservation.Store, String> apps;
     private final boolean refundsEnabled;
+    private final boolean reviewResolutionEnabled;
+    private final StoreEnvironmentPolicy environments;
 
     public PurchaseCore(PaymentStore store, PaymentProperties properties, Clock clock,
                         Map<PurchaseObservation.Store, String> apps, String keyVersion) {
         require(properties.getRecovery().isFenceRequired());
         this.store = store; this.fence = new PaymentRecoveryFence(store, properties); this.clock = clock;
         environment = properties.getEnvironment();
+        environments = new StoreEnvironmentPolicy(environment, properties.isSandboxPurchasesEnabled());
         require(Set.of("SANDBOX", "PRODUCTION").contains(environment));
         PurchaseObservation.label(keyVersion); this.keyVersion = keyVersion;
         this.apps = Map.copyOf(apps); require(!this.apps.isEmpty());
@@ -33,6 +36,9 @@ public final class PurchaseCore {
         this.apps.values().forEach(PurchaseObservation::text);
         PurchaseCoreSchema.verify(store.database());
         if (refundsEnabled) RefundCoreSchema.verify(store.database());
+        if (environments.sandboxPurchasesEnabled()) MixedStorePurchaseSchema.verify(store.database());
+        reviewResolutionEnabled = properties.isReviewResolutionEnabled();
+        if (reviewResolutionEnabled) PurchaseReviewResolutionSchema.verify(store.database());
         // A version change is a maintenance migration, never another uniqueness namespace.
         require(collection("purchases").find(new Document("environment", environment)
                 .append("lookupKeyVersion", new Document("$ne", keyVersion))).limit(1).first() == null);
@@ -53,7 +59,7 @@ public final class PurchaseCore {
     /** Network results retain the dispatch epoch and must fence their lease in the same transaction. */
     public Outcome receive(PurchaseObservation observation, PaymentRecoveryFence.Ticket ticket,
                            java.util.function.Consumer<ClientSession> guard) {
-        require(environment.equals(observation.environment()) && keyVersion.equals(observation.lookupKeyVersion())
+        require(environments.accepts(observation.environment()) && keyVersion.equals(observation.lookupKeyVersion())
                 && observation.appId().equals(apps.get(observation.store())));
         Objects.requireNonNull(ticket); Objects.requireNonNull(guard);
         return store.transaction(session -> {
@@ -86,7 +92,7 @@ public final class PurchaseCore {
 
     /** HTTP reception only. Never applies a purchase or calls a provider. */
     public Outcome receiveWebhook(WebhookReceipt receipt) {
-        require(environment.equals(receipt.environment()) && keyVersion.equals(receipt.lookupKeyVersion()));
+        require(environments.accepts(receipt.environment()) && keyVersion.equals(receipt.lookupKeyVersion()));
         PurchaseObservation observation = receipt.observation();
         if (observation != null) require(observation.appId().equals(apps.get(observation.store())));
         var ticket = fence.capture();
@@ -98,6 +104,7 @@ public final class PurchaseCore {
             if (previous != null) {
                 if (!receipt.receptionDigest().equals(previous.getString("receptionDigest")))
                     throw new PaymentException(409, "EVENT_ID_CONFLICT");
+                reconcileWebhookReview(session, receipt);
                 return outcome(previous);
             }
             boolean ignored = receipt.disposition() == WebhookReceipt.Disposition.IGNORED;
@@ -121,10 +128,13 @@ public final class PurchaseCore {
                 Document review = new Document(row);
                 review.remove("retentionDeadline"); review.remove("attempts");
                 review.put("state", "REVIEW_REQUIRED"); review.put("reason", receipt.reason()); review.put("createdAt", Date.from(now));
+                if (reviewResolutionEnabled && receipt.reviewCandidate() != null)
+                    review.put("reviewCandidate", receipt.reviewCandidate().body());
                 collection("payment_purchase_cases").insertOne(session, review);
                 row.put("state", "QUARANTINED"); row.put("counted", false); row.put("purgeAt", row.getDate("retentionDeadline"));
             }
             collection("payment_provider_inbox").insertOne(session, row);
+            reconcileWebhookReview(session, receipt);
             return outcome(row);
         });
     }
@@ -147,7 +157,7 @@ public final class PurchaseCore {
             PurchaseObservation o = PurchaseObservation.read(eventKey, row.get("normalizedObservation", Document.class));
             require(Long.valueOf(o.digestVersion()).equals(row.get("digestVersion"))
                     && o.digest(row.getLong("digestVersion")).equals(row.getString("digest")) && keyVersion.equals(o.lookupKeyVersion())
-                    && environment.equals(o.environment()) && o.appId().equals(apps.get(o.store())));
+                    && environments.accepts(o.environment()) && o.appId().equals(apps.get(o.store())));
             Document account = resolveAccount(session, o.ownerRefId());
             // Frozen attribution cannot be repaired using a new account or a guessed user ID.
             if (row.getString("accountId") == null) return review(session, row, "OWNER_UNRESOLVED");
@@ -155,6 +165,8 @@ public final class PurchaseCore {
             Document life = lifecycle(session, account);
             require(life.getString("_id").equals(row.getString("lifecycleId")) && row.getBoolean("counted"));
             Document purchase = collection("purchases").find(session, transactionKey(o)).first();
+            if (purchase != null) require(o.environment().equals(purchase.getString("storeEnvironment") == null
+                    ? purchase.getString("environment") : purchase.getString("storeEnvironment")));
             if (purchase != null && (!Objects.equals(purchase.getString("accountId"), account.getString("_id"))
                     || !Objects.equals(purchase.getString("ownerRefId"), o.ownerRefId())))
                 return review(session, row, "OWNER_CONFLICT");
@@ -294,12 +306,14 @@ public final class PurchaseCore {
 
     private Document observedPurchase(PurchaseObservation o, Document account, Document product, String state) {
         Date now = Date.from(clock.instant());
-        return new Document(transactionKey(o)).append("_id", uuid()).append("lookupKeyVersion", keyVersion)
+        Document result = new Document(transactionKey(o)).append("_id", uuid()).append("lookupKeyVersion", keyVersion)
                 .append("accountId", account.getString("_id")).append("ownerRefId", o.ownerRefId())
                 .append("storeProductId", o.storeProductId()).append("purchasedAt", o.body().get("purchasedAt"))
                 .append("productSnapshot", product).append("money", o.body().get("money"))
                 .append("purchaseState", state).append("accessState", "NOT_GRANTED").append("processingStatus", "NEEDS_LOOKUP")
                 .append("version", 1L).append("firstVerifiedAt", now).append("lastVerifiedAt", now).append("retentionExpiresAt", null);
+        if (!environment.equals(o.environment())) result.append("storeEnvironment", o.environment());
+        return result;
     }
     private static boolean samePurchase(Document purchase, PurchaseObservation o) {
         Document incoming = o.body();
@@ -336,9 +350,62 @@ public final class PurchaseCore {
     }
     private Outcome complete(ClientSession session, Document row) {
         require(row.getBoolean("counted"));
+        if (reviewResolutionEnabled) {
+            PurchaseObservation observation = PurchaseObservation.read(row.getString("providerEventKey"), row.get("normalizedObservation", Document.class));
+            if (observation.kind() == PurchaseObservation.Kind.PURCHASE) {
+                Document purchase = collection("purchases").find(session, transactionKey(observation)).first();
+                if (purchase != null) resolveMatchingReviews(session, purchase, observation.providerEventKey());
+            }
+        }
         touch(session, row.getString("lifecycleId"), -1);
         finishSource(session, row, "APPLIED");
         return Outcome.APPLIED;
+    }
+    /** Authenticated same-digest replay may recover a legacy hint; no guessed backfill. */
+    private void reconcileWebhookReview(ClientSession session, WebhookReceipt receipt) {
+        if (!reviewResolutionEnabled || receipt.reviewCandidate() == null) return;
+        var candidate = receipt.reviewCandidate();
+        Document review = collection("payment_purchase_cases").find(session, sourceKey(receipt.eventKey())).first();
+        if (review == null || review.get("normalizedObservation") != null || review.getString("accountId") == null
+                || !receipt.receptionDigest().equals(review.getString("receptionDigest"))
+                || !receipt.reason().equals(review.getString("reason")) || review.containsKey("resolvedObservationKey")) return;
+        if (!review.containsKey("reviewCandidate")) {
+            require(collection("payment_purchase_cases").updateOne(session, versionKey(review), new Document("$set",
+                    new Document("reviewCandidate", candidate.body()).append("version", increment(review, "version")))).getModifiedCount() == 1);
+        } else require(candidate.body().equals(review.get("reviewCandidate", Document.class)));
+        Document purchase = collection("purchases").find(session, new Document("environment", environment)
+                .append("store", candidate.store().name()).append("appId", candidate.appId())
+                .append("transactionKey", candidate.transactionKey())).first();
+        if (purchase == null) return;
+        // Link to the durable verified purchase ledger, not this unverified webhook.
+        Document ledger = collection("payment_ledger").find(session, new Document("purchaseId", purchase.getString("_id"))
+                .append("type", "PURCHASE_VERIFIED")).first();
+        if (ledger != null) resolveMatchingReviews(session, purchase, ledger.getString("sourceObservationKey"));
+    }
+    private void resolveMatchingReviews(ClientSession session, Document purchase, String observationKey) {
+        if (!"VERIFIED".equals(purchase.getString("purchaseState")) || !"ALLOWED".equals(purchase.getString("accessState"))
+                || !"READY".equals(purchase.getString("processingStatus")) || observationKey == null) return;
+        Document account = collection("payment_accounts").find(session, new Document("_id", purchase.getString("accountId"))).first();
+        if (account == null || !"ACTIVE".equals(account.getString("state"))) return;
+        Document life = lifecycle(session, account);
+        if (!"ACTIVE".equals(life.getString("state"))) return;
+        Document product = purchase.get("productSnapshot", Document.class);
+        if (product == null || purchase.getDate("purchasedAt") == null) return;
+        Document match = new Document("environment", environment).append("accountId", account.getString("_id"))
+                .append("lifecycleId", life.getString("_id")).append("normalizedObservation", null)
+                .append("resolvedObservationKey", new Document("$exists", false))
+                .append("reason", new Document("$in", List.of("QUANTITY_REQUIRES_LOOKUP", "OWNER_UNRESOLVED")));
+        for (String key : List.of("store", "appId", "transactionKey", "lookupKeyVersion", "ownerRefId", "purchasedAt"))
+            match.append("reviewCandidate." + key, purchase.get(key));
+        match.append("reviewCandidate.environment", purchase.getString("storeEnvironment") == null ? purchase.getString("environment") : purchase.getString("storeEnvironment"));
+        match.append("reviewCandidate.storeProductId", product.getString("storeProductId"));
+        for (Document review : collection("payment_purchase_cases").find(session, match).limit(100)) {
+            require(collection("payment_purchase_cases").updateOne(session, versionKey(review), new Document("$set",
+                    new Document("reviewState", "RESOLVED").append("resolvedAt", Date.from(clock.instant()))
+                            .append("resolvedObservationKey", observationKey).append("purchaseId", purchase.getString("_id"))
+                            .append("counted", false).append("version", increment(review, "version")))).getModifiedCount() == 1);
+            if (review.getBoolean("counted", false)) touch(session, review.getString("lifecycleId"), -1);
+        }
     }
     private Outcome review(ClientSession session, Document row, String reason) {
         Document review = new Document(row);
@@ -397,8 +464,8 @@ public final class PurchaseCore {
                 new Document("version", increment(life, "version")).append("pendingEvidence", pending + delta))).getModifiedCount() == 1);
     }
     private Document sourceKey(String event) { return new Document("environment", environment).append("providerEventKey", event); }
-    private static Document transactionKey(PurchaseObservation o) {
-        return new Document("environment", o.environment()).append("store", o.store().name())
+    private Document transactionKey(PurchaseObservation o) {
+        return new Document("environment", environment).append("store", o.store().name())
                 .append("appId", o.appId()).append("transactionKey", o.transactionKey());
     }
     private static Outcome outcome(Document row) {

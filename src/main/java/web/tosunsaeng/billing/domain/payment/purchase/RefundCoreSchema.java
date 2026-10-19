@@ -60,7 +60,8 @@ public final class RefundCoreSchema {
         return result;
     }
     public static void verify(MongoDatabase db) {
-        manifest().forEach((name, definition) -> verifyOne(db, name, definition));
+        try { manifest().forEach((name, definition) -> verifyOne(db, name, definition)); }
+        catch (IllegalStateException next) { MixedStorePurchaseSchema.verify(db); }
     }
     public static void upgradeUnderMaintenance(MongoDatabase db, boolean isolated) {
         var controls = db.getCollection(PaymentRecoveryFence.COLLECTION).find().into(new ArrayList<>());

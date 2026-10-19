@@ -6,7 +6,7 @@ import org.springframework.core.env.Environment;
 import web.tosunsaeng.billing.domain.payment.repository.PaymentStore;
 import web.tosunsaeng.billing.global.config.security.WorkloadJwtProperties;
 
-/** Test runtime may process validated evidence; this does not approve a Store adapter or production rollout. */
+/** Explicit environment boundary; accepting configuration does not approve a Store refund or deployment. */
 @Configuration(proxyBeanMethods = false)
 public class PaymentRefundConfiguration {
     public PaymentRefundConfiguration(PaymentProperties properties, Environment environment,
@@ -22,10 +22,15 @@ public class PaymentRefundConfiguration {
         if (flags.isPublisherEnabled() && !flags.isProcessingEnabled())
             throw new IllegalStateException("Refund publisher requires processing");
         if (!flags.isProcessingEnabled()) return;
-        if (!java.util.Arrays.equals(profiles, new String[]{"test"})
-                || !"test".equals(workloadEnvironment) || !"SANDBOX".equals(properties.getEnvironment())
-                || database == null || !database.matches("[A-Za-z0-9_-]+[-_]test")
-                || !properties.getRecovery().isFenceRequired())
-            throw new IllegalStateException("Refund pipeline incomplete: only isolated test/SANDBOX runtime with recovery fence is supported");
+        boolean test = java.util.Arrays.equals(profiles, new String[]{"test"})
+                && "test".equals(workloadEnvironment) && "SANDBOX".equals(properties.getEnvironment())
+                && database != null && database.matches("[A-Za-z0-9_-]+[-_]test");
+        // Spring profile "prod" is deliberately distinct from the wire environment "production".
+        // Use the actual PaymentStore database, never a caller-supplied readiness assertion.
+        boolean production = java.util.Arrays.equals(profiles, new String[]{"prod"})
+                && "production".equals(workloadEnvironment) && "PRODUCTION".equals(properties.getEnvironment())
+                && database != null && database.length() <= 63 && database.matches("[A-Za-z0-9_-]+-billing-prod");
+        if ((!test && !production) || !properties.getRecovery().isFenceRequired())
+            throw new IllegalStateException("Refund pipeline incomplete: requires an isolated test or production configuration and recovery fence");
     }
 }

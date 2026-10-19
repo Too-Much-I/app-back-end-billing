@@ -18,13 +18,15 @@ public final class PurchaseReferenceStore {
     private final String environment, project;
     private final Clock clock;
     private final PurchaseReferenceCipher cipher;
+    private final web.tosunsaeng.billing.domain.payment.purchase.StoreEnvironmentPolicy environments;
     public PurchaseReferenceStore(PaymentStore store, PaymentProperties p, Clock clock, String project, PurchaseReferenceCipher cipher) {
         require(p.getRecovery().isFenceRequired()); RevenueCatPurchaseDecoder.text(project);
         this.store = store; this.fence = new PaymentRecoveryFence(store, p); this.environment = p.getEnvironment();
         this.clock = clock; this.project = project; this.cipher = cipher; PurchaseReferenceSchema.verify(store.database());
+        environments = new web.tosunsaeng.billing.domain.payment.purchase.StoreEnvironmentPolicy(environment, p.isSandboxPurchasesEnabled());
     }
     public void remember(PurchaseObservation observation, String reference, String accountId, PaymentRecoveryFence.Ticket ticket, Consumer<ClientSession> guard) {
-        require(environment.equals(observation.environment())); RevenueCatPurchaseDecoder.text(reference);
+        require(environments.accepts(observation.environment())); RevenueCatPurchaseDecoder.text(reference);
         store.transaction(s -> {
             fence.acquire(s, ticket, PaymentRecoveryFence.Writer.PAYMENT_APPLY); guard.accept(s);
             Document key = new Document("environment", environment).append("store", observation.store().name()).append("appId", observation.appId())
@@ -33,6 +35,7 @@ public final class PurchaseReferenceStore {
             Document p = store.database().getCollection("purchases").find(s, key).first();
             require(p != null && "VERIFIED".equals(p.getString("purchaseState")) && "ALLOWED".equals(p.getString("accessState"))
                     && "READY".equals(p.getString("processingStatus")) && p.getDate("retentionExpiresAt") != null);
+            require(observation.environment().equals(p.getString("storeEnvironment") == null ? p.getString("environment") : p.getString("storeEnvironment")));
             if (!clock.instant().isBefore(p.getDate("retentionExpiresAt").toInstant())) return null;
             var rows = store.database().getCollection(PurchaseReferenceSchema.COLLECTION);
             Document old = rows.find(s, new Document("_id", p.get("_id"))).first();

@@ -1,5 +1,7 @@
 # TMI-204 자동 snapshot 조율·보존·관측
 
+> 2026-10-17: [현재 JWT 복구 활성화 순서](cleanup-alerts-and-recovery-readiness-2026-10-17.md)를 추가했다. 기존 OPEN control의 baseline 부재를 임의 checkpoint로 우회하지 않는다. 이번 점검은 실환경 활성화 완료가 아니다.
+
 > 2026-10-13 갱신: Identity–Billing은 JWT 단일화됐고 SigV4 코드/의존성은 제거됐다. 운영 installer·명시 이관·분할 hash/전용 scheduler·HTTP 추적의 로컬 구현은 [새 runbook](TMI-204-operator-and-bounded-verification.md)을 따른다. 아래 과거 미구현/인증 문구보다 우선하며 실제 이관/복원/외부watchdog는 여전히206 gate다.
 
 - 날짜: 2026-10-12 / branch: feat/TMI-204-billing-withdrawal-recovery

@@ -19,12 +19,18 @@ public final class CleanupAlerts {
     private final Clock clock;
     private final Sink sink;
     private final MeterRegistry metrics;
+    private final boolean enabled;
     private LocalDate lastDaily;
     private Instant lastIncident;
     private Instant nextDailyAttempt = Instant.MIN;
     private Instant nextIncidentAttempt = Instant.MIN;
+    private Instant nextRecoveryAttempt = Instant.MIN;
     public CleanupAlerts(PaymentStore store, String environment, Clock clock, Sink sink, MeterRegistry metrics) {
+        this(store, environment, clock, sink, metrics, true);
+    }
+    public CleanupAlerts(PaymentStore store, String environment, Clock clock, Sink sink, MeterRegistry metrics, boolean enabled) {
         this.store = store; this.environment = environment; this.clock = clock; this.sink = sink; this.metrics = metrics;
+        this.enabled = enabled;
     }
     public synchronized Summary snapshot() {
         var jobs = store.database().getCollection(CleanupSchema.COLLECTION);
@@ -37,6 +43,7 @@ public final class CleanupAlerts {
         return new Summary(environment, Kind.DAILY_SUMMARY, Cause.REVIEW, clock.instant(), count, age, overdue, "TMI-209");
     }
     public synchronized void daily() {
+        if (!enabled) return;
         var now = clock.instant().atZone(SEOUL);
         if (now.getHour() < 9 || now.toLocalDate().equals(lastDaily) || clock.instant().isBefore(nextDailyAttempt)) return;
         nextDailyAttempt = clock.instant().plusSeconds(3600);
@@ -44,6 +51,7 @@ public final class CleanupAlerts {
     }
     public synchronized void failure() {
         metrics.counter("billing_cleanup_failure").increment();
+        if (!enabled) return;
         if (clock.instant().isBefore(nextIncidentAttempt)) return;
         if (lastIncident != null && clock.instant().isBefore(lastIncident.plusSeconds(3600))) return;
         nextIncidentAttempt = clock.instant().plusSeconds(3600);
@@ -51,11 +59,17 @@ public final class CleanupAlerts {
             lastIncident = clock.instant();
     }
     public synchronized void recovered() {
+        if (!enabled || lastIncident == null || clock.instant().isBefore(nextRecoveryAttempt)) return;
+        nextRecoveryAttempt = clock.instant().plusSeconds(3600);
         if (lastIncident != null && deliver(new Summary(environment, Kind.RECOVERY, Cause.WORKER_FAILURE,
                 clock.instant(), 0, 0, 0, "TMI-209"))) lastIncident = null;
     }
     private boolean deliver(Summary summary) {
-        try { return sink.send(summary); }
+        try {
+            boolean sent = sink.send(summary);
+            if (!sent) metrics.counter("billing_cleanup_alert_failure").increment();
+            return sent;
+        }
         catch (RuntimeException ignored) {
             metrics.counter("billing_cleanup_alert_failure").increment();
             return false; // Never log raw sink exceptions or make business state depend on delivery.

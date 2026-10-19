@@ -67,7 +67,7 @@ public class PaymentProviderWorkerConfiguration {
         var budget = new RevenueCatProjectBudget(shared, provider.getProject(), clock);
         var alerts = new PaymentProviderAlerts(store, p.getEnvironment(), clock, budget::isAuthBlocked, metrics,
                 config.isAlertsEnabled(), config.isAlertsEnabled() ? alertSink.getIfAvailable() : null);
-        var decoder = new RevenueCatPurchaseDecoder(provider.getProject(), p.getEnvironment(), lookup, products, clock);
+        var decoder = new RevenueCatPurchaseDecoder(provider.getProject(), p.getEnvironment(), lookup, products, clock, p.isSandboxPurchasesEnabled());
         var source = new PaymentSourceWorker(store, p, core, sync, clock, () -> ThreadLocalRandom.current().nextDouble());
         var retention = new PaymentRetentionWorker(store, p, core, clock, config.isTerminalSyncDeleteEnabled());
         var references = new PaymentReferenceRetentionWorker(store, p, clock, config.isReferenceRetentionEnabled());
