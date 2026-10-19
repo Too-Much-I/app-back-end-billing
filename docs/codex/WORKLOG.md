@@ -7291,3 +7291,13 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - GitHub 저장소 Actions Secret/변수/environment 목록에 기존 설정 없음. Billing 전용 AWS 배포 role의 존재/최소권한·trust는 추가 준비 필요. Identity/LC role 신뢰 확대·Secret 읽기·DB이관·기능ON·desiredCount 변경은 workflow에 넣지 않았다.
 - YAML 파싱/6개 shell step bash -n 통과, Node8통과, diff 검사. 제품코드 변경 없어 직전1,878개 테스트를 재실행하지 않았으며 클라우드 workflow 실행/배포 통과로 주장하지 않는다.
 - main 병합과 자동배포 활성화는 OIDC 역할/변수 연결 및 환경별 호환 확인 후 진행한다. 이번 실제 AWS/IAM/서버/DB 변경 없음. 권한 연결 전 PR 준비까지만 수행한다.
+
+## 2026-10-19 Billing 자동배포 OIDC 연결 및 최초 실행
+
+- 브랜치 codex/billing-test-deployment. 사용자 승인 범위에서 Billing test/prod 전용 GitHub OIDC 역할 2개와 AWS_TEST_ROLE_ARN/AWS_PROD_ROLE_ARN 변수를 등록했다. 환경별 exact 서비스/태스크 family·실행역할 PassRole 및 기존 Billing ECR만 허용한다. 다른 환경 PassRole와 Secret 원문 읽기 거절을 IAM simulate로 확인했다. Identity/LC 역할은 변경하지 않았다.
+- PR32 develop 병합0d7a131, main 승격 PR33 draft 생성·첨부. Actions39199919048 첫 실행은 테스트/build 성공 후 AWS 인증 실패. GitHub OIDC 설정 API에서 immutable subject 활성화를 확인하여 이름-only trust를 동일 org/repo 고유ID 및 exact branch 형식으로 교정·재조회 일치 확인 후 재실행했다. 권한 확대나 wildcard 전환은 없다.
+- 기존 test14/prod17 서비스 정상, 단일 billing container/X86_64, circuit breaker rollback 및 minimumHealthyPercent100 확인. CloudShell test DB 직접 읽기는 TLS handshake 실패하여 완료로 기록하지 않았고 네트워크/TLS 완화·DB 변경은 하지 않았다.
+- 변경 파일: github-actions-deployment.md, CURRENT_STATE.md, WORKLOG.md. API·상품·인증·원장·보존 계약 불변. 예상 밖 제품코드 변경 없음. 최초 test 배포 확인 후 main 승격·prod 실행을 진행하며, 전체 자동배포 및 앱 E2E 완료와 구분한다.
+- 후속 결과: 04:58:51 UTC Actions39199919048 attempt2 SUCCESS, test15 이미지/ECS/ALB/HTTPS401 검증 통과. PR33 MERGEABLE/CLEAN·deploy/CodeRabbit SUCCESS 확인 후 draft 해제·exact head0d7a131 일반 merge. 04:59:09 UTC main merge70dac8e 완료. 운영 자동배포 결과 확인 중이며 DB/schema/기능설정 변경 없음.
+- prod18 배포 후 Actions39202204049 마지막 상태검사가 즉시 실패. 별도 AWS에서 desired/running1·pending0·단일 COMPLETED, 예상 digest23fe350e...175d2e2 일치, 8083/8443 healthy와 이전 target draining 확인. prod17 대비 image/등록metadata 외 전체 task definition 동일, 로컬 HTTPS401. 실제 서비스 배포는 정상이며 workflow SUCCESS와 구분한다.
+- ECS stability waiter는 rolloutState COMPLETED 이전 반환 가능하므로 최종 검사 최대18회/10초 재확인 및 이미지 불일치 명시 오류 추가. 검사 조건/rollback 검출은 유지한다. YAML·전체 shell bash -n 및 모의 지연 성공/18회 timeout 각 통과. 제품/DB/기능스위치 변경 없으며 workflow 후속 배포 검증은 계속한다.
