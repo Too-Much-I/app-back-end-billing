@@ -7283,3 +7283,11 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - 최초 head6447a80에서 GitHub MERGEABLE/CLEAN 및 CodeRabbit SUCCESS 확인. GitHub workflow 파일 없음. 직전 전체1,878개/실패·오류·skip0 및 종결도구15개 통과, 이번 문서만 변경하여 전체 테스트 재실행 없음.
 - 로컬 merge-tree는 sandbox Git쓰기 제한으로 미실행이며 충돌 없음 판단은 GitHub 결과를 근거로 한다. 이 문서 commit 이후 최종 head와 검사 상태를 확인하여 일반 merge를 실행한다. admin 우회·force push·브랜치 삭제·서버 재배포·운영 DB 작업은 하지 않는다.
 - 변경파일 CURRENT_STATE/WORKLOG. API·인증·원장·보존 계약 불변. 최종 merged 시각/merge SHA는 PR 감사 기록과 최종 응답을 기준으로 한다. 미완료 E2E와 snapshot/feed 준비는 이번 병합으로 완료되지 않는다.
+
+## 2026-10-19 main/prod·develop/test GitHub Actions 구현 준비
+
+- PR31 develop 병합7aca4f0 확인 후 사용자 요청으로 main 운영 기준 및 브랜치별 자동배포 준비. 해당 작업트리를 origin/develop으로 fast-forward, 타저장소 workflow는 읽기 참고만 했다.
+- `.github/workflows/deploy.yml`과 `docs/runbooks/github-actions-deployment.md` 추가. main/prod·develop/test exact 분기, 별도 OIDC 변수, clean test/bootJar·Python15/Node8·workload image smoke, immutable digest, live task 설정 보존 및 stale branch/동시배포 거절·최종 ECS/ALB/HTTPS401 확인 포함.
+- GitHub 저장소 Actions Secret/변수/environment 목록에 기존 설정 없음. Billing 전용 AWS 배포 role의 존재/최소권한·trust는 추가 준비 필요. Identity/LC role 신뢰 확대·Secret 읽기·DB이관·기능ON·desiredCount 변경은 workflow에 넣지 않았다.
+- YAML 파싱/6개 shell step bash -n 통과, Node8통과, diff 검사. 제품코드 변경 없어 직전1,878개 테스트를 재실행하지 않았으며 클라우드 workflow 실행/배포 통과로 주장하지 않는다.
+- main 병합과 자동배포 활성화는 OIDC 역할/변수 연결 및 환경별 호환 확인 후 진행한다. 이번 실제 AWS/IAM/서버/DB 변경 없음. 권한 연결 전 PR 준비까지만 수행한다.

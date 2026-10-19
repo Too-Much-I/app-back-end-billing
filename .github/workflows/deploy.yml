@@ -1,0 +1,137 @@
+name: Deploy Billing
+on:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: billing-deploy-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: ap-northeast-2
+      ECS_CLUSTER: tosunsaeng-staging-cluster
+      ECR_REPOSITORY: tosunsaeng-billing-test
+    steps:
+      - name: Select branch target
+        id: target
+        env:
+          TEST_ROLE: ${{ vars.AWS_TEST_ROLE_ARN }}
+          PROD_ROLE: ${{ vars.AWS_PROD_ROLE_ARN }}
+        run: |
+          set -euo pipefail
+          case "$GITHUB_REF" in
+            refs/heads/main) channel=prod; role="$PROD_ROLE" ;;
+            refs/heads/develop) channel=test; role="$TEST_ROLE" ;;
+            *) exit 1 ;;
+          esac
+          test -n "$role" || { echo '::error::Configure the Billing branch-specific OIDC role first'; exit 1; }
+          echo "role=$role" >> "$GITHUB_OUTPUT"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+          echo "ECS_SERVICE=tosunsaeng-billing-${channel}-service" >> "$GITHUB_ENV"
+          echo "TASK_FAMILY=tosunsaeng-billing-${channel}" >> "$GITHUB_ENV"
+          echo "APP_ORIGIN=https://billing-${channel}.to-teacher.com" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Test and build before AWS authentication
+        run: |
+          ./gradlew clean test bootJar --no-daemon
+          python3 -m unittest discover -s scripts/ops -p 'test_resolve_legacy_purchase_reviews.py'
+          node --test scripts/ops/billing-test-cleanup-maintenance.test.cjs
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ steps.target.outputs.role }}
+          role-session-name: billing-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Read current service configuration
+        id: current
+        run: |
+          set -euo pipefail
+          umask 077
+          aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE" > service.json
+          jq -e '.failures == [] and (.services | length == 1) and
+            (.services[0] | .status == "ACTIVE" and .desiredCount > 0 and
+              .runningCount == .desiredCount and .pendingCount == 0 and
+              (.deployments | length == 1) and .deployments[0].rolloutState == "COMPLETED")' service.json > /dev/null
+          base=$(jq -r '.services[0].taskDefinition' service.json)
+          echo "BASE_TASK=$base" >> "$GITHUB_ENV"
+          aws ecs describe-task-definition --task-definition "$base" --query taskDefinition > task-definition.json
+          jq -e --arg family "$TASK_FAMILY" '.family == $family and
+            (.containerDefinitions | length == 1) and
+            (.runtimePlatform.cpuArchitecture // "X86_64") == "X86_64"' task-definition.json > /dev/null
+          echo "container=$(jq -r '.containerDefinitions[0].name' task-definition.json)" >> "$GITHUB_OUTPUT"
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+      - name: Build, smoke-test and push workload image
+        id: image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          CHANNEL: ${{ steps.target.outputs.channel }}
+        run: |
+          set -euo pipefail
+          tag="$CHANNEL-$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          image="$REGISTRY/$ECR_REPOSITORY:$tag"
+          docker build --platform linux/amd64 -f Dockerfile.workload -t "$image" .
+          for scenario in valid wrong-db wrong-cert; do
+            docker run --rm --network none --entrypoint sh \
+              -v "$PWD/scripts/ops/billing-workload-image-smoke.sh:/smoke.sh:ro" "$image" /smoke.sh "$scenario"
+          done
+          docker push "$image"
+          digest=$(aws ecr describe-images --repository-name "$ECR_REPOSITORY" --image-ids imageTag="$tag" --query 'imageDetails[0].imageDigest' --output text)
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          echo "uri=$REGISTRY/$ECR_REPOSITORY@$digest" >> "$GITHUB_OUTPUT"
+      - uses: aws-actions/amazon-ecs-render-task-definition@v1
+        id: render
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ steps.current.outputs.container }}
+          image: ${{ steps.image.outputs.uri }}
+      - name: Reject stale branch or concurrent manual deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          latest=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$GITHUB_REF_NAME" --jq '.object.sha')
+          test "$latest" = "$GITHUB_SHA"
+          aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE" > latest-service.json
+          jq -e --arg base "$BASE_TASK" '.failures == [] and (.services | length == 1) and
+            (.services[0] | .taskDefinition == $base and .desiredCount > 0 and
+              (.deployments | length == 1) and .deployments[0].rolloutState == "COMPLETED")' latest-service.json > /dev/null
+      - uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+      - name: Verify deployed image and targets
+        env:
+          EXPECTED_IMAGE: ${{ steps.image.outputs.uri }}
+        run: |
+          set -euo pipefail
+          aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE" > deployed.json
+          jq -e '.services[0] | .runningCount == .desiredCount and .desiredCount > 0 and
+            .pendingCount == 0 and (.deployments | length == 1) and .deployments[0].rolloutState == "COMPLETED"' deployed.json > /dev/null
+          task=$(jq -r '.services[0].taskDefinition' deployed.json)
+          aws ecs describe-task-definition --task-definition "$task" --query taskDefinition > deployed-task.json
+          jq -e --arg image "$EXPECTED_IMAGE" '.containerDefinitions[0].image == $image' deployed-task.json > /dev/null
+          for group in $(jq -r '.services[0].loadBalancers[].targetGroupArn' deployed.json); do
+            aws elbv2 describe-target-health --target-group-arn "$group" > health.json
+            jq -e '[.TargetHealthDescriptions[] | select(.TargetHealth.State != "draining")] |
+              length > 0 and all(.[]; .TargetHealth.State == "healthy")' health.json > /dev/null
+          done
+          code=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 20 "$APP_ORIGIN/api/v1/entitlements")
+          test "$code" = 401
+          echo "### Billing: $GITHUB_REF_NAME → $ECS_SERVICE" >> "$GITHUB_STEP_SUMMARY"
+          echo "Commit: $GITHUB_SHA / Image: $EXPECTED_IMAGE / HTTPS: $code (unauthenticated)" >> "$GITHUB_STEP_SUMMARY"
