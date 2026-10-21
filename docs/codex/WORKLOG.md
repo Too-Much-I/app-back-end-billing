@@ -7324,3 +7324,9 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - 전체 1차 실행은1,904개 중 기존 SecurityConfigTest6개가 새 InviteRewardProperties mock 누락으로 context 생성 실패했다. 전용 초대26개는 통과했다. 기존 보안 테스트에 설정 mock1개만 추가한 선별6개는 통과했고 최종 전체 clean test를 재실행한다. 제품 동작을 바꿔 실패를 우회하지 않았다.
 
 - 최종 `./gradlew clean test` 성공(4m32s). JUnit XML 합계1,904개, 실패0/오류0/skip0. 초대 전용26개 포함(합산하지 않음). 전체 실행은 새 SecurityConfigTest mock 보완까지 포함한다. `git diff --check`와 신규 문서 상대링크 검사 통과. 기존 deprecated/VM 경고 외 미해결 테스트 실패 없음. 최종 브랜치 `codex/invite-share-rewards`, commit/push/merge/배포 없음.
+
+## 2026-10-21 — PLAN-014 테스트 배포·ON
+
+- 2026-10-21 PLAN-014 테스트 배포·ON: 제품 bdda488/PR38→develop fff61ca, Actions39567515145 SUCCESS. 테스트 writer 실제 STOPPED 뒤 additive invite-share-reward-r1 설치·verify(exit0/recovery불변), test19에 INVITE_SHARE_REWARD_ENABLED=true 적용. 단일 COMPLETED desired/running1·pending0, 신규8083/8443 healthy, reward flag 외 task설정 동일. exact 테스트 ALB GET/POST 경로(priority98), HTTPS GET/POST401 no-store·PUT404 확인. 전체1,904테스트 통과 근거 유지; 앱 실제 공유·지급E2E는 미실행. production/Identity/LC/app 불변. [배포·롤백 기록](../runbooks/PLAN-014-invite-share-rewards.md).
+
+- 이번 사용자 승인으로 commit/push/테스트 배포를 진행했다. 변경은 테스트 전용 additive 설치도구와 배포기록. 기존 데이터 purge/권리 변경 없음; 기존 dirty 백업/stash 보존. 도구 컴파일/설정 누락 거절/실제 설치 검증과 git diff --check 수행. 앱 지급E2E 및 production 활성화는 별도다.
