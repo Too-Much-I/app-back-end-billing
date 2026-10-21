@@ -7308,3 +7308,67 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - 운영 실행39205063261은 05:50:14 UTC SUCCESS. 양측 전체 test/bootJar, Python15·Node8, OIDC, workload image valid/wrong-db/wrong-cert smoke, 배포 및 최종 예상image/ECS/ALB/HTTPS401 검사가 모두 통과했다. 첫 운영 실행39202204049 실패 기록은 보존하며 재실행 성공으로 구분한다.
 - main에 최신 제품코드와 배포 workflow를 반영했고, 앞으로 develop push는 test, main push는 prod다. Secret/기능스위치/기존설정 유지, 자동 schema 이관 없음. Identity/LC 역할·서비스·데이터 무변경, 예상 밖 변경 없음. 기존 앱 구매/환불 E2E·별도 후속 항목은 자동배포 성공으로 완료 처리하지 않는다.
 - 변경파일 CURRENT_STATE/WORKLOG/github-actions-deployment.md는 결과문서만이므로 diff 확인 후 [skip ci] 커밋·PR로 develop/main에 정리한다. 이번 결과기록을 위한 추가 제품 테스트는 하지 않으며 위 실제 두 실행을 근거로 한다.
+
+
+## 2026-10-21 PLAN-014 초대 공유 보상 구현
+
+- 사용자 「브랜치 파서 구현해줘」에 따라 `codex/invite-share-rewards`에서 구현. 최신 develop d137362 기준이며 기존 미커밋 변경은 `backup/pre-invite-alignment-20261021`/stash에 보존했다. 기존 ReserveService/통합테스트는 최신 develop과 byte 동일하여 재적용하지 않았다.
+- 변경: domain/reward의 config/properties/controller/service/schema, 기존 PublicIngressFilter/PublicSecurityConfig/PublicApiWriter, PaymentRateLimiter route bucket, grant/ledger INVITE factory, application.yml 기본OFF, HTTP/config/Mongo 테스트3개, PLAN014/공개계약/운영안내/ADR/AGENTS 및 본 기록.
+- 동작: MEMBER 전용 GET(read)/POST(purchase), single lowercase UUIDv4 key/body·query 없음, 구매이력 없이 purchase-account 준비, 단일 ClientSession의 quota≤3/공통sequence/grant/ledger/receipt. 실제 수신자·전송 추적 없음. 성공 replay는 원 snapshot이며 한도 검사보다 우선, current WITHDRAWN은 replay보다 우선. LIMIT_REACHED도 commit 후409. 기존 시험 guard current/pending 필드 불변.
+- 저장: 독립 additive invite-share-reward-r1, counter/receipt unique·INVITE source partial unique·issuance owner 조회 index, 자동DDL/TTL 없음. terminal120일 이후 operator-only bounded 상세purge, counter/grant/ledger 보존. INVITE GRANTED ledger에 환경/owner/source 최소귀속을 추가해 orphan 증거로도0초기화 거절. 운영 개인정보 제거는 기존 lifecycle 정책과 함께 활성화 전 확인.
+- 계약 유지: 기존 payment 오류·LC EXAM_PASS/wire·공동 fixture·paid-first·기존 복원 정책 불변. 초대권은 최초trial이 아니므로 paid 전환 복원 없음. OFF 중 기존 권리 조회·사용 유지.
+- 선별 검증: 초대26개 + 기존 PaymentController11개 =37개 통과. 실제 replica-set에서20회동일key/한도경합·최종쓰기실패전체rollback·unknowncommit·120일경계·orphan/counter소실·withdrawn·reserve/confirm/replacement/cancel/expiry/paid-first/reader 확인. 동시경합503은 bounded transaction 소진 후 원 key backoff 재시도로 수렴하도록 검사했다. 초기 unknowncommit 장애주입의 errorCode91은 서버종료 의미까지 섞여 타임아웃이 발생했으므로 기존 검증 패턴 errorCode1+UnknownTransactionCommitResult로 범위를 맞췄다.
+- 전체 clean test 진행 중. 기본 기존 deprecated/unchecked 경고는 유지한다. 새 테스트는 실제 Atlas/AWS/RevenueCat/Identity/LC를 호출하지 않았다.
+- 다음: 전체검증 결과 확인, 앱 공유 activity/component·동일key 영속화/계정전환 실기기 검증, 운영 schema/readiness/ALB allowlist 및 배포·활성화. 앱/Identity/LC 코드, 운영DB/설정, Jira, 외부회신, commit/push/merge 변경 없음.
+
+- 전체 1차 실행은1,904개 중 기존 SecurityConfigTest6개가 새 InviteRewardProperties mock 누락으로 context 생성 실패했다. 전용 초대26개는 통과했다. 기존 보안 테스트에 설정 mock1개만 추가한 선별6개는 통과했고 최종 전체 clean test를 재실행한다. 제품 동작을 바꿔 실패를 우회하지 않았다.
+
+- 최종 `./gradlew clean test` 성공(4m32s). JUnit XML 합계1,904개, 실패0/오류0/skip0. 초대 전용26개 포함(합산하지 않음). 전체 실행은 새 SecurityConfigTest mock 보완까지 포함한다. `git diff --check`와 신규 문서 상대링크 검사 통과. 기존 deprecated/VM 경고 외 미해결 테스트 실패 없음. 최종 브랜치 `codex/invite-share-rewards`, commit/push/merge/배포 없음.
+
+## 2026-10-21 — PLAN-014 테스트 배포·ON
+
+- 2026-10-21 PLAN-014 테스트 배포·ON: 제품 bdda488/PR38→develop fff61ca, Actions39567515145 SUCCESS. 테스트 writer 실제 STOPPED 뒤 additive invite-share-reward-r1 설치·verify(exit0/recovery불변), test19에 INVITE_SHARE_REWARD_ENABLED=true 적용. 단일 COMPLETED desired/running1·pending0, 신규8083/8443 healthy, reward flag 외 task설정 동일. exact 테스트 ALB GET/POST 경로(priority98), HTTPS GET/POST401 no-store·PUT404 확인. 전체1,904테스트 통과 근거 유지; 앱 실제 공유·지급E2E는 미실행. production/Identity/LC/app 불변. [배포·롤백 기록](../runbooks/PLAN-014-invite-share-rewards.md).
+
+- 이번 사용자 승인으로 commit/push/테스트 배포를 진행했다. 변경은 테스트 전용 additive 설치도구와 배포기록. 기존 데이터 purge/권리 변경 없음; 기존 dirty 백업/stash 보존. 도구 컴파일/설정 누락 거절/실제 설치 검증과 git diff --check 수행. 앱 지급E2E 및 production 활성화는 별도다.
+
+## 2026-10-21 — 완료시험 재답변 무차감 조회 기술 초안
+
+- 2026-10-21 완료시험 재답변 무차감 조회 [R1 초안](../contracts/LC-BILLING-FEEDBACK-REANSWER-ELIGIBILITY-R1-DRAFT.md): LC 인계 기준과 기존 auth/reader 정적 대조. 신규 목적 JWT·exact POST·200 ALLOWED/DENIED/PENDING·LC402 매핑, read-only snapshot과5초 관측/접수 경합 수용 제안. 미발급trial 인정·경합/LC 증거 매핑은 공동 수락 필요. 제품 구현/기존 A·fixture 변경/배포/commit/push 없음.
+
+- 변경: 신규 계약 초안/CURRENT_STATE/WORKLOG. 기존 변경 보존, 예상 밖 변경 없음. 원문과 auth/reader 정적 확인 및 git diff --check; 문서만 변경해 제품 테스트 미실행. 공동 수락·fixture·제품 구현/배포는 후속이다.
+
+## 2026-10-21 — 재답변 조회 draft-2 정책 확정 반영
+
+- 2026-10-21 재답변 무차감 조회 draft-2: 사용자 확정 및 LC 인계 대조로 미발급 최초 무료권 제외·최대5초 관측 방식 수락 반영. 동시 제출의 서로 다른 Job 여러 건 접수 가능(1건 상한 없음), commit/deny 전파5초 보장 아님을 명시. 환불·삭제·탈퇴·소유권 deny 우선 유지. 신규 목적/route·응답/오류 및 LC clock/접수증거 매핑의 공동 확인은 남음. [수정 초안](../contracts/LC-BILLING-FEEDBACK-REANSWER-ELIGIBILITY-R1-DRAFT.md). 제품/DB/fixture/commit/push/배포 변경 없음.
+
+- 변경 파일: 계약 초안/CURRENT_STATE/WORKLOG. 기존 미커밋 문서 변경 유지. LC 문서는 읽기만 수행. 문서 대조·git diff --check 통과; 문서만 수정하여 제품 테스트 미실행. 예상 밖 변경 없음. 다음은 wire/LC 저장 매핑 공동 확인 및 별도 fixture 검증이다.
+
+## 2026-10-21 — 재답변 draft-3 오류·호출·Job 증거 규격
+
+- 2026-10-21 재답변 draft-3: LC QuestionGradingJob 기존 식별자/firstUserSubmittedAt·동일Tx 증거 저장안과 공개402/401/503 매핑 반영. 현행 internal4필드 오류·400 oversize·503문구 정적 대조, connect2초/request5초·요청내자동재시도0·시각 exact 검사안을 구체화. §8~10/신규route 공동 확인 및 fixture는 후속. [초안](../contracts/LC-BILLING-FEEDBACK-REANSWER-ELIGIBILITY-R1-DRAFT.md). 문서만 변경.
+
+- 계약 초안/CURRENT_STATE/WORKLOG만 갱신, 기존 문서 변경 보존. Billing/LC 코드 정적 대조·git diff --check 수행; 문서 변경으로 제품 테스트 생략. 코드·DB·fixture·배포·commit/push·외부 회신 없음.
+
+## 2026-10-21 — 재답변 draft-4 정밀도·공개 오류 보완
+
+- 2026-10-21 재답변 draft-4: LC 회신의 나노초 승인시각 BSON string 저장·기존 firstUserSubmittedAt 유지 반영. 내부400/401/403/404·잘못된 응답은 공개503으로 통일하되 내부 원인 분류·circuit·자동재시도 금지 유지. 정상 DENIED 부족/탈퇴만 공개402/401. 저장 왕복±1ns·오류 매핑 검증 목록 보완. [수정 초안](../contracts/LC-BILLING-FEEDBACK-REANSWER-ELIGIBILITY-R1-DRAFT.md). 공동 동결/fixture/제품 구현은 후속, 문서만 변경.
+
+- 변경은 계약 초안/CURRENT_STATE/WORKLOG에 한정. 기존 미커밋 문서 변경 유지. 본문/표/검증 목록 대조 및 git diff --check 통과; 문서만 수정해 제품 테스트 미실행. 코드·DB·fixture·commit/push·배포 변경 없음.
+
+## 2026-10-21 — 재답변 draft-5 공개 오류 정정
+
+- 2026-10-21 재답변 draft-5: 사용자 정정에 따라 draft-4의 서버 연동 오류 일괄503 폐기. 앱 자체4xx 유지, 정상 부족402/탈퇴401, 일시 장애503, LC→Billing 인증·주소·계약 결함500 COMMON500+운영 경보로 분리. 내부401 전파 금지·500 Retry-After 없음·원인 분류/circuit/자동재시도0 유지. 시각 전제 위반과 단순 지연도 구분. [초안](../contracts/LC-BILLING-FEEDBACK-REANSWER-ELIGIBILITY-R1-DRAFT.md). 문서만 수정, 공동 동결/구현/배포 아님.
+
+- 계약 본문/매핑표/timeout·시각 규칙/검증 목록 및 과거 제안 대체 표시를 동기화. LC COMMON500 읽기 확인. 기존 미커밋 문서 보존, git diff --check 통과. 문서만 변경해 제품 테스트 미실행; 코드·DB·fixture·커밋·배포 없음.
+
+## 2026-10-21 — 완료 시험 재답변 무차감 조회 Billing 구현
+
+- 브랜치: `codex/feedback-reanswer-eligibility`, 시작 HEAD `8492632`. 사용자 「좋아 그렇게 하는 걸로 구현해줘」의 Billing 구현 승인. 별도 Jira 키 없음.
+- 목표: draft-5의 실제 가용 권리 조회·전용 workload 인증·strict 오류/시각 계약을 Billing에 구현.
+- 변경: domain/reanswer 6파일(properties/config/decoder/controller/service/response), WorkloadIngressFilter·WorkloadSecurityConfiguration, application.yml/.env.example, 신규 테스트4파일, draft-5 상태·구현 안내·AGENTS·CURRENT_STATE·본 기록. 시작 시 있던 draft/작업기록 변경을 보존. 예상 밖 변경 없음.
+- 동작: 전용 POST /internal/v1/entitlements/reanswer-eligibility·audience, 기본OFF·필수 reader/recovery 의존성 기동검사. snapshot 안에서 lifecycle/paid/발급무료권 조회, 무차감/무발급/무원장. 미발급trial/소비group retake 제외, MEMBER·소유권·가용단위·기존trial 정합성 유지. 이미 확실한 무료/유료권은 다른 source의 PENDING이나 hasPendingSync만으로 차단하지 않음. 일반 생성 guard 불변.
+- 응답: 200의 ALLOWED/DENIED/PENDING, UTC 문자열 나노초 보존·validUntil 최대5초/paid 종료 cap·거절 null 포함. 400 strict JSON/Content-Type/encoding/16KiB, 503 저장소/정합성 실패·Retry-After1·4필드 오류/correlationId, no-store. 기존 공개API·A fixture·데이터 schema 불변.
+- 검증: 선별 새27개 통과 후 startup2개 및 metadata 준비 검사 추가. 최초 전체 clean test1,933개 중 기존 PurchaseCoreIntegrationTest.parallelDistinctTransactionsAndDuplicateDeliveryConverge 1건이 PaymentStore:68의 bounded transaction 재시도 오류로 실패(새29개 모두 통과). 기존 테스트 단독 재실행1개 통과. 제품/테스트 변경 없이 최종 `./gradlew clean test` 재실행1,933개 실패0/오류0/skip0 통과(4m39s), 새29개 포함이며 합산하지 않음. XML 집계와 git diff --check 확인.
+- 실제 Mongo 통합8개는 일회용 replica-set에서 전 컬렉션 조회 전후 동일성, 미발급/발급trial·paid 만료±1ns·MEMBER·withdrawal·guard·hold/consumption·source 불명·recovery/corruption을 검증. API/decoder16·workload3·startup2개. workload는 실제 필터 체인 단위 테스트이며 신규 route의 외부 TLS/E2E 검증은 아님.
+- 위험/잔여: 기존 구매 동시성 테스트 일시 실패 이력을 유지. 5초 관측 이후 다른 Job 복수 접수 및 이벤트 전달 지연은 승인된 한계. LC의 COMMON500/운영 경보·Job+BSON string 증거·시각 guard 및 공동 독립/E2E 검증·실환경 활성화는 후속. 기존 source/원장 정책, LC/Identity 코드, DB/설정 실환경, commit/push/배포는 변경하지 않음.
+- 인계: [구현 안내](../runbooks/FEEDBACK-REANSWER-ELIGIBILITY.md), [draft-5](../contracts/LC-BILLING-FEEDBACK-REANSWER-ELIGIBILITY-R1-DRAFT.md). 이번 기본OFF는 초대 보상 등 기존 테스트 서버 ON 설정을 변경하지 않음.

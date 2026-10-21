@@ -1,5 +1,7 @@
 # ADR-004: RevenueCat 기반 fixed-term premium 결제 계약
 
+> 2026-10-21 PLAN-014: 초대 공유 보상은 MEMBER별 누적3장의 INVITE EXAM_PASS로 추가했다. 구매 이력 없이 기존 purchase-account와 billing:purchase로 준비하며 별도 quota·terminal receipt와 기존 grant/ledger/지급순을 한 Transaction으로 기록한다. paid-first/free-preserve·초대권 재복원 금지·기본OFF는 [운영 안내](../runbooks/PLAN-014-invite-share-rewards.md)를 따른다. 외부 공유 신호/배포 검증은 남는다.
+
 > 2026-10-18 정상 권리 보호·대기 해결 승인: 정규화 증거 없는 수량/소유 확인 case만으로 별도 검증된 ACTIVE 이용권을 숨기지 않는다. 검증된 충돌·환불/취소·회원증거·예약경합 차단은 유지한다. 신규 권리 부여는 여전히 검증된 구매만 허용한다. 미확인 NON_RENEWING_PURCHASE의 최소 거래해시 후보를 별도 저장하고 환경/Store/app/거래해시/키버전/owner/product/구매시각과 계정/lifecycle가 검증된 구매에 일치할 때만 case를 RESOLVED 처리한다. 원문·기존case 삭제 및 계정단위 일괄해결 금지. 기존 후보 없는case는 같은 digest의 인증된 webhook 재전달 외 임의 역추정 금지. r9 명시 이관·활성화 필요, API 응답 형식 불변.
 
 > 2026-10-18 사용자 승인 — 운영 SANDBOX 구매 통합: 테스트 계정 allowlist·별도 이용권 없이 운영 purchaseAccountRefId로 검증된 SANDBOX/PRODUCTION 구매를 받고 같은 timeline에 합산한다. 서버/account/workload 환경은 유지하고 Store 환경은 observation 및 구매의 storeEnvironment(없으면 기존 environment)에 보존한다. 거래·event HMAC은 실제 Store 환경을 포함해 교차 환경 ID 충돌을 분리한다. 구매별 환불·인증·멱등성·무료/탈퇴 보호 유지. 기존 SANDBOX→test/staging 전용 규칙을 이 범위에서 대체한다. [구현·명시 이관 안내](../runbooks/billing-production-sandbox-purchases.md). 기본 OFF이며 운영 DB/RevenueCat/배포 변경 및 실제 Store E2E 완료가 아니다.

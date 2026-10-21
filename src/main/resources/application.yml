@@ -1,5 +1,10 @@
 app:
+  rewards:
+    invite-share:
+      enabled: ${INVITE_SHARE_REWARD_ENABLED:false}
   billing:
+    reanswer-eligibility:
+      enabled: ${BILLING_REANSWER_ELIGIBILITY_ENABLED:false}
     exam-deletion:
       enabled: ${BILLING_EXAM_DELETION_ENABLED:false}
 
