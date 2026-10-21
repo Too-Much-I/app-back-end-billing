@@ -7372,3 +7372,8 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - 실제 Mongo 통합8개는 일회용 replica-set에서 전 컬렉션 조회 전후 동일성, 미발급/발급trial·paid 만료±1ns·MEMBER·withdrawal·guard·hold/consumption·source 불명·recovery/corruption을 검증. API/decoder16·workload3·startup2개. workload는 실제 필터 체인 단위 테스트이며 신규 route의 외부 TLS/E2E 검증은 아님.
 - 위험/잔여: 기존 구매 동시성 테스트 일시 실패 이력을 유지. 5초 관측 이후 다른 Job 복수 접수 및 이벤트 전달 지연은 승인된 한계. LC의 COMMON500/운영 경보·Job+BSON string 증거·시각 guard 및 공동 독립/E2E 검증·실환경 활성화는 후속. 기존 source/원장 정책, LC/Identity 코드, DB/설정 실환경, commit/push/배포는 변경하지 않음.
 - 인계: [구현 안내](../runbooks/FEEDBACK-REANSWER-ELIGIBILITY.md), [draft-5](../contracts/LC-BILLING-FEEDBACK-REANSWER-ELIGIBILITY-R1-DRAFT.md). 이번 기본OFF는 초대 보상 등 기존 테스트 서버 ON 설정을 변경하지 않음.
+
+## 2026-10-21 — 재답변 Billing test/prod 배포 및 활성화
+
+- 2026-10-21 재답변 양쪽 배포·ON 완료: 제품81b167d, PR39/develop aeee949 및 PR40/main408b96f 병합. test Actions39582116358/prod39582343964 모두 SUCCESS. 양쪽 task21에 BILLING_REANSWER_ELIGIBILITY_ENABLED=true만 추가; 단일 PRIMARY COMPLETED·desired/running1·pending0·예상 image digest·신규8083/8443 healthy 확인(이전 target draining은 교체 잔여). workload exact POST 전달 규칙 test86/prod126·기존 source 제한 유지. DB/schema·타 flag·LC/Identity 변경 없음. LC 서명200/재답변 Job E2E는 미실행. [배포 기록](../runbooks/FEEDBACK-REANSWER-ELIGIBILITY.md).
+- 사용자 커밋/push/양쪽 ON·내부 경로 전달 승인으로 수행. code defaults OFF 유지, 환경 설정만 ON. 전체 테스트1,933개 근거 및 두 Actions 성공 유지. 추가 제품 변경 없이 문서 diff 검사. 배포 기록은 feature branch 후속 커밋/push로 보존하며 이 기록 자체의 main/develop 병합은 별도다.
