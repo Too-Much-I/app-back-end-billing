@@ -1,5 +1,7 @@
 # Billing Service 현재 상태
 
+- 2026-10-21 PLAN-014 초대 공유 보상 로컬 구현: `codex/invite-share-rewards`는 최신 origin/develop d137362에서 생성. 기존 dirty 전체는 `backup/pre-invite-alignment-20261021` 및 stash에 보존, 초대 문서3개만 복원했다. GET/POST `/api/v1/rewards/invite-shares`, MEMBER·method별 scope, 기존 purchase-account 준비, 누적3·공통 지급순·INVITE grant/ledger·terminal receipt 단일Tx를 연결했다. 같은key120일·한도terminal409/세번째성공200 replay·WITHDRAWN 선행·기본OFF 유지. additive schema r1과 명시 상세purge만 제공, 자동DDL/TTL 없음. [운영안내](../runbooks/PLAN-014-invite-share-rewards.md). 선별37개 통과, 최종 `./gradlew clean test`1,904개(초대26개 포함) 실패0/오류0/skip0 통과(4m32s). 앱·실환경·schema설치·배포·Jira·commit/push 없음.
+
 - 2026-10-19 브랜치별 자동배포 완료: PR34→develop edbb558, PR35→main d8076de 병합. [test39203646982](https://github.com/Too-Much-I/app-back-end-billing/actions/runs/39203646982) 및 [prod39205063261](https://github.com/Too-Much-I/app-back-end-billing/actions/runs/39205063261) 모두 SUCCESS. 양측 clean test/bootJar·Python15·Node8·이미지smoke·OIDC·ECS배포·digest/ALB/HTTPS401 검증 통과. main 최신 제품코드 포함, 이후 develop push=test/main push=prod. 첫 prod 즉시상태검사 실패는 제한재확인으로 보완 후 재실행 통과. DB/기능스위치/Identity/LC 무변경. 결과문서만 후속 [skip ci]로 정리하며 앱 E2E는 별도다.
 
 - 2026-10-19 prod18 실제 배포 정상: main Actions39202204049은 마지막 즉시 상태검사에서 실패했으나 별도 AWS 조회로 desired/running1·pending0·단일 COMPLETED·예상 digest 일치·8083/8443 healthy·이미지 외 task설정 동일·HTTPS401 확인. 첫 prod 실행은 SUCCESS로 기록하지 않는다. ECS waiter와 rolloutState 반영 지연 대응으로 최종 검사를 최대180초 재확인하도록 보완, YAML/모든 shell 문법 및 지연성공·타임아웃 모의검사 통과. 후속 자동배포 재검증 예정.

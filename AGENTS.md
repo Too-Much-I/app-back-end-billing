@@ -1,5 +1,7 @@
 # 토선생 Billing Service Codex 작업 규칙
 
+> 2026-10-21 PLAN-014 구현 승인: 사용자 「브랜치 파서 구현해줘」로 초대 공유 보상 Billing 구현을 승인했다. [운영 안내](docs/runbooks/PLAN-014-invite-share-rewards.md)와 [공개 계약](docs/contracts/INVITE-SHARE-REWARD-PUBLIC-API-R1.md)을 따른다. MEMBER·기존 billing:purchase, 누적3/동일key120일, INVITE EXAM_PASS·무기한FIFO·paid-first·초대권 재복원 없음. 두 route 기본OFF, 운영schema/앱공유판정/배포는 별도다. 종전 초대 지급 미구현/후속 표현은 이번 좁은 범위에서 대체한다.
+
 > 2026-10-16 TMI-217 후속 구현: [삭제 receiver R2](docs/runbooks/TMI-217-deletion-receiver-r2.md)·[동결 접수](docs/contracts/TMI-217-DELETION-EXACT-R2-ACCEPTANCE.md)를 따른다. LC 삭제 목적 JWT/7필드 strict decoder·최초fact/event receipt·같은Tx Session deny/현재group·exactguard/empty204 및 검증된 삭제 후 INITIAL을 연결했다. 사용자 인가는 LC 단일책임, 별도merge증거 없음. 기존 무료 생성owner 변경은 승인 후 원 작업트리에서 통합, 원본은 무변경. 기본OFF·명시schema만 제공하며 LC sender/204저장·전체공동경합·legacy coverage/운영활성화/최종purge는 후속이다. 구 draft의 삭제 receiver 미구현 설명은 해당 구현 범위의 과거 기록이며 원문·fixture hash는 보존한다.
 
 > 2026-10-14 TMI-220 후속 코어: [fan-out·전달 안내](docs/runbooks/TMI-220-refund-fanout-delivery.md). 성공confirm lastConfirmedSessionId, RESERVED→GROUPS 건별Tx/30초lease/20단계·증거불명review, canonical 불변outbox·전용JWT/HTTP 재시도 코어를 추가했다. Spring 빈 등록/실provider·LC공동E2E·운영재개/Slack·TMI217보존 확인은 후속이고 processing ON 거절·기본OFF 유지. 명시schema만 제공하며 실제DB 설치 없음. 이전 과거Session 보완은 commit6de78ac·PR26 develop mergee48efb7, 현재 브랜치는 사용자 지정 feat/TMI-220-refund-fanout다.

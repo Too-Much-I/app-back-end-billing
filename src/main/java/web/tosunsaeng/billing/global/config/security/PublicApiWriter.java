@@ -41,6 +41,10 @@ public class PublicApiWriter {
         response.getOutputStream().write(bytes);
     }
     public void routeError(HttpServletRequest request, HttpServletResponse response, int status, String code) throws IOException {
+        if (PublicIngressFilter.INVITE.equals(request.getRequestURI())) {
+            inviteError(response, status, status == 503 ? "BILLING_TEMPORARILY_UNAVAILABLE" : code,
+                    status == 403 ? PublicIngressFilter.scope(request.getRequestURI(), request.getMethod()) : null, 5); return;
+        }
         if (!PublicIngressFilter.payment(request.getRequestURI())) { error(response, status, code); return; }
         paymentError(response, status, code, status == 403 ? PublicIngressFilter.scope(request.getRequestURI()) : null,
                 PublicIngressFilter.method(request.getRequestURI()), 5);
@@ -55,6 +59,20 @@ public class PublicApiWriter {
                 : "PAYMENT_ACCOUNT_WITHDRAWN".equals(code) ? new PublicResponse<>(false, code, "탈퇴한 계정은 사용할 수 없습니다.", null)
                 : PublicResponse.failure(code);
         json.writeValue(response.getOutputStream(), body);
+    }
+    public void inviteError(HttpServletResponse response, int status, String code, String scope, long retryAfter) throws IOException {
+        headers(response); response.setStatus(status);
+        if (status == 401) response.setHeader("WWW-Authenticate", "Bearer");
+        if (status == 403 && scope != null) response.setHeader("WWW-Authenticate", "Bearer error=\"insufficient_scope\", scope=\"" + scope + "\"");
+        if (status == 405) response.setHeader("Allow", "GET, POST");
+        if (status == 429 || status == 503) response.setHeader("Retry-After", Long.toString(Math.max(1, retryAfter)));
+        String message = switch (code) {
+            case "PAYMENT_ACCOUNT_WITHDRAWN" -> "탈퇴한 계정은 초대 보상을 받을 수 없습니다.";
+            case "INVITE_REWARD_LIMIT_REACHED" -> "초대 보상은 계정당 최대 3회까지 받을 수 있습니다.";
+            case "BILLING_TEMPORARILY_UNAVAILABLE" -> "초대 보상 정보를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.";
+            default -> PublicResponse.failure(code).message();
+        };
+        json.writeValue(response.getOutputStream(), new PublicResponse<>(false, code, message, null));
     }
     public void paymentSuccess(HttpServletResponse response, Object value) throws IOException {
         paymentSuccess(response, value, false);

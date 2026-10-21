@@ -16,7 +16,7 @@ import web.tosunsaeng.billing.domain.payment.repository.PaymentStore;
 @Service
 public class PaymentRateLimiter {
     public enum Route {
-        PRODUCTS(60), PURCHASE_ACCOUNT(10), SYNC(12), ENTITLEMENTS(60);
+        PRODUCTS(60), PURCHASE_ACCOUNT(10), SYNC(12), ENTITLEMENTS(60), INVITE_QUERY(60), INVITE_AWARD(10);
         final long limit;
         Route(long limit) { this.limit = limit; }
     }

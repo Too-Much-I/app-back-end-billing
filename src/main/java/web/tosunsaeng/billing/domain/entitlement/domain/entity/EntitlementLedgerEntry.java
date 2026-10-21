@@ -31,6 +31,11 @@ public class EntitlementLedgerEntry {
     private String dedupeKey;
     private Instant occurredAt;
     private int metadataVersion;
+    // INVITE issuance attribution survives receipt expiry and detects a missing grant/counter.
+    private String environment;
+    private String ownerUserId;
+    private String sourceType;
+    private String sourceId;
 
     protected EntitlementLedgerEntry() {
     }
@@ -82,6 +87,16 @@ public class EntitlementLedgerEntry {
         }
         return new EntitlementLedgerEntry(ledgerEventId, grant.getGrantId(), 1, EventType.GRANTED,
                 null, null, null, null, "TRIAL_PAID_RESTORATION:" + grant.getEnvironment() + ":" + grant.getSourceId(), occurredAt);
+    }
+
+    public static EntitlementLedgerEntry invite(String ledgerEventId, EntitlementGrant grant, Instant now) {
+        if (!"INVITE".equals(grant.getSourceType()) || grant.getOwnerUserId() == null)
+            throw new IllegalArgumentException("A MEMBER invite grant is required");
+        var entry = new EntitlementLedgerEntry(ledgerEventId, grant.getGrantId(), 1, EventType.GRANTED,
+                null, null, null, null, "INVITE:" + grant.getEnvironment() + ":" + grant.getSourceId(), now);
+        entry.environment = grant.getEnvironment(); entry.ownerUserId = grant.getOwnerUserId();
+        entry.sourceType = "INVITE"; entry.sourceId = grant.getSourceId();
+        return entry;
     }
 
     public static EntitlementLedgerEntry reserved(

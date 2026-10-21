@@ -78,13 +78,20 @@ public class EntitlementGrant {
     /** Persistence foundation only: caller proves MEMBER, eligibility and original consumption in its transaction. */
     public static EntitlementGrant restoredTrial(String grantId, String environment, String ownerUserId,
             String originalConsumptionId, long grantOrder, Instant now) {
+        return memberGrant(grantId, environment, ownerUserId, "TRIAL_PAID_RESTORATION", originalConsumptionId, grantOrder, now);
+    }
+    /** Caller proves MEMBER and lifetime quota in the same transaction. */
+    public static EntitlementGrant invite(String grantId, String environment, String ownerUserId,
+            String awardId, long grantOrder, Instant now) {
+        return memberGrant(grantId, environment, ownerUserId, "INVITE", awardId, grantOrder, now);
+    }
+    private static EntitlementGrant memberGrant(String grantId, String environment, String ownerUserId,
+            String sourceType, String sourceId, long grantOrder, Instant now) {
         if (!java.util.Set.of("test", "staging", "production").contains(environment)
                 || ownerUserId == null || !ownerUserId.matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
-                || grantOrder < 1 || grantId == null || grantId.isBlank()) {
-            throw new IllegalArgumentException("Invalid restoration owner/order");
-        }
-        EntitlementGrant grant = unitGrant(grantId, "FREE_EXAM_ONCE", "TRIAL_PAID_RESTORATION",
-                originalConsumptionId, null, 1, java.util.Objects.requireNonNull(now));
+                || grantOrder < 1 || grantId == null || grantId.isBlank())
+            throw new IllegalArgumentException("Invalid MEMBER grant owner/order");
+        EntitlementGrant grant = unitGrant(grantId, "FREE_EXAM_ONCE", sourceType, sourceId, null, 1, java.util.Objects.requireNonNull(now));
         grant.environment = environment; grant.ownerUserId = ownerUserId; grant.grantOrder = grantOrder;
         return grant;
     }

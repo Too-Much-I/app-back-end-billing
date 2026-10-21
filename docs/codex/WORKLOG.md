@@ -7308,3 +7308,19 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - 운영 실행39205063261은 05:50:14 UTC SUCCESS. 양측 전체 test/bootJar, Python15·Node8, OIDC, workload image valid/wrong-db/wrong-cert smoke, 배포 및 최종 예상image/ECS/ALB/HTTPS401 검사가 모두 통과했다. 첫 운영 실행39202204049 실패 기록은 보존하며 재실행 성공으로 구분한다.
 - main에 최신 제품코드와 배포 workflow를 반영했고, 앞으로 develop push는 test, main push는 prod다. Secret/기능스위치/기존설정 유지, 자동 schema 이관 없음. Identity/LC 역할·서비스·데이터 무변경, 예상 밖 변경 없음. 기존 앱 구매/환불 E2E·별도 후속 항목은 자동배포 성공으로 완료 처리하지 않는다.
 - 변경파일 CURRENT_STATE/WORKLOG/github-actions-deployment.md는 결과문서만이므로 diff 확인 후 [skip ci] 커밋·PR로 develop/main에 정리한다. 이번 결과기록을 위한 추가 제품 테스트는 하지 않으며 위 실제 두 실행을 근거로 한다.
+
+
+## 2026-10-21 PLAN-014 초대 공유 보상 구현
+
+- 사용자 「브랜치 파서 구현해줘」에 따라 `codex/invite-share-rewards`에서 구현. 최신 develop d137362 기준이며 기존 미커밋 변경은 `backup/pre-invite-alignment-20261021`/stash에 보존했다. 기존 ReserveService/통합테스트는 최신 develop과 byte 동일하여 재적용하지 않았다.
+- 변경: domain/reward의 config/properties/controller/service/schema, 기존 PublicIngressFilter/PublicSecurityConfig/PublicApiWriter, PaymentRateLimiter route bucket, grant/ledger INVITE factory, application.yml 기본OFF, HTTP/config/Mongo 테스트3개, PLAN014/공개계약/운영안내/ADR/AGENTS 및 본 기록.
+- 동작: MEMBER 전용 GET(read)/POST(purchase), single lowercase UUIDv4 key/body·query 없음, 구매이력 없이 purchase-account 준비, 단일 ClientSession의 quota≤3/공통sequence/grant/ledger/receipt. 실제 수신자·전송 추적 없음. 성공 replay는 원 snapshot이며 한도 검사보다 우선, current WITHDRAWN은 replay보다 우선. LIMIT_REACHED도 commit 후409. 기존 시험 guard current/pending 필드 불변.
+- 저장: 독립 additive invite-share-reward-r1, counter/receipt unique·INVITE source partial unique·issuance owner 조회 index, 자동DDL/TTL 없음. terminal120일 이후 operator-only bounded 상세purge, counter/grant/ledger 보존. INVITE GRANTED ledger에 환경/owner/source 최소귀속을 추가해 orphan 증거로도0초기화 거절. 운영 개인정보 제거는 기존 lifecycle 정책과 함께 활성화 전 확인.
+- 계약 유지: 기존 payment 오류·LC EXAM_PASS/wire·공동 fixture·paid-first·기존 복원 정책 불변. 초대권은 최초trial이 아니므로 paid 전환 복원 없음. OFF 중 기존 권리 조회·사용 유지.
+- 선별 검증: 초대26개 + 기존 PaymentController11개 =37개 통과. 실제 replica-set에서20회동일key/한도경합·최종쓰기실패전체rollback·unknowncommit·120일경계·orphan/counter소실·withdrawn·reserve/confirm/replacement/cancel/expiry/paid-first/reader 확인. 동시경합503은 bounded transaction 소진 후 원 key backoff 재시도로 수렴하도록 검사했다. 초기 unknowncommit 장애주입의 errorCode91은 서버종료 의미까지 섞여 타임아웃이 발생했으므로 기존 검증 패턴 errorCode1+UnknownTransactionCommitResult로 범위를 맞췄다.
+- 전체 clean test 진행 중. 기본 기존 deprecated/unchecked 경고는 유지한다. 새 테스트는 실제 Atlas/AWS/RevenueCat/Identity/LC를 호출하지 않았다.
+- 다음: 전체검증 결과 확인, 앱 공유 activity/component·동일key 영속화/계정전환 실기기 검증, 운영 schema/readiness/ALB allowlist 및 배포·활성화. 앱/Identity/LC 코드, 운영DB/설정, Jira, 외부회신, commit/push/merge 변경 없음.
+
+- 전체 1차 실행은1,904개 중 기존 SecurityConfigTest6개가 새 InviteRewardProperties mock 누락으로 context 생성 실패했다. 전용 초대26개는 통과했다. 기존 보안 테스트에 설정 mock1개만 추가한 선별6개는 통과했고 최종 전체 clean test를 재실행한다. 제품 동작을 바꿔 실패를 우회하지 않았다.
+
+- 최종 `./gradlew clean test` 성공(4m32s). JUnit XML 합계1,904개, 실패0/오류0/skip0. 초대 전용26개 포함(합산하지 않음). 전체 실행은 새 SecurityConfigTest mock 보완까지 포함한다. `git diff --check`와 신규 문서 상대링크 검사 통과. 기존 deprecated/VM 경고 외 미해결 테스트 실패 없음. 최종 브랜치 `codex/invite-share-rewards`, commit/push/merge/배포 없음.

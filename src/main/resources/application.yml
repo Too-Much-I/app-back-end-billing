@@ -1,4 +1,7 @@
 app:
+  rewards:
+    invite-share:
+      enabled: ${INVITE_SHARE_REWARD_ENABLED:false}
   billing:
     exam-deletion:
       enabled: ${BILLING_EXAM_DELETION_ENABLED:false}
