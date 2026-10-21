@@ -2,7 +2,7 @@
 
 - 날짜: 2026-10-21 / 브랜치: `codex/invite-share-rewards`
 - 기준: [공개 계약 R1](../contracts/INVITE-SHARE-REWARD-PUBLIC-API-R1.md), [기술 규격](../plans/PLAN-014-TECHNICAL-SPEC-R1.md)
-- 범위: Billing 로컬 구현. 기본 OFF. 앱/Identity/LC 변경, 운영 DB 설치, 배포·활성화 없음.
+- 범위: Billing 구현과 사용자 승인에 따른 테스트 배포·ON(아래 실행 기록). 코드 기본값은 OFF. 앱/Identity/LC 및 production 변경 없음.
 
 ## 구현된 흐름
 
@@ -40,3 +40,21 @@ ON은 public connector, purchase-account, MEMBER evidence, paid foundation/recov
 앱 공유 activity/component 판정·key 영속화·계정 전환, 실기기 공유 취소/복사/앱 종료, LC와 배포 환경 통합, 운영 schema 설치와 ALB의 신규 path 허용은 별도 확인한다. 실제 전송 여부·수신자/친구 중복·자기 공유는 서버가 검증하지 않으며 승인된 누적3 제한으로 위험을 한정한다. 기존 금융/Claim/탈퇴 보존기간을120일로 바꾸지 않는다. 신규 quota/issuance 귀속의 개인정보 제거는 기존 lifecycle 정책과 함께 운영 적용 전에 확인한다.
 
 최종 검증: `./gradlew clean test`1,904개(신규26개 포함), 실패0/오류0/skip0, 4m32s. 보고서 `build/reports/tests/test/index.html`, 원본 JUnit XML `build/test-results/test/`. 기존 보안 테스트의 신규 설정 mock 누락을 보완한 최종 실행 결과다.
+
+## 2026-10-21 테스트 배포·활성화
+
+사용자 이번 요청으로 commit/push 및 테스트 배포·ON을 승인했다. main/production, Identity/LC/app은 변경하지 않았다.
+
+- 제품 commit `bdda48836233664603cb115ab337f62f6fd7cf28`, [PR38](https://github.com/Too-Much-I/app-back-end-billing/pull/38), develop merge `fff61caa538c02f690c6cf19a6125283101af755`.
+- [Actions39567515145](https://github.com/Too-Much-I/app-back-end-billing/actions/runs/39567515145) SUCCESS. 테스트/build/image smoke/OIDC/ECS/target 검증 포함.
+- 배포 이미지 `sha256:58e89e0635f9f093926463f5cc346fd3fa6c98b50f37e29178b77b2483d302c4`; 최초 자동배포 `tosunsaeng-billing-test:18`.
+- 테스트 ALB priority98은 `billing-test.to-teacher.com` + exact `/api/v1/rewards/invite-shares` + GET/POST만 기존 public8083 target에 연결. 기존 fallback404 및 다른 route 유지. flag OFF 때 Billing `NOT_FOUND`404 확인.
+- 기존 테스트 writer의 실제 STOPPED를 확인한 뒤 일회성 `tosunsaeng-billing-test-invite-schema:1`/task `2495eb5afb24424094bba08d5445a23e`로 additive r1 설치·verify 성공(exit0). `recoveryUnchanged=true`; 기존 권리/원장/receipt purge나 recovery control 변경 없음.
+- `scripts/ops/InviteRewardMaintenance.java`는 배포JAR dependency로 실행하는 테스트 한정 도구다. DB명 test suffix·expected host·writer 정지·SANDBOX OPEN control을 검사한다. application startup에 설치를 연결하지 않았다. 컴파일·Boot PropertiesLauncher 로드·설정 누락 거절 및 실제 테스트DB 설치를 확인했다.
+- flag 활성화 task `tosunsaeng-billing-test:19`, `INVITE_SHARE_REWARD_ENABLED=true`. 신규 Secret/IAM/SG 권한 추가 없음.
+
+- HTTP 확인: 활성화 후 GET/POST 무인증401, 응답 `Cache-Control: no-store`. OFF404→ON401 전환을 확인했다. 앱의 실제 MEMBER 로그인·공유·지급3회/재시도는 미실행으로 프론트 E2E에 남긴다. 활성화 배포 중 OFF/ON 태스크 공존 때 POST404가 한 번 관측됐으며 신규 태스크 경로에서401로 확인했다.
+- 롤백은 테스트 서비스 task18로 되돌리거나 reward flag만false로 설정한다. additive collection/index는 유지하고 지급된 INVITE 권리·누적한도·원장은 삭제하지 않는다. 다음 develop 배포는 live task19 설정을 기준으로 image만 교체하므로 ON 설정이 유지된다.
+- 예상 밖 제품 변경 없음. 로컬 기존 dirty 백업/stash는 보존했다. 추가 변경은 운영도구·배포기록이며 사용자 승인 범위를 넘어 운영 활성화·앱 보상 지급을 수행하지 않았다.
+
+최종 ECS task19 단일 PRIMARY/COMPLETED, desired1/running1/pending0 확인. 신규 ON target의8083/8443 healthy, 이전 OFF target은 연결 종료 중(draining)이며 신규 요청 대상이 아니다. task18과 비교해 reward flag 외 설정은 동일하다.

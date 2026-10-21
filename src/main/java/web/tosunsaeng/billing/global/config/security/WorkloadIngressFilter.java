@@ -18,6 +18,7 @@ public final class WorkloadIngressFilter extends OncePerRequestFilter {
             "/internal/v1/eligibility/trial/owner/events", "trial-owner-events",
             "/internal/v1/owners/merge/events", "user-merge-events");
     private static final Map<String, String> LC_ROUTES = Map.of(
+            "/internal/v1/entitlements/reanswer-eligibility", "reanswer-eligibility",
             "/internal/v1/exam-deletions/events", "exam-deletion-events",
             "/internal/v1/reservations", "reservations",
             "/internal/v1/reservations/status", "reservations",
@@ -33,6 +34,7 @@ public final class WorkloadIngressFilter extends OncePerRequestFilter {
     private final OwnerRebindProperties owners;
     private final AttemptGroupEventProperties attempts;
     private final web.tosunsaeng.billing.domain.examdeletion.DeletionProperties deletions;
+    private web.tosunsaeng.billing.domain.reanswer.ReanswerProperties reanswer = new web.tosunsaeng.billing.domain.reanswer.ReanswerProperties();
     public WorkloadIngressFilter(WorkloadJwtProperties config, PaymentProperties payments, OwnerRebindProperties owners,
                                  AttemptGroupEventProperties attempts) {
         this(config, payments, owners, attempts, new web.tosunsaeng.billing.domain.examdeletion.DeletionProperties());
@@ -40,6 +42,11 @@ public final class WorkloadIngressFilter extends OncePerRequestFilter {
     public WorkloadIngressFilter(WorkloadJwtProperties config, PaymentProperties payments, OwnerRebindProperties owners,
                                  AttemptGroupEventProperties attempts, web.tosunsaeng.billing.domain.examdeletion.DeletionProperties deletions) {
         this.config = config; this.payments = payments; this.owners = owners; this.attempts = attempts; this.deletions = deletions;
+    }
+    public WorkloadIngressFilter(WorkloadJwtProperties config, PaymentProperties payments, OwnerRebindProperties owners,
+            AttemptGroupEventProperties attempts, web.tosunsaeng.billing.domain.examdeletion.DeletionProperties deletions,
+            web.tosunsaeng.billing.domain.reanswer.ReanswerProperties reanswer) {
+        this(config, payments, owners, attempts, deletions); this.reanswer = reanswer;
     }
     @Override protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws ServletException, IOException {
         boolean port = config.getPort() > 0 && request.getLocalPort() == config.getPort();
@@ -53,7 +60,7 @@ public final class WorkloadIngressFilter extends OncePerRequestFilter {
             };
             if (!config.isReceiverEnabled() || !port || !business) { reject(response, 404); return; }
         } else if (lc != null) {
-            boolean business = "exam-deletion-events".equals(lc) ? deletions.isEnabled() : "attempt-group-events".equals(lc) ? attempts.isEnabled()
+            boolean business = "reanswer-eligibility".equals(lc) ? reanswer.isEnabled() : "exam-deletion-events".equals(lc) ? deletions.isEnabled() : "attempt-group-events".equals(lc) ? attempts.isEnabled()
                     : !request.getRequestURI().endsWith("/continuations/phone") || owners.isEnabled();
             if (!config.isLearningCoreReceiverEnabled() || !port || !business) { reject(response, 404); return; }
         }
