@@ -1,5 +1,17 @@
 # Billing Service 현재 상태
 
+- 2026-10-21 재답변 무차감 조회 Billing 구현: `codex/feedback-reanswer-eligibility`. 전용 LC 목적 POST·strict decoder/오류·read-only snapshot·실제 발급무료/ACTIVE paid·MEMBER/lifecycle·5초/nanosecond cap을 연결했다. 미발급trial/consumed retake 제외, 지급/차감/원장/receipt 쓰기 없음. BILLING_REANSWER_ELIGIBILITY_ENABLED 기본OFF, 기존 통합 paid reader/recovery 준비 필수. 최종 clean test1,933개(신규29개 포함) 실패0/오류0/skip0 통과; 최초 기존 구매 동시성1건 실패 후 단독/전체 재통과 이력은 WORKLOG에 보존. [구현·인계 안내](../runbooks/FEEDBACK-REANSWER-ELIGIBILITY.md). LC500/경보·Job증거·공동E2E·배포는 후속, 기존 fixture/실DB/LC/Identity/commit/push 무변경.
+
+- 2026-10-21 재답변 draft-5: 사용자 정정에 따라 draft-4의 서버 연동 오류 일괄503 폐기. 앱 자체4xx 유지, 정상 부족402/탈퇴401, 일시 장애503, LC→Billing 인증·주소·계약 결함500 COMMON500+운영 경보로 분리. 내부401 전파 금지·500 Retry-After 없음·원인 분류/circuit/자동재시도0 유지. 시각 전제 위반과 단순 지연도 구분. [초안](../contracts/LC-BILLING-FEEDBACK-REANSWER-ELIGIBILITY-R1-DRAFT.md). 문서만 수정, 공동 동결/구현/배포 아님.
+
+- 2026-10-21 재답변 draft-4: LC 회신의 나노초 승인시각 BSON string 저장·기존 firstUserSubmittedAt 유지 반영. 내부400/401/403/404·잘못된 응답은 공개503으로 통일하되 내부 원인 분류·circuit·자동재시도 금지 유지. 정상 DENIED 부족/탈퇴만 공개402/401. 저장 왕복±1ns·오류 매핑 검증 목록 보완. [수정 초안](../contracts/LC-BILLING-FEEDBACK-REANSWER-ELIGIBILITY-R1-DRAFT.md). 공동 동결/fixture/제품 구현은 후속, 문서만 변경.
+
+- 2026-10-21 재답변 draft-3: LC QuestionGradingJob 기존 식별자/firstUserSubmittedAt·동일Tx 증거 저장안과 공개402/401/503 매핑 반영. 현행 internal4필드 오류·400 oversize·503문구 정적 대조, connect2초/request5초·요청내자동재시도0·시각 exact 검사안을 구체화. §8~10/신규route 공동 확인 및 fixture는 후속. [초안](../contracts/LC-BILLING-FEEDBACK-REANSWER-ELIGIBILITY-R1-DRAFT.md). 문서만 변경.
+
+- 2026-10-21 재답변 무차감 조회 draft-2: 사용자 확정 및 LC 인계 대조로 미발급 최초 무료권 제외·최대5초 관측 방식 수락 반영. 동시 제출의 서로 다른 Job 여러 건 접수 가능(1건 상한 없음), commit/deny 전파5초 보장 아님을 명시. 환불·삭제·탈퇴·소유권 deny 우선 유지. 신규 목적/route·응답/오류 및 LC clock/접수증거 매핑의 공동 확인은 남음. [수정 초안](../contracts/LC-BILLING-FEEDBACK-REANSWER-ELIGIBILITY-R1-DRAFT.md). 제품/DB/fixture/commit/push/배포 변경 없음.
+
+- 2026-10-21 완료시험 재답변 무차감 조회 [R1 초안](../contracts/LC-BILLING-FEEDBACK-REANSWER-ELIGIBILITY-R1-DRAFT.md): LC 인계 기준과 기존 auth/reader 정적 대조. 신규 목적 JWT·exact POST·200 ALLOWED/DENIED/PENDING·LC402 매핑, read-only snapshot과5초 관측/접수 경합 수용 제안. 미발급trial 인정·경합/LC 증거 매핑은 공동 수락 필요. 제품 구현/기존 A·fixture 변경/배포/commit/push 없음.
+
 - 2026-10-21 PLAN-014 테스트 배포·ON: 제품 bdda488/PR38→develop fff61ca, Actions39567515145 SUCCESS. 테스트 writer 실제 STOPPED 뒤 additive invite-share-reward-r1 설치·verify(exit0/recovery불변), test19에 INVITE_SHARE_REWARD_ENABLED=true 적용. 단일 COMPLETED desired/running1·pending0, 신규8083/8443 healthy, reward flag 외 task설정 동일. exact 테스트 ALB GET/POST 경로(priority98), HTTPS GET/POST401 no-store·PUT404 확인. 전체1,904테스트 통과 근거 유지; 앱 실제 공유·지급E2E는 미실행. production/Identity/LC/app 불변. [배포·롤백 기록](../runbooks/PLAN-014-invite-share-rewards.md).
 
 - 2026-10-21 PLAN-014 초대 공유 보상 로컬 구현: `codex/invite-share-rewards`는 최신 origin/develop d137362에서 생성. 기존 dirty 전체는 `backup/pre-invite-alignment-20261021` 및 stash에 보존, 초대 문서3개만 복원했다. GET/POST `/api/v1/rewards/invite-shares`, MEMBER·method별 scope, 기존 purchase-account 준비, 누적3·공통 지급순·INVITE grant/ledger·terminal receipt 단일Tx를 연결했다. 같은key120일·한도terminal409/세번째성공200 replay·WITHDRAWN 선행·기본OFF 유지. additive schema r1과 명시 상세purge만 제공, 자동DDL/TTL 없음. [운영안내](../runbooks/PLAN-014-invite-share-rewards.md). 선별37개 통과, 최종 `./gradlew clean test`1,904개(초대26개 포함) 실패0/오류0/skip0 통과(4m32s). 앱·실환경·schema설치·배포·Jira·commit/push 없음.
