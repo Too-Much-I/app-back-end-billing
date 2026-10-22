@@ -39,6 +39,7 @@ public final class RevenueCatReadClient {
     public Page purchases(String reference, String cursor, Duration timeout) {
         if (timeout.isNegative() || timeout.isZero() || timeout.compareTo(Duration.ofSeconds(5)) > 0)
             throw RevenueCatFailure.contract();
+        long started = System.nanoTime();
         RevenueCatPurchaseDecoder.owner(reference); if (cursor != null) RevenueCatPurchaseDecoder.text(cursor);
         String requestedEnvironment = environment;
         if (decoder.includesSandbox() && cursor != null && cursor.startsWith("S:")) {
@@ -52,7 +53,12 @@ public final class RevenueCatReadClient {
         String path = customerPath(reference);
         URI uri = URI.create("https://api.revenuecat.com" + path + "?environment=" + requestedEnvironment + "&limit=100"
                 + (cursor == null ? "" : "&starting_after=" + encode(cursor)));
-        var page = decoder.page(response(uri, timeout), reference);
+        byte[] bytes = response(uri, timeout);
+        var page = decoder.page(bytes, reference);
+        if (decoder.needsAliases(bytes, reference, true)) {
+            var aliases = aliases(reference, remaining(timeout, started));
+            page = decoder.page(bytes, reference, aliases);
+        }
         String next = nextCursor(page.nextPage(), path, requestedEnvironment);
         if (next != null && next.equals(cursor)) throw RevenueCatFailure.contract();
         if (decoder.includesSandbox()) {
@@ -64,8 +70,22 @@ public final class RevenueCatReadClient {
     }
     public RevenueCatPurchaseDecoder.Item purchase(String reference, String purchaseId) {
         RevenueCatPurchaseDecoder.owner(reference); RevenueCatPurchaseDecoder.text(purchaseId);
-        var item = decoder.purchase(response(URI.create("https://api.revenuecat.com/v2/projects/" + encode(project) + "/purchases/" + encode(purchaseId))), reference);
+        long started = System.nanoTime();
+        byte[] bytes = response(URI.create("https://api.revenuecat.com/v2/projects/" + encode(project) + "/purchases/" + encode(purchaseId)));
+        var item = decoder.purchase(bytes, reference);
+        if (decoder.needsAliases(bytes, reference, false))
+            item = decoder.purchase(bytes, reference, aliases(reference, remaining(Duration.ofSeconds(5), started)));
         if (!purchaseId.equals(item.reference())) throw RevenueCatFailure.contract(); return item;
+    }
+    private Set<String> aliases(String reference, Duration timeout) {
+        URI uri = URI.create("https://api.revenuecat.com/v2/projects/" + encode(project)
+                + "/customers/" + encode(reference) + "/aliases?limit=100");
+        return decoder.aliases(response(uri, timeout), reference);
+    }
+    private static Duration remaining(Duration timeout, long started) {
+        Duration remaining = timeout.minusNanos(System.nanoTime() - started);
+        if (remaining.isNegative() || remaining.isZero()) throw new RevenueCatFailure(RevenueCatFailure.Kind.RETRY, null);
+        return remaining;
     }
     private byte[] response(URI uri) {
         return response(uri, Duration.ofSeconds(5));

@@ -51,13 +51,23 @@ class RevenueCatWebhookTest {
                 .put("event_timestamp_ms", NOW.minusSeconds(20).toEpochMilli());
     }
     @Test void incompletePurchaseHasMatchingHintButNoGrantEvidence() {
-        var e = event(); e.remove("quantity"); e.putArray("aliases").add("$RCAnonymousID:fake");
+        var e = event(); e.remove("quantity"); e.putArray("aliases").add("$RCAnonymousID:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
         var receipt = decoder.decode(body(e));
         assertThat(receipt.reason()).isEqualTo("OWNER_UNRESOLVED");
         assertThat(receipt.observation()).isNull();
         assertThat(receipt.reviewCandidate()).isNotNull();
         assertThat(receipt.reviewCandidate().transactionKey()).isEqualTo(lookup.transaction("SANDBOX", "PLAY_STORE", "fake-app", "fake-order"));
         assertThat(receipt.reviewCandidate().body().toJson()).doesNotContain("fake-order", "$RCAnonymousID");
+    }
+    @Test void anonymousOriginalIsOnlyAReviewHintAndForeignAliasPreventsResolution() {
+        var e = event().put("original_app_user_id", "$RCAnonymousID:" + "a".repeat(32));
+        e.putArray("aliases").add(REF).add("$RCAnonymousID:" + "a".repeat(32));
+        var receipt = decoder.decode(body(e));
+        assertThat(receipt.observation()).isNull();
+        assertThat(receipt.reason()).isEqualTo("OWNER_UNRESOLVED");
+        assertThat(receipt.reviewCandidate()).isNotNull();
+        e.withArray("aliases").add("other-member");
+        assertThat(decoder.decode(body(e)).reviewCandidate()).isNull();
     }
     @Test void conflictingOwnerReversalAndUnsupportedQuantityNeverGetResolutionHints() {
         var owner = event().put("original_app_user_id", "22222222-2222-4222-8222-222222222222");

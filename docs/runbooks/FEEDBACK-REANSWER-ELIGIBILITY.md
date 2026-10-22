@@ -3,7 +3,7 @@
 - 날짜: 2026-10-21
 - 브랜치: `codex/feedback-reanswer-eligibility`
 - 기준: [R1 draft-5](../contracts/LC-BILLING-FEEDBACK-REANSWER-ELIGIBILITY-R1-DRAFT.md)
-- 사용자 구현 승인에 따른 Billing 구현. LC/Identity 구현·공동 fixture 동결·배포·활성화 완료를 의미하지 않는다.
+- 사용자 구현·배포·양쪽 ON 승인에 따른 Billing 구현 및 활성화. 아래 실환경 기록을 따른다. LC/Identity 구현·공동 fixture 동결·앱 E2E 완료를 의미하지 않는다.
 
 ## 연결
 
@@ -47,3 +47,17 @@ LC는 connect 2초/request 5초, 자동 재시도 0, monotonic/wall clock 검사
 ## 실행 결과
 
 2026-10-21 최종 `./gradlew clean test`: 1,933개, 실패0/오류0/skip0(4m39s). 신규29개는 wire/controller16·workload3·startup2·Mongo integration8개이며 전체 합계에 포함된다. 최초 전체 실행에서 기존 구매 동시성 테스트1건이 bounded transaction 재시도로 실패했고, 해당 테스트 단독 및 전체 재실행은 코드 변경 없이 통과했다. 이 이력은 WORKLOG에 보존한다. git diff --check 통과. 배포/공동E2E 결과로 확대하지 않는다.
+
+## 2026-10-21 test / production 배포·ON
+
+사용자가 커밋·push·운영 배포 및 두 환경 ON/새 내부 경로 전달을 명시 승인했다. 제품 commit `81b167dd834e65cd7bd4c0e09b2cfd32857800b7`, [PR39](https://github.com/Too-Much-I/app-back-end-billing/pull/39) develop merge `aeee949423015b4b688f39b7d1ee7fc7a6db4e43`, [PR40](https://github.com/Too-Much-I/app-back-end-billing/pull/40) main merge `408b96f1a92a7f0545d26c3f015b27bdb1ca8ad3`.
+
+- [test Actions39582116358](https://github.com/Too-Much-I/app-back-end-billing/actions/runs/39582116358), [prod Actions39582343964](https://github.com/Too-Much-I/app-back-end-billing/actions/runs/39582343964): 모두 SUCCESS. main 승격에는 기존 초대 보상 코드도 포함되지만 운영 초대 flag는 변경하지 않았다.
+- 이미지 배포 revision20에서 `BILLING_REANSWER_ELIGIBILITY_ENABLED=true`만 추가한 revision21로 양쪽 서비스를 갱신했다. 기존 prerequisite ON과 circuit breaker enable/rollback을 확인했고 나머지 task 설정은 동일하다.
+- test digest: `sha256:e21463149bc05888927e81629f78c346929f2d399264ca0d838bb6f117b8636a`.
+- prod digest: `sha256:37411888cd4dc81d44c7ce0dadd43e3830521a9e9ac242151e7ce4e1e918d632`.
+- 기존 ALB workload listener에 test priority86 / prod priority126을 추가했다. 각 환경 `billing-workload-{test|prod}.to-teacher.com`, exact POST `/internal/v1/entitlements/reanswer-eligibility`, 기존 source `13.124.57.130/32` 조건을 모두 만족할 때 해당 workload8443 target group으로 전달한다. public8083 경로 추가가 아니다. 규칙 readback 완료; 외부 unsigned POST는 양쪽404로 source 제한을 유지한다.
+- DB/schema·키·IAM/SG·다른 기능 flag·LC/Identity 변경 없음. LC 서명 요청의 실제200 및 QuestionGradingJob 저장까지의 E2E는 미실행이다. 배포/ON 성공과 이 검증을 구분한다.
+- 롤백은 현재 이미지/나머지 설정을 보존한 flag OFF revision으로 수행한다. 내부 경로 규칙을 유지해도 application OFF는404다. revision20 전체 되돌림은 후속 설정 변경 여부를 먼저 비교해야 한다.
+
+최종 readback: 양쪽 task21, flag true, desired/running1·pending0, 단일 PRIMARY COMPLETED, 실행 task digest 일치, 신규8083/8443 모두 healthy. 이전 target draining은 교체 잔여로 관측했다.
