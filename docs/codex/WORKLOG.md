@@ -7396,3 +7396,11 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - 배포 후 billing-test의 GET entitlements, GET payments/products, 비인증 POST payments/sync 모두401 확인. 인증된 구매 귀속·실제 alias 조회 권한·Store 결제 E2E를 검증한 결과는 아니다.
 - main `408b96f1a92a7f0545d26c3f015b27bdb1ca8ad3` 불변. 운영 배포·운영 검토2건 재처리·프론트 앱 빌드/배포 없음. 프론트 수정은 별도 원격 브랜치에 유지.
 - 로컬 AWS 자격증명이 없어 ECS 직접 CLI 재조회 대신 성공한 Actions의 AWS 검증 결과를 사용했다. 공개 HTTPS 응답은 직접 재확인했다.
+
+## 2026-10-22 — 운영 서버 배포 확인
+
+- 사용자 「테스트 서버에 문제가 없으면 운영 서버에도 올려줘」 승인. 테스트 Actions39726808236 SUCCESS 및 테스트 API401 재확인 후 PR42(develop→main)를 merge했다. 운영 commit `a83caf64e8818bf86c727a618bed7fc68ee26ba3`. 테스트/운영 tree `02c0400d982527c04b23de42cebba89d6136a9fe` 동일 확인.
+- [운영 Actions39728062107](https://github.com/Too-Much-I/app-back-end-billing/actions/runs/39728062107) SUCCESS. 전체 test/bootJar 및 운영 도구 검사, 이미지 스모크, ECS 안정화, 배포 이미지 일치, 활성 target healthy 검사가 통과했다. 최종 검증 완료 2026-10-22 14:39:32 KST.
+- 운영 image digest `sha256:de0b050f1f4e03f868d2b93b09397e1e055e3ccda58c473ce26a9e9f14a464fc`. 표준 workflow로 기존 운영 task 설정을 유지하며 이미지만 교체. DB/schema·키·기능flag 변경 없음.
+- 배포 뒤 운영 GET entitlements, GET payments/products, 비인증 POST payments/sync 모두401 직접 확인. AWS 상태는 Actions의 AWS 검사 결과에 근거하며 로컬 AWS CLI 재조회는 하지 않았다.
+- 실제 Store 구매 귀속 E2E·RevenueCat alias read 권한·기존 검토2건의 원본 재전송/종결은 미실행. 프론트 앱 빌드/배포 없음. 서버 배포 성공을 해당 업무 검증 완료로 해석하지 않는다.
