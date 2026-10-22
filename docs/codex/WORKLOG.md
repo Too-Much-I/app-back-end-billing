@@ -7387,3 +7387,12 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - 커밋/push/배포/운영DB/설정 변경 없음. RevenueCat alias read 권한·실제 기기·Store 검증 후속.
 
 - 최종 최신 코드 `./gradlew clean test` 단독 실행: 1,937개, 실패0/오류0/skip0 (관련242개 포함). 최초 전체 실행은 동시 Gradle 실행의 결과 파일 충돌로 실패했으며, 단독 clean 재실행으로 해소했다.
+
+## 2026-10-22 — 테스트 서버 배포 확인
+
+- 사용자 「테스트 서버부터 배포하고 확인해줘」 승인으로 Billing PR41을 develop에 merge: `235f9ed55a4671dea8296c138c12314a23876acb`. 제품 커밋 `9070bc3fed594e7f4afc4db732c1623ae8f4b28e`.
+- [Actions39726808236](https://github.com/Too-Much-I/app-back-end-billing/actions/runs/39726808236) SUCCESS. CI clean test/bootJar 및 운영 도구 검사, 이미지 valid/wrong-db/wrong-cert 스모크, ECS 안정화, 실행 이미지 일치, 활성 target healthy 검사가 모두 통과했다. 최종 검증 완료 2026-10-22 14:24:36 KST.
+- 배포 digest `sha256:631af2802bbfde63b6a67fcd61b7d439cab9445238e49cb1dc145350eab1436e`. 기존 서비스 task 설정을 유지하고 이미지 교체만 수행하는 표준 workflow 사용. DB/schema·기능flag·키 설정 변경 없음.
+- 배포 후 billing-test의 GET entitlements, GET payments/products, 비인증 POST payments/sync 모두401 확인. 인증된 구매 귀속·실제 alias 조회 권한·Store 결제 E2E를 검증한 결과는 아니다.
+- main `408b96f1a92a7f0545d26c3f015b27bdb1ca8ad3` 불변. 운영 배포·운영 검토2건 재처리·프론트 앱 빌드/배포 없음. 프론트 수정은 별도 원격 브랜치에 유지.
+- 로컬 AWS 자격증명이 없어 ECS 직접 CLI 재조회 대신 성공한 Actions의 AWS 검증 결과를 사용했다. 공개 HTTPS 응답은 직접 재확인했다.
