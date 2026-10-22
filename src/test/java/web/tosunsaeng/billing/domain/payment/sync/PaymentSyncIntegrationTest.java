@@ -1428,6 +1428,28 @@ class PaymentSyncIntegrationTest {
         assertThat(first("payment_purchase_cases").getString("reviewState")).isEqualTo("RESOLVED");
         assertThat(pending()).isZero();
     }
+    @Test void unownedLegacyReviewRequiresExactVerifiedPurchaseAndAuthenticatedReplay() {
+        var receipt = matchableReview("review", "tx");
+        var legacy = new WebhookReceipt(receipt.environment(), receipt.eventKey(), receipt.receptionDigest(),
+                receipt.lookupKeyVersion(), null, null, receipt.disposition(), receipt.reason());
+        core.receiveWebhook(legacy);
+        enableReviewResolution();
+        core.receiveWebhook(receipt);
+        assertThat(first("payment_purchase_cases").getString("accountId")).isNull();
+        assertThat(pending()).isZero();
+        apply(purchase("unrelated", "other"));
+        core.receiveWebhook(receipt);
+        assertThat(first("payment_purchase_cases").getString("resolvedObservationKey")).isNull();
+        apply(purchase("verified", "tx"));
+        core.receiveWebhook(receipt);
+        var resolved = first("payment_purchase_cases");
+        assertThat(resolved.getString("reviewState")).isEqualTo("RESOLVED");
+        assertThat(resolved.getString("accountId")).isNotNull();
+        assertThat(pending()).isZero();
+        core.receiveWebhook(receipt);
+        assertThat(first("payment_purchase_cases")).isEqualTo(resolved);
+        assertThat(db.getCollection("subscription_entitlements").countDocuments()).isEqualTo(2);
+    }
     @Test void reviewResolutionRequiresExplicitSchemaPreparation() {
         props.setReviewResolutionEnabled(true);
         assertThatThrownBy(() -> new PurchaseCore(store, props, Clock.fixed(NOW, ZoneOffset.UTC),

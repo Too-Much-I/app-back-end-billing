@@ -2096,3 +2096,13 @@
 - 검증: 소스·테스트 정적 조회. 애플리케이션 변경이 없어 Gradle 테스트는 재실행하지 않음.
 - 유지: API·AI 계약·feature flag·코드·외부 서비스·Git 이력 변경 없음.
 - 다음: 본인 역할과 사례별 설명 가능 범위 확인 후 노션 본문 작성.
+
+## 2026-10-22 — RevenueCat 익명 original 구매 검토 수정
+
+- 사용자 브랜치/수정 승인. Billing 및 frontend 브랜치 `codex/fix-revenuecat-anonymous-owner`.
+- 앱 직접 appUserID 초기화·구매 전 SDK ID 검사, Billing 인증된 전체 aliases+purchase 검증, 웹훅 후보만으로 지급 금지.
+- 기존 account 없는 검토는 동일 digest 원본 재전송과 exact VERIFIED 구매·원장·ACTIVE lifecycle로만 연결/해소. 운영 2건은 아직 재처리하지 않음.
+- adapter50/webhook52/sync140, 총242개 통과. 앱 타입/린트/구조/이름/포맷 및 SDK mock 검사 통과. 상세: [수정 안내](../runbooks/revenuecat-anonymous-owner-fix-2026-10-22.md).
+- 커밋/push/배포/운영DB/설정 변경 없음. RevenueCat alias read 권한·실제 기기·Store 검증 후속.
+
+- 최종 최신 코드 `./gradlew clean test` 단독 실행: 1,937개, 실패0/오류0/skip0 (관련242개 포함). 최초 전체 실행은 동시 Gradle 실행의 결과 파일 충돌로 실패했으며, 단독 clean 재실행으로 해소했다.

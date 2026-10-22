@@ -7377,3 +7377,13 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 
 - 2026-10-21 재답변 양쪽 배포·ON 완료: 제품81b167d, PR39/develop aeee949 및 PR40/main408b96f 병합. test Actions39582116358/prod39582343964 모두 SUCCESS. 양쪽 task21에 BILLING_REANSWER_ELIGIBILITY_ENABLED=true만 추가; 단일 PRIMARY COMPLETED·desired/running1·pending0·예상 image digest·신규8083/8443 healthy 확인(이전 target draining은 교체 잔여). workload exact POST 전달 규칙 test86/prod126·기존 source 제한 유지. DB/schema·타 flag·LC/Identity 변경 없음. LC 서명200/재답변 Job E2E는 미실행. [배포 기록](../runbooks/FEEDBACK-REANSWER-ELIGIBILITY.md).
 - 사용자 커밋/push/양쪽 ON·내부 경로 전달 승인으로 수행. code defaults OFF 유지, 환경 설정만 ON. 전체 테스트1,933개 근거 및 두 Actions 성공 유지. 추가 제품 변경 없이 문서 diff 검사. 배포 기록은 feature branch 후속 커밋/push로 보존하며 이 기록 자체의 main/develop 병합은 별도다.
+
+## 2026-10-22 — RevenueCat 익명 original 구매 검토 수정
+
+- 사용자 브랜치/수정 승인. Billing 및 frontend 브랜치 `codex/fix-revenuecat-anonymous-owner`.
+- 앱 직접 appUserID 초기화·구매 전 SDK ID 검사, Billing 인증된 전체 aliases+purchase 검증, 웹훅 후보만으로 지급 금지.
+- 기존 account 없는 검토는 동일 digest 원본 재전송과 exact VERIFIED 구매·원장·ACTIVE lifecycle로만 연결/해소. 운영 2건은 아직 재처리하지 않음.
+- adapter50/webhook52/sync140, 총242개 통과. 앱 타입/린트/구조/이름/포맷 및 SDK mock 검사 통과. 상세: [수정 안내](../runbooks/revenuecat-anonymous-owner-fix-2026-10-22.md).
+- 커밋/push/배포/운영DB/설정 변경 없음. RevenueCat alias read 권한·실제 기기·Store 검증 후속.
+
+- 최종 최신 코드 `./gradlew clean test` 단독 실행: 1,937개, 실패0/오류0/skip0 (관련242개 포함). 최초 전체 실행은 동시 Gradle 실행의 결과 파일 충돌로 실패했으며, 단독 clean 재실행으로 해소했다.

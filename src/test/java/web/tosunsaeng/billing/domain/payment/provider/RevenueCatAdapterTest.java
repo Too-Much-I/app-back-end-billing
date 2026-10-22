@@ -81,6 +81,49 @@ class RevenueCatAdapterTest {
     }
     RevenueCatReadClient.Response response(int status, Map<String, List<String>> headers, byte[] b) { return new RevenueCatReadClient.Response(status, headers, b); }
     RevenueCatReadClient client(RevenueCatReadClient.Transport transport) { return new RevenueCatReadClient("project", "SANDBOX", "fake-secret", transport, decoder, CLOCK); }
+    static final String ANON = "$RCAnonymousID:" + "a".repeat(32);
+    ObjectNode aliasList(String... ids) {
+        var root = JSON.createObjectNode().put("object", "list").putNull("next_page");
+        var rows = root.putArray("items");
+        for (String id : ids) rows.addObject().put("object", "customer.alias").put("id", id)
+                .put("created_at", NOW.minusSeconds(200).toEpochMilli());
+        return root;
+    }
+    @Test void anonymousPurchaseRequiresCompleteExclusiveAuthenticatedAliasEvidence() {
+        var raw = bytes(purchase().put("original_customer_id", ANON));
+        assertThat(decoder.purchase(raw, REF).observation()).isNull();
+        var proof = decoder.aliases(bytes(aliasList(REF, ANON)), REF);
+        assertThat(decoder.purchase(raw, REF, proof).observation()).isNotNull();
+        assertThat(decoder.purchase(bytes(purchase().put("original_customer_id", ANON).put("customer_id", ANON)), REF, proof).observation()).isNotNull();
+        for (var bad : List.of(aliasList(ANON), aliasList(REF), aliasList(REF, ANON, "other-member"),
+                aliasList(REF, ANON).put("next_page", "/next"))) {
+            assertThat(decoder.purchase(raw, REF, decoder.aliases(bytes(bad), REF)).observation()).isNull();
+        }
+        assertThat(decoder.purchase(bytes(purchase().put("original_customer_id", "other-member")), REF, proof).observation()).isNull();
+        assertThatThrownBy(() -> decoder.aliases(bytes(aliasList(REF, ANON, ANON)), REF)).isInstanceOf(RevenueCatFailure.class);
+        var future = aliasList(REF, ANON);
+        ((ObjectNode) future.path("items").get(0)).put("created_at", NOW.plusMillis(1).toEpochMilli());
+        assertThatThrownBy(() -> decoder.aliases(bytes(future), REF)).isInstanceOf(RevenueCatFailure.class);
+    }
+    @Test void readClientFetchesAliasesOnceAndDoesNotTreatAuthenticationFailureAsSuccess() {
+        var root = JSON.createObjectNode().put("object", "list").putNull("next_page");
+        root.putArray("items").add(purchase().put("original_customer_id", ANON));
+        List<String> paths = new ArrayList<>();
+        var reader = client((uri, key) -> {
+            paths.add(uri.getPath());
+            return response(200, Map.of("Content-Type", List.of("application/json")),
+                    bytes(uri.getPath().endsWith("/aliases") ? aliasList(REF, ANON) : root));
+        });
+        assertThat(reader.purchases(REF, null).items().get(0).observation()).isNotNull();
+        assertThat(paths).containsExactly("/v2/projects/project/customers/" + REF + "/purchases",
+                "/v2/projects/project/customers/" + REF + "/aliases");
+        for (int status : List.of(401, 403, 429, 503)) {
+            var failing = client((uri, key) -> uri.getPath().endsWith("/aliases")
+                    ? response(status, Map.of(), new byte[0])
+                    : response(200, Map.of("Content-Type", List.of("application/json")), bytes(root)));
+            assertThatThrownBy(() -> failing.purchases(REF, null)).isInstanceOf(RevenueCatFailure.class);
+        }
+    }
     @Test void apiFactsNormalizeWithoutUsingUsdRevenueAndAreStable() {
         var n = purchase(); n.putObject("revenue_in_usd").put("gross", 99);
         var a = decoder.purchase(bytes(n), REF); n.put("extra", "ignored");

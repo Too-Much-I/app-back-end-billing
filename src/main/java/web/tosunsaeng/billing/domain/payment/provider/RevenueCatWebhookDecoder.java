@@ -52,7 +52,8 @@ public final class RevenueCatWebhookDecoder {
         if ("TEST".equals(type) || !"NON_RENEWING_PURCHASE".equals(type) && !REVIEW_TYPES.contains(type))
             return new WebhookReceipt(receiptEnvironment, key, digest, lookup.version(), null, null, WebhookReceipt.Disposition.IGNORED, "IGNORED_UNSUPPORTED");
         String current = text(event, "app_user_id", false), original = text(event, "original_app_user_id", false);
-        String owner = canonicalOwner(current) && Objects.equals(current, original) ? current : null;
+        boolean anonymousOriginal = canonicalOwner(current) && RevenueCatPurchaseDecoder.anonymous(original);
+        String owner = canonicalOwner(current) && (Objects.equals(current, original) || anonymousOriginal) ? current : null;
         if (!"NON_RENEWING_PURCHASE".equals(type))
             return receipt(receiptEnvironment, key, digest, null, owner, WebhookReceipt.Disposition.REVIEW, "EVENT_REQUIRES_LOOKUP");
         String store = text(event, "store", false), product = text(event, "product_id", false), tx = text(event, "transaction_id", false);
@@ -65,7 +66,7 @@ public final class RevenueCatWebhookDecoder {
             for (JsonNode alias : aliases) { if (!alias.isTextual()) throw malformed(); if (!Objects.equals(owner, alias.textValue())) aliasSafe = false; }
         }
         App app = appId == null ? null : apps.get(appId);
-        String reason = owner == null || !aliasSafe ? "OWNER_UNRESOLVED"
+        String reason = owner == null || !aliasSafe || anonymousOriginal ? "OWNER_UNRESOLVED"
                 : app == null || env == null || store == null || product == null || tx == null || purchased == null || eventTime == null ? "PURCHASE_FACTS_INCOMPLETE"
                 : !app.store().name().equals(store) || !app.products().contains(product) ? "PRODUCT_UNMAPPED"
                 : quantity == null ? "QUANTITY_REQUIRES_LOOKUP"
@@ -78,7 +79,7 @@ public final class RevenueCatWebhookDecoder {
             // owner mismatch, reversal/transfer events and missing facts remain manual review.
             ReviewPurchaseCandidate candidate = null;
             if (Set.of("QUANTITY_REQUIRES_LOOKUP", "OWNER_UNRESOLVED").contains(reason)
-                    && owner != null && app != null && env != null && app.store().name().equals(store)
+                    && owner != null && safeReviewAliases(aliases, owner) && app != null && env != null && app.store().name().equals(store)
                     && product != null && app.products().contains(product) && tx != null && purchased != null && purchased >= 0
                     && !Instant.ofEpochMilli(purchased).isAfter(clock.instant()) && (quantity == null || quantity == 1L)
                     && family != null && family.isBoolean() && !family.booleanValue())
@@ -101,6 +102,12 @@ public final class RevenueCatWebhookDecoder {
         var observation = new PurchaseObservation(receiptEnvironment, app.store(), appId, lookup.transaction(receiptEnvironment, store, appId, tx),
                 lookup.version(), key, PurchaseObservation.Kind.PURCHASE, owner, product, Instant.ofEpochMilli(purchased), money);
         return receipt(receiptEnvironment, key, digest, observation, owner, WebhookReceipt.Disposition.PURCHASE, "VERIFIED_CANDIDATE");
+    }
+    private static boolean safeReviewAliases(JsonNode aliases, String owner) {
+        if (aliases == null || aliases.isNull()) return true;
+        for (JsonNode alias : aliases)
+            if (!owner.equals(alias.textValue()) && !RevenueCatPurchaseDecoder.anonymous(alias.textValue())) return false;
+        return true;
     }
     private WebhookReceipt receipt(String storeEnvironment, String key, String digest, PurchaseObservation o, String owner, WebhookReceipt.Disposition d, String reason) {
         return new WebhookReceipt(storeEnvironment, key, digest, lookup.version(), o, owner, d, reason);

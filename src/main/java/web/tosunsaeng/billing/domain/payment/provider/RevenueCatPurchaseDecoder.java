@@ -39,20 +39,60 @@ public final class RevenueCatPurchaseDecoder {
         environments = new StoreEnvironmentPolicy(environment, sandboxPurchasesEnabled);
     }
     public Page page(byte[] bytes, String ownerRef) {
+        return page(bytes, ownerRef, Set.of());
+    }
+    Page page(byte[] bytes, String ownerRef, Set<String> verifiedAliases) {
         owner(ownerRef); JsonNode root = json(bytes);
         if (!"list".equals(string(root, "object")) || !root.path("items").isArray() || root.path("items").size() > 100 || !root.has("next_page"))
             throw RevenueCatFailure.contract();
         String next = root.get("next_page").isNull() ? null : string(root, "next_page", 4096);
         List<Item> items = new ArrayList<>(); Set<String> ids = new HashSet<>();
         for (JsonNode row : root.get("items")) {
-            Item item = item(row, ownerRef); if (!ids.add(item.reference())) throw RevenueCatFailure.contract(); items.add(item);
+            Item item = item(row, ownerRef, verifiedAliases); if (!ids.add(item.reference())) throw RevenueCatFailure.contract(); items.add(item);
         }
         return new Page(items, next);
     }
     boolean matches(String project, String environment) { return this.project.equals(project) && this.environment.equals(environment); }
     boolean includesSandbox() { return environments.sandboxPurchasesEnabled(); }
-    public Item purchase(byte[] bytes, String ownerRef) { owner(ownerRef); return item(json(bytes), ownerRef); }
-    private Item item(JsonNode row, String ownerRef) {
+    public Item purchase(byte[] bytes, String ownerRef) { owner(ownerRef); return item(json(bytes), ownerRef, Set.of()); }
+    Item purchase(byte[] bytes, String ownerRef, Set<String> verifiedAliases) {
+        owner(ownerRef); return item(json(bytes), ownerRef, verifiedAliases);
+    }
+    /** Only an authenticated, complete customer-alias response may enable anonymous ownership. */
+    Set<String> aliases(byte[] bytes, String ownerRef) {
+        owner(ownerRef); JsonNode root = json(bytes);
+        if (!"list".equals(string(root, "object")) || !root.path("items").isArray()
+                || root.path("items").size() > 100 || !root.has("next_page")) throw RevenueCatFailure.contract();
+        // Never infer exclusivity from a partial page. Larger alias histories require review.
+        if (!root.get("next_page").isNull()) return Set.of();
+        Set<String> aliases = new HashSet<>();
+        boolean safe = true;
+        for (JsonNode row : root.get("items")) {
+            if (!"customer.alias".equals(string(row, "object"))) throw RevenueCatFailure.contract();
+            String id = string(row, "id", 1500);
+            long created = integer(row, "created_at");
+            if (created < 0 || created > clock.millis() || !aliases.add(id)) throw RevenueCatFailure.contract();
+            if (!ownerRef.equals(id) && !anonymous(id)) safe = false;
+        }
+        return safe && aliases.contains(ownerRef) ? Set.copyOf(aliases) : Set.of();
+    }
+    boolean needsAliases(byte[] bytes, String ownerRef, boolean list) {
+        JsonNode root = json(bytes);
+        if (list) {
+            for (JsonNode row : root.path("items")) if (anonymousOwner(row, ownerRef)) return true;
+            return false;
+        }
+        return anonymousOwner(root, ownerRef);
+    }
+    private static boolean anonymousOwner(JsonNode row, String ownerRef) {
+        String current = row.path("customer_id").asText("");
+        return anonymous(row.path("original_customer_id").asText(""))
+                && (ownerRef.equals(current) || anonymous(current));
+    }
+    static boolean anonymous(String id) {
+        return id != null && id.matches("\\$RCAnonymousID:[0-9a-f]{32}");
+    }
+    private Item item(JsonNode row, String ownerRef, Set<String> verifiedAliases) {
         if (!row.isObject() || !"purchase".equals(string(row, "object"))) throw RevenueCatFailure.contract();
         String id = string(row, "id"), customer = string(row, "customer_id", 1500), original = string(row, "original_customer_id", 1500);
         String productId = string(row, "product_id"), storeId = string(row, "store_purchase_identifier"), env = string(row, "environment");
@@ -62,7 +102,11 @@ public final class RevenueCatPurchaseDecoder {
         Instant purchased = Instant.ofEpochMilli(millis);
         String storeEnvironment = switch (env) { case "production" -> "PRODUCTION"; case "sandbox" -> "SANDBOX"; default -> ""; };
         if (!environments.accepts(storeEnvironment)) return review(id, "ENVIRONMENT_MISMATCH");
-        if (!ownerRef.equals(customer) || !ownerRef.equals(original)) return review(id, "OWNER_UNRESOLVED");
+        boolean exactOwner = ownerRef.equals(customer) && ownerRef.equals(original);
+        boolean verifiedAnonymous = anonymous(original) && verifiedAliases.contains(ownerRef)
+                && verifiedAliases.contains(original)
+                && (ownerRef.equals(customer) || anonymous(customer) && verifiedAliases.contains(customer));
+        if (!exactOwner && !verifiedAnonymous) return review(id, "OWNER_UNRESOLVED");
         if (!"purchased".equals(ownership)) return review(id, "OWNERSHIP_UNSUPPORTED");
         if (quantity != 1) return review(id, "QUANTITY_UNSUPPORTED");
         if (purchased.isAfter(clock.instant())) return review(id, "PURCHASE_TIME_INVALID");
