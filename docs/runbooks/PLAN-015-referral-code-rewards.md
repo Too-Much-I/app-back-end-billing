@@ -57,3 +57,21 @@ rollback은 referral OFF·공유OFF 유지다. 이미 지급된 REFERRAL을 읽�
 최종 `./gradlew clean test`: **1,970개(신규33개), 실패0/오류0/skip0, 4m41s**. 추천 Controller6·Configuration4·Mongo통합22 및 재답변 추가1개. 첫 전체 실행의 보안 slice 설정mock 누락6건은 보완 후 전체 재통과했다. 보고서는 `build/reports/tests/test/index.html`, 집계 원본은 `build/test-results/test/`이다.
 
 다계정·상호추천·직접 API를 호출하는 기존 회원의 최초 적용은 승인된 위험이다. 실제 Identity 탈퇴 전달 지연과 앱 재시도 구현은 로컬 테스트의 보장이 아니다. 실DB 설치·외부 연동·실기기 E2E·성능 부하는 이번 구현 검증에 포함하지 않는다.
+
+## 6. 2026-10-22 테스트 전환 실행 기록
+
+- 사용자 commit/push·테스트 배포·추천인ON/공유OFF 승인. 제품 commit `1e757278bbd2eba057168a27a5da1271f4e0917a`, [PR43](https://github.com/Too-Much-I/app-back-end-billing/pull/43) develop 병합 `ad606c0459a62ffc70439fff2954721d51181150`. main/prod 무변경.
+- [테스트 Actions39734263409](https://github.com/Too-Much-I/app-back-end-billing/actions/runs/39734263409) 실행. 기존 live 설정을 보존한 image-only 배포다. 추천인 활성화 완료로 간주하지 않는다.
+- 배포 전 test task22, `INVITE_SHARE_REWARD_ENABLED=true`, DB `to-teacher-billing-test` 확인. 추천인 flag는 미설정(default OFF).
+- `ReferralRewardMaintenance.java`: 배포 JAR 의존성으로 컴파일 및 설정 누락 시 DB 접근 전 실패 확인. 시험용 DB/host/동일 URI·writer 정지·SANDBOX OPEN control 검사, additive 설치·검증 후 control 불변 확인. 자동 purge는 실행하지 않는다.
+- `referral-test-alb.py`: 승인된 테스트 host의 exact POST 두 경로만 priority97/기존8083으로 추가하는 도구. 기존 priority98 공유 route/메서드/host·8083 검증과 priority 충돌 거절. CloudShell 첫 호출은 shell newline 인용 오류로 실행 전 실패; 재호출 후 결과를 읽기 전에 UI 도구가 unavailable해져 실제 적용 여부 미확인. **재실행 전에 priority97을 조회해야 한다.**
+- `referral-test-rollout.py`: prepare→stop→install→activate의 명시 단계 도구. 새 image digest 및 기존 설치 task DB/Secret 일치, service writer 정지, 설치 exit0·동일image를 검사하고 reward 두 flag만 변경한다. Python 문법 검사 통과, 실제 실행하지 않았다.
+- 로컬 AWS 자격증명 없음·브라우저 제어 도구 이용 불가로 스키마 설치/ON·OFF 전환 중단. 테스트 서비스 중지·DB 변경·새 역할/Secret/운영 변경 없음. 전체 테스트와 코드 배포 성공은 앱 지급 E2E나 활성화 성공을 의미하지 않는다.
+- 다음: AWS 제어 복구 후 ALB97 조회, 새 이미지 안정화 확인, 명시 schema 설치 및 추천인ON/공유OFF, HTTPS 신규401/공유404와 task/targets 확인. 보존 정책 확정은 운영 활성화 전 조건으로 유지하며 이번 테스트 전환으로 purge/tombstone 무기한 보존을 승인하지 않는다.
+
+### 후속 적용 결과 (2026-10-22 16:06 KST)
+
+- 위 중단 상태를 대체: test ALB97 생성·재조회 성공, Actions SUCCESS·test23 안정화 후 설치 실행. 최초 설치 task8163c7489b114f8ea1f3ea0e6e060e9f는 exit1로 실패했고 기존 서버를 재개했다. 실패 단계 미확정이며 성공으로 취급하지 않는다.
+- 후속 읽기 대조에서 referral_codes/referral_applications 및7개 index의 실제 설치 확인. 독립 schema verify task f0fc8d6a8add46bc90683254bd2d78cf의 exit0·PAID_SCHEMA_OK·REFERRAL_VERIFY_OK와 기존 SANDBOX/billing/OPEN 확인 후 전환. recovery control 전체 불변은 단정하지 않는다.
+- test24: 추천인true·공유false, image는 test23과 동일. HTTPS 두 추천 POST401(인증필요), 기존 공유POST404, entitlements401 확인. 기존 INVITE grant/원장 보존. 운영 변경 없음.
+- 전체 ECS rollout COMPLETED 재조회와 로그인한 두 회원의 지급·재시도 E2E는 별도로 남긴다. API401 확인은 인증된 지급 성공을 의미하지 않는다.
