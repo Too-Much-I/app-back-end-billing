@@ -7397,6 +7397,13 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - main `408b96f1a92a7f0545d26c3f015b27bdb1ca8ad3` 불변. 운영 배포·운영 검토2건 재처리·프론트 앱 빌드/배포 없음. 프론트 수정은 별도 원격 브랜치에 유지.
 - 로컬 AWS 자격증명이 없어 ECS 직접 CLI 재조회 대신 성공한 Actions의 AWS 검증 결과를 사용했다. 공개 HTTPS 응답은 직접 재확인했다.
 
+## 2026-10-22 — 추천인 코드 양방향 무료권 설계
+
+- 브랜치 codex/fix-revenuecat-anonymous-owner. 사용자 설계서 작성 요청으로 PLAN-015-referral-code-rewards.md 작성, CURRENT_STATE 갱신. 제품 정책은 회원가입 UI 선택입력/계정당1회/자기추천 금지/양쪽1개/추천인 무상한/추가 가입시점·휴대전화 검사 없음/다계정 위험 수용/공유 미사용.
+- 기존 InviteRewardService/Schema·grant/ledger·Reanswer 경로 및 공유 운영 기록을 정적 확인. 공유 누적3 검증과 무제한 추천을 혼합하지 않도록 REFERRAL source를 제안, 양쪽 지급·적용 unique·원장 단일Tx와 기존 FIFO/paid-first 재사용 정리. API/코드형식/schema/보존 세부는 기술 초안이며 공동 동결 아님.
+- 테스트 공유 ON 이력을 확인해 기존 비활성 상태라는 추정을 정정하고 실제 flag OFF를 후속 전환 항목으로 명시. 서버 설정·기존 지급 자료는 변경하지 않음. 보존기간 확정·프론트 계약·구현/Jira·배포는 후속.
+- 문서만 변경해 Gradle 미실행, 정적 코드 대조 및 git diff --check 수행. 코드/DB/실서버/타저장소/외부메시지/Jira/commit/push 변경 없음. 시작 작업트리 clean, 예상 밖 변경 없음.
+
 ## 2026-10-22 — 운영 서버 배포 확인
 
 - 사용자 「테스트 서버에 문제가 없으면 운영 서버에도 올려줘」 승인. 테스트 Actions39726808236 SUCCESS 및 테스트 API401 재확인 후 PR42(develop→main)를 merge했다. 운영 commit `a83caf64e8818bf86c727a618bed7fc68ee26ba3`. 테스트/운영 tree `02c0400d982527c04b23de42cebba89d6136a9fe` 동일 확인.
@@ -7404,3 +7411,40 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - 운영 image digest `sha256:de0b050f1f4e03f868d2b93b09397e1e055e3ccda58c473ce26a9e9f14a464fc`. 표준 workflow로 기존 운영 task 설정을 유지하며 이미지만 교체. DB/schema·키·기능flag 변경 없음.
 - 배포 뒤 운영 GET entitlements, GET payments/products, 비인증 POST payments/sync 모두401 직접 확인. AWS 상태는 Actions의 AWS 검사 결과에 근거하며 로컬 AWS CLI 재조회는 하지 않았다.
 - 실제 Store 구매 귀속 E2E·RevenueCat alias read 권한·기존 검토2건의 원본 재전송/종결은 미실행. 프론트 앱 빌드/배포 없음. 서버 배포 성공을 해당 업무 검증 완료로 해석하지 않는다.
+
+## 2026-10-22 — PLAN-015 기술 규격 작성
+
+- codex/fix-revenuecat-anonymous-owner. 사용자 요청으로 PLAN-015-TECHNICAL-SPEC-R1 작성, 설계 링크/CURRENT_STATE 갱신. 기존 reward 구조 정적 대조 후 세 API/strict 입력/성공key 멱등/양쪽 lifecycle·guard·지급 단일Tx/REFERRAL 확장/공유OFF·호환 rollback 정리.
+- 보존120일·탈퇴 연결정리·코드tombstone는 권장안이며 승인 필요. 입력자만1회·추천인 무상한·추가 자격검사 없음 유지. 다음은 보존안 및 API 대조 후 Jira/구현 승인.
+- 문서만 변경, Gradle 미실행·diff 검사. 기존 dirty와 작업 중 추가된 별도 운영 배포 기록 보존. 이번 작업의 코드/DB/서버/타저장소/Jira/외부전송/commit/push/배포 없음.
+
+## 2026-10-22 — 추천인 구현 Jira TMI-223 생성
+
+- 사용자 Jira 생성 요청으로 project TMI 타입/중복 이슈 검색 후 작업 TMI-223 생성. 제목 [Billing][PLAN-015] 추천인 코드 양방향 무료 응시권 보상 구현, 해야 할 일/미할당. 생성 응답의 키·설명·상태 확인.
+- 확정 제품 정책과 사용자 수락 보존 방향, 3API·양방향 단일Tx·REFERRAL 호환·공유OFF 전환·테스트/rollback 완료조건 포함. 구현·실DB·설정OFF/ON·배포·타저장소는 이번 생성으로 실행하지 않음을 명시.
+- PLAN-015/기술규격/CURRENT_STATE에 Jira 연결과 보존 방향 수락 기록. 코드 tombstone 세부정책 별도 검토, 임의 무기한 보존 확정 없음. 기존 dirty 보존. 제품 무변경으로 Gradle 미실행, diff 검사. 코드/서버/DB/commit/push 없음. 다음은 TMI-223 기준 구현 승인 후 착수.
+
+## 2026-10-22 — 추천인 내 상태 조회 제외·TMI-223 수정
+
+- 사용자 승인으로 PLAN-015 설계/기술규격에서 내 상태 조회 GET을 제외하고 코드 발급·적용 두 POST만 유지. 별도 조회 DTO/rate-limit bucket/ALB GET 연결 제외, 계정당 적용1회·멱등 기록 유지.
+- 코드 재표시는 발급 POST 재호출, 적용 결과 불명은 같은 계정/key/body 재시도, 잔여권은 기존 entitlements로 확인. 앱의 미확인 코드/key 계정별 보관·유실 시 임의 자동 재전송 금지 명시.
+- TMI-223 설명의 구현 범위·route·완료조건 수정 성공 확인, 상태 해야 할 일/미할당 유지. 기존 작업 기록·별도 운영 배포 기록 보존. 문서만 변경해 Gradle 미실행, git diff --check 검사. 제품 코드/DB/설정/배포/commit/push 변경 없음.
+
+## 2026-10-22 — 운영 검토 2건 재처리 완료
+
+- 사용자 「읽기 권한 추가 후 재처리」 승인으로 RevenueCat `billing-production-read`의 Customers Configuration만 No access→Read only로 저장하고 재진입 확인. 기존 Purchases Read only 유지, 구매/환불 쓰기 권한·test 키 변경 없음.
+- 최초 read-only 사전검사는 customer aliases HTTP403으로 중단되어 replay하지 않았다. 권한 변경 후 실제 aliases 조회와 원본 event/digest·거래·상품·소유·시각·환경·ACTIVE account/lifecycle·PURCHASE_VERIFIED 원장 2건을 모두 대조해 통과했다.
+- 운영 ECS 단일 COMPLETED 확인 후 CloudShell에서 UI로 확인한 동일 원본 이벤트 2건을 기존 인증/HMAC 규격으로 운영 webhook에 재전달했다. RevenueCat 자체 resend 버튼 사용이 아닌 운영자 원본 재전달이며, DB 직접 수정·수동 지급은 하지 않았다. 원문/키는 메모리에서만 사용하고 기록하지 않았다.
+- HTTP [200,200], RESOLVED 2, 미해결 0 확인. matched purchase 문서 전체 불변, purchases/subscription_entitlements/payment_ledger 건수 불변. counted=false 및 원본 digest 유지. Atlas 미해결 조건 새로고침도 No results, 운영 공개 GET entitlements 비인증401 확인.
+- 두 건은 SANDBOX 구매 기록이며 실제 청구나 구매창 닫기 자체가 만든 결제가 아니다. 검토 기록을 삭제하지 않고 해결 상태로 보존했다. 신규 구매·이용권 지급 없음.
+- 이번은 운영 권한·재처리 및 기록만 변경하여 Gradle 재실행 생략. 기존 1,937개 통과 근거 유지. test 키의 customer read 권한·실기기 Store E2E·프론트 배포는 이번 확인 범위 밖. 기존 PLAN-015 및 타 작업 문서 변경 보존.
+
+## 2026-10-22 — TMI-223 추천인 코드 구현·전체 검증
+
+- 사용자 「좋아 브랜치 feat로 해서 파서 구현해줘」 승인. TMI-223 원문·완료조건을 읽고 기존 HEAD96d6f3a에서 `feat/TMI-223-referral-code-rewards` 생성. 기존 PLAN-015/CURRENT_STATE/WORKLOG 및 별도 RevenueCat 운영 기록 dirty를 보존했으며 stash/reset/덮어쓰기 없음.
+- 추가: ReferralRewardService/Controller/Properties/Configuration/Schema, referral public 계약·운영 안내·3개 테스트 클래스. 변경: public ingress/security/error writer·PaymentRateLimiter·application.yml, grant/ledger REFERRAL factory, ReanswerService/통합테스트·기존 SecurityConfigTest 설정mock, AGENTS·PLAN015·작업 기록.
+- 두 exact POST만 제공, MEMBER/billing:purchase·계정 준비 재사용. 코드10자리/ASCII 정규화/strict UTF-8 JSON·1,024byte·호출자별10회/분. 별도 조회GET/DTO/bucket 없음. 최초key/같은code와 다른key/기존code 재현, 다른code 충돌, 적용1회unique/자기추천금지/추천인무상한 유지.
+- ACCOUNT recovery fence·양쪽 lifecycle CAS/공통 지급순 guard·REFERRAL grant2/원장2/성공적용을 한 ClientSession Transaction으로 구현. unknown commit 기존 재시도 사용, 시험 current/pending guard 불변. 기존 유료우선/FIFO/취소/만료/replacement·추천권 재복원 없음/재답변·기존 INVITE 누적3 호환 확인.
+- 기본OFF REFERRAL_REWARD_ENABLED, 공유동시ON 기동거절. schema r1 두 collection/7개 index, startup verify-only·명시 maintenance 설치/120일 상세 정리·탈퇴 연결정리. 적용 최소 근거와 상대방 권리 보존, owner 없는 code tombstone의 보존기간은 별도 정책 검토로 남김. 자동 purge scheduler/실DB 설치 없음.
+- 검증 이력: 최초 선별24개 중 mock 재설정 방식1건 실패, Mockito doThrow로 수정. 추가 호환 테스트의 존재하지 않는 조회 메서드 컴파일1건을 session-bound 조회로 수정 후 추천/공유/재답변 선별 통과. 첫 전체1,970개 중 SecurityConfigTest 신규 properties mock 누락으로6건 context 실패; mock 추가 후 해당6건 단독 통과. 최종 `./gradlew clean test` **1,970개, 실패0/오류0/skip0, 4m41s**. 추천 전용32개+재답변 추가1개, 전체 신규33개. JUnit XML 집계와 git diff --check 확인. 실제 외부 서비스 대신 가짜 JWT·로컬 disposable Mongo replica-set만 사용.
+- 예상 밖 제품 변경 없음. 별도 운영 재처리 기록은 이번 작업 변경이 아니며 보존. 실제 DB/서버/키/ALB/공유OFF/ON/프론트/Identity/LC/commit/push/배포/Jira 수정 없음. 다음: 변경 리뷰·커밋 준비 후 별도 승인된 테스트 schema/배포·앱 E2E. 운영 전 tombstone 정책·정리 담당/절차와 공유OFF 상태 확인 필요.

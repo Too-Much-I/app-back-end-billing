@@ -1,5 +1,7 @@
 app:
   rewards:
+    referral:
+      enabled: ${REFERRAL_REWARD_ENABLED:false}
     invite-share:
       enabled: ${INVITE_SHARE_REWARD_ENABLED:false}
   billing:
