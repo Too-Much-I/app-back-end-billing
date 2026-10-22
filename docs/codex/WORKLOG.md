@@ -7372,3 +7372,18 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - 실제 Mongo 통합8개는 일회용 replica-set에서 전 컬렉션 조회 전후 동일성, 미발급/발급trial·paid 만료±1ns·MEMBER·withdrawal·guard·hold/consumption·source 불명·recovery/corruption을 검증. API/decoder16·workload3·startup2개. workload는 실제 필터 체인 단위 테스트이며 신규 route의 외부 TLS/E2E 검증은 아님.
 - 위험/잔여: 기존 구매 동시성 테스트 일시 실패 이력을 유지. 5초 관측 이후 다른 Job 복수 접수 및 이벤트 전달 지연은 승인된 한계. LC의 COMMON500/운영 경보·Job+BSON string 증거·시각 guard 및 공동 독립/E2E 검증·실환경 활성화는 후속. 기존 source/원장 정책, LC/Identity 코드, DB/설정 실환경, commit/push/배포는 변경하지 않음.
 - 인계: [구현 안내](../runbooks/FEEDBACK-REANSWER-ELIGIBILITY.md), [draft-5](../contracts/LC-BILLING-FEEDBACK-REANSWER-ELIGIBILITY-R1-DRAFT.md). 이번 기본OFF는 초대 보상 등 기존 테스트 서버 ON 설정을 변경하지 않음.
+
+## 2026-10-21 — 재답변 Billing test/prod 배포 및 활성화
+
+- 2026-10-21 재답변 양쪽 배포·ON 완료: 제품81b167d, PR39/develop aeee949 및 PR40/main408b96f 병합. test Actions39582116358/prod39582343964 모두 SUCCESS. 양쪽 task21에 BILLING_REANSWER_ELIGIBILITY_ENABLED=true만 추가; 단일 PRIMARY COMPLETED·desired/running1·pending0·예상 image digest·신규8083/8443 healthy 확인(이전 target draining은 교체 잔여). workload exact POST 전달 규칙 test86/prod126·기존 source 제한 유지. DB/schema·타 flag·LC/Identity 변경 없음. LC 서명200/재답변 Job E2E는 미실행. [배포 기록](../runbooks/FEEDBACK-REANSWER-ELIGIBILITY.md).
+- 사용자 커밋/push/양쪽 ON·내부 경로 전달 승인으로 수행. code defaults OFF 유지, 환경 설정만 ON. 전체 테스트1,933개 근거 및 두 Actions 성공 유지. 추가 제품 변경 없이 문서 diff 검사. 배포 기록은 feature branch 후속 커밋/push로 보존하며 이 기록 자체의 main/develop 병합은 별도다.
+
+## 2026-10-22 — RevenueCat 익명 original 구매 검토 수정
+
+- 사용자 브랜치/수정 승인. Billing 및 frontend 브랜치 `codex/fix-revenuecat-anonymous-owner`.
+- 앱 직접 appUserID 초기화·구매 전 SDK ID 검사, Billing 인증된 전체 aliases+purchase 검증, 웹훅 후보만으로 지급 금지.
+- 기존 account 없는 검토는 동일 digest 원본 재전송과 exact VERIFIED 구매·원장·ACTIVE lifecycle로만 연결/해소. 운영 2건은 아직 재처리하지 않음.
+- adapter50/webhook52/sync140, 총242개 통과. 앱 타입/린트/구조/이름/포맷 및 SDK mock 검사 통과. 상세: [수정 안내](../runbooks/revenuecat-anonymous-owner-fix-2026-10-22.md).
+- 커밋/push/배포/운영DB/설정 변경 없음. RevenueCat alias read 권한·실제 기기·Store 검증 후속.
+
+- 최종 최신 코드 `./gradlew clean test` 단독 실행: 1,937개, 실패0/오류0/skip0 (관련242개 포함). 최초 전체 실행은 동시 Gradle 실행의 결과 파일 충돌로 실패했으며, 단독 clean 재실행으로 해소했다.

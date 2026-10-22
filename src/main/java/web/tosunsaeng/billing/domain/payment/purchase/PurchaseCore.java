@@ -366,7 +366,7 @@ public final class PurchaseCore {
         if (!reviewResolutionEnabled || receipt.reviewCandidate() == null) return;
         var candidate = receipt.reviewCandidate();
         Document review = collection("payment_purchase_cases").find(session, sourceKey(receipt.eventKey())).first();
-        if (review == null || review.get("normalizedObservation") != null || review.getString("accountId") == null
+        if (review == null || review.get("normalizedObservation") != null
                 || !receipt.receptionDigest().equals(review.getString("receptionDigest"))
                 || !receipt.reason().equals(review.getString("reason")) || review.containsKey("resolvedObservationKey")) return;
         if (!review.containsKey("reviewCandidate")) {
@@ -380,7 +380,32 @@ public final class PurchaseCore {
         // Link to the durable verified purchase ledger, not this unverified webhook.
         Document ledger = collection("payment_ledger").find(session, new Document("purchaseId", purchase.getString("_id"))
                 .append("type", "PURCHASE_VERIFIED")).first();
-        if (ledger != null) resolveMatchingReviews(session, purchase, ledger.getString("sourceObservationKey"));
+        if (ledger == null) return;
+        if (review.getString("accountId") == null) {
+            // Old anonymous-original receipts had no account. Bind only to an exact verified
+            // purchase after authenticated same-digest replay, never to a webhook hint alone.
+            if (review.getBoolean("counted", false) || review.getString("lifecycleId") != null
+                    || !"VERIFIED".equals(purchase.getString("purchaseState"))
+                    || !"ALLOWED".equals(purchase.getString("accessState"))
+                    || !"READY".equals(purchase.getString("processingStatus"))) return;
+            Document product = purchase.get("productSnapshot", Document.class);
+            if (product == null || !candidate.storeProductId().equals(product.getString("storeProductId"))) return;
+            for (String field : List.of("store", "appId", "transactionKey", "lookupKeyVersion", "ownerRefId", "purchasedAt"))
+                if (!Objects.equals(candidate.body().get(field), purchase.get(field))) return;
+            String storeEnvironment = purchase.getString("storeEnvironment") == null
+                    ? purchase.getString("environment") : purchase.getString("storeEnvironment");
+            if (!candidate.environment().equals(storeEnvironment)) return;
+            Document account = resolveAccount(session, candidate.ownerRefId());
+            if (account == null || !"ACTIVE".equals(account.getString("state"))
+                    || !account.getString("_id").equals(purchase.getString("accountId"))) return;
+            Document life = lifecycle(session, account);
+            if (!"ACTIVE".equals(life.getString("state"))) return;
+            Document latest = collection("payment_purchase_cases").find(session, sourceKey(receipt.eventKey())).first();
+            require(collection("payment_purchase_cases").updateOne(session, versionKey(latest), new Document("$set",
+                    new Document("accountId", account.getString("_id")).append("lifecycleId", life.getString("_id"))
+                            .append("version", increment(latest, "version")))).getModifiedCount() == 1);
+        }
+        resolveMatchingReviews(session, purchase, ledger.getString("sourceObservationKey"));
     }
     private void resolveMatchingReviews(ClientSession session, Document purchase, String observationKey) {
         if (!"VERIFIED".equals(purchase.getString("purchaseState")) || !"ALLOWED".equals(purchase.getString("accessState"))
