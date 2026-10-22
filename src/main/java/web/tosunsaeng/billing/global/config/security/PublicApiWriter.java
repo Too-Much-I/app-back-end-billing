@@ -41,6 +41,10 @@ public class PublicApiWriter {
         response.getOutputStream().write(bytes);
     }
     public void routeError(HttpServletRequest request, HttpServletResponse response, int status, String code) throws IOException {
+        if (PublicIngressFilter.referral(request.getRequestURI())) {
+            referralError(response, status, status == 503 ? "BILLING_TEMPORARILY_UNAVAILABLE" : code,
+                    status == 403 ? "billing:purchase" : null, 5); return;
+        }
         if (PublicIngressFilter.INVITE.equals(request.getRequestURI())) {
             inviteError(response, status, status == 503 ? "BILLING_TEMPORARILY_UNAVAILABLE" : code,
                     status == 403 ? PublicIngressFilter.scope(request.getRequestURI(), request.getMethod()) : null, 5); return;
@@ -70,6 +74,22 @@ public class PublicApiWriter {
             case "PAYMENT_ACCOUNT_WITHDRAWN" -> "탈퇴한 계정은 초대 보상을 받을 수 없습니다.";
             case "INVITE_REWARD_LIMIT_REACHED" -> "초대 보상은 계정당 최대 3회까지 받을 수 있습니다.";
             case "BILLING_TEMPORARILY_UNAVAILABLE" -> "초대 보상 정보를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.";
+            default -> PublicResponse.failure(code).message();
+        };
+        json.writeValue(response.getOutputStream(), new PublicResponse<>(false, code, message, null));
+    }
+    public void referralError(HttpServletResponse response, int status, String code, String scope, long retryAfter) throws IOException {
+        headers(response); response.setStatus(status);
+        if (status == 401) response.setHeader("WWW-Authenticate", "Bearer");
+        if (status == 403 && scope != null) response.setHeader("WWW-Authenticate", "Bearer error=\"insufficient_scope\", scope=\"" + scope + "\"");
+        if (status == 405) response.setHeader("Allow", "POST");
+        if (status == 429 || status == 503) response.setHeader("Retry-After", Long.toString(Math.max(1, retryAfter)));
+        String message = switch (code) {
+            case "SELF_REFERRAL_NOT_ALLOWED" -> "본인의 추천 코드는 사용할 수 없습니다.";
+            case "REFERRAL_ALREADY_APPLIED" -> "이미 추천 코드를 적용한 계정입니다.";
+            case "REFERRAL_CODE_UNAVAILABLE" -> "사용할 수 없는 추천 코드입니다.";
+            case "PAYMENT_ACCOUNT_WITHDRAWN" -> "탈퇴한 계정은 사용할 수 없습니다.";
+            case "BILLING_TEMPORARILY_UNAVAILABLE" -> "추천 보상 정보를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.";
             default -> PublicResponse.failure(code).message();
         };
         json.writeValue(response.getOutputStream(), new PublicResponse<>(false, code, message, null));

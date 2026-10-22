@@ -1,5 +1,7 @@
 # 토선생 Billing Service Codex 작업 규칙
 
+> 2026-10-22 PLAN-015 구현 승인: 사용자 「좋아 브랜치 feat로 해서 파서 구현해줘」에 따라 `feat/TMI-223-referral-code-rewards`에서 [기술 규격](docs/plans/PLAN-015-TECHNICAL-SPEC-R1.md)과 [운영 안내](docs/runbooks/PLAN-015-referral-code-rewards.md)를 구현한다. 코드 발급/적용 두 POST·MEMBER/billing:purchase·입력자1회/추천인무상한·양쪽 무료권 단일Tx·REFERRAL source, 기본OFF/공유동시ON금지다. 기존 추천 미구현·후속 표현은 이 범위에서 대체한다. 실DB·기능ON/OFF·배포·commit/push·타저장소는 별도이며 코드 tombstone 보존기간은 운영 전 검토한다.
+
 > 2026-10-22 익명 original 소유권 예외: 사용자 승인에 따라 [수정 안내](docs/runbooks/revenuecat-anonymous-owner-fix-2026-10-22.md)를 따른다. 인증된 RevenueCat purchase와 완전한 alias 목록으로 해당 회원+익명 ID만 증명된 경우에 한해 original 익명 ID를 인정한다. 웹훅 후보만으로 지급하지 않으며 다른 회원 귀속/원장 멱등성/환경 정책은 유지한다. 기존 strict original 동일 규칙은 이 좁은 범위만 대체한다. 배포·운영 재처리는 별도다.
 
 > 2026-10-21 재답변 무차감 조회 구현: 사용자 「좋아 그렇게 하는 걸로 구현해줘」 승인에 따라 [draft-5](docs/contracts/LC-BILLING-FEEDBACK-REANSWER-ELIGIBILITY-R1-DRAFT.md)·[구현 안내](docs/runbooks/FEEDBACK-REANSWER-ELIGIBILITY.md)를 따른다. 전용 LC workload 목적의 POST /internal/v1/entitlements/reanswer-eligibility, 실제 발급 가용 무료권/현재 유료권의 read-only snapshot과 최대5초 관측을 추가했다. 미발급trial·소비group retake 제외, 발급/차감/원장/receipt 쓰기 없음. BILLING_REANSWER_ELIGIBILITY_ENABLED 기본OFF, 기존 통합 paid reader/recovery 준비 필수. LC 오류500/경보·Job 증거 저장·공동 검증·배포/활성화는 후속이며 기존 A fixture는 변경하지 않는다.

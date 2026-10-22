@@ -82,6 +82,12 @@ class ReanswerIntegrationTest extends PaidReservationTestSupport {
         assertThat(reader(NOW).query(USER).reason()).isEqualTo("ACCOUNT_WITHDRAWN");
         assertThat(snapshot()).isEqualTo(before);
     }
+    @Test void referralPassAllowsReadOnlyReanswerAfterPaidExpiry() {
+        mongo.insert(EntitlementGrant.referral("referral", "test", USER, "application:APPLICANT", 1L, NOW));
+        var before = snapshot();
+        assertThat(reader(expired()).query(USER).decision()).isEqualTo("ALLOWED");
+        assertThat(snapshot()).isEqualTo(before);
+    }
     @Test void heldOrConsumedMemberPassExcludedAndPendingGuardDoesNotBlockAvailablePass() {
         verifiedPhone();
         mongo.insert(EntitlementGrant.invite("invite","test",USER,"award",1L,NOW));

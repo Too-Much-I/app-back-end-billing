@@ -1,5 +1,17 @@
 # Billing Service 현재 상태
 
+- 2026-10-22 TMI-223 추천인 코드 로컬 구현 완료: 사용자 요청으로 `feat/TMI-223-referral-code-rewards` 생성, 기존 미커밋 문서 보존. MEMBER/billing:purchase의 코드 발급·적용 두 POST, 양쪽 무료권/원장/적용 단일Tx·계정당1회·추천인무상한·REFERRAL/FIFO/paid-first·재답변 호환, 기본OFF/공유동시ON거절. additive schema2개 collection/7개 index·명시 상세/탈퇴연결 정리 제공, 실DB 설치 없음. 최종 clean test **1,970개(신규33개), 실패0/오류0/skip0, 4m41s** 및 diff 검사 통과. 최초 보안 slice 설정mock 누락6건은 보완 후 전체 재통과. [운영 안내](../runbooks/PLAN-015-referral-code-rewards.md)·[API 계약](../contracts/REFERRAL-REWARD-PUBLIC-API-R1.md). 코드 tombstone 보존정책/정리운영·앱 E2E·실schema/공유OFF/ON/배포는 후속. commit/push/Jira 상태/타저장소/실서버 변경 없음.
+
+- 2026-10-22 운영 구매 검토 재처리 완료: 사용자 승인으로 RevenueCat 운영 key Customers Read only 추가, 실제 alias/거래/원장 사전 대조 후 동일 원본2건 인증 재전달200. RESOLVED2·미해결0, 구매 문서·구매/기간권/원장 건수 불변. Atlas No results·운영 HTTPS401 재확인. test 키/프론트 배포 변경 없음. [기록](../runbooks/revenuecat-anonymous-owner-fix-2026-10-22.md).
+
+- 2026-10-22 추천인 API 단순화 승인: PLAN-015 설계·기술규격과 [TMI-223](https://to-teacher.atlassian.net/browse/TMI-223) 설명을 코드 발급·적용 두 POST만 제공하도록 수정. 별도 내 상태 GET/DTO/bucket/ALB GET 제외, 기존 코드 재표시는 발급 재호출·불명 적용은 동일 계정/key/body 재시도·잔여권은 기존 entitlements 사용. 적용1회/멱등 기록 유지. 아래 초기 세 API 기록은 이 결정으로 대체한다. 코드/DB/서버/commit/push 변경 없음.
+
+- 2026-10-22 추천인 구현 Jira [TMI-223](https://to-teacher.atlassian.net/browse/TMI-223) 생성(해야 할 일/미할당). 정책·보존 방향 수락 반영, 양쪽 지급·중복/경합·REFERRAL 호환·공유OFF 전환·보존 검증 완료조건 포함. 코드 tombstone 세부검토 별도. 기존 이슈 검색 중복 없음. 구현/서버/DB/commit/push 없음.
+
+- 2026-10-22 PLAN-015 [기술 규격 R1](../plans/PLAN-015-TECHNICAL-SPEC-R1.md): 코드 형식·세 API·성공key 멱등 범위·양방향 단일Tx·REFERRAL source·공유OFF 전환 구체화. 보존기간/탈퇴 연결정리/tombstone는 미승인 권장안. 문서만 변경, 구현/Jira/서버 변경 없음.
+
+- 2026-10-22 추천인 코드 양방향 보상 [PLAN-015 설계](../plans/PLAN-015-referral-code-rewards.md): 회원가입 UI 선택입력·계정당 적용1회·자기추천 금지·양쪽 무료권1개·추천인 무상한·추가 가입시점/전화검사 없음·다계정 위험 수용. 공유 보상 미사용으로 전환 예정이나 test ON 이력 존재, 실제 OFF 미실행. 별도 REFERRAL source/양쪽 단일Tx/기존 무료권 재사용 제안, API/schema/보존 세부는 구현 전 검토. 문서만 작성, 코드/설정/DB/Jira/배포 무변경.
+
 - 2026-10-21 재답변 양쪽 배포·ON 완료: 제품81b167d, PR39/develop aeee949 및 PR40/main408b96f 병합. test Actions39582116358/prod39582343964 모두 SUCCESS. 양쪽 task21에 BILLING_REANSWER_ELIGIBILITY_ENABLED=true만 추가; 단일 PRIMARY COMPLETED·desired/running1·pending0·예상 image digest·신규8083/8443 healthy 확인(이전 target draining은 교체 잔여). workload exact POST 전달 규칙 test86/prod126·기존 source 제한 유지. DB/schema·타 flag·LC/Identity 변경 없음. LC 서명200/재답변 Job E2E는 미실행. [배포 기록](../runbooks/FEEDBACK-REANSWER-ELIGIBILITY.md).
 
 - 2026-10-21 재답변 무차감 조회 Billing 구현: `codex/feedback-reanswer-eligibility`. 전용 LC 목적 POST·strict decoder/오류·read-only snapshot·실제 발급무료/ACTIVE paid·MEMBER/lifecycle·5초/nanosecond cap을 연결했다. 미발급trial/consumed retake 제외, 지급/차감/원장/receipt 쓰기 없음. BILLING_REANSWER_ELIGIBILITY_ENABLED 기본OFF, 기존 통합 paid reader/recovery 준비 필수. 최종 clean test1,933개(신규29개 포함) 실패0/오류0/skip0 통과; 최초 기존 구매 동시성1건 실패 후 단독/전체 재통과 이력은 WORKLOG에 보존. [구현·인계 안내](../runbooks/FEEDBACK-REANSWER-ELIGIBILITY.md). LC500/경보·Job증거·공동E2E·배포는 후속, 기존 fixture/실DB/LC/Identity/commit/push 무변경.
@@ -2106,3 +2118,20 @@
 - 커밋/push/배포/운영DB/설정 변경 없음. RevenueCat alias read 권한·실제 기기·Store 검증 후속.
 
 - 최종 최신 코드 `./gradlew clean test` 단독 실행: 1,937개, 실패0/오류0/skip0 (관련242개 포함). 최초 전체 실행은 동시 Gradle 실행의 결과 파일 충돌로 실패했으며, 단독 clean 재실행으로 해소했다.
+
+## 2026-10-22 — 테스트 서버 배포 확인
+
+- 사용자 「테스트 서버부터 배포하고 확인해줘」 승인으로 Billing PR41을 develop에 merge: `235f9ed55a4671dea8296c138c12314a23876acb`. 제품 커밋 `9070bc3fed594e7f4afc4db732c1623ae8f4b28e`.
+- [Actions39726808236](https://github.com/Too-Much-I/app-back-end-billing/actions/runs/39726808236) SUCCESS. CI clean test/bootJar 및 운영 도구 검사, 이미지 valid/wrong-db/wrong-cert 스모크, ECS 안정화, 실행 이미지 일치, 활성 target healthy 검사가 모두 통과했다. 최종 검증 완료 2026-10-22 14:24:36 KST.
+- 배포 digest `sha256:631af2802bbfde63b6a67fcd61b7d439cab9445238e49cb1dc145350eab1436e`. 기존 서비스 task 설정을 유지하고 이미지 교체만 수행하는 표준 workflow 사용. DB/schema·기능flag·키 설정 변경 없음.
+- 배포 후 billing-test의 GET entitlements, GET payments/products, 비인증 POST payments/sync 모두401 확인. 인증된 구매 귀속·실제 alias 조회 권한·Store 결제 E2E를 검증한 결과는 아니다.
+- main `408b96f1a92a7f0545d26c3f015b27bdb1ca8ad3` 불변. 운영 배포·운영 검토2건 재처리·프론트 앱 빌드/배포 없음. 프론트 수정은 별도 원격 브랜치에 유지.
+- 로컬 AWS 자격증명이 없어 ECS 직접 CLI 재조회 대신 성공한 Actions의 AWS 검증 결과를 사용했다. 공개 HTTPS 응답은 직접 재확인했다.
+
+## 2026-10-22 — 운영 서버 배포 확인
+
+- 사용자 「테스트 서버에 문제가 없으면 운영 서버에도 올려줘」 승인. 테스트 Actions39726808236 SUCCESS 및 테스트 API401 재확인 후 PR42(develop→main)를 merge했다. 운영 commit `a83caf64e8818bf86c727a618bed7fc68ee26ba3`. 테스트/운영 tree `02c0400d982527c04b23de42cebba89d6136a9fe` 동일 확인.
+- [운영 Actions39728062107](https://github.com/Too-Much-I/app-back-end-billing/actions/runs/39728062107) SUCCESS. 전체 test/bootJar 및 운영 도구 검사, 이미지 스모크, ECS 안정화, 배포 이미지 일치, 활성 target healthy 검사가 통과했다. 최종 검증 완료 2026-10-22 14:39:32 KST.
+- 운영 image digest `sha256:de0b050f1f4e03f868d2b93b09397e1e055e3ccda58c473ce26a9e9f14a464fc`. 표준 workflow로 기존 운영 task 설정을 유지하며 이미지만 교체. DB/schema·키·기능flag 변경 없음.
+- 배포 뒤 운영 GET entitlements, GET payments/products, 비인증 POST payments/sync 모두401 직접 확인. AWS 상태는 Actions의 AWS 검사 결과에 근거하며 로컬 AWS CLI 재조회는 하지 않았다.
+- 실제 Store 구매 귀속 E2E·RevenueCat alias read 권한·기존 검토2건의 원본 재전송/종결은 미실행. 프론트 앱 빌드/배포 없음. 서버 배포 성공을 해당 업무 검증 완료로 해석하지 않는다.
