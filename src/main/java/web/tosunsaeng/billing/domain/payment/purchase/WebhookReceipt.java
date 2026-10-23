@@ -19,7 +19,7 @@ public record WebhookReceipt(String environment, String eventKey, String recepti
         if ((observation != null) != (disposition == Disposition.PURCHASE)) throw PurchaseObservation.invalid();
         if (reviewCandidate != null && (disposition != Disposition.REVIEW || !environment.equals(reviewCandidate.environment())
                 || !Objects.equals(ownerRefId, reviewCandidate.ownerRefId()) || !lookupKeyVersion.equals(reviewCandidate.lookupKeyVersion())
-                || !java.util.Set.of("QUANTITY_REQUIRES_LOOKUP", "OWNER_UNRESOLVED").contains(reason))) throw PurchaseObservation.invalid();
+                || !java.util.Set.of("QUANTITY_REQUIRES_LOOKUP", "OWNER_UNRESOLVED", "EVENT_REQUIRES_LOOKUP").contains(reason))) throw PurchaseObservation.invalid();
         if (observation != null && (!eventKey.equals(observation.providerEventKey()) || !environment.equals(observation.environment())
                 || !lookupKeyVersion.equals(observation.lookupKeyVersion()) || !Objects.equals(ownerRefId, observation.ownerRefId())))
             throw PurchaseObservation.invalid();

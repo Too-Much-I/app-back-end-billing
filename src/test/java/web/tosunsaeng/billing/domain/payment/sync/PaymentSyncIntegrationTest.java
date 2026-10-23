@@ -644,6 +644,26 @@ class PaymentSyncIntegrationTest {
         assertThat(db.getCollection(PaymentSyncSchema.COLLECTION).listIndexes().into(new ArrayList<>())).isEqualTo(before);
         PaymentSyncSchema.verify(db);
     }
+    @Test void periodicApiRefundResolvesCancellationAndLeavesRepurchaseUsableWithoutClientSync() {
+        enableReviewResolution(); props.getRefund().setProcessingEnabled(true);
+        core = new PurchaseCore(store, props, Clock.fixed(NOW, ZoneOffset.UTC), Map.of(PurchaseObservation.Store.PLAY_STORE, "fake.app"), lookup.version());
+        apply(purchase("old", "old")); apply(purchase("new", "new"));
+        var hint = matchableReview("cancel", "old");
+        core.receiveWebhook(new WebhookReceipt(hint.environment(), hint.eventKey(), hint.receptionDigest(), hint.lookupKeyVersion(),
+                null, ref, WebhookReceipt.Disposition.REVIEW, "EVENT_REQUIRES_LOOKUP", hint.reviewCandidate()));
+        assertThat(read(NOW).status()).isEqualTo(PaidQueryResponse.Status.PENDING);
+        var clock = new WorkerClock();
+        var worker = lookupWorker(clock, (u, k) -> page(List.of(apiPurchase("old").append("status", "refunded"), apiPurchase("new")), null));
+        assertThat(worker.tickPeriodic(100)).isEqualTo(new PaymentAccountLookupWorker.Tick(1, 1, 0, 0));
+        assertThat(read(NOW).active()).isTrue(); assertThat(read(NOW).hasPendingSync()).isFalse();
+        assertThat(pending()).isZero();
+        assertThat(db.getCollection("payment_ledger").countDocuments(new Document("type", "ACCESS_REVOKED"))).isOne();
+        var slots = db.getCollection("subscription_entitlements").find().into(new ArrayList<>());
+        clock.now = NOW.plusSeconds(21600);
+        assertThat(worker.tickPeriodic(100).completed()).isOne();
+        assertThat(db.getCollection("subscription_entitlements").find().into(new ArrayList<>())).isEqualTo(slots);
+        assertThat(pending()).isZero();
+    }
     @Test void periodicLookupRecoversWithoutSyncAndSchedulesActiveRightsSixHoursLater() {
         var clock = new WorkerClock(); var calls = new java.util.concurrent.atomic.AtomicInteger();
         var worker = lookupWorker(clock, (u, k) -> { calls.incrementAndGet(); return page(List.of(apiPurchase("missed")), null); });

@@ -21,7 +21,7 @@ class RefundFanoutIntegrationTest extends PaidReservationTestSupport {
         var core = new PurchaseCore(payment, properties, clock, Map.of(PurchaseObservation.Store.PLAY_STORE, "fake.app"), "fake-v1");
         var p = db.getCollection("purchases").find().first();
         var observation = new PurchaseObservation("SANDBOX", PurchaseObservation.Store.PLAY_STORE, "fake.app", p.getString("transactionKey"), "fake-v1",
-                "f".repeat(64), PurchaseObservation.Kind.REFUND, account().getString("activeRefId"), "PREMIUM_1D", NOW, null,
+                "f".repeat(64), PurchaseObservation.Kind.REFUND, account().getString("activeRefId"), "PREMIUM_1D", p.getDate("purchasedAt").toInstant(), null,
                 new RefundEvidence(RefundEvidence.Source.REVENUECAT_API, "d".repeat(64), NOW, null, null));
         core.receive(observation); core.apply(observation.providerEventKey());
         return p.getString("_id");
