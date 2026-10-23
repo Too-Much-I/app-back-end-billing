@@ -37,3 +37,11 @@ review-2의 submit Billing 호출과 접수 전 유효시간 검사는 콘텐츠
 ## 최종 검증 결과 — 2026-10-23
 
 `./gradlew clean test` 성공(4m39s). 전체 1997개, 실패0/오류0/skip0; 신규 PartLearning 27개 포함(합산하지 않음). 기간중첩 추가 사례도 통과. 기존 deprecated 컴파일 경고는 유지. git diff --check 통과. 실환경/LC C01~C06 테스트와 배포는 미실행.
+
+## 2026-10-23 — 테스트 배포·ON 완료
+
+- 사용자 commit/push/test ON 승인으로 구현 commit `54b3325c91720d278084f13927885f3f5c8fd851` push, PR44 develop 병합 `d18864eeb33a9caf9f41a72d0c142f362f01b7c9`. Actions `39899127119` SUCCESS(테스트/build/image smoke/deploy/target 검증).
+- 테스트 ECS `tosunsaeng-staging-cluster/tosunsaeng-billing-test-service`, task `tosunsaeng-billing-test:26`. `BILLING_PART_LEARNING_ELIGIBILITY_ENABLED=true`, 동일 이미지 `sha256:6b34ca2b535e836172b60d35d9226d468e2ea4656557edf463718d93e6757c47`. ECS waiter 성공 및 rollout COMPLETED, running/desired1·pending0, 8443/8083 신규 target healthy 확인. 이전 target은 마지막 조회에서 draining.
+- 테스트 ALB priority81 exact POST 경로 추가. 기존 재답변의 workload host/source-IP 조건·target action 그대로 재사용, 읽기 대조 통과. AWS 중복 Values/config 입력 거절은 config만 전달하도록 수정; readback 조건 순서 차이는 Field 정렬 비교로 확인. 정책/접근 범위 완화 없음.
+- 외부 무인증 검사: public entitlements401, public internal POST404, source 제한 밖 workload POST404. 실제 LC 서명200·콘텐츠 C01~C06/E2E는 미실행이며 배포 성공과 구분한다.
+- 운영/LC/Identity/DB/schema/키 변경 없음. 기존 사용자 dirty 변경 보존. 앞선 배포 미실행 기록은 구현 당시 상태이며 이 항목으로 테스트 환경만 갱신한다.
