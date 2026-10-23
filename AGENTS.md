@@ -1,5 +1,7 @@
 # 토선생 Billing Service Codex 작업 규칙
 
+> 2026-10-23 파트별 콘텐츠 유료권 조회 구현 승인: 사용자 브랜치 구현 요청 및 콘텐츠 전용 보완에 따라 [안내](docs/runbooks/PART-LEARNING-ELIGIBILITY.md)를 따른다. 신규 POST /internal/v1/entitlements/part-learning-eligibility는 현재 유료권만 read-only 조회하며 무료권/차감/예약/기간변경 없음. LC 유료 본문·음성 제공에만 호출, submit/create/retry 검사 제외 및 직접 채점 위험 수용. 기본 OFF·전용 audience, 기존 재답변 불변. LC 구현·배포/활성화는 별도다.
+
 > 2026-10-22 PLAN-015 구현 승인: 사용자 「좋아 브랜치 feat로 해서 파서 구현해줘」에 따라 `feat/TMI-223-referral-code-rewards`에서 [기술 규격](docs/plans/PLAN-015-TECHNICAL-SPEC-R1.md)과 [운영 안내](docs/runbooks/PLAN-015-referral-code-rewards.md)를 구현한다. 코드 발급/적용 두 POST·MEMBER/billing:purchase·입력자1회/추천인무상한·양쪽 무료권 단일Tx·REFERRAL source, 기본OFF/공유동시ON금지다. 기존 추천 미구현·후속 표현은 이 범위에서 대체한다. 실DB·기능ON/OFF·배포·commit/push·타저장소는 별도이며 코드 tombstone 보존기간은 운영 전 검토한다.
 
 > 2026-10-22 익명 original 소유권 예외: 사용자 승인에 따라 [수정 안내](docs/runbooks/revenuecat-anonymous-owner-fix-2026-10-22.md)를 따른다. 인증된 RevenueCat purchase와 완전한 alias 목록으로 해당 회원+익명 ID만 증명된 경우에 한해 original 익명 ID를 인정한다. 웹훅 후보만으로 지급하지 않으며 다른 회원 귀속/원장 멱등성/환경 정책은 유지한다. 기존 strict original 동일 규칙은 이 좁은 범위만 대체한다. 배포·운영 재처리는 별도다.

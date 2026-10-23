@@ -1,5 +1,15 @@
 # Billing Service 현재 상태
 
+- 2026-10-23 파트별 유료 콘텐츠 조회 구현: `codex/part-learning-eligibility` 신규 브랜치. POST /internal/v1/entitlements/part-learning-eligibility·전용aud·기본OFF·유료전용read-only snapshot·기존 strict decoder/오류 재사용. 최신 콘텐츠전용 보완 수락, submit/create/retry 조회 제외·직접채점 위험 수용·기존 재답변 불변. 전체 clean test 1997개 실패0/오류0/skip0(신규27 포함). [안내](../runbooks/PART-LEARNING-ELIGIBILITY.md). LC/실DB/배포/ON/commit/push 없음.
+
+- 2026-10-23 파트별 학습 review-2 Billing 규격 수락: 보완4개 및 L01~L12 반영 확인, 추가 이견 없음. LC 원문 bytes snapshot/hash 고정 및 참조 draft-5 hash 재확인. [수락 기록](../contracts/LC-BILLING-PART-LEARNING-ELIGIBILITY-R1-REVIEW.md). 다음은 동일 규격 확인 후 구현 요청에 따른 착수. 제품/DB/배포/테스트실행 없음.
+
+- 2026-10-23 파트별 학습 LC 권장안 R1 Billing 정적 검토: 유료전용/무차감/무캐시 방향 일치. 복수 ACTIVE 최대종료 선택 대신 기존 중첩 정합성 검사, 미래 checkedAt 1초 후보 대신 draft-5 엄격 시각 규칙 권장. 최대16KiB·내부400→500·LC 원격 호출과 Billing read-only snapshot 경계 명시. [회신](../contracts/LC-BILLING-PART-LEARNING-ELIGIBILITY-R1-REVIEW.md). 구현/테스트실행/DB/배포/공동동결 없음.
+
+- 2026-10-22 추천인 테스트 ON·공유 OFF 전환: 추천인2개 collection/7개 index 설치를 실제 metadata와 독립 `ReferralRewardSchema.verify`로 확인. test task24에 REFERRAL_REWARD_ENABLED=true / INVITE_SHARE_REWARD_ENABLED=false 적용, 16:06 KST 무인증 POST 두 추천 경로401·기존 공유404·기존 entitlements401 확인. 최초 설치 task exit1은 성공으로 기록하지 않으며 후속 읽기 검증 task f0fc8d6a8add46bc90683254bd2d78cf의 exit0·REFERRAL_VERIFY_OK·동일image 확인 뒤 전환. 전체 ECS rollout COMPLETED 재조회·로그인한 두 회원 지급 E2E는 미확인. 운영/기존 지급자료/purge 변경 없음.
+
+- 2026-10-22 추천인 테스트 코드 배포 완료: PR43/develop `ad606c0`, Actions39734263409 SUCCESS, test task23/image `sha256:11af42f7cdee66862eeffb7c240598b2a6e59efda3532d8c2fe06757a395de51`. 테스트 ALB97 exact POST 두 경로 추가·재조회 성공. **schema 설치·추천인ON/공유OFF 미완료**: AWS UI 제어 도구 재소실·로컬 자격증명 없음. 서버 중지 없이 기존 referral OFF/invite ON 유지. 사용자 DB 설치·활성화 승인 확보, 추가 승인 아닌 실행 연결 복구 필요. prod 무변경.
+
 - 2026-10-22 TMI-223 추천인 코드 로컬 구현 완료: 사용자 요청으로 `feat/TMI-223-referral-code-rewards` 생성, 기존 미커밋 문서 보존. MEMBER/billing:purchase의 코드 발급·적용 두 POST, 양쪽 무료권/원장/적용 단일Tx·계정당1회·추천인무상한·REFERRAL/FIFO/paid-first·재답변 호환, 기본OFF/공유동시ON거절. additive schema2개 collection/7개 index·명시 상세/탈퇴연결 정리 제공, 실DB 설치 없음. 최종 clean test **1,970개(신규33개), 실패0/오류0/skip0, 4m41s** 및 diff 검사 통과. 최초 보안 slice 설정mock 누락6건은 보완 후 전체 재통과. [운영 안내](../runbooks/PLAN-015-referral-code-rewards.md)·[API 계약](../contracts/REFERRAL-REWARD-PUBLIC-API-R1.md). 코드 tombstone 보존정책/정리운영·앱 E2E·실schema/공유OFF/ON/배포는 후속. commit/push/Jira 상태/타저장소/실서버 변경 없음.
 
 - 2026-10-22 운영 구매 검토 재처리 완료: 사용자 승인으로 RevenueCat 운영 key Customers Read only 추가, 실제 alias/거래/원장 사전 대조 후 동일 원본2건 인증 재전달200. RESOLVED2·미해결0, 구매 문서·구매/기간권/원장 건수 불변. Atlas No results·운영 HTTPS401 재확인. test 키/프론트 배포 변경 없음. [기록](../runbooks/revenuecat-anonymous-owner-fix-2026-10-22.md).
