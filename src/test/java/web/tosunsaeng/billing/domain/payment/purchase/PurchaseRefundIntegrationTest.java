@@ -87,6 +87,164 @@ class PurchaseRefundIntegrationTest {
     PurchaseCore.Outcome apply(PurchaseObservation o) { core.receive(o); return core.apply(o.providerEventKey()); }
     long effects(String type) { return db.getCollection("payment_ledger").countDocuments(new Document("type", type)); }
     Document refunded() { return db.getCollection("purchases").find(new Document("refund", new Document("$exists", true))).first(); }
+    void enableReviews() {
+        enable(); barrier("ALL_BLOCKED");
+        MixedStorePurchaseSchema.upgradeUnderMaintenance(db, true);
+        PurchaseReviewResolutionSchema.upgradeUnderMaintenance(db, true); barrier("OPEN");
+        properties.setReviewResolutionEnabled(true); core = core(NOW);
+        // Reader prerequisites are metadata-only for this disposable fixture.
+        barrier("ALL_BLOCKED");
+        web.tosunsaeng.billing.domain.payment.sync.PaymentSyncSchema.installUnderMaintenance(db, true);
+        barrier("OPEN");
+    }
+    web.tosunsaeng.billing.domain.payment.query.PaidQueryResponse readPaid() {
+        var factory = new SimpleMongoClientDatabaseFactory(client, db.getName());
+        var reader = new web.tosunsaeng.billing.domain.payment.query.PaidEntitlementReader(
+                new org.springframework.data.mongodb.core.MongoTemplate(factory), properties);
+        var snapshots = new web.tosunsaeng.billing.global.infrastructure.mongodb.EntitlementSnapshotExecutor(factory);
+        reader.prepare();
+        return snapshots.execute(() -> reader.read(USER, NOW));
+    }
+    PurchaseObservation decodedRefund(String tx) {
+        var decoder = new web.tosunsaeng.billing.domain.payment.provider.RevenueCatPurchaseDecoder("fake-project", "SANDBOX", lookup,
+                Map.of("rc-product", new web.tosunsaeng.billing.domain.payment.provider.RevenueCatPurchaseDecoder.Product(
+                        "fake.app", PurchaseObservation.Store.PLAY_STORE, "PREMIUM_1D")), Clock.fixed(NOW, ZoneOffset.UTC));
+        var row = new Document("object", "purchase").append("id", "rc-" + tx).append("customer_id", ref).append("original_customer_id", ref)
+                .append("product_id", "rc-product").append("store_purchase_identifier", tx).append("environment", "sandbox")
+                .append("store", "play_store").append("ownership", "purchased").append("status", "refunded").append("quantity", 1)
+                .append("purchased_at", NOW.minusSeconds(100).toEpochMilli());
+        return decoder.purchase(row.toJson().getBytes(java.nio.charset.StandardCharsets.UTF_8), ref).observation();
+    }
+    WebhookReceipt cancellation(String event, String tx) {
+        var p = purchase(event, tx);
+        return new WebhookReceipt(p.environment(), p.providerEventKey(), "a".repeat(64), lookup.version(), null, ref,
+                WebhookReceipt.Disposition.REVIEW, "EVENT_REQUIRES_LOOKUP", new ReviewPurchaseCandidate(p.environment(), p.store(), p.appId(),
+                p.transactionKey(), p.lookupKeyVersion(), ref, p.storeProductId(), p.purchasedAt()));
+    }
+    @ParameterizedTest @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void decodedRefundAndCancellationConvergeInEitherOrderAndRepurchaseIsUsable(boolean refundFirst) {
+        enableReviews(); apply(purchase("old", "old")); apply(purchase("new", "new"));
+        var event = cancellation("cancel", "old"); var refund = decodedRefund("old");
+        if (refundFirst) apply(refund);
+        core.receiveWebhook(event);
+        if (!refundFirst) {
+            assertThat(readPaid().active()).isNull();
+            apply(refund);
+        }
+        assertThat(readPaid().active()).isTrue();
+        assertThat(pending()).isZero();
+        var review = db.getCollection("payment_purchase_cases").find(new Document("reason", "EVENT_REQUIRES_LOOKUP")).first();
+        assertThat(review.getString("reviewState")).isEqualTo("RESOLVED");
+        var money = db.getCollection("payment_purchase_cases").find(new Document("reason", "REFUND_AMOUNT_UNKNOWN")).first();
+        assertThat(money.getString("reviewState")).isEqualTo("OPEN");
+        assertThat(money.getBoolean("counted")).isFalse();
+        var slots = db.getCollection("subscription_entitlements").find().into(new ArrayList<>());
+        core.receiveWebhook(event); apply(refund);
+        assertThat(db.getCollection("subscription_entitlements").find().into(new ArrayList<>())).isEqualTo(slots);
+        assertThat(effects("ACCESS_REVOKED")).isOne(); assertThat(pending()).isZero();
+    }
+    @Test void mismatchedPurchaseTimeCannotRevokeAnExistingPurchase() {
+        enableReviews(); apply(purchase("old", "old"));
+        var correct = decodedRefund("old");
+        var wrong = new PurchaseObservation(correct.environment(), correct.store(), correct.appId(), correct.transactionKey(),
+                correct.lookupKeyVersion(), lookup.event("SANDBOX", "fake-project", "bad-time"), correct.kind(), ref,
+                correct.storeProductId(), NOW, null, correct.refundEvidence());
+        assertThat(apply(wrong)).isEqualTo(REVIEW_REQUIRED);
+        assertThat(first("payment_purchase_cases").getString("reason")).isEqualTo("REFUND_BINDING_UNRESOLVED");
+        assertThat(first("purchases").getString("accessState")).isEqualTo("ALLOWED");
+        assertThat(effects("ACCESS_REVOKED")).isZero();
+    }
+    @Test void legacyReversalIsResolvedWithoutChangingOriginalBytesAndOtherReviewsRemain() {
+        enableReviews(); apply(purchase("old", "old")); apply(purchase("new", "new"));
+        var legacy = observation("legacy", "old", ref, PurchaseObservation.Kind.REFUND, PaymentOffer.PREMIUM_1D, NOW.minusSeconds(100));
+        apply(legacy);
+        var original = db.getCollection("payment_purchase_cases").find(new Document("providerEventKey", legacy.providerEventKey())).first();
+        core.receiveWebhook(cancellation("other", "unrelated"));
+        apply(decodedRefund("old"));
+        var resolved = db.getCollection("payment_purchase_cases").find(new Document("_id", original.get("_id"))).first();
+        assertThat(resolved.get("normalizedObservation")).isEqualTo(original.get("normalizedObservation"));
+        assertThat(resolved.get("digest")).isEqualTo(original.get("digest"));
+        assertThat(resolved.getString("resolvedObservationKey")).isNotBlank();
+        assertThat(pending()).isOne();
+        assertThat(readPaid().status()).isEqualTo(web.tosunsaeng.billing.domain.payment.query.PaidQueryResponse.Status.PENDING);
+    }
+    @Test void cancellationAloneNeverRevokesOrResolvesAndMissingHintStaysManual() {
+        enableReviews(); apply(purchase("old", "old"));
+        var hint = cancellation("cancel", "old"); core.receiveWebhook(hint);
+        apply(purchase("replay", "old"));
+        assertThat(first("payment_purchase_cases").getString("resolvedObservationKey")).isNull();
+        assertThat(effects("ACCESS_REVOKED")).isZero();
+        core.receiveWebhook(new WebhookReceipt("SANDBOX", lookup.event("SANDBOX", "fake-project", "missing"), "b".repeat(64),
+                lookup.version(), null, ref, WebhookReceipt.Disposition.REVIEW, "EVENT_REQUIRES_LOOKUP"));
+        apply(decodedRefund("old"));
+        assertThat(pending()).isOne(); // Missing transaction evidence is not inferred from account.
+    }
+    @Test void refundResolutionAndUnknownCommitAreAtomicUnderConcurrentDelivery() throws Exception {
+        enableReviews(); apply(purchase("old", "old")); apply(purchase("new", "new"));
+        core.receiveWebhook(cancellation("cancel", "old"));
+        apply(observation("legacy", "old", ref, PurchaseObservation.Kind.REFUND, PaymentOffer.PREMIUM_1D, NOW.minusSeconds(100)));
+        var a = decodedRefund("old"); var b = refund("second", "old", null, RefundEvidence.Source.REVENUECAT_API);
+        core.receive(a); core.receive(b);
+        client.getDatabase("admin").runCommand(new Document("configureFailPoint", "failCommand").append("mode", new Document("times", 1))
+                .append("data", new Document("failCommands", List.of("commitTransaction")).append("errorCode", 1)
+                        .append("errorLabels", List.of("UnknownTransactionCommitResult"))));
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var x = pool.submit(() -> core.apply(a.providerEventKey())); var y = pool.submit(() -> core.apply(b.providerEventKey()));
+            assertThat(x.get()).isEqualTo(REVIEW_REQUIRED); assertThat(y.get()).isEqualTo(REVIEW_REQUIRED);
+        }
+        assertThat(pending()).isZero(); assertThat(readPaid().active()).isTrue();
+        assertThat(effects("ACCESS_REVOKED")).isOne(); assertThat(effects("TIMELINE_REFLOWED")).isOne();
+        assertThat(db.getCollection("payment_purchase_cases").countDocuments(new Document("reviewState", "RESOLVED"))).isEqualTo(2);
+    }
+    @Test void reviewUpdateFailureRollsBackRefundAndCounterTogether() {
+        enableReviews(); apply(purchase("old", "old")); apply(purchase("new", "new"));
+        core.receiveWebhook(cancellation("cancel", "old"));
+        var refund = decodedRefund("old"); core.receive(refund);
+        var before = db.getCollection("purchases").find().into(new ArrayList<>());
+        var timeline = first("payment_timelines"); long responsibility = pending();
+        db.runCommand(new Document("collMod", "payment_purchase_cases").append("validator", new Document("impossible", new Document("$exists", true))));
+        assertThatThrownBy(() -> core.apply(refund.providerEventKey())).isInstanceOf(PaymentException.class);
+        assertThat(db.getCollection("purchases").find().into(new ArrayList<>())).isEqualTo(before);
+        assertThat(first("payment_timelines")).isEqualTo(timeline); assertThat(pending()).isEqualTo(responsibility);
+        assertThat(effects("ACCESS_REVOKED")).isZero();
+    }
+    @Test void knownAmountCompletesAmountReviewWithoutSecondAccessEffect() {
+        enableReviews(); apply(purchase("old", "old")); apply(decodedRefund("old"));
+        apply(refund("amount", "old", "100", RefundEvidence.Source.REVENUECAT_API));
+        var review = first("payment_purchase_cases");
+        assertThat(review.getString("reviewState")).isEqualTo("RESOLVED");
+        assertThat(review.getString("resolvedObservationKey")).isNotBlank();
+        assertThat(effects("ACCESS_REVOKED")).isOne(); assertThat(pending()).isZero();
+    }
+    @ParameterizedTest @org.junit.jupiter.params.provider.ValueSource(strings = {"ledger", "effect", "account", "transaction"})
+    void amountReviewDoesNotBypassMissingOrMismatchedAccessProof(String broken) {
+        enableReviews(); apply(purchase("old", "old")); apply(decodedRefund("old")); apply(purchase("new", "new"));
+        assertThat(readPaid().active()).isTrue();
+        switch (broken) {
+            case "ledger" -> db.getCollection("payment_ledger").deleteOne(new Document("type", "ACCESS_REVOKED"));
+            case "effect" -> db.getCollection("payment_ledger").updateOne(new Document("type", "ACCESS_REVOKED"),
+                    new Document("$set", new Document("detail.effectId", UUID.randomUUID().toString())));
+            case "account" -> db.getCollection("payment_purchase_cases").updateOne(new Document(),
+                    new Document("$set", new Document("purchaseId", UUID.randomUUID().toString())));
+            case "transaction" -> db.getCollection("payment_purchase_cases").updateOne(new Document(),
+                    new Document("$set", new Document("normalizedObservation.transactionKey", "f".repeat(64))));
+        }
+        assertThat(readPaid().status()).isEqualTo(web.tosunsaeng.billing.domain.payment.query.PaidQueryResponse.Status.PENDING);
+    }
+    @Test void replayAfterManualCompensationDoesNotChangeExtendedRepurchasePeriod() {
+        enableReviews(); apply(purchase("old", "old")); apply(purchase("new", "new")); apply(refund("manual", "old", null, RefundEvidence.Source.REVENUECAT_API));
+        var slot = db.getCollection("subscription_entitlements").find(new Document("revokedAt", null)).first();
+        var extended = Date.from(slot.getDate("endsAt").toInstant().plus(Duration.ofDays(4)));
+        db.getCollection("subscription_entitlements").updateOne(new Document("_id", slot.get("_id")), new Document("$set", new Document("endsAt", extended)));
+        db.getCollection("payment_timelines").updateOne(new Document(), new Document("$set", new Document("timelineEnd", extended)));
+        var before = db.getCollection("subscription_entitlements").find().into(new ArrayList<>());
+        var timeline = first("payment_timelines"); var effect = refunded().get("refund", Document.class);
+        apply(decodedRefund("old"));
+        assertThat(db.getCollection("subscription_entitlements").find().into(new ArrayList<>())).isEqualTo(before);
+        assertThat(first("payment_timelines")).isEqualTo(timeline);
+        assertThat(refunded().get("refund", Document.class)).isEqualTo(effect);
+        assertThat(effects("ACCESS_REVOKED")).isOne();
+    }
     @Test void unknownThenCumulativeAndAdditionalReturnsEndAccessOnlyOnce() {
         enable(); apply(purchase("p", "tx"));
         assertThat(apply(refund("r0", "tx", null, RefundEvidence.Source.REVENUECAT_API))).isEqualTo(REVIEW_REQUIRED);
@@ -106,7 +264,7 @@ class PurchaseRefundIntegrationTest {
         assertThat(first("payment_timelines")).isEqualTo(timeline);
         assertThat(effects("ACCESS_REVOKED")).isOne(); assertThat(effects("REFUND_AMOUNT_CONFIRMED")).isEqualTo(2);
         assertThat(refunded().get("money", Document.class).get("amount", org.bson.types.Decimal128.class).bigDecimalValue()).isEqualByComparingTo("9000");
-        assertThat(pending()).isOne(); // unresolved case retains its original pending responsibility
+        assertThat(pending()).isZero(); // Amount review remains visible without blocking access.
     }
     @Test void noDoubleSumForGoogleAndRcAndNoNegativeOrOverRefundCorrection() {
         enable(); apply(purchase("p", "tx"));

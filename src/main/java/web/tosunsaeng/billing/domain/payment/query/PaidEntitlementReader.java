@@ -8,6 +8,7 @@ import org.springframework.data.mongodb.core.query.BasicQuery;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import web.tosunsaeng.billing.domain.payment.config.PaymentProperties;
 import web.tosunsaeng.billing.domain.payment.domain.PaymentOffer;
+import web.tosunsaeng.billing.domain.payment.purchase.RefundReviewPolicy;
 import web.tosunsaeng.billing.domain.entitlement.exception.EntitlementQueryException;
 import web.tosunsaeng.billing.global.infrastructure.mongodb.EntitlementSnapshotExecutor;
 import static web.tosunsaeng.billing.domain.entitlement.exception.EntitlementQueryException.require;
@@ -50,9 +51,10 @@ public final class PaidEntitlementReader {
         boolean unverifiedPending = exists("payment_purchase_cases", env().append("accountId", id)
                 .append("resolvedObservationKey", new Document("$exists", false))
                 .append("normalizedObservation", null).append("reason", new Document("$in", unverifiedReasons)));
-        boolean unresolved = exists("payment_purchase_cases", env().append("accountId", id)
+        boolean unresolved = find("payment_purchase_cases", env().append("accountId", id)
                 .append("resolvedObservationKey", new Document("$exists", false))
-                .append("$nor", List.of(new Document("normalizedObservation", null).append("reason", new Document("$in", unverifiedReasons)))))
+                .append("$nor", List.of(new Document("normalizedObservation", null).append("reason", new Document("$in", unverifiedReasons)))), 1000)
+                .stream().anyMatch(review -> !amountOnly(review, id))
                 || exists("payment_provider_inbox", env().append("accountId", id).append("state", "RECEIVED")
                         .append("normalizedObservation.kind", new Document("$in", List.of("REFUND", "REVOKE"))));
         if (unresolved) return PaidQueryResponse.unknown(pending);
@@ -104,6 +106,12 @@ public final class PaidEntitlementReader {
                 : new PaidQueryResponse(PaidQueryResponse.Status.READY, false, null, null, null, next, pending);
         String offer = byId.get(active.getString("purchaseId")).get("productSnapshot", Document.class).getString("offerCode");
         return new PaidQueryResponse(PaidQueryResponse.Status.READY, true, offer, active.getDate("endsAt").toInstant(), continuous, next, pending);
+    }
+    private boolean amountOnly(Document review, String accountId) {
+        if (!"REFUND_AMOUNT_UNKNOWN".equals(review.getString("reason")) || review.getString("purchaseId") == null) return false;
+        Document purchase = one("purchases", env().append("accountId", accountId).append("_id", review.getString("purchaseId")));
+        Document ledger = one("payment_ledger", new Document("effectKey", "refund-access:" + review.getString("purchaseId")));
+        return RefundReviewPolicy.amountOnly(review, purchase, ledger);
     }
     private Document env() { return new Document("environment", environment); }
     private boolean exists(String collection, Document query) { return !mongo.find(new BasicQuery(query).limit(1).maxTime(EntitlementSnapshotExecutor.remaining()), Document.class, collection).isEmpty(); }

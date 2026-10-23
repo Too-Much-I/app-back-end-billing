@@ -121,10 +121,15 @@ public final class RevenueCatPurchaseDecoder {
         if (kind == null) return review(id, "STATUS_UNSUPPORTED");
         // API revenue_in_usd is not original store paid currency; leave money unknown.
         String tx = lookup.transaction(storeEnvironment, p.store().name(), p.appId(), storeId);
-        String facts = fingerprint(List.of("api-purchase-r1", storeEnvironment, p.store().name(), p.appId(), tx, customer, original,
+        String facts = fingerprint(List.of(kind == PurchaseObservation.Kind.REFUND ? "api-refund-r2" : "api-purchase-r1", storeEnvironment, p.store().name(), p.appId(), tx, customer, original,
                 productId, p.storeProductId(), Long.toString(millis), "1", ownership, status));
+        String observationKey = lookup.apiObservation(storeEnvironment, project, id, facts);
+        // status=refunded is final access evidence. Revenue/price and purchased_at are NOT
+        // refund amount/time. A new facts revision preserves legacy evidence-free receipts.
+        RefundEvidence refund = kind == PurchaseObservation.Kind.REFUND
+                ? new RefundEvidence(RefundEvidence.Source.REVENUECAT_API, observationKey, null, null, null) : null;
         return new Item(id, new PurchaseObservation(storeEnvironment, p.store(), p.appId(), tx, lookup.version(),
-                lookup.apiObservation(storeEnvironment, project, id, facts), kind, ownerRef, p.storeProductId(), purchased, null), null);
+                observationKey, kind, ownerRef, p.storeProductId(), purchased, null, refund), null);
     }
     private static Item review(String id, String reason) { return new Item(id, null, reason); }
     private JsonNode json(byte[] bytes) {
