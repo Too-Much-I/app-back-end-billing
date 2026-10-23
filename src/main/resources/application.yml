@@ -5,6 +5,8 @@ app:
     invite-share:
       enabled: ${INVITE_SHARE_REWARD_ENABLED:false}
   billing:
+    part-learning-eligibility:
+      enabled: ${BILLING_PART_LEARNING_ELIGIBILITY_ENABLED:false}
     reanswer-eligibility:
       enabled: ${BILLING_REANSWER_ELIGIBILITY_ENABLED:false}
     exam-deletion:

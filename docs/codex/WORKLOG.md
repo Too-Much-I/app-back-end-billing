@@ -7463,3 +7463,23 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - 진단 도구에 read-only check·실패phase 추가. CONTROL_COUNT1/SANDBOX/billing/OPEN·PAID_SCHEMA_OK 확인. 독립 task f0fc8d6a8add46bc90683254bd2d78cf에서 REFERRAL_VERIFY_OK 확인, exit0·동일image 검사 후 활성화. 최초 설치 성공이나 recovery 문서 전체 불변은 단정하지 않는다.
 - task24 등록·서비스 적용: REFERRAL_REWARD_ENABLED=true / INVITE_SHARE_REWARD_ENABLED=false만 변경. 기존 image·다른 설정·Secret/역할 유지. 롤링 교체 중 구태스크 응답404/401 관측 후 16:06 KST 새 추천 code/apply401·공유404·기존 entitlements401 확인. 전체 rollout COMPLETED 재조회는 아직 하지 않았으며 HTTP 활성화와 실제 회원 지급 E2E를 구분한다.
 - 운영·Identity·LC·기존 지급/원장·자동purge 무변경. Java 도구 컴파일·Python 문법·diff 검사 통과. 제품코드 재변경 없음. 운영 도구/실행기록은 후속 커밋 대상이며 별도 RevenueCat 운영 문서 dirty는 제외한다.
+
+## 2026-10-23 — 파트별 학습 유료권 조회 LC R1 검토
+
+- 브랜치 feat/TMI-223-referral-code-rewards, LC 전달안 및 Billing PaidEntitlementReader/Reanswer decoder/controller/workload ingress/draft-5를 읽기 대조.
+- 신규 회신 LC-BILLING-PART-LEARNING-ELIGIBILITY-R1-REVIEW.md와 CURRENT_STATE 갱신. 유료전용 무캐시 방향 유지, 중첩 ACTIVE 최대종료 선택/미래1초허용 후보는 기존 규칙 유지로 조정 권장.16KiB/오류 exact/hash/LC Tx와 Billing snapshot 구분/검증 보완 기록.
+- 정적 검토·diff 검사만, 제품 변경이 없어 Gradle 미실행. 기존 dirty 운영 문서/스크립트 보존. 코드/DB/타저장소/fixture/Jira/외부회신/commit/push/배포 변경 없음. 다음은 LC 문구 반영 및 단일 wire 확정 후 구현·검증.
+
+## 2026-10-23 — 파트별 학습 review-2 Billing 규격 수락
+
+- feat/TMI-223-referral-code-rewards. 사용자 LC 반영 보고에 따라 review-2 전체 원문을 읽고 앞선4개 보완·오류·검증 항목 확인. 추가 이견 없이 Billing 구현 기준 수락 기록.
+- 원문 bytes snapshot 신규 보존(SHA-256 `c27b981a1c1ec6f208089a1e3eae02f8f2bcefdaa3196d82fcc35dc70a545b99`), REVIEW/CURRENT_STATE/WORKLOG 갱신. 기존 draft-5 hash 일치. 기존 dirty 보존.
+- 문서 정적 대조·git diff --check 수행, 제품 변경이 없어 Gradle 미실행. L01~L12/runtime/배포 검증 완료를 주장하지 않음. 코드/DB/LC/Identity/기존fixture/Jira/외부메시지/commit/push/배포 없음. 다음은 동일 규격 기준 구현 착수 요청.
+
+## 2026-10-23 — 파트별 유료 콘텐츠 조회 구현
+
+- 사용자 브랜치 구현 승인 및 최신 LC 콘텐츠전용 보완 반영. 기존 feat/TMI-223-referral-code-rewards HEAD에서 codex/part-learning-eligibility 생성, 기존 dirty 문서/스크립트 보존. 신규 Jira 생성/기존 TMI-223 범위 확장 없음.
+- 신규 partlearning 클래스5개(service/controller/response/config/properties), workload 인가/설정2파일·application.yml·테스트4파일·운영안내·AGENTS·CURRENT_STATE 변경. 기존 재답변 decoder/paid reader/snapshot 재사용, 무료 컬렉션은 조회하지 않음. 추가 schema/쓰기/캐시/receipt/worker 없음.
+- LC 보완 R1 수락: 유료 본문/음성 제공에만 조회, submit/create/retry에 적용하지 않음. direct grading 위험 사용자 수락·기존 owner/lifecycle/상태 보호 유지. 원 review-2 bytes 불변. LC 코드는 수정하지 않음.
+- 선별26개 최초 경계 fixture 오가정1실패 후 실제 slot 시각으로 수정/통과. 기간중첩 사례 추가 후 최종 ./gradlew clean test 1997개 실패0/오류0/skip0 (신규27 포함),4m39s. git diff --check 통과. Gradle 캐시 sandbox 제한은 승인된 실행으로 해결.
+- 실제DB/외부설정/키/LC/Identity/기존fixture/commit/push/배포/활성화 없음. 신규flag 기본OFF. 다음은 LC 콘텐츠 연결 C01~C06 및 전용route·aud·시계/실환경 연동 검증, 별도 배포 승인.
