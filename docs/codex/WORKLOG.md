@@ -7387,3 +7387,9 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - 커밋/push/배포/운영DB/설정 변경 없음. RevenueCat alias read 권한·실제 기기·Store 검증 후속.
 
 - 최종 최신 코드 `./gradlew clean test` 단독 실행: 1,937개, 실패0/오류0/skip0 (관련242개 포함). 최초 전체 실행은 동시 Gradle 실행의 결과 파일 충돌로 실패했으며, 단독 clean 재실행으로 해소했다.
+
+## 2026-10-23 — 완료된 환불 시험 이후 새 유료 구매 INITIAL 긴급 수정
+
+- 사용자 빠른 수정 및 운영 즉시 배포 승인. main a83caf6 기반 codex/hotfix-refunded-completed-group, 원 작업트리 dirty 보존·추천인/파트학습 미배포 변경 제외.
+- PaidReservationService reserve/confirm에 완료된 환불 group과 다른 정상 paid source INITIAL 한정 허용. 과거 source 재사용/owner/lifecycle 차단·영속 실패 key 유지, 이전 group/Session 무변경.
+- RefundFanoutIntegrationTest 신규8개, 수정 전 재현 실패 및 수정 후 선별 통과. 전체 clean test 결과 및 운영 배포는 후속 기록. schema/flag/공개API/LC·운영 DB 변경 없음.

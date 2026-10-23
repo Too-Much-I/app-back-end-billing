@@ -51,6 +51,7 @@ public final class PaidReservationService {
         try { previous = previous(c, command, account, guard); }
         catch (ContextConflict rejected) { return Optional.empty(); }
         Document paid = activePaid(c, account);
+        if (previous != null && previous.isReplacementBlocked() && paid == null) return Optional.empty();
         EntitlementSourceSnapshot source;
         String subject = account.getString("paidSubjectRefId"); Long epoch = null;
         Reservation.Kind kind = Reservation.Kind.INITIAL;
@@ -58,6 +59,8 @@ public final class PaidReservationService {
                 && command.restartContext().startReason() == RestartContext.StartReason.RESTART_INCOMPLETE;
         if (paid != null) {
             source = paidSource(c, account, paid, now);
+            if (previous != null && previous.isReplacementBlocked()
+                    && !differentPaidPurchase(previous.getSourceSnapshot(), source)) return Optional.empty();
             if (restart && previous != null && !previous.isReplacementBlocked() && samePaid(previous.getSourceSnapshot(), source))
                 kind = Reservation.Kind.REPLACEMENT;
         } else if (restart && previous != null && !previous.isReplacementBlocked()
@@ -152,7 +155,8 @@ public final class PaidReservationService {
             return null;
         }
         if (group.getSourceSnapshot() == null) throw ReservationException.temporarilyUnavailable();
-        if (row.getBoolean("lifecycleDenied", false) || group.isReplacementBlocked()) throw new ContextConflict();
+        if (row.getBoolean("lifecycleDenied", false) || group.isReplacementBlocked()
+                && !completedRefundContext(c, account, group, command.restartContext())) throw new ContextConflict();
         if (command.continuationReason() != null) {
             BillingSubjectLink link = new BillingSubjectLinkRepository(c.operations()).findBySubjectRefId(group.getSubjectRefId()).orElseThrow(ContextConflict::new);
             if (epoch == null || !"PHONE_REJOIN".equals(link.getOwnerTransitionReason()) || !command.continuationId().equals(link.getOwnerTransitionId())
@@ -173,6 +177,30 @@ public final class PaidReservationService {
                 throw new ContextConflict();
         }
         return group;
+    }
+    /** A completed refunded group is history for a new purchase, never a reusable allocation. */
+    private boolean completedRefundContext(PaidExamTransactions.Context c, Document account, AttemptGroup group,
+            RestartContext restart) {
+        if (restart == null || restart.startReason() != RestartContext.StartReason.NEW_AFTER_COMPLETION
+                || group.getStatus() != AttemptGroup.Status.COMPLETED) return false;
+        var source = group.getSourceSnapshot();
+        if (source == null || source.type() != EntitlementSourceSnapshot.Type.SUBSCRIPTION
+                || !account.getString("_id").equals(source.accountId())) return false;
+        Document row = doc(c, "attempt_groups", group.getAttemptGroupId());
+        if (row.getBoolean("deleted", false) || row.getBoolean("lifecycleDenied", false)) return false;
+        Document purchase = doc(c, "purchases", source.purchaseId());
+        Document refund = purchase.get("refund", Document.class);
+        return account.getString("_id").equals(purchase.getString("accountId"))
+                && payment.getEnvironment().equals(purchase.getString("environment"))
+                && Set.of("REFUNDED", "REVOKED").contains(purchase.getString("purchaseState"))
+                && "REVOKED".equals(purchase.getString("accessState"))
+                && refund != null && refund.getDate("appliedAt") != null && refund.getString("effectId") != null;
+    }
+    private static boolean differentPaidPurchase(EntitlementSourceSnapshot previous, EntitlementSourceSnapshot next) {
+        return next.type() == EntitlementSourceSnapshot.Type.SUBSCRIPTION
+                && Objects.equals(previous.accountId(), next.accountId())
+                && !Objects.equals(previous.purchaseId(), next.purchaseId())
+                && !Objects.equals(previous.entitlementId(), next.entitlementId());
     }
     public LifecycleResult confirm(ConfirmCommand command) {
         return lifecycle(command.userId(), command.operationId(), command.reservationId(), command.payloadHash(), "CONFIRM", command.sessionId(), false);
@@ -266,15 +294,21 @@ public final class PaidReservationService {
         }
         AttemptGroup previous = r.getPreviousGroupId() == null ? null : c.groups().findById(r.getPreviousGroupId()).orElseThrow(ReservationException::temporarilyUnavailable);
         if (previous != null) {
-            if (previous.isReplacementBlocked()) throw ReservationException.transitionContextConflict();
+            boolean refundedCompletion = previous.isReplacementBlocked()
+                    && r.getReservationKind() == Reservation.Kind.INITIAL
+                    && completedRefundContext(c, account, previous, r.getRestartContext())
+                    && differentPaidPurchase(previous.getSourceSnapshot(), source);
+            if (previous.isReplacementBlocked() && !refundedCompletion) throw ReservationException.transitionContextConflict();
             Long epoch = trialEpoch(c, account.getString("userId"), previous.getSubjectRefId(), now, true);
             if (!Objects.equals(epoch, r.getPreviousOwnerEpoch())) throw ReservationException.operationOwnerMismatch();
             if (r.getReservationKind() == Reservation.Kind.INITIAL) {
-                restore(c, guard, account.getString("userId"), previous, source, now, ids);
-                blockPrevious(c, previous, r.getOperationId(), now);
+                if (!refundedCompletion) {
+                    restore(c, guard, account.getString("userId"), previous, source, now, ids);
+                    blockPrevious(c, previous, r.getOperationId(), now);
+                }
             } else if (previous.isReplacementBlocked() || previous.getStatus() == AttemptGroup.Status.COMPLETED)
                 throw ReservationException.transitionContextConflict();
-            allowOldCompletion(c, previous.getActiveSessionId());
+            if (!refundedCompletion) allowOldCompletion(c, previous.getActiveSessionId());
         }
         if (r.getReservationKind() == Reservation.Kind.INITIAL) {
             c.groups().insert(AttemptGroup.open(r.getAttemptGroupId(), r.getSubjectRefId(), source.trialClaimId(), source.consumptionId(),
