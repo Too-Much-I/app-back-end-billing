@@ -17,6 +17,19 @@ import web.tosunsaeng.billing.domain.payment.purchase.*;
 import static org.assertj.core.api.Assertions.*;
 
 class RevenueCatAdapterTest {
+    @Test void finalRefundHasNewEvidenceRevisionWithoutInventingMoneyOrTime() {
+        var raw = purchase().put("status", "refunded").put("revenue_in_usd", 0).put("refunded_at", NOW.toEpochMilli());
+        var refund = decoder.purchase(bytes(raw), REF).observation();
+        assertThat(refund.kind()).isEqualTo(PurchaseObservation.Kind.REFUND);
+        assertThat(refund.refundEvidence().source()).isEqualTo(RefundEvidence.Source.REVENUECAT_API);
+        assertThat(refund.refundEvidence().evidenceKey()).isEqualTo(refund.providerEventKey());
+        assertThat(refund.refundEvidence().amount()).isNull();
+        assertThat(refund.refundEvidence().providerConfirmedAt()).isNull();
+        assertThat(refund.money()).isNull();
+        assertThat(decoder.purchase(bytes(raw), REF).observation()).isEqualTo(refund);
+        assertThat(decoder.purchase(bytes(purchase()), REF).observation().refundEvidence()).isNull();
+        assertThat(decoder.purchase(bytes(raw.put("original_customer_id", "other")), REF).observation()).isNull();
+    }
     @Test void mixedProductionDecoderKeepsStoreEnvironmentAndDistinctTransactionIdentity() {
         var mixed = new RevenueCatPurchaseDecoder("project", "PRODUCTION", lookup,
                 Map.of("prod", new RevenueCatPurchaseDecoder.Product("app", PurchaseObservation.Store.PLAY_STORE, "premium_1d")), CLOCK, true);

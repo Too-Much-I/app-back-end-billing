@@ -21,7 +21,7 @@ class RefundFanoutIntegrationTest extends PaidReservationTestSupport {
         var core = new PurchaseCore(payment, properties, clock, Map.of(PurchaseObservation.Store.PLAY_STORE, "fake.app"), "fake-v1");
         var p = db.getCollection("purchases").find().first();
         var observation = new PurchaseObservation("SANDBOX", PurchaseObservation.Store.PLAY_STORE, "fake.app", p.getString("transactionKey"), "fake-v1",
-                "f".repeat(64), PurchaseObservation.Kind.REFUND, account().getString("activeRefId"), "PREMIUM_1D", NOW, null,
+                "f".repeat(64), PurchaseObservation.Kind.REFUND, account().getString("activeRefId"), "PREMIUM_1D", p.getDate("purchasedAt").toInstant(), null,
                 new RefundEvidence(RefundEvidence.Source.REVENUECAT_API, "d".repeat(64), NOW, null, null));
         core.receive(observation); core.apply(observation.providerEventKey());
         return p.getString("_id");
@@ -37,6 +37,90 @@ class RefundFanoutIntegrationTest extends PaidReservationTestSupport {
         var context = new RestartContext(group, "session", RestartContext.StartReason.RESTART_INCOMPLETE);
         var request = new ReserveRequest(USER, "second-session", "mock", null, null, null, context);
         return new ReserveCommand(UUID.randomUUID().toString(), USER, "second-session", "mock", null, null, null, new ReservePayloadHasher().hash(request), context);
+    }
+    String completedThenRefunded() {
+        String group = confirmed();
+        var event = new web.tosunsaeng.billing.domain.attempt.domain.model.AttemptGroupStatusEvent(
+                UUID.randomUUID().toString(), "AttemptGroupStatusChanged", 1, "learning-core", NOW,
+                USER, group, "session", web.tosunsaeng.billing.domain.attempt.domain.enums.AttemptGroupEventTarget.COMPLETED,
+                null, null, "a".repeat(64));
+        new PaidAttemptEventService(tx, mongo, payment, properties, "test", clock).process(event);
+        refund(); fanout().tick();
+        return group;
+    }
+    void repurchase() {
+        var lookup = new PurchaseLookupKey(new byte[32], "fake-v1");
+        var core = new PurchaseCore(payment, properties, clock, Map.of(PurchaseObservation.Store.PLAY_STORE, "fake.app"), lookup.version());
+        var observation = new PurchaseObservation("SANDBOX", PurchaseObservation.Store.PLAY_STORE, "fake.app",
+                lookup.transaction("SANDBOX", "PLAY_STORE", "fake.app", "repurchase"), lookup.version(),
+                lookup.event("SANDBOX", "project", "repurchase"), PurchaseObservation.Kind.PURCHASE,
+                account().getString("activeRefId"), "PREMIUM_1D", NOW, null);
+        core.receive(observation); core.apply(observation.providerEventKey());
+    }
+    ReserveCommand afterCompletion(String group, String previousSession) {
+        var context = new RestartContext(group, previousSession, RestartContext.StartReason.NEW_AFTER_COMPLETION);
+        var request = new ReserveRequest(USER, "new-session", "next-mock", null, null, null, context);
+        return new ReserveCommand(UUID.randomUUID().toString(), USER, "new-session", "next-mock", null, null, null,
+                new ReservePayloadHasher().hash(request), context);
+    }
+    @Test void refundedCompletedGroupAllowsNewPaidInitialAndReplayWithoutChangingOldEvidence() {
+        String group = completedThenRefunded(); repurchase();
+        Document oldGroup = row("attempt_groups", group), oldSession = row("attempt_sessions", "session");
+        var cmd = afterCompletion(group, "session"); var reserved = runtime().reserve(cmd);
+        assertThat(reserved.responseSnapshot().getString("reservationKind")).isEqualTo("INITIAL");
+        assertThat(reserved.responseSnapshot().getString("attemptGroupId")).isNotEqualTo(group);
+        var confirmed = runtime().confirm(confirm(cmd, reserved));
+        assertThat(confirmed.snapshot().reservationStatus()).isEqualTo(Reservation.Status.CONFIRMED);
+        assertThat(runtime().confirm(confirm(cmd, reserved)).snapshot()).isEqualTo(confirmed.snapshot());
+        runtime().reserve(cmd); // Successful replay must precede mutable current-group validation.
+        assertThat(row("attempt_groups", group)).isEqualTo(oldGroup);
+        assertThat(row("attempt_sessions", "session")).isEqualTo(oldSession);
+        assertThat(row("attempt_groups", confirmed.snapshot().attemptGroupId()).get("sourceSnapshot", Document.class).getString("purchaseId"))
+                .isNotEqualTo(oldGroup.get("sourceSnapshot", Document.class).getString("purchaseId"));
+        assertThat(db.getCollection("attempt_groups").countDocuments()).isEqualTo(2);
+    }
+    @Test void refundedCompletedGroupCannotUseWrongPreviousSession() {
+        String group = completedThenRefunded(); repurchase();
+        error(() -> runtime().reserve(afterCompletion(group, "wrong-session")), "TRANSITION_CONTEXT_CONFLICT");
+    }
+    @Test void lifecycleDeniedCompletedGroupStillRejectsNewPurchase() {
+        String group = completedThenRefunded(); repurchase();
+        db.getCollection("attempt_groups").updateOne(new Document("_id", group), new Document("$set", new Document("lifecycleDenied", true)));
+        error(() -> runtime().reserve(afterCompletion(group, "session")), "TRANSITION_CONTEXT_CONFLICT");
+    }
+    @Test void blockedButNotRefundedCompletedGroupDoesNotGainException() {
+        String group = confirmed();
+        db.getCollection("attempt_groups").updateOne(new Document("_id", group), new Document("$set", new Document("status", "COMPLETED").append("replacementBlocked", true)));
+        error(() -> runtime().reserve(afterCompletion(group, "session")), "TRANSITION_CONTEXT_CONFLICT");
+    }
+    @Test void refundedIncompleteGroupDoesNotGainCompletedException() {
+        String group = confirmed(); refund(); fanout().tick(); repurchase();
+        error(() -> runtime().reserve(afterCompletion(group, "session")), "TRANSITION_CONTEXT_CONFLICT");
+        error(() -> runtime().reserve(restart(group)), "TRANSITION_CONTEXT_CONFLICT");
+    }
+    @Test void missingNewPurchaseDoesNotReuseRefundedRightAndTerminalKeyStaysTerminal() {
+        String group = completedThenRefunded(); var failed = afterCompletion(group, "session");
+        error(() -> runtime().reserve(failed), "TRANSITION_CONTEXT_CONFLICT");
+        repurchase();
+        error(() -> runtime().reserve(failed), "TRANSITION_CONTEXT_CONFLICT");
+        var fresh = afterCompletion(group, "session"); var reserved = runtime().reserve(fresh);
+        assertThat(runtime().confirm(confirm(fresh, reserved)).snapshot().reservationStatus()).isEqualTo(Reservation.Status.CONFIRMED);
+    }
+    @Test void newPurchaseRevokedBeforeConfirmCannotUseCompletedRefundException() {
+        String group = completedThenRefunded(); repurchase();
+        var cmd = afterCompletion(group, "session"); var reserved = runtime().reserve(cmd);
+        String newPurchase = reserved.source().getString("purchaseId");
+        db.getCollection("purchases").updateOne(new Document("_id", newPurchase),
+                new Document("$set", new Document("accessState", "REVOKED").append("purchaseState", "REFUNDED")));
+        error(() -> runtime().confirm(confirm(cmd, reserved)), "ENTITLEMENT_REVOKED");
+        assertThat(db.getCollection("attempt_groups").countDocuments()).isOne();
+    }
+    @Test void lifecycleDenyBetweenReserveAndConfirmStillWins() {
+        String group = completedThenRefunded(); repurchase();
+        var cmd = afterCompletion(group, "session"); var reserved = runtime().reserve(cmd);
+        db.getCollection("attempt_groups").updateOne(new Document("_id", group), new Document("$set", new Document("lifecycleDenied", true)));
+        error(() -> runtime().confirm(confirm(cmd, reserved)), "TRANSITION_CONTEXT_CONFLICT");
+        assertThat(db.getCollection("attempt_groups").countDocuments()).isOne();
     }
     @Test void initialReservationWithoutGroupIsCanceledAndConfirmReplaysRealRejection() {
         purchase(); var cmd = command(); var reserved = runtime().reserve(cmd); String p = refund();
