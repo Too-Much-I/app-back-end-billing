@@ -69,14 +69,25 @@ class RevenueCatWebhookTest {
         e.withArray("aliases").add("other-member");
         assertThat(decoder.decode(body(e)).reviewCandidate()).isNull();
     }
-    @Test void conflictingOwnerReversalAndUnsupportedQuantityNeverGetResolutionHints() {
+    @Test void conflictingOwnerTransferAndUnsupportedQuantityNeverGetResolutionHints() {
         var owner = event().put("original_app_user_id", "22222222-2222-4222-8222-222222222222");
         assertThat(decoder.decode(body(owner)).reviewCandidate()).isNull();
-        assertThat(decoder.decode(body(event().put("type", "CANCELLATION"))).reviewCandidate()).isNull();
+        assertThat(decoder.decode(body(event().put("type", "TRANSFER"))).reviewCandidate()).isNull();
         var quantity = event().put("quantity", 2); quantity.putArray("aliases").add("other");
         assertThat(decoder.decode(body(quantity)).reviewCandidate()).isNull();
         var family = event().put("is_family_share", true); family.remove("quantity");
         assertThat(decoder.decode(body(family)).reviewCandidate()).isNull();
+    }
+    @Test void cancellationHasOnlyAnExactLookupHintAndNoFinalRefundEvidence() {
+        var e = event().put("type", "CANCELLATION");
+        var receipt = decoder.decode(body(e));
+        assertThat(receipt.observation()).isNull();
+        assertThat(receipt.reason()).isEqualTo("EVENT_REQUIRES_LOOKUP");
+        assertThat(receipt.reviewCandidate()).isNotNull();
+        e.put("original_app_user_id", "22222222-2222-4222-8222-222222222222");
+        assertThat(decoder.decode(body(e)).reviewCandidate()).isNull();
+        e = event().put("type", "CANCELLATION"); e.remove("transaction_id");
+        assertThat(decoder.decode(body(e)).reviewCandidate()).isNull();
     }
     byte[] body(ObjectNode e) { return JSON.createObjectNode().put("api_version", "1.0").set("event", e).toString().getBytes(StandardCharsets.UTF_8); }
     static String sign(byte[] body, long time) throws Exception {

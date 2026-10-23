@@ -153,7 +153,10 @@ public final class PurchaseCore {
                 require(collection("payment_purchase_cases").find(session, sourceKey(eventKey)).first() != null);
                 return Outcome.REVIEW_REQUIRED;
             }
-            if (!"RECEIVED".equals(row.getString("state"))) return outcome(row);
+            if (!"RECEIVED".equals(row.getString("state"))) {
+                reconcileRefundSource(session, row);
+                return outcome(row);
+            }
             PurchaseObservation o = PurchaseObservation.read(eventKey, row.get("normalizedObservation", Document.class));
             require(Long.valueOf(o.digestVersion()).equals(row.get("digestVersion"))
                     && o.digest(row.getLong("digestVersion")).equals(row.getString("digest")) && keyVersion.equals(o.lookupKeyVersion())
@@ -182,7 +185,10 @@ public final class PurchaseCore {
                         collection("purchases").insertOne(session, purchase);
                         ledger(session, purchase, "PURCHASE_OBSERVED", null, o, new Document("kind", o.kind().name()));
                     }
+                    if (purchase.getDate("purchasedAt") != null && !RefundReviewPolicy.matches(o.body(), purchase))
+                        return review(session, row, "REFUND_BINDING_UNRESOLVED");
                     String reason = new PurchaseRefundCore(store.database(), clock).apply(session, purchase, o);
+                    reconcileRefundSource(session, row);
                     return reason == null ? complete(session, row) : review(session, row, reason);
                 }
                 // First-seen reversal fences later purchase delivery. Existing grants need PLAN-012, not a partial revoke here.
@@ -377,6 +383,12 @@ public final class PurchaseCore {
                 .append("store", candidate.store().name()).append("appId", candidate.appId())
                 .append("transactionKey", candidate.transactionKey())).first();
         if (purchase == null) return;
+        if ("EVENT_REQUIRES_LOOKUP".equals(receipt.reason())) {
+            Document ledger = accessLedger(session, purchase);
+            if (RefundReviewPolicy.accessEnded(purchase, ledger))
+                resolveRefundReviews(session, purchase, ledger.getString("sourceObservationKey"));
+            return;
+        }
         // Link to the durable verified purchase ledger, not this unverified webhook.
         Document ledger = collection("payment_ledger").find(session, new Document("purchaseId", purchase.getString("_id"))
                 .append("type", "PURCHASE_VERIFIED")).first();
@@ -432,6 +444,57 @@ public final class PurchaseCore {
             if (review.getBoolean("counted", false)) touch(session, review.getString("lifecycleId"), -1);
         }
     }
+    private Document accessLedger(ClientSession session, Document purchase) {
+        return collection("payment_ledger").find(session, new Document("effectKey", "refund-access:" + purchase.getString("_id"))).first();
+    }
+    private void reconcileRefundSource(ClientSession session, Document row) {
+        if (!refundsEnabled || !reviewResolutionEnabled || row.get("normalizedObservation") == null) return;
+        PurchaseObservation o = PurchaseObservation.read(row.getString("providerEventKey"), row.get("normalizedObservation", Document.class));
+        if (o.kind() == PurchaseObservation.Kind.PURCHASE || o.refundEvidence() == null) return;
+        require(Long.valueOf(o.digestVersion()).equals(row.get("digestVersion"))
+                && o.digest(row.getLong("digestVersion")).equals(row.getString("digest")) && keyVersion.equals(o.lookupKeyVersion())
+                && environments.accepts(o.environment()) && o.appId().equals(apps.get(o.store())));
+        Document purchase = collection("purchases").find(session, transactionKey(o)).first();
+        if (purchase != null && Objects.equals(row.getString("accountId"), purchase.getString("accountId"))
+                && RefundReviewPolicy.matches(o.body(), purchase) && RefundReviewPolicy.accessEnded(purchase, accessLedger(session, purchase)))
+            resolveRefundReviews(session, purchase, o.providerEventKey());
+    }
+    private void resolveRefundReviews(ClientSession session, Document purchase, String observationKey) {
+        if (!refundsEnabled || observationKey == null) return;
+        Document account = collection("payment_accounts").find(session, new Document("_id", purchase.getString("accountId"))).first();
+        if (account == null) return;
+        Document life = lifecycle(session, account);
+        Document normalized = new Document("normalizedObservation.kind", new Document("$in", List.of("REFUND", "REVOKE")));
+        Document candidate = new Document("normalizedObservation", null).append("reason", "EVENT_REQUIRES_LOOKUP");
+        for (String field : List.of("store", "appId", "transactionKey", "lookupKeyVersion", "ownerRefId", "storeProductId", "purchasedAt")) {
+            normalized.append("normalizedObservation." + field, purchase.get(field));
+            candidate.append("reviewCandidate." + field, purchase.get(field));
+        }
+        String storeEnvironment = purchase.getString("storeEnvironment") == null ? environment : purchase.getString("storeEnvironment");
+        normalized.append("normalizedObservation.environment", storeEnvironment);
+        candidate.append("reviewCandidate.environment", storeEnvironment);
+        Document query = new Document("environment", environment).append("accountId", account.getString("_id"))
+                .append("lifecycleId", life.getString("_id")).append("resolvedObservationKey", new Document("$exists", false))
+                .append("reason", new Document("$in", List.of("REVERSAL_REQUIRES_PLAN_012", "EVENT_REQUIRES_LOOKUP", "REFUND_AMOUNT_UNKNOWN")))
+                .append("$or", List.of(normalized, candidate));
+        if (purchase.get("refund", Document.class).get("refundedTotal") == null)
+            query.append("$nor", List.of(new Document("reason", "REFUND_AMOUNT_UNKNOWN").append("counted", false)));
+        for (Document review : collection("payment_purchase_cases").find(session, query).limit(100)) {
+            Document facts = review.get("normalizedObservation", Document.class);
+            boolean hint = facts == null && "EVENT_REQUIRES_LOOKUP".equals(review.getString("reason"));
+            if (hint) facts = review.get("reviewCandidate", Document.class);
+            if (!RefundReviewPolicy.matches(facts, purchase) || !hint && !Set.of("REFUND", "REVOKE").contains(facts.getString("kind"))) continue;
+            // Unknown money remains OPEN and visible. It loses only access-blocking responsibility.
+            boolean amount = "REFUND_AMOUNT_UNKNOWN".equals(review.getString("reason"));
+            boolean unresolvedAmount = amount && purchase.get("refund", Document.class).get("refundedTotal") == null;
+            if (unresolvedAmount && !review.getBoolean("counted", false)) continue;
+            Document changes = new Document("counted", false).append("version", increment(review, "version"));
+            if (!unresolvedAmount) changes.append("reviewState", "RESOLVED").append("resolvedAt", Date.from(clock.instant()))
+                    .append("resolvedObservationKey", observationKey).append("purchaseId", purchase.getString("_id"));
+            require(collection("payment_purchase_cases").updateOne(session, versionKey(review), new Document("$set", changes)).getModifiedCount() == 1);
+            if (review.getBoolean("counted", false)) touch(session, life.getString("_id"), -1);
+        }
+    }
     private Outcome review(ClientSession session, Document row, String reason) {
         Document review = new Document(row);
         review.remove("retentionDeadline"); review.remove("attempts");
@@ -445,8 +508,15 @@ public final class PurchaseCore {
             review.put("purchaseId", purchase == null ? null : purchase.getString("_id"));
             review.put("inquiryId", null); review.put("resolvedAt", null); review.put("actorDigest", null);
         }
+        if ("REFUND_AMOUNT_UNKNOWN".equals(reason)) {
+            Document purchase = collection("purchases").find(session, new Document("_id", review.getString("purchaseId"))).first();
+            if (purchase != null && RefundReviewPolicy.amountOnly(review, purchase, accessLedger(session, purchase))) {
+                review.put("counted", false);
+                if (row.getBoolean("counted")) touch(session, row.getString("lifecycleId"), -1);
+            }
+        }
         collection("payment_purchase_cases").insertOne(session, review);
-        if (row.getBoolean("counted")) touch(session, row.getString("lifecycleId"), 0);
+        if (review.getBoolean("counted")) touch(session, row.getString("lifecycleId"), 0);
         finishSource(session, row, "QUARANTINED");
         return Outcome.REVIEW_REQUIRED;
     }

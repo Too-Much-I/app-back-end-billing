@@ -7483,3 +7483,11 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - LC 보완 R1 수락: 유료 본문/음성 제공에만 조회, submit/create/retry에 적용하지 않음. direct grading 위험 사용자 수락·기존 owner/lifecycle/상태 보호 유지. 원 review-2 bytes 불변. LC 코드는 수정하지 않음.
 - 선별26개 최초 경계 fixture 오가정1실패 후 실제 slot 시각으로 수정/통과. 기간중첩 사례 추가 후 최종 ./gradlew clean test 1997개 실패0/오류0/skip0 (신규27 포함),4m39s. git diff --check 통과. Gradle 캐시 sandbox 제한은 승인된 실행으로 해결.
 - 실제DB/외부설정/키/LC/Identity/기존fixture/commit/push/배포/활성화 없음. 신규flag 기본OFF. 다음은 LC 콘텐츠 연결 C01~C06 및 전용route·aud·시계/실환경 연동 검증, 별도 배포 승인.
+
+## 2026-10-23 — 테스트 배포·ON 완료
+
+- 사용자 commit/push/test ON 승인으로 구현 commit `54b3325c91720d278084f13927885f3f5c8fd851` push, PR44 develop 병합 `d18864eeb33a9caf9f41a72d0c142f362f01b7c9`. Actions `39899127119` SUCCESS(테스트/build/image smoke/deploy/target 검증).
+- 테스트 ECS `tosunsaeng-staging-cluster/tosunsaeng-billing-test-service`, task `tosunsaeng-billing-test:26`. `BILLING_PART_LEARNING_ELIGIBILITY_ENABLED=true`, 동일 이미지 `sha256:6b34ca2b535e836172b60d35d9226d468e2ea4656557edf463718d93e6757c47`. ECS waiter 성공 및 rollout COMPLETED, running/desired1·pending0, 8443/8083 신규 target healthy 확인. 이전 target은 마지막 조회에서 draining.
+- 테스트 ALB priority81 exact POST 경로 추가. 기존 재답변의 workload host/source-IP 조건·target action 그대로 재사용, 읽기 대조 통과. AWS 중복 Values/config 입력 거절은 config만 전달하도록 수정; readback 조건 순서 차이는 Field 정렬 비교로 확인. 정책/접근 범위 완화 없음.
+- 외부 무인증 검사: public entitlements401, public internal POST404, source 제한 밖 workload POST404. 실제 LC 서명200·콘텐츠 C01~C06/E2E는 미실행이며 배포 성공과 구분한다.
+- 운영/LC/Identity/DB/schema/키 변경 없음. 기존 사용자 dirty 변경 보존. 앞선 배포 미실행 기록은 구현 당시 상태이며 이 항목으로 테스트 환경만 갱신한다.

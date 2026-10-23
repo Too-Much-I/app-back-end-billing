@@ -1,5 +1,7 @@
 # Billing Service 현재 상태
 
+- 2026-10-23 파트별 유료 조회 테스트 ON 완료: PR44/develop d18864ee, Actions39899127119 SUCCESS, test task26·flag true·ALB81 exact POST/기존 LC source 제한 유지. ECS COMPLETED/running1/pending0 및 두 포트 신규 target healthy. 실제 LC 서명조회·콘텐츠 E2E는 후속, 운영/DB 무변경. [배포 기록](../runbooks/PART-LEARNING-ELIGIBILITY.md).
+
 - 2026-10-23 파트별 유료 콘텐츠 조회 구현: `codex/part-learning-eligibility` 신규 브랜치. POST /internal/v1/entitlements/part-learning-eligibility·전용aud·기본OFF·유료전용read-only snapshot·기존 strict decoder/오류 재사용. 최신 콘텐츠전용 보완 수락, submit/create/retry 조회 제외·직접채점 위험 수용·기존 재답변 불변. 전체 clean test 1997개 실패0/오류0/skip0(신규27 포함). [안내](../runbooks/PART-LEARNING-ELIGIBILITY.md). LC/실DB/배포/ON/commit/push 없음.
 
 - 2026-10-23 파트별 학습 review-2 Billing 규격 수락: 보완4개 및 L01~L12 반영 확인, 추가 이견 없음. LC 원문 bytes snapshot/hash 고정 및 참조 draft-5 hash 재확인. [수락 기록](../contracts/LC-BILLING-PART-LEARNING-ELIGIBILITY-R1-REVIEW.md). 다음은 동일 규격 확인 후 구현 요청에 따른 착수. 제품/DB/배포/테스트실행 없음.

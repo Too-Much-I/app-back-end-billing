@@ -54,8 +54,13 @@ public final class RevenueCatWebhookDecoder {
         String current = text(event, "app_user_id", false), original = text(event, "original_app_user_id", false);
         boolean anonymousOriginal = canonicalOwner(current) && RevenueCatPurchaseDecoder.anonymous(original);
         String owner = canonicalOwner(current) && (Objects.equals(current, original) || anonymousOriginal) ? current : null;
-        if (!"NON_RENEWING_PURCHASE".equals(type))
-            return receipt(receiptEnvironment, key, digest, null, owner, WebhookReceipt.Disposition.REVIEW, "EVENT_REQUIRES_LOOKUP");
+        if (!"NON_RENEWING_PURCHASE".equals(type)) {
+            // Cancellation is only a lookup hint; final API evidence must still revoke access.
+            ReviewPurchaseCandidate candidate = "CANCELLATION".equals(type)
+                    ? cancellationCandidate(event, env, appId, owner) : null;
+            return new WebhookReceipt(receiptEnvironment, key, digest, lookup.version(), null, owner,
+                    WebhookReceipt.Disposition.REVIEW, "EVENT_REQUIRES_LOOKUP", candidate);
+        }
         String store = text(event, "store", false), product = text(event, "product_id", false), tx = text(event, "transaction_id", false);
         Long purchased = number(event, "purchased_at_ms"), eventTime = number(event, "event_timestamp_ms"), quantity = number(event, "quantity");
         JsonNode family = event.get("is_family_share");
@@ -102,6 +107,24 @@ public final class RevenueCatWebhookDecoder {
         var observation = new PurchaseObservation(receiptEnvironment, app.store(), appId, lookup.transaction(receiptEnvironment, store, appId, tx),
                 lookup.version(), key, PurchaseObservation.Kind.PURCHASE, owner, product, Instant.ofEpochMilli(purchased), money);
         return receipt(receiptEnvironment, key, digest, observation, owner, WebhookReceipt.Disposition.PURCHASE, "VERIFIED_CANDIDATE");
+    }
+    private ReviewPurchaseCandidate cancellationCandidate(JsonNode event, String env, String appId, String owner) {
+        String store = text(event, "store", false), product = text(event, "product_id", false), tx = text(event, "transaction_id", false);
+        Long purchased = number(event, "purchased_at_ms"), eventTime = number(event, "event_timestamp_ms"), quantity = number(event, "quantity");
+        JsonNode aliases = event.get("aliases"), family = event.get("is_family_share");
+        App app = apps.get(appId == null ? "" : appId);
+        if (owner == null || env == null || app == null || !app.store().name().equals(store)
+                || product == null || !app.products().contains(product) || tx == null || purchased == null || purchased < 0
+                || eventTime == null || eventTime < 0 || eventTime > clock.millis() || purchased > clock.millis()
+                || quantity != null && quantity != 1L
+                || family == null || !family.isBoolean() || family.booleanValue()) return null;
+        if (aliases != null && !aliases.isNull()) {
+            if (!aliases.isArray()) return null;
+            for (JsonNode alias : aliases) if (!alias.isTextual()) return null;
+            if (!safeReviewAliases(aliases, owner)) return null;
+        }
+        return new ReviewPurchaseCandidate(env, app.store(), appId, lookup.transaction(env, store, appId, tx),
+                lookup.version(), owner, product, Instant.ofEpochMilli(purchased));
     }
     private static boolean safeReviewAliases(JsonNode aliases, String owner) {
         if (aliases == null || aliases.isNull()) return true;
