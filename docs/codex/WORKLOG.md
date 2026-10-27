@@ -7393,3 +7393,9 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - 사용자 빠른 수정 및 운영 즉시 배포 승인. main a83caf6 기반 codex/hotfix-refunded-completed-group, 원 작업트리 dirty 보존·추천인/파트학습 미배포 변경 제외.
 - PaidReservationService reserve/confirm에 완료된 환불 group과 다른 정상 paid source INITIAL 한정 허용. 과거 source 재사용/owner/lifecycle 차단·영속 실패 key 유지, 이전 group/Session 무변경.
 - RefundFanoutIntegrationTest 신규8개, 수정 전 재현 실패 및 수정 후 선별 통과. 전체 clean test 결과 및 운영 배포는 후속 기록. schema/flag/공개API/LC·운영 DB 변경 없음.
+
+## 2026-10-27 파트 학습 운영 승격
+
+- 사용자 이번 변경 commit/push/main 병합/운영 ON·경로 연결 승인. main fa2beb4 기반 별도 codex/part-learning-prod 작업트리로 원본 dirty 변경 보존.
+- 기존54b3325의 파트 학습 코드·테스트·보안route·설정2줄과 계약/안내만 반영. 추천인/다른 develop 변경 제외. 기존 결제/모의고사/재답변 계약 유지, 유료 콘텐츠 read-only API 및 전용 audience만 추가. schema/collection/index/secret 없음.
+- clean test 진행 중. 운영 현재 이미지·flag·ALB 준비 읽기 대조 중이며 제품 동작 변경/DB 쓰기는 아직 없음. 후속: 테스트 통과→승인된 PR 병합/배포→신규 flag만 ON·exact 기존 workload 제한 재사용·기동/경로 확인. LC/Identity 수정은 범위 밖. 예상 밖 제품 diff 없음.

@@ -1,5 +1,7 @@
 # Billing Service 현재 상태
 
+- 2026-10-27 파트 학습 운영 승격 준비: 사용자 이번 변경 commit/push/main 병합/운영 flag 및 exact 경로 연결 승인. main fa2beb4 기반 codex/part-learning-prod에 기존54b3325의 파트 학습 코드·테스트·계약만 반영, 추천인 등 다른 미배포 기능 제외. 기본OFF 유지, 새 schema/secret 없음. 전체 테스트 진행 중; 배포·실연결 검증 결과는 후속 기록.
+
 - 2026-10-23 환불 COMPLETED group 이후 새 유료구매 INITIAL 긴급 수정: 사용자 운영배포 승인, main 기반 codex/hotfix-refunded-completed-group. reserve/confirm 한정 예외·이전 source 차단/기록 보존·신규8개 통합 회귀. [안내](../runbooks/refunded-completed-group-new-purchase-fix-2026-10-23.md). 배포 결과는 후속 기록.
 
 - 2026-10-21 재답변 양쪽 배포·ON 완료: 제품81b167d, PR39/develop aeee949 및 PR40/main408b96f 병합. test Actions39582116358/prod39582343964 모두 SUCCESS. 양쪽 task21에 BILLING_REANSWER_ELIGIBILITY_ENABLED=true만 추가; 단일 PRIMARY COMPLETED·desired/running1·pending0·예상 image digest·신규8083/8443 healthy 확인(이전 target draining은 교체 잔여). workload exact POST 전달 규칙 test86/prod126·기존 source 제한 유지. DB/schema·타 flag·LC/Identity 변경 없음. LC 서명200/재답변 Job E2E는 미실행. [배포 기록](../runbooks/FEEDBACK-REANSWER-ELIGIBILITY.md).

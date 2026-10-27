@@ -26,12 +26,14 @@ import web.tosunsaeng.billing.global.config.mongodb.BillingMongoProperties;
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties({WorkloadJwtProperties.class, EntitlementQueryProperties.class,
         web.tosunsaeng.billing.domain.examdeletion.DeletionProperties.class,
-        web.tosunsaeng.billing.domain.reanswer.ReanswerProperties.class})
+        web.tosunsaeng.billing.domain.reanswer.ReanswerProperties.class,
+        web.tosunsaeng.billing.domain.partlearning.PartLearningProperties.class})
 public class WorkloadSecurityConfiguration {
     @Bean FilterRegistrationBean<WorkloadIngressFilter> workloadIngressGuard(WorkloadJwtProperties p, PaymentProperties payments, OwnerRebindProperties owners, AttemptGroupEventProperties attempts,
             web.tosunsaeng.billing.domain.examdeletion.DeletionProperties deletions,
-            web.tosunsaeng.billing.domain.reanswer.ReanswerProperties reanswer) {
-        var bean = new FilterRegistrationBean<>(new WorkloadIngressFilter(p, payments, owners, attempts, deletions, reanswer)); bean.setOrder(Ordered.HIGHEST_PRECEDENCE + 10); return bean;
+            web.tosunsaeng.billing.domain.reanswer.ReanswerProperties reanswer,
+            web.tosunsaeng.billing.domain.partlearning.PartLearningProperties partLearning) {
+        var bean = new FilterRegistrationBean<>(new WorkloadIngressFilter(p, payments, owners, attempts, deletions, reanswer, partLearning)); bean.setOrder(Ordered.HIGHEST_PRECEDENCE + 10); return bean;
     }
     @Bean WebServerFactoryCustomizer<TomcatServletWebServerFactory> workloadConnector(WorkloadJwtProperties p,
             PaymentProperties payments, EntitlementQueryProperties publicProperties, BillingMongoProperties mongo,
