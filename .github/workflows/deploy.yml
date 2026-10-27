@@ -92,6 +92,16 @@ jobs:
           digest=$(aws ecr describe-images --repository-name "$ECR_REPOSITORY" --image-ids imageTag="$tag" --query 'imageDetails[0].imageDigest' --output text)
           [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
           echo "uri=$REGISTRY/$ECR_REPOSITORY@$digest" >> "$GITHUB_OUTPUT"
+      - name: Enable production part-learning query in the same deployment
+        if: steps.target.outputs.channel == 'prod'
+        run: |
+          set -euo pipefail
+          umask 077
+          jq '.containerDefinitions[0].environment =
+            ((.containerDefinitions[0].environment // [] | map(select(.name != "BILLING_PART_LEARNING_ELIGIBILITY_ENABLED"))) +
+              [{"name":"BILLING_PART_LEARNING_ELIGIBILITY_ENABLED","value":"true"}])' \
+            task-definition.json > part-learning-task-definition.json
+          mv part-learning-task-definition.json task-definition.json
       - uses: aws-actions/amazon-ecs-render-task-definition@v1
         id: render
         with:
@@ -139,6 +149,11 @@ jobs:
           jq -e --arg image "$EXPECTED_IMAGE" '.containerDefinitions[0].image == $image' deployed-task.json > /dev/null || {
             echo '::error::Deployed image differs from expected image; check rollback'; exit 1;
           }
+          if [ "$TASK_FAMILY" = tosunsaeng-billing-prod ]; then
+            jq -e '[.containerDefinitions[0].environment[] |
+              select(.name == "BILLING_PART_LEARNING_ELIGIBILITY_ENABLED")] ==
+              [{"name":"BILLING_PART_LEARNING_ELIGIBILITY_ENABLED","value":"true"}]' deployed-task.json > /dev/null
+          fi
           for group in $(jq -r '.services[0].loadBalancers[].targetGroupArn' deployed.json); do
             aws elbv2 describe-target-health --target-group-arn "$group" > health.json
             jq -e '[.TargetHealthDescriptions[] | select(.TargetHealth.State != "draining")] |
