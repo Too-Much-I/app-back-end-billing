@@ -1,5 +1,9 @@
 # 파트별 유료 콘텐츠 — 무차감 조회 구현
 
+## 운영 배포 설정 — 2026-10-27
+
+사용자 코드·설정 동시 배포 요청으로 prod 자동배포는 현재 task 정의에서 이 기능 flag 하나만 true로 교체하고 새 이미지와 함께 배포한다. test 설정·다른 flag·secret·role·port는 그대로 유지한다. 이미지 및 flag readback 검증을 함께 수행한다. 운영 긴급 OFF rollback 뒤에는 이 workflow의 prod ON 단계도 제거/변경해야 다음 배포에서 다시 켜지지 않는다. DB/schema 변경은 없다. 최초 OFF 후보 실행은 AWS 배포 전 취소했다. 실제 결과는 작업 기록에 추가한다.
+
 - 날짜: 2026-10-23 / 브랜치: codex/part-learning-eligibility
 - 기준: [review-2 수락](../contracts/LC-BILLING-PART-LEARNING-ELIGIBILITY-R1-REVIEW.md) + LC `lc-billing-part-learning-content-only-amendment-r1`.
 - 콘텐츠 전용 보완 원문 SHA-256: `a2c32dec1f9525cdbc9555373590644ee795453ab0ef5eb2d3ebcf901830ff2b`. 사용자 구현 요청 후 전달된 보완을 최신 범위로 수락한다. 기존 review-2 snapshot/hash는 유지한다.

@@ -7399,3 +7399,5 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - 사용자 이번 변경 commit/push/main 병합/운영 ON·경로 연결 승인. main fa2beb4 기반 별도 codex/part-learning-prod 작업트리로 원본 dirty 변경 보존.
 - 기존54b3325의 파트 학습 코드·테스트·보안route·설정2줄과 계약/안내만 반영. 추천인/다른 develop 변경 제외. 기존 결제/모의고사/재답변 계약 유지, 유료 콘텐츠 read-only API 및 전용 audience만 추가. schema/collection/index/secret 없음.
 - clean test 진행 중. 운영 현재 이미지·flag·ALB 준비 읽기 대조 중이며 제품 동작 변경/DB 쓰기는 아직 없음. 후속: 테스트 통과→승인된 PR 병합/배포→신규 flag만 ON·exact 기존 workload 제한 재사용·기동/경로 확인. LC/Identity 수정은 범위 밖. 예상 밖 제품 diff 없음.
+
+- 최종 로컬 clean test 1,988개 실패0/오류0/skip0 통과. 최초 테스트는 미배포 추천인 fixture 참조로 컴파일 실패했으며 그 fixture 1줄만 제외 후 전체 통과. PR48/main76d071f 병합, 사용자 코드·설정 동시 배포 지시에 따라 실행40481207180은 AWS 단계 전 취소 요청. prod 자동배포 task 렌더링 직전에 PART_LEARNING flag 한 개만 true로 교체하고 readback 검증을 추가한다. test/다른 flag/DB/키 불변, rollback 시 workflow ON 정책도 함께 수정 필요.
