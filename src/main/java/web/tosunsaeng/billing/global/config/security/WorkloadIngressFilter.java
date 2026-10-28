@@ -18,6 +18,7 @@ public final class WorkloadIngressFilter extends OncePerRequestFilter {
             "/internal/v1/eligibility/trial/owner/events", "trial-owner-events",
             "/internal/v1/owners/merge/events", "user-merge-events");
     private static final Map<String, String> LC_ROUTES = Map.of(
+            "/internal/v1/eligibility/promotion/query", "promotion-eligibility",
             "/internal/v1/entitlements/part-learning-eligibility", "part-learning-eligibility",
             "/internal/v1/entitlements/reanswer-eligibility", "reanswer-eligibility",
             "/internal/v1/exam-deletions/events", "exam-deletion-events",
@@ -68,7 +69,7 @@ public final class WorkloadIngressFilter extends OncePerRequestFilter {
             };
             if (!config.isReceiverEnabled() || !port || !business) { reject(response, 404); return; }
         } else if (lc != null) {
-            boolean business = "part-learning-eligibility".equals(lc) ? partLearning.isEnabled() : "reanswer-eligibility".equals(lc) ? reanswer.isEnabled() : "exam-deletion-events".equals(lc) ? deletions.isEnabled() : "attempt-group-events".equals(lc) ? attempts.isEnabled()
+            boolean business = "promotion-eligibility".equals(lc) ? config.isPromotionEligibilityEnabled() : "part-learning-eligibility".equals(lc) ? partLearning.isEnabled() : "reanswer-eligibility".equals(lc) ? reanswer.isEnabled() : "exam-deletion-events".equals(lc) ? deletions.isEnabled() : "attempt-group-events".equals(lc) ? attempts.isEnabled()
                     : !request.getRequestURI().endsWith("/continuations/phone") || owners.isEnabled();
             if (!config.isLearningCoreReceiverEnabled() || !port || !business) { reject(response, 404); return; }
         }
