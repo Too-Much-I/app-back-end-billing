@@ -7491,3 +7491,16 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - 테스트 ALB priority81 exact POST 경로 추가. 기존 재답변의 workload host/source-IP 조건·target action 그대로 재사용, 읽기 대조 통과. AWS 중복 Values/config 입력 거절은 config만 전달하도록 수정; readback 조건 순서 차이는 Field 정렬 비교로 확인. 정책/접근 범위 완화 없음.
 - 외부 무인증 검사: public entitlements401, public internal POST404, source 제한 밖 workload POST404. 실제 LC 서명200·콘텐츠 C01~C06/E2E는 미실행이며 배포 성공과 구분한다.
 - 운영/LC/Identity/DB/schema/키 변경 없음. 기존 사용자 dirty 변경 보존. 앞선 배포 미실행 기록은 구현 당시 상태이며 이 항목으로 테스트 환경만 갱신한다.
+
+<!-- codex-turn:01a18108-44e3-7273-a3ba-4da4b8dba857 -->
+### 2026-10-28 TMI-224 안전성 검증 및 테스트 전달 준비
+
+- Jira: TMI-224. 브랜치: codex/TMI-224-purchase-eligibility. 목표: 사용자 승인에 따른 남은 보완·검증 후 test-only 전달.
+- 변경 파일: domain/promotion 신규, WorkloadIngressFilter/Properties, application.yml, 정책/서비스/목적 인증 테스트, AGENTS 및 계약/기록 문서.
+- 구현: 기존 workload TLS/LC 수신키를 사용하는 promotion-eligibility 목적 reader 추가. snapshot/readiness·MEMBER 소유증거 및 비전액환불 과거 결제 확인. 현재 기간 만료 허용, 불명/전액환불 제외, 재결제 포함. 준비상태 불명 거절 및 bean 이름 충돌 보완. 원장/권리 쓰기 없음.
+- 테스트: clean test2030/실패0/skip0 성공(격리 Mongo 포함), 환경변수 추가 후 Promotion9개 통과. git diff --check 통과.
+- 유지 계약/결정: 수목KST12시, 비전액환불 구매·광고동의·신청0~3회·활성회원/기기 조건. 기존21시·사용자 API·운영 환경 불변. 새 key/DB collection/index 생성 없음. 공개키 및 test 인증 연결은 실환경에서 별도 검증한다.
+- 위험: 단위/격리 테스트와 실제 서비스 인증·FCM 수신은 별개다. 마지막 재확인 이후 철회와 외부 전송은 원자적이지 않고, marker 후 crash/unknown은 중복방지 우선으로 당일 누락 가능하다.
+- diff: 앞선 TMI-224 미커밋 구현 포함, 무관한 원본 사용자 변경 제외. 예상 밖 범위 변경 없음.
+- 다음: CI/PR/develop 테스트 배포·서비스간 인증/설정 확인. 현재 기록 시점 commit/push/배포 전. 운영 제외.
+- Jira 댓글 초안(미등록): 기존 workload TLS/LC 수신키를 사용하는 promotion-eligibility 목적 reader 추가. snapshot/readiness·MEMBER 소유증거 및 비전액환불 과거 결제 확인. 현재 기간 만료 허용, 불명/전액환불 제외, 재결제 포함. 준비상태 불명 거절 및 bean 이름 충돌 보완. 원장/권리 쓰기 없음. clean test2030/실패0/skip0 성공(격리 Mongo 포함), 환경변수 추가 후 Promotion9개 통과. 테스트 환경 실제 연결·단말 E2E는 전달 후 확인 필요.
