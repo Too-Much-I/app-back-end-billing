@@ -10,6 +10,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class WorkloadJwtProperties {
     private boolean receiverEnabled;
     private boolean learningCoreReceiverEnabled;
+    private boolean promotionEligibilityEnabled;
     private String learningCorePublicJwkSet = "";
     private int port;
     private String environment = "";

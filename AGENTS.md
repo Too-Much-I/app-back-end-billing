@@ -1,5 +1,9 @@
 # 토선생 Billing Service Codex 작업 규칙
 
+## 2026-10-28 TMI-224 운영 반영 승인
+
+- 사용자 이번 작업 한정으로 main 기반 별도 브랜치의 필요한 프로모션 변경·커밋·푸시·main PR 병합 및 기존 운영 배포를 허용했다. 실제 프로모션 발송은 dry-run으로 유지한다. 새 운영 공개키 신뢰/조회 경로는 적용 직전 별도 확인하며 운영 비밀키·기존21시 알림·무관한 develop 변경은 보존한다.
+
 > 2026-10-23 PLAN-016 구현 승인: 사용자 「좋아 이렇게 하는 걸로 브랜치 새로파서 구현해줘」에 따라 [최소 계획](docs/plans/PLAN-016-refund-repurchase-reconciliation.md)·[구현 안내](docs/runbooks/PLAN-016-refund-repurchase-reconciliation.md)를 따른다. 인증 API 최종 refunded evidence 연결·exact 기술 case 종결·종료 원장으로 확인한 금액 UNKNOWN의 접근 차단 분리를 기존 Tx/worker로 구현한다. 과거 bytes·중복 종료 방지·보상 기간 유지, 불명 과거 건은 운영 확인이다. 새 API/collection/flag 없음. 실환경·배포·재처리는 별도이며 기존 일반 환불 미연결 설명은 이 범위에서 대체한다.
 
 > 2026-10-22 익명 original 소유권 예외: 사용자 승인에 따라 [수정 안내](docs/runbooks/revenuecat-anonymous-owner-fix-2026-10-22.md)를 따른다. 인증된 RevenueCat purchase와 완전한 alias 목록으로 해당 회원+익명 ID만 증명된 경우에 한해 original 익명 ID를 인정한다. 웹훅 후보만으로 지급하지 않으며 다른 회원 귀속/원장 멱등성/환경 정책은 유지한다. 기존 strict original 동일 규칙은 이 좁은 범위만 대체한다. 배포·운영 재처리는 별도다.

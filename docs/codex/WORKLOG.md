@@ -7401,3 +7401,15 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - clean test 진행 중. 운영 현재 이미지·flag·ALB 준비 읽기 대조 중이며 제품 동작 변경/DB 쓰기는 아직 없음. 후속: 테스트 통과→승인된 PR 병합/배포→신규 flag만 ON·exact 기존 workload 제한 재사용·기동/경로 확인. LC/Identity 수정은 범위 밖. 예상 밖 제품 diff 없음.
 
 - 최종 로컬 clean test 1,988개 실패0/오류0/skip0 통과. 최초 테스트는 미배포 추천인 fixture 참조로 컴파일 실패했으며 그 fixture 1줄만 제외 후 전체 통과. PR48/main76d071f 병합, 사용자 코드·설정 동시 배포 지시에 따라 실행40481207180은 AWS 단계 전 취소 요청. prod 자동배포 task 렌더링 직전에 PART_LEARNING flag 한 개만 true로 교체하고 readback 검증을 추가한다. test/다른 flag/DB/키 불변, rollback 시 workflow ON 정책도 함께 수정 필요.
+
+<!-- codex-turn:01a1818c-aad2-7f11-8d0a-3f9bf68525b9 -->
+### 2026-10-28 TMI-224 운영 dry-run 전달
+
+- Jira: TMI-224. 브랜치: codex/TMI-224-prod-billing. 목표: main 기반 이번 과제만 운영 전달.
+- 사용자 이번 운영 반영에 한해 커밋·푸시·main 병합·기존 배포 허용. Jira의 과거 테스트 한정 범위는 이번 승인으로 확대, Jira 자체 수정/댓글 없음.
+- 변경 파일: 이번 과제의 서비스별 promotion/marketing 조회·발신 코드와 테스트, application.yml, 계약 문서, AGENTS.md, 작업 기록. 이전 테스트 커밋에서 해당 파일만 patch 이식, develop 전체/TLS 복구 등 무관 변경 제외.
+- 동작/계약: 기존 사용자 API·결제원장·21시 알림 유지. 목적별 workload 인증/최소 응답 및 수목12:00~12:15 정책 유지. 기본OFF, 운영 활성화는 dry-run이며 운영 production 환경·기존 운영 LC키를 사용한다. 새 신뢰/route는 적용 직전 별도 승인.
+- 검증: clean test 실행 중. 실제 운영 DB/FCM 테스트 없음. LC 초기 Mongo 환경 탐지 실패는 Docker29 API버전1.44 실행 옵션으로 해결, 제품 변경 없음.
+- 위험/다음: 테스트 환경에서도 인증된 적격조회·단말E2E 미확인 상태를 숨기지 않음. 실제 발송OFF로 코드/인증/dry-run 단계만 진행. 테스트키 재사용 금지, 시간 강제 변경 없음. 검증 후 PR·배포 결과 추기. 예상 밖 제품 변경 없음, 기존 사용자 작업 보존.
+- Jira 댓글 초안(미등록): 운영 main 기반 TMI-224 분리 전달 준비, dry-run/서비스별 테스트 수행. 실적격응답·단말E2E와 실제 발송 전환은 별도.
+- 최종 운영 후보 clean test: 1997개/실패0/오류0/skip0, 5m30s 성공. 운영 main에 없는 무관한 환불 복구·추천 코드 변경을 포함하지 않아 develop 테스트 총수와 다름. 조회정책 신규 테스트 포함.
