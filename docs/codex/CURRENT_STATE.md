@@ -1,5 +1,8 @@
 # Billing Service 현재 상태
 
+<!-- codex-turn:01a18108-44e3-7273-a3ba-4da4b8dba857 -->
+- 2026-10-28 Jira TMI-224 / codex/TMI-224-purchase-eligibility: 기존 workload TLS/LC 수신키를 사용하는 promotion-eligibility 목적 reader 추가. snapshot/readiness·MEMBER 소유증거 및 비전액환불 과거 결제 확인. 현재 기간 만료 허용, 불명/전액환불 제외, 재결제 포함. 준비상태 불명 거절 및 bean 이름 충돌 보완. 원장/권리 쓰기 없음. clean test2030/실패0/skip0 성공(격리 Mongo 포함), 환경변수 추가 후 Promotion9개 통과. 테스트 전달 준비, 아직 배포/실수신 완료 아님. 운영 불변.
+
 - 2026-10-23 파트별 유료 조회 테스트 ON 완료: PR44/develop d18864ee, Actions39899127119 SUCCESS, test task26·flag true·ALB81 exact POST/기존 LC source 제한 유지. ECS COMPLETED/running1/pending0 및 두 포트 신규 target healthy. 실제 LC 서명조회·콘텐츠 E2E는 후속, 운영/DB 무변경. [배포 기록](../runbooks/PART-LEARNING-ELIGIBILITY.md).
 
 - 2026-10-23 파트별 유료 콘텐츠 조회 구현: `codex/part-learning-eligibility` 신규 브랜치. POST /internal/v1/entitlements/part-learning-eligibility·전용aud·기본OFF·유료전용read-only snapshot·기존 strict decoder/오류 재사용. 최신 콘텐츠전용 보완 수락, submit/create/retry 조회 제외·직접채점 위험 수용·기존 재답변 불변. 전체 clean test 1997개 실패0/오류0/skip0(신규27 포함). [안내](../runbooks/PART-LEARNING-ELIGIBILITY.md). LC/실DB/배포/ON/commit/push 없음.

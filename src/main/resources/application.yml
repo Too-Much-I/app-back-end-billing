@@ -22,6 +22,7 @@ spring:
 
 billing:
   workload-jwt:
+    promotion-eligibility-enabled: ${BILLING_PROMOTION_ELIGIBILITY_ENABLED:false}
     receiver-enabled: ${BILLING_WORKLOAD_JWT_RECEIVER_ENABLED:false}
     learning-core-receiver-enabled: ${BILLING_WORKLOAD_LEARNING_CORE_RECEIVER_ENABLED:false}
     learning-core-public-jwk-set: ${BILLING_WORKLOAD_LEARNING_CORE_PUBLIC_JWK_SET:}
