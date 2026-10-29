@@ -31,8 +31,9 @@ public class PublicSecurityConfig {
     JwtDecoder identityUserJwtDecoder(EntitlementQueryProperties p, Clock clock) { return new IdentityUserJwtDecoder(p, clock); }
 
     @Bean
-    FilterRegistrationBean<PublicIngressFilter> publicIngressGuard(EntitlementQueryProperties p, PublicApiWriter writer, PaymentProperties payments, web.tosunsaeng.billing.domain.reward.InviteRewardProperties rewards, web.tosunsaeng.billing.domain.reward.ReferralRewardProperties referrals) {
-        var registration = new FilterRegistrationBean<>(new PublicIngressFilter(p, writer, payments, rewards, referrals));
+    FilterRegistrationBean<PublicIngressFilter> publicIngressGuard(EntitlementQueryProperties p, PublicApiWriter writer, PaymentProperties payments, web.tosunsaeng.billing.domain.reward.InviteRewardProperties rewards, web.tosunsaeng.billing.domain.reward.ReferralRewardProperties referrals,
+            @org.springframework.beans.factory.annotation.Value("${springdoc.api-docs.enabled:false}") boolean documentationEnabled) {
+        var registration = new FilterRegistrationBean<>(new PublicIngressFilter(p, writer, payments, rewards, referrals, documentationEnabled));
         registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 20);
         return registration;
     }
@@ -94,7 +95,9 @@ public class PublicSecurityConfig {
                 .csrf(c -> c.disable()).cors(c -> c.disable()).httpBasic(c -> c.disable())
                 .formLogin(c -> c.disable()).logout(c -> c.disable()).requestCache(c -> c.disable())
                 .sessionManagement(c -> c.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(c -> c.requestMatchers(PublicIngressFilter.PATH).hasAuthority("SCOPE_billing:read")
+                .authorizeHttpRequests(c -> c.requestMatchers(request -> "GET".equals(request.getMethod())
+                                && PublicIngressFilter.documentation(request.getRequestURI())).permitAll()
+                        .requestMatchers(PublicIngressFilter.PATH).hasAuthority("SCOPE_billing:read")
                         .requestMatchers(org.springframework.http.HttpMethod.GET, PublicIngressFilter.INVITE).hasAuthority("SCOPE_billing:read")
                         .requestMatchers(org.springframework.http.HttpMethod.POST, PublicIngressFilter.INVITE).hasAuthority("SCOPE_billing:purchase")
                         .requestMatchers(org.springframework.http.HttpMethod.POST, PublicIngressFilter.REFERRAL_CODE, PublicIngressFilter.REFERRALS).hasAuthority("SCOPE_billing:purchase")

@@ -92,6 +92,14 @@ jobs:
           digest=$(aws ecr describe-images --repository-name "$ECR_REPOSITORY" --image-ids imageTag="$tag" --query 'imageDetails[0].imageDigest' --output text)
           [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
           echo "uri=$REGISTRY/$ECR_REPOSITORY@$digest" >> "$GITHUB_OUTPUT"
+      - name: Enable documentation only for the test deployment
+        if: steps.target.outputs.channel == 'test'
+        run: |
+          set -euo pipefail
+          jq '.containerDefinitions[0].environment =
+            ((.containerDefinitions[0].environment // [] | map(select(.name != "BILLING_SWAGGER_ENABLED"))) +
+             [{"name":"BILLING_SWAGGER_ENABLED","value":"true"}])' task-definition.json > task-definition-docs.json
+          mv task-definition-docs.json task-definition.json
       - uses: aws-actions/amazon-ecs-render-task-definition@v1
         id: render
         with:

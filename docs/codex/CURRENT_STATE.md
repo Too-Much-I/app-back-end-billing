@@ -1,5 +1,7 @@
 # Billing Service 현재 상태
 
+- 2026-10-29 TMI-223 Swagger 보완: 추천인 두 POST 명시 OpenAPI/UI·test-only flag·GET/port/environment 격리. 기본 OFF/develop 배포만 ON 주입. 이번 commit/push/develop 병합·테스트 배포 승인, main/prod·DB·보상 설정 제외. [안내](../runbooks/REFERRAL-SWAGGER-TEST.md). 실제 배포 완료는 CI/HTTPS 확인 후 판정.
+
 <!-- codex-turn:01a18108-44e3-7273-a3ba-4da4b8dba857 -->
 - 2026-10-28 Jira TMI-224 / codex/TMI-224-purchase-eligibility: 기존 workload TLS/LC 수신키를 사용하는 promotion-eligibility 목적 reader 추가. snapshot/readiness·MEMBER 소유증거 및 비전액환불 과거 결제 확인. 현재 기간 만료 허용, 불명/전액환불 제외, 재결제 포함. 준비상태 불명 거절 및 bean 이름 충돌 보완. 원장/권리 쓰기 없음. clean test2030/실패0/skip0 성공(격리 Mongo 포함), 환경변수 추가 후 Promotion9개 통과. 테스트 전달 준비, 아직 배포/실수신 완료 아님. 운영 불변.
 
