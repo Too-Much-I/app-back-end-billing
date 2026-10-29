@@ -7504,3 +7504,12 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - diff: 앞선 TMI-224 미커밋 구현 포함, 무관한 원본 사용자 변경 제외. 예상 밖 범위 변경 없음.
 - 다음: CI/PR/develop 테스트 배포·서비스간 인증/설정 확인. 현재 기록 시점 commit/push/배포 전. 운영 제외.
 - Jira 댓글 초안(미등록): 기존 workload TLS/LC 수신키를 사용하는 promotion-eligibility 목적 reader 추가. snapshot/readiness·MEMBER 소유증거 및 비전액환불 과거 결제 확인. 현재 기간 만료 허용, 불명/전액환불 제외, 재결제 포함. 준비상태 불명 거절 및 bean 이름 충돌 보완. 원장/권리 쓰기 없음. clean test2030/실패0/skip0 성공(격리 Mongo 포함), 환경변수 추가 후 Promotion9개 통과. 테스트 환경 실제 연결·단말 E2E는 전달 후 확인 필요.
+
+### 2026-10-29 추천인 Swagger 테스트 공개 준비
+
+- Jira TMI-223 읽기 확인, codex/billing-swagger-test. 사용자 승인: 이번 변경 commit/push/develop 병합·test 배포만. 운영 및 타 저장소 제외.
+- 변경: springdoc 2.8.4, 명시 두 POST 계약/schema, 공개 connector GET/SANDBOX/flag 격리, test-only workflow 설정, HTTP/ingress 회귀 테스트 및 안내서.
+- 기존 추천 지급·초대 공유 flag, JWT 업무 인가, DB/키는 불변. 다른 작업트리의 미커밋 자료 보존.
+- 관련 ReferralDocumentation/DocumentationIngress/ReferralRewardController 테스트 통과. 전체 clean test 2,033개 실패0/오류0/skip0 성공. 배포/실제 HTTPS는 후속 확인이며 인증 사용자 보상 E2E 미실행.
+- 위험: Try it out은 실제 테스트 보상을 지급하므로 안내 명시. 토큰 저장 OFF. 내부 API schema는 공개하지 않는다.
+- Jira 상태/댓글은 변경하지 않음. 다음: 전체 테스트 결과 확인 후 develop 전달과 테스트 문서 라우팅/배포 검증.

@@ -1,3 +1,13 @@
+springdoc:
+  api-docs:
+    enabled: ${BILLING_SWAGGER_ENABLED:false}
+  swagger-ui:
+    enabled: ${BILLING_SWAGGER_ENABLED:false}
+    disable-swagger-default-url: true
+    persist-authorization: false
+    validator-url: ""
+  paths-to-match: /api/v1/rewards/referral-code,/api/v1/rewards/referrals
+
 app:
   rewards:
     referral:

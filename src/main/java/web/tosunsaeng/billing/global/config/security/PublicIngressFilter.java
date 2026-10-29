@@ -8,6 +8,11 @@ import web.tosunsaeng.billing.domain.entitlement.config.EntitlementQueryProperti
 import web.tosunsaeng.billing.domain.payment.config.PaymentProperties;
 
 public class PublicIngressFilter extends OncePerRequestFilter {
+    public static boolean documentation(String path) {
+        return "/swagger-ui.html".equals(path) || path.startsWith("/swagger-ui/")
+                || "/v3/api-docs".equals(path) || "/v3/api-docs/swagger-config".equals(path);
+    }
+    private boolean documentationEnabled;
     public static final String INVITE = "/api/v1/rewards/invite-shares";
     public static final String REFERRAL_CODE = "/api/v1/rewards/referral-code";
     public static final String REFERRALS = "/api/v1/rewards/referrals";
@@ -43,11 +48,25 @@ public class PublicIngressFilter extends OncePerRequestFilter {
         this.properties = properties; this.writer = writer; this.payments = payments; this.rewards = rewards;
         this.referrals = referrals;
     }
+    public PublicIngressFilter(EntitlementQueryProperties properties, PublicApiWriter writer, PaymentProperties payments,
+            web.tosunsaeng.billing.domain.reward.InviteRewardProperties rewards,
+            web.tosunsaeng.billing.domain.reward.ReferralRewardProperties referrals, boolean documentationEnabled) {
+        this(properties, writer, payments, rewards, referrals);
+        this.documentationEnabled = documentationEnabled;
+    }
     @Override protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         // Local port comes from the connector; forwarded/host/identity headers cannot select a trust boundary.
         boolean publicPort = request.getLocalPort() == properties.getPublicPort();
         String path = request.getRequestURI();
+        if (documentation(path)) {
+            if (!documentationEnabled || !"SANDBOX".equals(payments.getEnvironment())
+                    || !publicPort || !properties.isPublicConnectorEnabled() || !"GET".equals(request.getMethod())) {
+                writer.error(response, 404, "NOT_FOUND"); return;
+            }
+            response.setHeader("Cache-Control", "no-store");
+            chain.doFilter(request, response); return;
+        }
         // The earlier provider guard and its exclusive security chain own this exact route, including OFF rejection.
         if (web.tosunsaeng.billing.domain.payment.provider.RevenueCatWebhookFilter.PATH.equals(path)) { chain.doFilter(request, response); return; }
         if (publicPort || path.startsWith("/api/")) {
