@@ -1,5 +1,9 @@
 # Billing Service 현재 상태
 
+- 2026-10-29 추천인 종료 구분 보완: promotion-ended 기본false, 종료410 REFERRAL_PROMOTION_ENDED·기능OFF503 REFERRAL_TEMPORARILY_UNAVAILABLE·경로404 분리. 종료 전 성공 적용200 재현·중복 지급 방지 유지. 테스트 진행상태 유지 배포 요청/commit·push·develop 승인, 운영 제외. 전체 회귀 검증 진행 중.
+
+- 2026-10-29 테스트 Swagger 배포 완료: commit a786f95 → PR52 → develop 376d8d9, Actions40822519020 SUCCESS. test31 배포·이미지/target 안정화 검사 통과. 문서/UI/config/JS/CSS200, 추천인 무인증401, 초대404·prod docs404 확인. 추천ON/초대OFF 유지, 실제 보상 호출 없음.
+
 - 2026-10-29 TMI-223 Swagger 보완: 추천인 두 POST 명시 OpenAPI/UI·test-only flag·GET/port/environment 격리. 기본 OFF/develop 배포만 ON 주입. 이번 commit/push/develop 병합·테스트 배포 승인, main/prod·DB·보상 설정 제외. [안내](../runbooks/REFERRAL-SWAGGER-TEST.md). 실제 배포 완료는 CI/HTTPS 확인 후 판정.
 
 <!-- codex-turn:01a18108-44e3-7273-a3ba-4da4b8dba857 -->

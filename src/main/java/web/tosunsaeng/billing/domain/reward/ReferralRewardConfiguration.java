@@ -18,7 +18,8 @@ public class ReferralRewardConfiguration {
     @ConditionalOnProperty(prefix = "app.rewards.referral", name = "enabled", havingValue = "true")
     ReferralRewardService referralRewardService(PaidExamTransactions tx, PaidReservationService admissionReadiness,
             PaidExamQueryReader readerReadiness, PaymentStore store, PaymentProperties payment,
-            EntitlementQueryProperties jwt, WorkloadJwtProperties workload, Clock clock, Environment env) {
+            EntitlementQueryProperties jwt, WorkloadJwtProperties workload, Clock clock, Environment env,
+            ReferralRewardProperties referral) {
         if (!jwt.isPublicConnectorEnabled() || !payment.isPurchaseAccountEnabled() || !payment.isMemberEvidenceEnabled()
                 || !payment.isEntitlementQueryEnabled() || !payment.getRecovery().isFenceRequired()
                 || !env.getProperty("billing.reservation.paid-recovery-enabled", Boolean.class, false)
@@ -26,6 +27,6 @@ public class ReferralRewardConfiguration {
             throw new IllegalStateException("Referral rewards require MEMBER/recovery/admission/readers and invite-share OFF");
         workload.validateEnvironment(payment.getEnvironment());
         ReferralRewardSchema.verify(store.database());
-        return new ReferralRewardService(tx, store, payment, workload.getEnvironment(), jwt.getIssuer(), clock);
+        return new ReferralRewardService(tx, store, payment, workload.getEnvironment(), jwt.getIssuer(), clock, referral);
     }
 }

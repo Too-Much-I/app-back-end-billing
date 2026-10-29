@@ -44,6 +44,21 @@ class ReferralRewardControllerTest {
         when(rewards.issue(any())).thenReturn(new ReferralRewardService.Code("ABCDEFGHJK"));
         when(rewards.apply(any(), eq(KEY), eq("ABCDEFGHJK"))).thenReturn(new ReferralRewardService.Applied(KEY, true, 1, 1));
     }
+    @Test void offIsTemporaryAndEndedHasDistinctCode() throws Exception {
+        properties.setEnabled(false);
+        try {
+            mvc.perform(issue()).andExpect(status().isServiceUnavailable())
+                    .andExpect(jsonPath("code").value("REFERRAL_TEMPORARILY_UNAVAILABLE"))
+                    .andExpect(header().string("Retry-After", "5"));
+            mvc.perform(post(PublicIngressFilter.REFERRAL_CODE).with(r -> { r.setLocalPort(8083); return r; }))
+                    .andExpect(status().isUnauthorized());
+            verifyNoInteractions(rewards);
+        } finally { properties.setEnabled(true); }
+        when(rewards.apply(any(), any(), any())).thenThrow(new PaymentException(410, "REFERRAL_PROMOTION_ENDED"));
+        mvc.perform(apply()).andExpect(status().isGone())
+                .andExpect(jsonPath("code").value("REFERRAL_PROMOTION_ENDED"))
+                .andExpect(header().doesNotExist("Retry-After"));
+    }
     static Jwt token(String type, String scope) {
         return Jwt.withTokenValue("fake").header("alg", "RS256").issuer("https://identity.test")
                 .audience(List.of("tosunsaeng-billing")).subject(USER).claim("account_type", type).claim("scope", scope)
@@ -75,7 +90,8 @@ class ReferralRewardControllerTest {
         mvc.perform(get(PublicIngressFilter.REFERRALS + "/me").with(r -> { r.setLocalPort(8083); return r; })).andExpect(status().isNotFound());
         mvc.perform(apply().with(r -> { r.setLocalPort(8082); return r; }).header("X-Forwarded-Port", "8083")).andExpect(status().isNotFound());
         properties.setEnabled(false);
-        mvc.perform(issue()).andExpect(status().isNotFound()); mvc.perform(apply()).andExpect(status().isNotFound());
+        mvc.perform(issue()).andExpect(status().isServiceUnavailable()).andExpect(jsonPath("code").value("REFERRAL_TEMPORARILY_UNAVAILABLE"));
+        mvc.perform(apply()).andExpect(status().isServiceUnavailable()).andExpect(jsonPath("code").value("REFERRAL_TEMPORARILY_UNAVAILABLE"));
         verifyNoInteractions(rewards);
     }
     @Test void memberScopeAndAuthenticationRequired() throws Exception {

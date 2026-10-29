@@ -44,9 +44,9 @@ public class ReferralRewardController {
         String outcome = "SUCCESS";
         long began = System.nanoTime();
         try {
-            if (!properties.isEnabled()) throw new PaymentException(404, "NOT_FOUND");
             if (principal == null) throw new PaymentException(401, "UNAUTHENTICATED");
             if (!"MEMBER".equals(principal.getClaims().get("account_type"))) throw new PaymentException(403, "FORBIDDEN");
+            if (!properties.isEnabled()) throw new PaymentException(503, "REFERRAL_TEMPORARILY_UNAVAILABLE");
             if (request.getQueryString() != null) throw new PaymentException(400, "INVALID_REQUEST");
             String operationId = null, code = null;
             if (apply) {

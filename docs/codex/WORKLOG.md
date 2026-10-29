@@ -7513,3 +7513,18 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - 관련 ReferralDocumentation/DocumentationIngress/ReferralRewardController 테스트 통과. 전체 clean test 2,033개 실패0/오류0/skip0 성공. 배포/실제 HTTPS는 후속 확인이며 인증 사용자 보상 E2E 미실행.
 - 위험: Try it out은 실제 테스트 보상을 지급하므로 안내 명시. 토큰 저장 OFF. 내부 API schema는 공개하지 않는다.
 - Jira 상태/댓글은 변경하지 않음. 다음: 전체 테스트 결과 확인 후 develop 전달과 테스트 문서 라우팅/배포 검증.
+
+### 2026-10-29 추천인 Swagger 테스트 배포 완료
+
+- 승인된 commit a786f95·push·PR52/develop merge376d8d9 완료. Actions40822519020 SUCCESS, test31·expected image·healthy targets·ECS 안정화 검증 통과.
+- 추가 사용자 승인 후 테스트 host의 GET 문서만 ALB84/85로 기존8083 target 연결. 운영/다른 경로/DB/키 변경 없음.
+- 실제 HTTPS UI/JS/CSS/config/OpenAPI200, 정확한 추천인2개 paths. 문서POST404·추천인무인증401·초대404·entitlements401·prod docs404 확인.
+- 추천ON/초대OFF 유지. 실제 보상 지급·인증사용자 E2E 미실행. 이 사후 결과 기록은 배포 코드와 별도의 로컬 기록이다.
+
+### 2026-10-29 추천인 이벤트 종료 코드 분리
+
+- 사용자 요청:410 REFERRAL_PROMOTION_ENDED, 임시OFF503, 경로404 구분 및 test 배포. codex/referral-promotion-ended, 이번 commit/push/develop 승인. 운영/DB/타 저장소 제외.
+- 새 promotion-ended 기본false. service의 기존 성공 분기 이후에 신규 적용 종료 검사, 코드 발급/재조회 종료410. 재현200/409·탈퇴 우선·단일Tx 유지. OFF도 인증 필요하며503 Retry-After5.
+- 컨트롤러·Mongo통합 종료/재현/무지급 테스트, Swagger·계약·기술규격·runbook 갱신. 기동 테스트 생성자 누락 수정 후 전체 테스트 재실행 중.
+- 직전 Swagger 배포의 사후 기록3개를 보존·포함. 실제 이벤트 종료나 보상 지급 검증은 실행하지 않는다.
+- 전체 clean test 2035개 실패0/오류0/skip0 통과. 최종 인증 우선순서 조정은 컨트롤러 테스트 추가 재검증 및 CI 전체 재검증 대상이다.

@@ -12,3 +12,10 @@
 ## 검증
 
 로컬 HTTP 문서/UI·정확한 두 경로/schema·JWT 유지·OFF/운영/port/method 차단 회귀 테스트. 배포 후 CI 성공·ECS 안정화·문서 200·추천 무인증 401·운영 문서 404 확인. 인증 사용자 보상 E2E와는 구분한다.
+
+## 2026-10-29 적용 결과
+
+- commit a786f95 / PR52 / develop 376d8d9, Actions 40822519020 SUCCESS. test30 → test31, 배포 이미지 일치·모든 target healthy·ECS COMPLETED 검증 통과.
+- 승인된 ALB84(UI)·85(OpenAPI) GET 규칙 추가, 기존 테스트 8083 target 사용. 다른 규칙/운영 무변경.
+- HTTPS UI/JS/CSS/config/OpenAPI200, 정확한 두 POST 노출, 문서POST404·추천무인증401·초대404·entitlements401·prod docs404.
+- 로컬 전체 2033개 테스트 실패0/오류0/skip0. 보상 지급 E2E는 실행하지 않았다.

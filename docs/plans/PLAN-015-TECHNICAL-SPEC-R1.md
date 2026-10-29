@@ -22,7 +22,7 @@
 ### 공통
 
 - 기존 public connector·HTTPS·`isSuccess/code/message/result` envelope·`Cache-Control: no-store`·`X-Trace-Id` 재사용.
-- 두 POST 모두 MEMBER + billing:purchase. 다른 method405, 기능OFF404, query(빈 query 포함)400. 기존 entitlements의 billing:read는 변경하지 않는다.
+- 두 POST 모두 MEMBER + billing:purchase. 다른 method405, 기능OFF503 REFERRAL_TEMPORARILY_UNAVAILABLE, query(빈 query 포함)400. 명시적 종료는410 REFERRAL_PROMOTION_ENDED이며 기존 성공 적용 재현200은 유지한다. 기존 entitlements의 billing:read는 변경하지 않는다.
 - 코드 발급 POST는 body 없음(공백/{}도400). 코드 적용 POST는 application/json, UTF-8 body 최대1,024 byte; 초과413, 다른 media type415.
 - 적용 decoder는 중복 필드/unknown field/trailing token/null/비문자 code를400으로 거절한다. code 입력 원문 최대64자, ASCII 공백을 양끝에서 제거하고 ASCII 소문자만 대문자로 바꾼다. 내부공백/Unicode 치환은 허용하지 않는다.
 - 코드: `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` 중 SecureRandom으로10자리. 환경·code unique 충돌 시 새 Transaction에서 최대5회 재생성, 소진503. 코드값·토큰·userId는 로그/metric label에 기록하지 않는다.
