@@ -71,9 +71,10 @@ public class PublicIngressFilter extends OncePerRequestFilter {
         if (web.tosunsaeng.billing.domain.payment.provider.RevenueCatWebhookFilter.PATH.equals(path)) { chain.doFilter(request, response); return; }
         if (publicPort || path.startsWith("/api/")) {
             writer.headers(response);
-            boolean enabled = referral(path) ? referrals.isEnabled() : INVITE.equals(path) ? rewards.isEnabled() : PATH.equals(path) ? properties.isEnabled()
+            // Referral OFF is an authenticated temporary-unavailable response, not a missing route.
+            boolean enabled = referral(path) || (INVITE.equals(path) ? rewards.isEnabled() : PATH.equals(path) ? properties.isEnabled()
                     : PRODUCTS.equals(path) ? payments.isCatalogEnabled() : SYNC.equals(path) ? payments.isSyncEnabled()
-                    : ACCOUNT.equals(path) && payments.isPurchaseAccountEnabled();
+                    : ACCOUNT.equals(path) && payments.isPurchaseAccountEnabled());
             if (!publicPort || !properties.isPublicConnectorEnabled() || !enabled) {
                 writer.error(response, 404, "NOT_FOUND"); return;
             }

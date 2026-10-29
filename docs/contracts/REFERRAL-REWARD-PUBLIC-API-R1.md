@@ -52,7 +52,9 @@ body 최대1,024 byte, code 원문최대64자. 양끝 ASCII space 제거·ASCII 
 | 401 | UNAUTHENTICATED | 인증 복구 후 같은 계정 요청만 재시도 |
 | 403 | FORBIDDEN | Guest/권한 부족, 중단 |
 | 403 | PAYMENT_ACCOUNT_WITHDRAWN | 탈퇴, 중단 |
-| 404 | NOT_FOUND | 기능OFF/경로/배포 확인 |
+| 404 | NOT_FOUND | 경로/배포 확인. 이벤트 종료로 판단하지 않음 |
+| 410 | REFERRAL_PROMOTION_ENDED | 명시적 이벤트 종료, 신규 적용 중단 |
+| 503 | REFERRAL_TEMPORARILY_UNAVAILABLE | 기능 OFF·일시 중단, Retry-After 이후 재시도 |
 | 405 | METHOD_NOT_ALLOWED | POST 사용 |
 | 409 | PURCHASE_ACCOUNT_REQUIRED | purchase-account 준비, 구매 불필요 |
 | 409 | IDEMPOTENCY_KEY_CONFLICT | key 관리 오류 확인 |
@@ -65,3 +67,5 @@ body 최대1,024 byte, code 원문최대64자. 양끝 ASCII space 제거·ASCII 
 | 503 | BILLING_TEMPORARILY_UNAVAILABLE | 확인 불가, Retry-After(기본5초) 이후 재시도 |
 
 프론트 순서: 회원가입 UI 선택입력 → Identity 가입/로그인 성공 → purchase-account → 코드 적용 → entitlements 재조회. 추천 실패로 회원가입을 취소하지 않는다. 회원가입 시점의 UI 제한만 사용하며 서버 가입시점·추가전화·기기 검사는 없다. 공유 보상 POST와 함께 호출하지 않는다.
+
+종료는 `REFERRAL_PROMOTION_ENDED=true`로 별도 설정하며 기본 false다. enabled=true를 유지해야 종료 전 성공한 같은 코드 요청을 기존 200으로 재현할 수 있다(같은/다른 key 모두 기존 규칙 유지). 다른 코드의 409 및 탈퇴 차단은 유지한다. 코드 발급·재조회는 종료 시 410이다. enabled=false는 종료가 아닌 503이며 재현도 일시 중단한다. 미인증/권한 부족은 기존 401/403이 우선한다.

@@ -50,6 +50,8 @@ owner 없는 code tombstone은 재발급 방지를 위해 남긴다. **그 보�
 
 rollback은 referral OFF·공유OFF 유지다. 이미 지급된 REFERRAL을 읽을 수 있는 이미지로만 되돌린다. 신규 grant를 알지 못하는 구버전 rollback이나 권리 회수·DB drop은 하지 않는다.
 
+2026-10-29 종료/일시중단 구분: `REFERRAL_PROMOTION_ENDED` 기본 false. 이벤트 종료는 enabled=true + promotion-ended=true로 배포한다. 새 적용·코드 발급/재조회410 `REFERRAL_PROMOTION_ENDED`, 기존 성공 같은 코드 재요청200 유지. 기능 enabled=false는 인증된 요청에503 `REFERRAL_TEMPORARILY_UNAVAILABLE`이며 종료 표시로 사용하지 않는다. 혼합 버전/설정 배포 중에는 기존 태스크에서 접수될 수 있으므로 전체 교체 완료 시점을 종료 기준으로 사용한다. 새 DB/schema/API 없음. 테스트 배포는 진행 상태(false)를 유지한다.
+
 ## 5. 검증·남는 위험
 
 로컬 가짜 JWT 및 disposable replica-set Testcontainers로 HTTP/strict JSON/권한·환경/기능OFF, 양쪽지급·단일Tx rollback·unique·동시성·unknown commit·탈퇴경합·120일 정리·기존 INVITE·paid-first/예약/재시작/재답변을 검사한다. 최종 전체 테스트 수치와 실패 이력은 WORKLOG/CURRENT_STATE에 기록한다.

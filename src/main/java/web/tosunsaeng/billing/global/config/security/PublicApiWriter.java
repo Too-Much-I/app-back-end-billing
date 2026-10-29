@@ -88,6 +88,8 @@ public class PublicApiWriter {
             case "SELF_REFERRAL_NOT_ALLOWED" -> "본인의 추천 코드는 사용할 수 없습니다.";
             case "REFERRAL_ALREADY_APPLIED" -> "이미 추천 코드를 적용한 계정입니다.";
             case "REFERRAL_CODE_UNAVAILABLE" -> "사용할 수 없는 추천 코드입니다.";
+            case "REFERRAL_PROMOTION_ENDED" -> "추천인 이벤트가 종료됐습니다.";
+            case "REFERRAL_TEMPORARILY_UNAVAILABLE" -> "추천인 이벤트를 잠시 이용할 수 없습니다. 잠시 후 다시 시도해 주세요.";
             case "PAYMENT_ACCOUNT_WITHDRAWN" -> "탈퇴한 계정은 사용할 수 없습니다.";
             case "BILLING_TEMPORARILY_UNAVAILABLE" -> "추천 보상 정보를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.";
             default -> PublicResponse.failure(code).message();

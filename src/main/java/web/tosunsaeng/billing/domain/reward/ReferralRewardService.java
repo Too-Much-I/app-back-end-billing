@@ -27,10 +27,16 @@ public class ReferralRewardService {
     private final PaymentRecoveryFence fence;
     private final String environment, issuer;
     private final Clock clock;
+    private final ReferralRewardProperties promotion;
     private final SecureRandom random = new SecureRandom();
 
     public ReferralRewardService(PaidExamTransactions tx, PaymentStore store, PaymentProperties payment,
             String environment, String issuer, Clock clock) {
+        this(tx, store, payment, environment, issuer, clock, new ReferralRewardProperties());
+    }
+    public ReferralRewardService(PaidExamTransactions tx, PaymentStore store, PaymentProperties payment,
+            String environment, String issuer, Clock clock, ReferralRewardProperties promotion) {
+        this.promotion = promotion;
         this.tx = tx; this.store = store; this.payment = payment; this.environment = environment;
         this.issuer = issuer; this.clock = clock; this.fence = new PaymentRecoveryFence(store, payment);
         require(payment.getRecovery().isFenceRequired() && issuer != null && !issuer.isBlank()
@@ -39,6 +45,7 @@ public class ReferralRewardService {
     }
     public Code issue(VerifiedMemberEvidence evidence) {
         ready(evidence);
+        requirePromotionOpen();
         var ticket = fence.capture();
         for (int attempt = 0; attempt < 5; attempt++) {
             String candidate = randomCode(), id = UUID.randomUUID().toString();
@@ -54,6 +61,7 @@ public class ReferralRewardService {
                     require(account.getString("_id").equals(old.getString("accountId")));
                     deadline(evidence); return new Code(old.getString("code"));
                 }
+                requirePromotionOpen();
                 if (one(c, CODES, key("code", candidate)) != null) return null;
                 c.operations().insert(key("code", candidate).append("_id", id).append("schemaVersion", 1L)
                         .append("ownerUserId", evidence.userId()).append("accountId", account.getString("_id"))
@@ -85,6 +93,7 @@ public class ReferralRewardService {
                 touch(c, user); deadline(evidence);
                 return new Applied(old.getString("_id"), true, 1, 1);
             }
+            requirePromotionOpen();
             Document referral = one(c, CODES, key("code", code));
             if (referral == null || referral.getString("ownerUserId") == null)
                 throw new PaymentException(422, "REFERRAL_CODE_UNAVAILABLE");
@@ -114,6 +123,9 @@ public class ReferralRewardService {
             deadline(evidence);
             return new Applied(applicationId, true, 1, 1);
         });
+    }
+    private void requirePromotionOpen() {
+        if (promotion.isPromotionEnded()) throw new PaymentException(410, "REFERRAL_PROMOTION_ENDED");
     }
     public static String normalize(String raw) {
         if (raw == null || raw.length() > 64) throw new PaymentException(400, "INVALID_REQUEST");

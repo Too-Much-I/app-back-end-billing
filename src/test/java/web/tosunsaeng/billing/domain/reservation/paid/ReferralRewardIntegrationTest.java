@@ -15,9 +15,11 @@ import static org.assertj.core.api.Assertions.*;
 class ReferralRewardIntegrationTest extends PaidReservationTestSupport {
     static final String OWNER = "33333333-3333-4333-8333-333333333333";
     ReferralRewardService referrals;
+    ReferralRewardProperties promotion;
     @BeforeEach void referralSetup() {
         ReferralRewardSchema.installUnderMaintenance(db, true);
-        referrals = new ReferralRewardService(tx, payment, properties, "test", ISSUER, clock);
+        promotion = new ReferralRewardProperties();
+        referrals = new ReferralRewardService(tx, payment, properties, "test", ISSUER, clock, promotion);
     }
     String key() { return UUID.randomUUID().toString(); }
     VerifiedMemberEvidence member(String user) {
@@ -44,6 +46,27 @@ class ReferralRewardIntegrationTest extends PaidReservationTestSupport {
     long count(String collection) { return db.getCollection(collection).countDocuments(); }
     void withdraw(String user) {
         payment.transaction(s -> new PaymentWithdrawalApplier(payment, properties, clock).applyFact(s, new WithdrawalFact(user, NOW)));
+    }
+    @Test void endedPromotionRejectsNewWritesButReplaysCommittedSuccess() {
+        String code = prepare();
+        promotion.setPromotionEnded(true);
+        assertThatThrownBy(() -> referrals.apply(evidence(), OP, code))
+                .isInstanceOfSatisfying(PaymentException.class, e -> {
+                    assertThat(e.status()).isEqualTo(410);
+                    assertThat(e.code()).isEqualTo("REFERRAL_PROMOTION_ENDED");
+                });
+        failure(() -> referrals.issue(member(OWNER)), "REFERRAL_PROMOTION_ENDED");
+        assertThat(count("entitlement_grants")).isZero();
+        assertThat(count(ReferralRewardService.APPLICATIONS)).isZero();
+        promotion.setPromotionEnded(false);
+        var result = referrals.apply(evidence(), OP, code);
+        promotion.setPromotionEnded(true);
+        assertThat(referrals.apply(evidence(), OP, code)).isEqualTo(result);
+        assertThat(referrals.apply(evidence(), key(), code)).isEqualTo(result);
+        failure(() -> referrals.apply(evidence(), OP, code.equals("ABCDEFGHJK") ? "BCDEFGHJKL" : "ABCDEFGHJK"), "IDEMPOTENCY_KEY_CONFLICT");
+        assertThat(count("entitlement_grants")).isEqualTo(2);
+        withdraw(USER);
+        failure(() -> referrals.apply(evidence(), OP, code), "PAYMENT_ACCOUNT_WITHDRAWN");
     }
     @Test void stableCodeAndNoIssuanceUntilApplication() {
         String code = prepare();

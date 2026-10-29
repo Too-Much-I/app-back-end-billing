@@ -66,14 +66,15 @@ public class ReferralOpenApiConfiguration {
                 Map.entry("400", "INVALID_REQUEST: 형식 수정, 자동 반복 금지"),
                 Map.entry("401", "UNAUTHENTICATED: 인증 복구 후 같은 계정으로 재시도"),
                 Map.entry("403", "FORBIDDEN / PAYMENT_ACCOUNT_WITHDRAWN: 권한 부족·탈퇴, 중단"),
-                Map.entry("404", "NOT_FOUND: 기능 OFF·잘못된 경로"),
+                Map.entry("404", "NOT_FOUND: 미배포·잘못된 경로. 이벤트 종료로 판단하지 않습니다."),
+                Map.entry("410", "REFERRAL_PROMOTION_ENDED: 이벤트 종료. 신규 적용 중단; 종료 전 성공한 같은 코드 요청은 기존 200 재현."),
                 Map.entry("405", "METHOD_NOT_ALLOWED: POST 사용"),
                 Map.entry("409", "PURCHASE_ACCOUNT_REQUIRED / IDEMPOTENCY_KEY_CONFLICT / REFERRAL_ALREADY_APPLIED / SELF_REFERRAL_NOT_ALLOWED"),
                 Map.entry("413", "PAYLOAD_TOO_LARGE: body 크기 수정"),
                 Map.entry("415", "UNSUPPORTED_MEDIA_TYPE: application/json UTF-8 사용"),
                 Map.entry("422", "REFERRAL_CODE_UNAVAILABLE: 없거나 사용 불가 코드"),
                 Map.entry("429", "RATE_LIMITED: Retry-After 이후 재시도"),
-                Map.entry("503", "BILLING_TEMPORARILY_UNAVAILABLE / AUTHENTICATION_TEMPORARILY_UNAVAILABLE: Retry-After 이후 재시도"));
+                Map.entry("503", "REFERRAL_TEMPORARILY_UNAVAILABLE / BILLING_TEMPORARILY_UNAVAILABLE / AUTHENTICATION_TEMPORARILY_UNAVAILABLE: 일시 중단·확인 불가. Retry-After 이후 재시도"));
         errors.forEach((status, text) -> {
             var response = new ApiResponse().description(text).content(json(envelope(new Schema<>().nullable(true), false, text.split(":| / ")[0])));
             if (status.equals("429") || status.equals("503")) response.addHeaderObject("Retry-After",

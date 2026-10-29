@@ -29,7 +29,7 @@ class ReferralRewardConfigurationTest {
         var env = new org.springframework.mock.env.MockEnvironment().withProperty("billing.reservation.paid-recovery-enabled", "true")
                 .withProperty("app.rewards.invite-share.enabled", "true");
         assertThatThrownBy(() -> new ReferralRewardConfiguration().referralRewardService(null, null, null, store, payment, jwt,
-                null, java.time.Clock.systemUTC(), env)).isInstanceOf(IllegalStateException.class).hasMessageContaining("invite-share OFF");
+                null, java.time.Clock.systemUTC(), env, new ReferralRewardProperties())).isInstanceOf(IllegalStateException.class).hasMessageContaining("invite-share OFF");
         org.mockito.Mockito.verifyNoInteractions(store);
     }
 }
