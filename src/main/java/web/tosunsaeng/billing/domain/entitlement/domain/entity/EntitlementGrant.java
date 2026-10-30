@@ -85,6 +85,10 @@ public class EntitlementGrant {
             String awardId, long grantOrder, Instant now) {
         return memberGrant(grantId, environment, ownerUserId, "INVITE", awardId, grantOrder, now);
     }
+    public static EntitlementGrant referral(String grantId, String environment, String ownerUserId,
+            String applicationRole, long grantOrder, Instant now) {
+        return memberGrant(grantId, environment, ownerUserId, "REFERRAL", applicationRole, grantOrder, now);
+    }
     private static EntitlementGrant memberGrant(String grantId, String environment, String ownerUserId,
             String sourceType, String sourceId, long grantOrder, Instant now) {
         if (!java.util.Set.of("test", "staging", "production").contains(environment)

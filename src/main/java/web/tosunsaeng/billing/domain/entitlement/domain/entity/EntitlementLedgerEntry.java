@@ -99,6 +99,16 @@ public class EntitlementLedgerEntry {
         return entry;
     }
 
+    public static EntitlementLedgerEntry referral(String ledgerEventId, EntitlementGrant grant, Instant now) {
+        if (!"REFERRAL".equals(grant.getSourceType()) || grant.getOwnerUserId() == null)
+            throw new IllegalArgumentException("A MEMBER referral grant is required");
+        var entry = new EntitlementLedgerEntry(ledgerEventId, grant.getGrantId(), 1, EventType.GRANTED,
+                null, null, null, null, "REFERRAL:" + grant.getEnvironment() + ":" + grant.getSourceId(), now);
+        entry.environment = grant.getEnvironment(); entry.ownerUserId = grant.getOwnerUserId();
+        entry.sourceType = "REFERRAL"; entry.sourceId = grant.getSourceId();
+        return entry;
+    }
+
     public static EntitlementLedgerEntry reserved(
             String ledgerEventId,
             String grantId,

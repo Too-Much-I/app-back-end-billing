@@ -51,7 +51,7 @@ public class ReanswerService {
                 .maxTime(EntitlementSnapshotExecutor.remaining()), Document.class, "entitlement_grants");
         require(grants.size() <= 1000);
         for (var grant : grants) {
-            require(Set.of("INVITE", "TRIAL_PAID_RESTORATION").contains(grant.getString("sourceType"))
+            require(Set.of("INVITE", "REFERRAL", "TRIAL_PAID_RESTORATION").contains(grant.getString("sourceType"))
                     && grant.get("grantOrder") instanceof Long order && order > 0
                     && grant.get("totalUnits") instanceof Integer total && total == 1
                     && grant.get("heldUnits") instanceof Integer held && held == 0
