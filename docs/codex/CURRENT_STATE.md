@@ -1,5 +1,7 @@
 # Billing Service 현재 상태
 
+- 2026-10-30 TMI-223 운영 추천인 승격 준비: main 기반 `codex/referral-prod`, 사용자 이번 commit/push/main 병합·무중단 schema·추천인ON/공유OFF 승인. 기존 종료410/replay200·일시중단503 유지. r2 optional unlink 시각/연결정리 후 추가120일·사용자 월간 수동 정리 정책, r1 read 호환·구 unlink 시각 추측 금지. 운영 Swagger 비공개·기존 워크플로 보존. clean test2038/실패0/오류0/skip0, 도구6개 통과·JAR entrypoint 누락설정 거절 확인. 아직 운영 DB/배포/활성화 완료 아님.
+
 <!-- codex-turn:01a1818c-aad2-7f11-8d0a-3f9bf68525b9 -->
 - 2026-10-28 TMI-224 운영 main 기반 전용 브랜치 전달 준비. clean test1997/실패0/오류0/skip0 성공. 사용자 이번 작업 commit/push/main 병합/운영 배포 승인. 실제 프로모션은 dry-run 유지, 새 운영 신뢰 등록은 별도 적용 전 확인. 운영 배포/인증 연결·실수신 검증 아직 미완료.
 

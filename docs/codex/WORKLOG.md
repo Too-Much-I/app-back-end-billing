@@ -7413,3 +7413,12 @@ LC는 새 ZIP/hash를 대조하고 자체 독립 검증을 재실행하면 된�
 - 위험/다음: 테스트 환경에서도 인증된 적격조회·단말E2E 미확인 상태를 숨기지 않음. 실제 발송OFF로 코드/인증/dry-run 단계만 진행. 테스트키 재사용 금지, 시간 강제 변경 없음. 검증 후 PR·배포 결과 추기. 예상 밖 제품 변경 없음, 기존 사용자 작업 보존.
 - Jira 댓글 초안(미등록): 운영 main 기반 TMI-224 분리 전달 준비, dry-run/서비스별 테스트 수행. 실적격응답·단말E2E와 실제 발송 전환은 별도.
 - 최종 운영 후보 clean test: 1997개/실패0/오류0/skip0, 5m30s 성공. 운영 main에 없는 무관한 환불 복구·추천 코드 변경을 포함하지 않아 develop 테스트 총수와 다름. 조회정책 신규 테스트 포함.
+
+### 2026-10-30 TMI-223 추천인 운영 무중단 승격 준비
+
+- 브랜치 codex/referral-prod, main fb9a014 기반. 사용자 이번 commit/push/main 병합·무중단 설치·추천인ON/공유OFF 승인. 기존 작업트리 사용자 변경은 보존.
+- 변경: 추천인 코드/적용·종료410/일시중단503·관련 보안/rate limit/무료권 연결 및 테스트/문서를 develop에서 선별 통합. Swagger는 기본OFF이며 production ingress 차단, 운영 ALB 공개 없음. 기존 production workflow/파트 학습/프로모션 설정 무변경.
+- 신규 도구: ReferralOnlineBootstrap 및 referral-prod-online.py, referral schema additive online 메서드. 모든 referral writer OFF와 관련 데이터 없음 확인 후에만 collection2/index7 설치; stop/control 변경/collMod/drop/지급 없음. 기존 paid traffic 유지, 최소healthy100/최대200 rolling 조건 검사.
+- 승인된 보존: 성공120일 보장 후 탈퇴 연결정리, unlinkedAt부터 코드만 추가120일 후 사용자 월간 수동 정리. 기존 r1 startup/read 호환, r1 연결정리는 명시 validator 이관 필요; 시각 불명 legacy tombstone 삭제 금지. 실제 purge/개인정보처리방침 검토는 미수행.
+- 검증: 전체 clean test 진행 중; 온라인 설치 전제·기존 구매/control 보존·tombstone 경계/멱등/legacy 보호 통합 테스트 추가. 배포 완료 및 실제 회원 지급 E2E는 아직 아님. 예상 밖 제품 변경 없음. 후속: 테스트→PR/main→OFF 배포→schema→ALB/ON rolling→health/flag 확인.
+- 최종 clean test2038/실패0/오류0/skip0, 4m55s 성공. Python rollout 사전조건6개 통과. 추가 CLI 포함 bootJar 성공, PropertiesLauncher 진입점은 설정 누락 시 DB 접근 전 redacted 오류/exit1 확인. 운영 prod27 desired/running1·pending0·COMPLETED 및 minimumHealthy100/maximum200 확인. 추천인/공유/Swagger flag 미설정 기본OFF, 기존 서비스 변경 없음.
