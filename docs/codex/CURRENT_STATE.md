@@ -1,5 +1,7 @@
 # Billing Service 현재 상태
 
+- 2026-10-30 TMI-223 운영 적용: 제품e989949/PR54/main3f41fb9, Actions41040309094 SUCCESS. prod28 OFF 배포 COMPLETED 후 별도 task exit0로 r2 collection2/index7 무중단 설치·control 불변 확인, ALB108 두POST 연결. prod29 추천인true/공유false/종료false/Swaggerfalse, 동일image·그외 설정 불변. 최신 관측 running1/pending0·새 target healthy, 구 target draining·rollout IN_PROGRESS이며 **최종 COMPLETED 재조회는 브라우저 제어 도구 부재로 미완료**. 최종 HTTP 추천인두POST/entitlements401, invite/Swagger404. 실제 두 회원 지급·재시도 E2E 미실행. 서비스 중지/사용자 자료삭제 없음. [운영 기록](../runbooks/PLAN-015-referral-code-rewards.md).
+
 - 2026-10-30 TMI-223 운영 추천인 승격 준비: main 기반 `codex/referral-prod`, 사용자 이번 commit/push/main 병합·무중단 schema·추천인ON/공유OFF 승인. 기존 종료410/replay200·일시중단503 유지. r2 optional unlink 시각/연결정리 후 추가120일·사용자 월간 수동 정리 정책, r1 read 호환·구 unlink 시각 추측 금지. 운영 Swagger 비공개·기존 워크플로 보존. clean test2038/실패0/오류0/skip0, 도구6개 통과·JAR entrypoint 누락설정 거절 확인. 아직 운영 DB/배포/활성화 완료 아님.
 
 <!-- codex-turn:01a1818c-aad2-7f11-8d0a-3f9bf68525b9 -->
