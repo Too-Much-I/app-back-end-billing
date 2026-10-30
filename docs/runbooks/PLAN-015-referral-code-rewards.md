@@ -2,6 +2,16 @@
 
 ## 2026-10-30 운영 승격 승인 (아래 과거 테스트 한정 기록보다 우선)
 
+### 실제 실행 결과
+
+- 제품 `e989949`, PR54 → main `3f41fb9`, Actions41040309094 SUCCESS. main workflow/타운영 기능 보존, 로컬 clean test2038 및 도구6개 통과.
+- prod28 OFF 코드 배포 COMPLETED 후, 별도 task `5e8baefb6f0e4fecb47a8b7e13dab1c7` exit0/`REFERRAL_ONLINE_OK revision=referral-reward-r2 recoveryUnchanged=true mode=install` 확인. 서비스 중지·desired count 감소·control 변경·collMod·삭제 없음.
+- 사용자 exact 경로 승인 후 ALB108에 운영 host+POST 두 경로만 연결. 기존8083 대상 및 JWT·그외404 유지.
+- prod29 같은 이미지 `sha256:fece9986e0d8f4555f0bf23526df9dc6c2414ca736d9c33958a978714c66ca07`로 추천인ON/공유OFF/종료false 적용. 이전 task 전체 설정 비교에서 이 세 flag 외 불변 확인.
+- 최신 관측은 desired/running1·pending0, 새8083 healthy·이전target draining, rollout IN_PROGRESS. 이후 브라우저 도구 부재로 최종 COMPLETED 재조회 미완료. 다음에는 ECS완료·실행task29·앱8083/내부8443 healthy부터 확인한다. 기존 API401·추천인두POST401·invite404·Swagger404 확인은 실제 두 회원 지급E2E를 대신하지 않는다.
+
+### 승인된 범위와 운영 절차
+
 - 사용자 승인: 이번 추천인·종료 오류 변경 commit/push/main 병합 및 운영 활성화. 추천인 ON·공유 OFF·종료 false, 운영 Swagger 비공개. 기존 결제/시험 서비스 중지 금지.
 - 신규 운영 schema는 `referral-reward-r2`: code의 선택 `unlinkedAt`만 추가. r1은 기존 조회/발급/적용에서 계속 검증·사용 가능하나 탈퇴 연결정리는 r2 validator의 명시 이관 전 거절한다. r1 tombstone의 unlink 시각을 추측하거나 자동 삭제하지 않는다.
 - 보존: 성공 적용 후120일 보장, 권위 있는 탈퇴 근거로 연결정보 정리 후 code-only tombstone 추가120일, 다음 월간 점검에서 삭제. 담당자는 사용자 본인. `purgeCodeTombstonesUnderMaintenance`는 제한 건수의 owner/account 없는 코드만 삭제하고 원장/무료권은 보존한다. 이번 배포에서 삭제 작업은 실행하지 않는다. 삭제 후 우연한 코드 재발급 위험은 사용자가 수용했으며 개인정보처리방침 대조는 별도다.
